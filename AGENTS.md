@@ -106,6 +106,12 @@ When working in this repo, Claude Code should:
   /plugin install monty-code-review@diversiotech
   ```
 
+- Install the backend atomic commit plugin:
+
+  ```bash
+  /plugin install backend-atomic-commit@diversiotech
+  ```
+
 - Install the backend PR workflow plugin:
 
   ```bash
@@ -122,6 +128,10 @@ When working in this repo, Claude Code should:
 
 - After installation, you can use:
   - `monty-code-review` for hyper‑pedantic Django4Lyfe backend reviews.
+   - `backend-atomic-commit` for backend pre-commit fixes and strict atomic
+     commits that obey local `AGENTS.md`, `.pre-commit-config.yaml`,
+     `.security/*` helpers, and Monty’s backend taste (no AI commit
+     signatures).
   - `backend-pr-workflow` for backend PR workflow checks (ClickUp-linked
     branch/PR naming, migrations, downtime-safe schema changes).
   - `code-review-digest-writer` to generate weekly code review digests for a

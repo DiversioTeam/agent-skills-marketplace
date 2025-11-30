@@ -29,6 +29,15 @@ claude-plugins/
 │   │   │       └── SKILL.md
 │   │   └── commands/
 │   │       └── check-pr.md            # Slash command entrypoint
+│   ├── backend-atomic-commit/         # Backend pre-commit & atomic-commit plugin
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   ├── skills/
+│   │   │   └── backend-atomic-commit/
+│   │   │       └── SKILL.md
+│   │   └── commands/
+│   │       ├── pre-commit.md
+│   │       └── atomic-commit.md
 │   └── code-review-digest-writer/     # Code review digest generator
 │       ├── .claude-plugin/
 │       │   └── plugin.json
@@ -46,6 +55,7 @@ claude-plugins/
 | Plugin | Description |
 |--------|-------------|
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill |
+| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill that enforces AGENTS.md, pre-commit hooks, .security helpers, and Monty’s backend taste (no AI commit signatures) |
 | `backend-pr-workflow` | Backend PR workflow Skill that enforces ClickUp-linked branch/PR naming, safe migrations, and downtime-safe schema changes |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 
@@ -63,6 +73,9 @@ claude-plugins/
    # Monty backend code review
    /plugin install monty-code-review@diversiotech
 
+   # Backend pre-commit / atomic commit helper
+   /plugin install backend-atomic-commit@diversiotech
+
    # Backend PR workflow (ClickUp + migrations/downtime)
    /plugin install backend-pr-workflow@diversiotech
 
@@ -74,6 +87,8 @@ claude-plugins/
 
    ```text
    /monty-code-review:code-review          # Hyper-pedantic backend code review
+   /backend-atomic-commit:pre-commit       # Actively fix backend files to meet AGENTS/pre-commit/.security standards
+   /backend-atomic-commit:atomic-commit    # Strict atomic commit helper (all gates green, no AI signature)
    /backend-pr-workflow:check-pr           # Backend PR workflow & migrations check
    /code-review-digest-writer:review-digest  # Generate a code review digest
    ```
