@@ -9,6 +9,17 @@
   },
   "plugins": [
     {
+      "name": "code-review-digest-writer",
+      "description": "Generates weekly code review digest docs from PR review comments for any GitHub repo.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/code-review-digest-writer",
+      "category": "documentation",
+      "keywords": ["django", "docs", "code-review", "digest", "diversio"]
+    },
+    {
       "name": "monty-code-review",
       "description": "Hyper-pedantic Django4Lyfe backend code review Skill (Monty's taste).",
       "version": "1.0.2",

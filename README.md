@@ -28,6 +28,7 @@ claude-plugins/
 | Plugin | Description |
 |--------|-------------|
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill |
+| `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 
 ## Installation
 
