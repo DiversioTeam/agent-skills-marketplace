@@ -1,33 +1,53 @@
 # claude-plugins
 
-Claude Code plugins repository for Diversio.
+Claude Code plugins marketplace for Diversio.
 
 ## Overview
 
-This repository contains Claude Code plugins that extend the functionality of Claude Code.
+This repository is a Claude Code marketplace that hosts reusable plugins (primarily Skills) maintained by the Diversio team.
 
-## Plugin Structure
+## Repository Structure
 
 ```
 claude-plugins/
 ├── .claude-plugin/
-│   └── plugin.json          # Plugin manifest
-├── README.md                # Documentation
-└── LICENSE                  # MIT License
+│   └── marketplace.json         # Marketplace definition
+├── plugins/
+│   └── monty-code-review/       # Plugin directory
+│       ├── .claude-plugin/
+│       │   └── plugin.json      # Plugin manifest
+│       └── skills/
+│           └── monty-code-review/
+│               └── SKILL.md     # Skill definition
+├── README.md
+└── LICENSE
 ```
+
+## Available Plugins
+
+| Plugin | Description |
+|--------|-------------|
+| `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill |
 
 ## Installation
 
-To install this plugin, add it to your Claude Code configuration or use the Claude Code marketplace.
+1. Add the marketplace to Claude Code:
 
-## Development
+   ```bash
+   /plugin marketplace add DiversioTeam/claude-plugins
+   ```
 
-This plugin follows the [Claude Code plugins documentation](https://code.claude.com/docs/en/plugins).
+2. Install a plugin from the marketplace:
 
-### Requirements
+   ```bash
+   /plugin install monty-code-review@diversiotech
+   ```
 
-- Claude Code installed locally
-- Basic CLI and JSON knowledge
+## Documentation
+
+- [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
+- [Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
+- [Agent Skills](https://code.claude.com/docs/en/skills)
 
 ## License
 

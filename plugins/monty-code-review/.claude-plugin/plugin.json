@@ -1,0 +1,9 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "monty-code-review",
+  "version": "1.0.0",
+  "description": "Hyper-pedantic Django4Lyfe backend code review Skill (Monty's taste).",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}
