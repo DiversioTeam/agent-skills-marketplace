@@ -92,7 +92,13 @@ When this skill is active and you are asked to review a change or diff, follow t
 
 ## Output Shape, Severity Tags & Markdown File
 
-When producing a full review with this skill, be explicitly pedantic and follow this shape:
+When producing a full review with this skill, you **must** write the review into a Markdown
+file in the target repository (not just respond in chat), using the structure below.
+- If the user specifies a filename or path, respect that.
+- If they do not, choose a clear, descriptive `.md` filename (for example based on the
+  ticket or branch name) and create or update that file with the full review.
+
+Then, within that Markdown file, be explicitly pedantic and follow this shape:
 
 1. Short intro
    - One short paragraph summarizing what the change does and which dimensions you
