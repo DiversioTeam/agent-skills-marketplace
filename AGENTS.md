@@ -37,7 +37,8 @@ When working in this repo, Claude Code should:
      - `AGENTS.md`, `CLAUDE.md`
      - `.claude-plugin/*.json` (marketplace + repo metadata)
      - `plugins/**/.claude-plugin/plugin.json` (per-plugin manifests)
-     - `plugins/**/skills/*/SKILL.md` (skill docs)
+     - `plugins/**/skills/*/SKILL.md` (Skill docs)
+     - `plugins/**/commands/*.md` (plugin slash-command entrypoints that invoke Skills)
      - `README.md` / documentation.
 
 2. **Keep JSON valid and minimal.**
