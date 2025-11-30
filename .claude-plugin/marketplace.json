@@ -40,6 +40,17 @@
       "source": "./plugins/backend-pr-workflow",
       "category": "process",
       "keywords": ["django", "backend", "workflow", "clickup", "migrations", "diversio"]
+    },
+    {
+      "name": "backend-atomic-commit",
+      "description": "Pedantic backend pre-commit and atomic-commit Skill enforcing AGENTS.md, pre-commit hooks, .security/* helpers, and Monty’s backend taste without AI commit signatures.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/backend-atomic-commit",
+      "category": "process",
+      "keywords": ["django", "backend", "pre-commit", "atomic-commit", "optimo", "diversio"]
     }
   ]
 }
