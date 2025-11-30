@@ -33,8 +33,12 @@ most `[NIT]` comments, but keep the same priorities.
 Emulate Monty's backend engineering and review taste as practiced in this repository:
 
 - Business-first, correctness-first: simple, obviously-correct code beats clever abstractions.
+- Complexity is a cost: only accept extra abstraction or machinery when it clearly
+  buys performance, safety, or significantly clearer modeling.
 - Invariants over conditionals: encode company/org/year/quarter, multi-tenant, and
   security rules as hard invariants.
+- Data and behavior must match: multi-tenant and time dimensions are first-class
+  invariants; misaligned or cross-tenant data is “wrong” even if nothing crashes.
 - Local reasoning: a reader should understand behavior from one file/function plus
   its immediate dependencies.
 - Stable contracts: avoid breaking API defaults, shapes, ranges, or file formats
@@ -60,32 +64,49 @@ Never lead with style nits if there are correctness, security, or contract issue
 
 When this skill is active and you are asked to review a change or diff, follow this workflow:
 
-1. Understand the change
-   - Restate in your own words what problem is being solved.
+1. Understand intent and context
+   - Read the PR description, ticket, design doc, or docstrings that explain what
+     the code is supposed to do.
+   - Scan nearby modules/functions to understand existing patterns and helpers that
+     this code should align with.
+   - Note key constraints: input/output expectations (types, ranges, nullability),
+     multi-tenant and time-dimension invariants, performance or scaling constraints.
+
+2. Understand the change
+   - Restate in your own words what problem is being solved and what the desired
+     behavior is.
    - Identify which areas are touched (apps, models, APIs, background jobs, admin,
      Optimo, exports).
    - Classify the change: new feature, bugfix, refactor, performance tweak, migration,
      or chore.
 
-2. Map to priorities
+3. Map to priorities
    - Decide which dimensions matter most for this change (invariants, security,
      contracts, performance, tests).
    - Use the priority order above to decide what to inspect first and how strict to be.
 
-3. Compare code against rules (per file / area)
+4. Compare code against rules (per file / area)
    - For each touched file or logical area:
      - Run through the lenses in the “Per-Lens Micro-Checklist” section.
      - Note both strengths and issues; do not leave an area silent unless truly trivial.
 
-4. Formulate feedback in Monty's style
+5. Check tooling & static analysis
+   - Where possible, run or mentally simulate relevant tooling (e.g., `ruff`, type
+     checkers, and pre-commit hooks) for the changed files.
+   - Treat any violations that indicate correctness, security, or contract issues as
+     at least `[SHOULD_FIX]`, and often `[BLOCKING]`.
+   - Avoid introducing new `# noqa` or similar suppressions unless there is a clear,
+     documented reason.
+
+6. Formulate feedback in Monty's style
    - Be direct but respectful: correctness is non-negotiable, but tone is collaborative.
    - Use specific, actionable comments that point to exact lines/blocks and show how
-     to fix them.
+     to fix them, ideally with concrete code suggestions or minimal diffs.
    - Tie important comments back to principles (e.g., multi-tenant safety, data
      integrity, contract stability).
    - Distinguish between blocking and non-blocking issues with severity tags.
 
-5. Summarize recommendation
+7. Summarize recommendation
    - Give an overall assessment (e.g., “solid idea but correctness issues”, “mostly nits”,
      “needs tests”).
    - State whether you would “approve after nits”, “request changes”, or “approve as-is”.
@@ -215,6 +236,9 @@ When scanning a file or function, run through these lenses:
     least `[SHOULD_FIX]`, and often `[BLOCKING]` unless clearly justified.
   - Treat unclear multi-tenant scoping, ambiguous year/quarter alignment, or silent
     handling of `N/A` / sentinel values as `[BLOCKING]` until proven safe.
+  - Treat the micro-guidelines in this skill (docstrings, EOF newlines, spacing,
+    f-strings, `Decimal` and `timezone.now()`, `transaction.atomic()` usage, etc.)
+    as real expectations, not optional suggestions.
 - Assume there is at least something to nitpick:
   - After correctness, security, contracts, and tests are addressed, actively look
     for style and consistency nits and mark them as `[NIT]`.
@@ -233,10 +257,26 @@ When scanning a file or function, run through these lenses:
 
 When commenting on code, pay particular attention to:
 
+- Multi-tenancy, time dimensions & data integrity:
+  - Always ensure queries and serializers respect tenant boundaries (company/org) and
+    do not accidentally cross tenants.
+  - Check that year/quarter (and similar keys) are aligned across all related rows
+    used together; misalignment is a correctness bug, not just a nit.
+  - Handle `N/A` / sentinel values explicitly in calculations and exports; never let
+    them silently miscompute or crash.
+- APIs, contracts & external integrations:
+  - Preserve existing defaults, ranges, and response shapes unless there is a clear,
+    intentional contract change.
+  - Use consistent status codes and error envelopes across endpoints; avoid one-off
+    response formats.
+  - Treat external systems (Slack, Salesforce, survey providers, etc.) as unreliable:
+    guard against timeouts, malformed responses, and per-row external calls in loops.
 - Python/Django idioms:
   - Prefer truthiness checks over `len(...) != 0`.
   - Use `exists()` when checking if a queryset has any rows.
   - Avoid repeated `.count()` or `.get()` inside loops; store results.
+  - Prefer using Django reverse relations (e.g., `related_name`, `foo_set`) over
+    importing related models solely to traverse relationships.
 - Strings & f-strings:
   - Use f-strings for interpolated strings; don’t use f-strings for constants.
   - Prefer `", ".join(items)` over dumping list representations in logs.
@@ -250,19 +290,63 @@ When commenting on code, pay particular attention to:
   - Avoid commented-out code; if behavior is obsolete, delete it rather than
     commenting it.
 - Imports:
-  - Keep imports at module top unless a circular import forces otherwise.
+  - Keep imports at module top; do not introduce local (function-level) imports as a
+    workaround for circular dependencies.
+  - When you encounter or suspect circular imports, propose refactors that tease apart
+    shared concerns into separate modules or move types into dedicated typing modules,
+    rather than using local imports.
   - Group as standard library → third-party → local, and avoid unused imports.
+- Dynamic attributes & introspection:
+  - Prefer direct attribute access over `getattr()`/`hasattr()` when the attribute is
+    part of the normal object interface.
+  - Use `getattr()`/`hasattr()` only when truly needed (for generic code or optional
+    attributes), and avoid “just in case” usage that hides real bugs.
+- Security & privacy:
+  - Apply least-privilege principles in serializers, views, and exports; only expose
+    fields that are actually needed.
+  - Centralize permission checks and audit logging via existing helpers/mixins instead
+    of ad-hoc `if user.is_superuser` checks.
+  - Avoid logging secrets or sensitive PII; log stable identifiers or redacted values
+    instead.
 - Exceptions & logging:
   - Prefer specific exceptions over bare `except Exception`.
+  - Keep `try` blocks as small as possible; avoid large, catch-all regions that make it
+    hard to see what can actually fail.
   - Avoid swallowing exceptions silently; log or re-raise with context where
     appropriate.
   - Log structured, actionable messages; avoid leaking secrets or PII.
+  - In `optimo_*` apps, prefer structured logging helpers and typed payloads over
+    ad-hoc string logging; avoid hard-coded magic strings and numbers in log records.
 - Time & decimals:
   - Prefer `timezone.now()` over `datetime.now()` in Django code.
   - Use `DecimalField` and `Decimal("…")` for scores, percentages, and money;
     avoid `float` unless there is a documented, compelling reason.
   - Guard `N/A` / sentinel values before numeric operations; do not let them crash
     or silently miscompute.
+- Types & type hints:
+  - Be pedantic about type hints: prefer precise, informative annotations over `Any`
+    wherever possible.
+  - Avoid string-based type hints (e.g., `"OptimoRiskQuestionBank"`); arrange imports
+    and module structure so real types can be referenced directly.
+  - Use `TypedDict`, dataclasses, or well-typed value objects instead of `dict[str, Any]`
+    or dictionaries used with many different shapes.
+  - When a type truly must be more flexible, explain why in a short comment rather
+    than silently falling back to `Any`.
+- Tests:
+  - Expect new or changed behavior to be covered by tests, especially around
+    multi-tenant scoping, time dimensions, and edge cases like `N/A` / zero /
+    maximum values.
+  - Prefer realistic fixtures/factories over toy one-off objects; tests should
+    resemble production scenarios where practical.
+  - Avoid repeating essentially identical fixtures across test modules; instead,
+    centralize them in shared fixtures or factories.
+  - Call out missing regression tests explicitly when reviewing bugfixes.
+- Tooling & search:
+  - Aim for “ruff-clean” code by default; do not introduce new lint violations, and
+    remove existing ones when practical.
+  - When helpful and available, use tools like `ast-grep` (via the `Bash` tool) to
+    search for problematic patterns such as string-based type hints, overly broad
+    `try`/`except` blocks, or repeated `getattr()` usage.
 
 ## Examples
 
