@@ -1,13 +1,11 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "diversiotech",
+  "version": "0.1.0",
+  "description": "Claude Code plugins curated by Diversio (internal/team-focused tools).",
   "owner": {
     "name": "Diversio",
     "email": "tech@diversio.com"
-  },
-  "metadata": {
-    "description": "Claude Code plugins curated by Diversio (internal/team-focused tools).",
-    "version": "0.1.0"
   },
   "plugins": [
     {
@@ -19,7 +17,7 @@
       },
       "source": "./plugins/monty-code-review",
       "category": "code-analysis",
-      "tags": ["django", "backend", "code-review", "optimo", "diversio"]
+      "keywords": ["django", "backend", "code-review", "optimo", "diversio"]
     }
   ]
 }
