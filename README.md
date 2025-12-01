@@ -47,6 +47,7 @@ claude-plugins/
 │       └── commands/
 │           └── review-digest.md       # Slash command entrypoint
 ├── README.md
+├── CONTRIBUTING.md
 └── LICENSE
 ```
 
