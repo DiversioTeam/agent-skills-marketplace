@@ -18,7 +18,7 @@ Do everything the `/backend-atomic-commit:pre-commit` command would do, plus:
   - Pre-commit hooks
 - Propose a commit message that:
   - Extracts the ticket ID from the branch name using local `AGENTS.md`
-    conventions (e.g. `clickup_<ticket_id>_...` → `#<ticket_id>: Description`).
+    conventions (e.g. `clickup_<ticket_id>_...` → `<ticket_id>: Description`).
   - Contains **no** Claude/AI/plugin signature or footer.
 
 Your output should clearly state whether the commit is ready:
