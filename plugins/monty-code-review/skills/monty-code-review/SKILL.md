@@ -232,6 +232,8 @@ When scanning a file or function, run through these lenses:
    - Are there tests covering new behavior, edge cases, and regression paths?
    - Do tests use factories/fixtures rather than hand-rolled graphs where possible?
    - Do tests reflect multi-tenant and time-dimension scenarios where relevant?
+   - **Exception:** Django migration files (`*/migrations/*.py`) do not require tests;
+     focus test coverage on the models and business logic they represent instead.
 
 9. Migrations & schema changes
    - Does the PR include Django model or migration changes? If so:

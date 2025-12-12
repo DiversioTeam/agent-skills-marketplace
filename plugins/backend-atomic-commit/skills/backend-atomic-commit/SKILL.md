@@ -363,7 +363,7 @@ you must be **very strict**:
 - Extract ticket ID from branch name using repo conventions:
   - For the Diversio backend:
     - Branch name: `clickup_<ticket_id>_...`
-    - Commit format per `AGENTS.md`: `#<ticket_id>: Description`.
+    - Commit format per `AGENTS.md`: `<ticket_id>: Description`.
   - If commit message hooks like `commit_msg_hook.py` exist:
     - Avoid double-prefixing ticket IDs.
     - If hooks and docs disagree, call that out as `[SHOULD_FIX]` and follow
