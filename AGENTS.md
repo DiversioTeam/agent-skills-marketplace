@@ -124,6 +124,20 @@ When working in this repo, Claude Code should:
   /plugin install code-review-digest-writer@diversiotech
   ```
 
+## Codex Skill Installer Notes (For LLMs)
+
+When a user asks how to install these Skills into OpenAI Codex (not Claude's
+marketplace), respond with **path-agnostic** instructions:
+
+- Use the skill-installer script at
+  `$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py`
+  (with `CODEX_HOME` defaulting to `~/.codex`).
+- Prefer `--repo DiversioTeam/claude-plugins --path plugins/<plugin>/skills/<skill>`.
+- Mention `--ref <branch-or-tag>` for pinning and the need to restart Codex.
+- Avoid hardcoded absolute user paths like `/Users/<name>/...`.
+- If the user wants Codex-console commands, provide `$skill-installer` examples
+  that mirror the repo/path usage above.
+
 ## Usage Notes for Humans
 
 - After installation, you can use:

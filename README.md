@@ -94,6 +94,53 @@ claude-plugins/
    /code-review-digest-writer:review-digest  # Generate a code review digest
    ```
 
+## Install As Codex Skills (Path-Agnostic)
+
+Codex can install these Skills directly from GitHub (separate from Claude's
+marketplace). Use the skill-installer script and avoid hardcoded user paths:
+
+```bash
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+
+python "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo DiversioTeam/claude-plugins \
+  --path plugins/monty-code-review/skills/monty-code-review
+```
+
+You can also invoke the installer from the Codex console:
+
+```text
+$skill-installer install from github repo=DiversioTeam/claude-plugins path=plugins/monty-code-review/skills/monty-code-review
+```
+
+Install multiple Skills in one run:
+
+```bash
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+
+python "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo DiversioTeam/claude-plugins \
+  --path plugins/monty-code-review/skills/monty-code-review \
+  --path plugins/backend-atomic-commit/skills/backend-atomic-commit \
+  --path plugins/backend-pr-workflow/skills/backend-pr-workflow \
+  --path plugins/code-review-digest-writer/skills/code-review-digest-writer
+```
+
+Codex console multi-install example:
+
+```text
+$skill-installer install from github repo=DiversioTeam/claude-plugins \
+  path=plugins/monty-code-review/skills/monty-code-review \
+  path=plugins/backend-atomic-commit/skills/backend-atomic-commit \
+  path=plugins/backend-pr-workflow/skills/backend-pr-workflow \
+  path=plugins/code-review-digest-writer/skills/code-review-digest-writer
+```
+
+Notes:
+- Add `--ref <branch-or-tag>` to pin a version.
+- Codex installs Skills into `$CODEX_HOME/skills` (default `~/.codex/skills`).
+- Restart Codex after installing Skills.
+
 ## Documentation
 
 - [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
