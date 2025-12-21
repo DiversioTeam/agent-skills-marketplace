@@ -51,6 +51,17 @@
       "source": "./plugins/backend-atomic-commit",
       "category": "process",
       "keywords": ["django", "backend", "pre-commit", "atomic-commit", "optimo", "diversio"]
+    },
+    {
+      "name": "bruno-api",
+      "description": "Comprehensive API documentation generator from Bruno (.bru) files that maps endpoints to Django4Lyfe implementations (DRF/Django Ninja).",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/bruno-api",
+      "category": "documentation",
+      "keywords": ["django", "api", "docs", "bruno", "drf", "ninja", "diversio"]
     }
   ]
 }

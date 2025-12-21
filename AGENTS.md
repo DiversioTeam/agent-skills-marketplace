@@ -21,9 +21,15 @@ Key layout:
   - `monty-code-review/`
     - `.claude-plugin/plugin.json` – plugin manifest for `monty-code-review`.
     - `skills/monty-code-review/SKILL.md` – the Monty backend code review Skill.
+  - `backend-atomic-commit/`
+    - `.claude-plugin/plugin.json` – plugin manifest for backend pre-commit / atomic commit.
+    - `skills/backend-atomic-commit/SKILL.md` – backend atomic commit Skill.
   - `backend-pr-workflow/`
     - `.claude-plugin/plugin.json` – plugin manifest for backend PR workflow checks.
     - `skills/backend-pr-workflow/SKILL.md` – backend PR workflow Skill.
+  - `bruno-api/`
+    - `.claude-plugin/plugin.json` – plugin manifest for Bruno API docs generator.
+    - `skills/bruno-api/SKILL.md` – Bruno API documentation Skill.
   - `code-review-digest-writer/`
     - `.claude-plugin/plugin.json` – plugin manifest for code review digests.
     - `skills/code-review-digest-writer/SKILL.md` – code review digest writer Skill.
@@ -119,6 +125,12 @@ When working in this repo, Claude Code should:
   /plugin install backend-pr-workflow@diversiotech
   ```
 
+- Install the Bruno API docs plugin:
+
+  ```bash
+  /plugin install bruno-api@diversiotech
+  ```
+
 - Install the code review digest writer plugin:
 
   ```bash
@@ -149,6 +161,8 @@ marketplace), respond with instructions that avoid hardcoded paths:
      signatures).
   - `backend-pr-workflow` for backend PR workflow checks (ClickUp-linked
     branch/PR naming, migrations, downtime-safe schema changes).
+  - `bruno-api` to generate API endpoint documentation from Bruno (`.bru`)
+    files by tracing the corresponding Django4Lyfe implementation.
   - `code-review-digest-writer` to generate weekly code review digests for a
     repo based on PR review comments.
 

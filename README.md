@@ -89,6 +89,7 @@ agent-skills-marketplace/
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill that enforces AGENTS.md, pre-commit hooks, .security helpers, and Monty’s backend taste (no AI commit signatures) |
 | `backend-pr-workflow` | Backend PR workflow Skill that enforces ClickUp-linked branch/PR naming, safe migrations, and downtime-safe schema changes |
+| `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 
 ## Installation
@@ -111,6 +112,9 @@ agent-skills-marketplace/
    # Backend PR workflow (ClickUp + migrations/downtime)
    /plugin install backend-pr-workflow@diversiotech
 
+   # Bruno API docs generator (.bru -> Django endpoint docs)
+   /plugin install bruno-api@diversiotech
+
    # Code review digest writer
    /plugin install code-review-digest-writer@diversiotech
    ```
@@ -122,6 +126,7 @@ agent-skills-marketplace/
    /backend-atomic-commit:pre-commit       # Actively fix backend files to meet AGENTS/pre-commit/.security standards
    /backend-atomic-commit:atomic-commit    # Strict atomic commit helper (all gates green, no AI signature)
    /backend-pr-workflow:check-pr           # Backend PR workflow & migrations check
+   /bruno-api:docs                         # Generate endpoint docs from Bruno (.bru) files
    /code-review-digest-writer:review-digest  # Generate a code review digest
    ```
 
