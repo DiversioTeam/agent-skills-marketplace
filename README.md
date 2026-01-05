@@ -45,46 +45,45 @@ agent-skills-marketplace/
 │   └── marketplace.json               # Marketplace definition
 ├── plugins/
 │   ├── monty-code-review/             # Monty backend code review plugin
-│   │   ├── .claude-plugin/
-│   │   │   └── plugin.json            # Plugin manifest
-│   │   ├── skills/
-│   │   │   └── monty-code-review/
-│   │   │       └── SKILL.md           # Skill definition
-│   │   └── commands/
-│   │       └── code-review.md         # Slash command entrypoint
-│   ├── backend-pr-workflow/           # Backend PR workflow plugin
-│   │   ├── .claude-plugin/
-│   │   │   └── plugin.json
-│   │   ├── skills/
-│   │   │   └── backend-pr-workflow/
-│   │   │       └── SKILL.md
-│   │   └── commands/
-│   │       └── check-pr.md            # Slash command entrypoint
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/monty-code-review/SKILL.md
+│   │   └── commands/code-review.md
 │   ├── backend-atomic-commit/         # Backend pre-commit & atomic-commit plugin
-│   │   ├── .claude-plugin/
-│   │   │   └── plugin.json
-│   │   ├── skills/
-│   │   │   └── backend-atomic-commit/
-│   │   │       └── SKILL.md
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/backend-atomic-commit/SKILL.md
 │   │   └── commands/
 │   │       ├── pre-commit.md
 │   │       └── atomic-commit.md
+│   ├── backend-pr-workflow/           # Backend PR workflow plugin
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/backend-pr-workflow/SKILL.md
+│   │   └── commands/check-pr.md
+│   ├── bruno-api/                     # Bruno API docs generator
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/bruno-api/SKILL.md
+│   │   └── commands/docs.md
 │   ├── code-review-digest-writer/     # Code review digest generator
-│   │   ├── .claude-plugin/
-│   │   │   └── plugin.json
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/code-review-digest-writer/SKILL.md
+│   │   └── commands/review-digest.md
+│   ├── plan-directory/                # Structured plan directories + RALPH loop
+│   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/
-│   │   │   └── code-review-digest-writer/
-│   │   │       └── SKILL.md
+│   │   │   ├── plan-directory/SKILL.md
+│   │   │   └── backend-ralph-plan/    # RALPH loop integration
+│   │   │       ├── SKILL.md
+│   │   │       ├── references/
+│   │   │       └── examples/
 │   │   └── commands/
-│   │       └── review-digest.md       # Slash command entrypoint
+│   │       ├── plan.md
+│   │       ├── backend-ralph-plan.md
+│   │       └── run.md                 # Execute RALPH plans
 │   └── pr-description-writer/         # PR description generator
-│       ├── .claude-plugin/
-│       │   └── plugin.json
-│       ├── skills/
-│       │   └── pr-description-writer/
-│       │       └── SKILL.md
-│       └── commands/
-│           └── write-pr.md            # Slash command entrypoint
+│       ├── .claude-plugin/plugin.json
+│       ├── skills/pr-description-writer/SKILL.md
+│       └── commands/write-pr.md
+├── AGENTS.md                          # Source of truth for Claude Code behavior
+├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
 ├── CONTRIBUTING.md
 └── LICENSE
@@ -99,6 +98,7 @@ agent-skills-marketplace/
 | `backend-pr-workflow` | Backend PR workflow Skill that enforces ClickUp-linked branch/PR naming, safe migrations, and downtime-safe schema changes |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
+| `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
 | `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
 
 ## Installation
@@ -127,6 +127,9 @@ agent-skills-marketplace/
    # Code review digest writer
    /plugin install code-review-digest-writer@diversiotech
 
+   # Plan directory with RALPH loop integration
+   /plugin install plan-directory@diversiotech
+
    # PR description writer
    /plugin install pr-description-writer@diversiotech
    ```
@@ -134,13 +137,16 @@ agent-skills-marketplace/
 3. Use plugin-provided slash commands (once plugins are installed):
 
    ```text
-   /monty-code-review:code-review          # Hyper-pedantic backend code review
-   /backend-atomic-commit:pre-commit       # Actively fix backend files to meet AGENTS/pre-commit/.security standards
-   /backend-atomic-commit:atomic-commit    # Strict atomic commit helper (all gates green, no AI signature)
-   /backend-pr-workflow:check-pr           # Backend PR workflow & migrations check
-   /bruno-api:docs                         # Generate endpoint docs from Bruno (.bru) files
+   /monty-code-review:code-review            # Hyper-pedantic backend code review
+   /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
+   /backend-atomic-commit:atomic-commit      # Strict atomic commit helper (all gates green, no AI signature)
+   /backend-pr-workflow:check-pr             # Backend PR workflow & migrations check
+   /bruno-api:docs                           # Generate endpoint docs from Bruno (.bru) files
    /code-review-digest-writer:review-digest  # Generate a code review digest
-   /pr-description-writer:write-pr          # Generate a comprehensive PR description
+   /plan-directory:plan                      # Create structured plan directory with PLAN.md
+   /plan-directory:backend-ralph-plan        # Create RALPH loop-integrated plan for backend
+   /plan-directory:run <slug>                # Execute a RALPH plan via ralph-wiggum loop
+   /pr-description-writer:write-pr           # Generate a comprehensive PR description
    ```
 
 ## Install As Codex Skills
@@ -172,7 +178,10 @@ python "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-gi
   --path plugins/monty-code-review/skills/monty-code-review \
   --path plugins/backend-atomic-commit/skills/backend-atomic-commit \
   --path plugins/backend-pr-workflow/skills/backend-pr-workflow \
+  --path plugins/bruno-api/skills/bruno-api \
   --path plugins/code-review-digest-writer/skills/code-review-digest-writer \
+  --path plugins/plan-directory/skills/plan-directory \
+  --path plugins/plan-directory/skills/backend-ralph-plan \
   --path plugins/pr-description-writer/skills/pr-description-writer
 ```
 
@@ -183,7 +192,10 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/monty-code-review/skills/monty-code-review \
   path=plugins/backend-atomic-commit/skills/backend-atomic-commit \
   path=plugins/backend-pr-workflow/skills/backend-pr-workflow \
+  path=plugins/bruno-api/skills/bruno-api \
   path=plugins/code-review-digest-writer/skills/code-review-digest-writer \
+  path=plugins/plan-directory/skills/plan-directory \
+  path=plugins/plan-directory/skills/backend-ralph-plan \
   path=plugins/pr-description-writer/skills/pr-description-writer
 ```
 

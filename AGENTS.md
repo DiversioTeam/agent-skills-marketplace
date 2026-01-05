@@ -36,6 +36,10 @@ Key layout:
   - `plan-directory/`
     - `.claude-plugin/plugin.json` – plugin manifest for structured plan directories.
     - `skills/plan-directory/SKILL.md` – plan directory creation and maintenance Skill.
+    - `skills/backend-ralph-plan/SKILL.md` – RALPH loop integration for backend Django.
+  - `pr-description-writer/`
+    - `.claude-plugin/plugin.json` – plugin manifest for PR descriptions.
+    - `skills/pr-description-writer/SKILL.md` – PR description generator Skill.
 
 ## How Claude Code Should Behave Here
 
@@ -146,6 +150,12 @@ When working in this repo, Claude Code should:
   /plugin install plan-directory@diversiotech
   ```
 
+- Install the PR description writer plugin:
+
+  ```bash
+  /plugin install pr-description-writer@diversiotech
+  ```
+
 ## Codex Skill Installer Notes (For LLMs)
 
 When a user asks how to install these Skills into OpenAI Codex (not Claude's
@@ -166,7 +176,7 @@ marketplace), respond with instructions that avoid hardcoded paths:
   - `monty-code-review` for hyper‑pedantic Django4Lyfe backend reviews.
   - `backend-atomic-commit` for backend pre-commit fixes and strict atomic
      commits that obey local `AGENTS.md`, `.pre-commit-config.yaml`,
-     `.security/*` helpers, and Monty’s backend taste (no AI commit
+     `.security/*` helpers, and Monty's backend taste (no AI commit
      signatures).
   - `backend-pr-workflow` for backend PR workflow checks (ClickUp-linked
     branch/PR naming, migrations, downtime-safe schema changes).
@@ -177,6 +187,11 @@ marketplace), respond with instructions that avoid hardcoded paths:
   - `plan-directory` to create and maintain structured plan directories with
     a master PLAN.md index and numbered task files (001-*.md) containing
     checklists, tests, and completion criteria.
+  - `backend-ralph-plan` to create RALPH loop-integrated plans for backend
+    Django projects with iteration-aware prompts, quality gates, and
+    automated execution via `/plan-directory:run <slug>`.
+  - `pr-description-writer` to generate comprehensive, reviewer-friendly PR
+    descriptions with visual diagrams, summary tables, and structured sections.
 
 ## References
 
