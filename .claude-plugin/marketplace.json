@@ -84,6 +84,17 @@
       "source": "./plugins/pr-description-writer",
       "category": "documentation",
       "keywords": ["github", "pull-request", "documentation", "workflow", "diversio"]
+    },
+    {
+      "name": "mixpanel-analytics",
+      "description": "MixPanel analytics tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/mixpanel-analytics",
+      "category": "code-analysis",
+      "keywords": ["django", "mixpanel", "analytics", "optimo", "tracking", "diversio"]
     }
   ]
 }

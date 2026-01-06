@@ -78,10 +78,16 @@ agent-skills-marketplace/
 │   │       ├── plan.md
 │   │       ├── backend-ralph-plan.md
 │   │       └── run.md                 # Execute RALPH plans
-│   └── pr-description-writer/         # PR description generator
+│   ├── pr-description-writer/         # PR description generator
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/pr-description-writer/SKILL.md
+│   │   └── commands/write-pr.md
+│   └── mixpanel-analytics/            # MixPanel tracking implementation & review
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/pr-description-writer/SKILL.md
-│       └── commands/write-pr.md
+│       ├── skills/mixpanel-analytics/SKILL.md
+│       └── commands/
+│           ├── implement.md
+│           └── review.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -100,6 +106,7 @@ agent-skills-marketplace/
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
 | `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
+| `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 
 ## Installation
 
@@ -132,6 +139,9 @@ agent-skills-marketplace/
 
    # PR description writer
    /plugin install pr-description-writer@diversiotech
+
+   # MixPanel analytics (implement and review tracking events)
+   /plugin install mixpanel-analytics@diversiotech
    ```
 
 3. Use plugin-provided slash commands (once plugins are installed):
@@ -147,6 +157,8 @@ agent-skills-marketplace/
    /plan-directory:backend-ralph-plan        # Create RALPH loop-integrated plan for backend
    /plan-directory:run <slug>                # Execute a RALPH plan via ralph-wiggum loop
    /pr-description-writer:write-pr           # Generate a comprehensive PR description
+   /mixpanel-analytics:implement             # Implement new MixPanel tracking events
+   /mixpanel-analytics:review                # Review MixPanel implementations for compliance
    ```
 
 ## Install As Codex Skills
@@ -182,7 +194,8 @@ python "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-gi
   --path plugins/code-review-digest-writer/skills/code-review-digest-writer \
   --path plugins/plan-directory/skills/plan-directory \
   --path plugins/plan-directory/skills/backend-ralph-plan \
-  --path plugins/pr-description-writer/skills/pr-description-writer
+  --path plugins/pr-description-writer/skills/pr-description-writer \
+  --path plugins/mixpanel-analytics/skills/mixpanel-analytics
 ```
 
 Codex console multi-install example:
@@ -196,7 +209,8 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/code-review-digest-writer/skills/code-review-digest-writer \
   path=plugins/plan-directory/skills/plan-directory \
   path=plugins/plan-directory/skills/backend-ralph-plan \
-  path=plugins/pr-description-writer/skills/pr-description-writer
+  path=plugins/pr-description-writer/skills/pr-description-writer \
+  path=plugins/mixpanel-analytics/skills/mixpanel-analytics
 ```
 
 Notes:

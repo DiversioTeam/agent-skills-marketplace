@@ -40,6 +40,9 @@ Key layout:
   - `pr-description-writer/`
     - `.claude-plugin/plugin.json` – plugin manifest for PR descriptions.
     - `skills/pr-description-writer/SKILL.md` – PR description generator Skill.
+  - `mixpanel-analytics/`
+    - `.claude-plugin/plugin.json` – plugin manifest for MixPanel analytics.
+    - `skills/mixpanel-analytics/SKILL.md` – MixPanel tracking implementation and review Skill.
 
 ## How Claude Code Should Behave Here
 
@@ -156,6 +159,12 @@ When working in this repo, Claude Code should:
   /plugin install pr-description-writer@diversiotech
   ```
 
+- Install the MixPanel analytics plugin:
+
+  ```bash
+  /plugin install mixpanel-analytics@diversiotech
+  ```
+
 ## Codex Skill Installer Notes (For LLMs)
 
 When a user asks how to install these Skills into OpenAI Codex (not Claude's
@@ -192,6 +201,9 @@ marketplace), respond with instructions that avoid hardcoded paths:
     automated execution via `/plan-directory:run <slug>`.
   - `pr-description-writer` to generate comprehensive, reviewer-friendly PR
     descriptions with visual diagrams, summary tables, and structured sections.
+  - `mixpanel-analytics` to implement new MixPanel tracking events and review
+    implementations for PII protection, schema design, and pattern compliance
+    in the Django4Lyfe optimo_analytics module.
 
 ## References
 
