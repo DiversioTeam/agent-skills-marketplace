@@ -82,6 +82,10 @@ agent-skills-marketplace/
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/pr-description-writer/SKILL.md
 │   │   └── commands/write-pr.md
+│   ├── process-code-review/           # Code review processor (fix/skip issues)
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/process-code-review/SKILL.md
+│   │   └── commands/process-review.md
 │   └── mixpanel-analytics/            # MixPanel tracking implementation & review
 │       ├── .claude-plugin/plugin.json
 │       ├── skills/mixpanel-analytics/SKILL.md
@@ -106,6 +110,7 @@ agent-skills-marketplace/
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
 | `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
+| `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 
 ## Installation
@@ -140,6 +145,9 @@ agent-skills-marketplace/
    # PR description writer
    /plugin install pr-description-writer@diversiotech
 
+   # Code review processor (fix/skip issues from monty-code-review)
+   /plugin install process-code-review@diversiotech
+
    # MixPanel analytics (implement and review tracking events)
    /plugin install mixpanel-analytics@diversiotech
    ```
@@ -157,6 +165,7 @@ agent-skills-marketplace/
    /plan-directory:backend-ralph-plan        # Create RALPH loop-integrated plan for backend
    /plan-directory:run <slug>                # Execute a RALPH plan via ralph-wiggum loop
    /pr-description-writer:write-pr           # Generate a comprehensive PR description
+   /process-code-review:process-review       # Process code review findings (fix/skip issues)
    /mixpanel-analytics:implement             # Implement new MixPanel tracking events
    /mixpanel-analytics:review                # Review MixPanel implementations for compliance
    ```
@@ -195,6 +204,7 @@ python "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-gi
   --path plugins/plan-directory/skills/plan-directory \
   --path plugins/plan-directory/skills/backend-ralph-plan \
   --path plugins/pr-description-writer/skills/pr-description-writer \
+  --path plugins/process-code-review/skills/process-code-review \
   --path plugins/mixpanel-analytics/skills/mixpanel-analytics
 ```
 
@@ -210,6 +220,7 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/plan-directory/skills/plan-directory \
   path=plugins/plan-directory/skills/backend-ralph-plan \
   path=plugins/pr-description-writer/skills/pr-description-writer \
+  path=plugins/process-code-review/skills/process-code-review \
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics
 ```
 

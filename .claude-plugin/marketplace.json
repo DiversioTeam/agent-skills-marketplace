@@ -86,6 +86,17 @@
       "keywords": ["github", "pull-request", "documentation", "workflow", "diversio"]
     },
     {
+      "name": "process-code-review",
+      "description": "Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking.",
+      "version": "0.1.1",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/process-code-review",
+      "category": "code-analysis",
+      "keywords": ["django", "backend", "code-review", "workflow", "diversio"]
+    },
+    {
       "name": "mixpanel-analytics",
       "description": "MixPanel analytics tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement.",
       "version": "0.1.1",

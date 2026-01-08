@@ -40,6 +40,9 @@ Key layout:
   - `pr-description-writer/`
     - `.claude-plugin/plugin.json` – plugin manifest for PR descriptions.
     - `skills/pr-description-writer/SKILL.md` – PR description generator Skill.
+  - `process-code-review/`
+    - `.claude-plugin/plugin.json` – plugin manifest for code review processor.
+    - `skills/process-code-review/SKILL.md` – process code review findings Skill.
   - `mixpanel-analytics/`
     - `.claude-plugin/plugin.json` – plugin manifest for MixPanel analytics.
     - `skills/mixpanel-analytics/SKILL.md` – MixPanel tracking implementation and review Skill.
@@ -71,7 +74,7 @@ When working in this repo, Claude Code should:
      - For new plugins, start at `0.1.0` (or similar) and add a matching entry
        in `marketplace.json`.
 
-   - **CLAUDE.md best practice:** Follow Claude Code’s guidance for web-based
+   - **CLAUDE.md best practice:** Follow Claude Code's guidance for web-based
      repos (see
      `https://docs.claude.com/en/docs/claude-code/claude-code-on-the-web#best-practices`):
      - Keep requirements and commands defined in a single source of truth
@@ -89,7 +92,7 @@ When working in this repo, Claude Code should:
    - For every Skill, add at least one corresponding **plugin slash command**
      under `plugins/<plugin>/commands/*.md` that invokes the Skill (thin
      wrapper that references the Skill by name). This ensures the plugin
-     appears as a `/plugin-name:command` entry in Claude Code’s slash command
+     appears as a `/plugin-name:command` entry in Claude Code's slash command
      palette.
 
 4. **Follow existing naming and structure.**
@@ -159,6 +162,12 @@ When working in this repo, Claude Code should:
   /plugin install pr-description-writer@diversiotech
   ```
 
+- Install the code review processor plugin:
+
+  ```bash
+  /plugin install process-code-review@diversiotech
+  ```
+
 - Install the MixPanel analytics plugin:
 
   ```bash
@@ -201,6 +210,8 @@ marketplace), respond with instructions that avoid hardcoded paths:
     automated execution via `/plan-directory:run <slug>`.
   - `pr-description-writer` to generate comprehensive, reviewer-friendly PR
     descriptions with visual diagrams, summary tables, and structured sections.
+  - `process-code-review` to interactively process code review findings from
+    monty-code-review output - fix or skip issues with status tracking.
   - `mixpanel-analytics` to implement new MixPanel tracking events and review
     implementations for PII protection, schema design, and pattern compliance
     in the Django4Lyfe optimo_analytics module.
