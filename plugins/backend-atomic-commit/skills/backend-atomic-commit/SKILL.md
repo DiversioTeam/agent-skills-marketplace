@@ -144,8 +144,13 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
 2. **Static formatting/linting**
    - Ruff:
      - Run `./.security/ruff_pr_diff.sh` if present.
-     - Run `.bin/ruff` / `ruff check` on changed Python files.
-     - Run `ruff format` / `.bin/ruff format` on those files.
+     - Run `.bin/ruff check --fix` on changed Python files.
+     - Run `.bin/ruff format` on those files.
+   - **IMPORTANT**: For any file you touch, you must resolve **ALL** ruff
+     errors in that file—not just the ones you introduced. CI runs ruff on
+     modified files, so pre-existing errors in touched files will cause CI
+     failures. Do **not** dismiss errors as "pre-existing" if the file is in
+     your diff.
    - Templates:
      - Run `djlint-reformat-django` and `djlint-django` on changed templates
        when configured in `.pre-commit-config.yaml`.
@@ -160,9 +165,28 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
    - Treat failures as at least `[SHOULD_FIX]` and usually `[BLOCKING]` for
      `atomic-commit`.
 
-4. **Type/system checks**
-   - Run `.bin/ty` or `./ty_checks.py` for type checking (respecting any
-     documented baseline, but treating **new** issues seriously).
+4. **Type checking with ty**
+   - Run `ty` on **modified Python files only** to catch type errors before CI:
+     ```bash
+     # For staged files (atomic-commit mode):
+     .bin/ty check $(git diff --cached --name-only --diff-filter=ACMR | grep '\.py$')
+
+     # For all modified files (pre-commit mode):
+     .bin/ty check $(git diff --name-only --diff-filter=ACMR | grep '\.py$')
+     ```
+   - This scoped approach avoids triggering baseline errors in **unmodified**
+     files while matching CircleCI's `ty` check behavior.
+   - **IMPORTANT**: For any file you touch, you must resolve **ALL** `ty` errors
+     in that file—not just the ones you introduced. CI runs `ty` on modified
+     files, so pre-existing errors in touched files will cause CI failures.
+     Do **not** dismiss errors as "pre-existing" if the file is in your diff.
+   - Common pitfall: Fixing ruff ARG002 (unused argument) by prefixing with `_`
+     may satisfy ruff but break `ty` if the method signature must match a parent
+     class (e.g., Django admin methods). Always run both checks together.
+   - Treat **any** `ty` errors in modified files as `[BLOCKING]` for
+     `atomic-commit` mode or `[SHOULD_FIX]` for `pre-commit` mode.
+
+5. **Django system checks**
    - Run `.bin/django check` or equivalent:
      - `uv run python manage.py check --fail-level WARNING`.
    - For risky changes (models, migrations, core logic), run **targeted**
@@ -172,7 +196,7 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
      “tests not run” as at least `[SHOULD_FIX]` and often `[BLOCKING]` for
      `atomic-commit`.
 
-5. **Interaction with pre-commit hooks**
+6. **Interaction with pre-commit hooks**
    - If `.pre-commit-config.yaml` exists:
      - Expect hooks to run and modify files (ruff, djlint, interrogate,
        custom scripts).
@@ -348,8 +372,8 @@ you must be **very strict**:
    - The commit is **not** ready if any of these fail:
      - `./.security/ruff_pr_diff.sh`
      - `./.security/local_imports_pr_diff.sh`
-     - `.bin/ruff` / `ruff format`
-     - `.bin/ty` / `./ty_checks.py`
+     - `.bin/ruff check` / `ruff format`
+     - `.bin/ty check <staged_python_files>` (scoped to modified files only)
      - `.bin/django check` / `manage.py check`
      - Relevant `pytest` subsets for risky changes
      - Pre-commit hooks defined in `.pre-commit-config.yaml`

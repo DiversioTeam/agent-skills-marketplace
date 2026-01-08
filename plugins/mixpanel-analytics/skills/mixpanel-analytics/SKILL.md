@@ -209,8 +209,13 @@ class OptimoMixpanel{Domain}TrackHelper:
             # ... event-specific fields ...
         )
 
+        # distinct_id fallback hierarchy:
+        # 1. User's UUID (primary)
+        # 2. org_<organization_uuid> (fallback when no user)
+        # 3. Context-specific: slack_<id>, apikey_<id>, webhook_<id>
+        distinct_id = employee_id  # or f"org_{org_uuid}" if no user
         OptimoMixpanelService.track_event(
-            distinct_id=employee_id,
+            distinct_id=distinct_id,
             event_name=MixPanelEvent.NEW_EVENT_NAME,
             properties=properties,
         )
@@ -385,6 +390,40 @@ required (enforced by `validate_cron_properties`).
 - Enums: Use `SystemRole | None`, etc.
 - Lists: `list[str]` for UUID lists
 
+### Optional Values for String Fields
+
+**NEVER override base schema fields as Optional** to handle `None` values. Instead:
+
+- For `str` fields that might have no value, pass **empty string** `""`
+- Do NOT duplicate `organization_id`, `organization_name`, `employee_id`, etc.
+  with `Optional[str]` types in child schemas
+- The base `MixpanelSuperEventPropertiesSchema` already defines these fields -
+  inherit them, don't redefine
+
+**BAD** - Don't do this:
+
+```python
+class MxpNewEventSchema(MixpanelSuperEventPropertiesSchema):
+    # WRONG: duplicating base fields as Optional
+    organization_id: str | None = Field(default=None, description="...")
+    organization_name: str | None = Field(default=None, description="...")
+```
+
+**GOOD** - Do this instead:
+
+```python
+class MxpNewEventSchema(MixpanelSuperEventPropertiesSchema):
+    # Inherit organization_id, organization_name from base schema
+    # Pass empty string when value is not available
+    pass
+
+# In service method:
+properties = MxpNewEventSchema(
+    organization_id=str(org.uuid) if org else "",
+    organization_name=org.name if org else "",
+    # ...
+)
+
 ## Post-Implementation Validations
 
 ```bash
@@ -434,6 +473,8 @@ DJANGO_CONFIGURATION=DevApp uv run python manage.py check
 - [ ] Uses `STRICT_MODEL_CONFIG` or `ALIASED_MODEL_CONFIG` appropriately
 - [ ] Enum fields use `SystemRole | None` pattern
 - [ ] Docstring describes when the event is tracked
+- [ ] Base schema fields from `MixpanelSuperEventPropertiesSchema` are NOT
+      redefined as `Optional[str]` - pass empty string `""` for missing values
 
 ### 4. Service Method Patterns (P1)
 
@@ -475,13 +516,25 @@ DJANGO_CONFIGURATION=DevApp uv run python manage.py check
 - [ ] Uses `datetime_to_timestamp_ms()` for MixPanel timestamps
 - [ ] Never sends ISO 8601 strings to MixPanel
 
-### 9. distinct_id Selection (P2)
+### 9. distinct_id Selection (P1)
+
+**distinct_id MUST strictly follow this fallback hierarchy**:
+
+1. **Primary**: User's UUID (the authenticated user performing the action)
+2. **Fallback 1**: `org_<organization_uuid>` (when no user context exists)
+3. **Fallback 2**: Context-specific ID based on the entity being tracked:
+   - Slack workspace: `slack_<slack_workspace_id>`
+   - API key: `apikey_<api_key_id>`
+   - Webhook: `webhook_<webhook_id>`
+
+**NEVER pass organization_id directly as distinct_id** - always prefix with `org_`.
 
 **MUST VERIFY**:
-- [ ] Authentication events: user_uuid
-- [ ] Survey events: recipient employee_id (not manager)
-- [ ] MAP events: manager_id (action recipient)
-- [ ] HRIS events: user_uuid who triggered upload
+
+- [ ] distinct_id is user's UUID when user context is available
+- [ ] distinct_id uses `org_<uuid>` prefix when falling back to organization
+- [ ] distinct_id uses appropriate prefix for context-specific fallbacks
+- [ ] distinct_id is NEVER a raw organization_id without prefix
 
 ### 10. Export Completeness (P3)
 

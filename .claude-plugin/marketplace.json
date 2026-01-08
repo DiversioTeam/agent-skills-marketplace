@@ -44,7 +44,7 @@
     {
       "name": "backend-atomic-commit",
       "description": "Pedantic backend pre-commit and atomic-commit Skill enforcing AGENTS.md, pre-commit hooks, .security/* helpers, and Monty's backend taste without AI commit signatures.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "author": {
         "name": "Diversio Devs"
       },
@@ -99,7 +99,7 @@
     {
       "name": "mixpanel-analytics",
       "description": "MixPanel analytics tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Diversio Devs"
       },
