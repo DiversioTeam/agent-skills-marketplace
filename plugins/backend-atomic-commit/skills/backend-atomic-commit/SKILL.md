@@ -1,16 +1,7 @@
 ---
 name: backend-atomic-commit
-description: >
-  Pedantic backend pre-commit and atomic commit Skill for Django/Optimo-style
-  repos. Enforces local AGENTS.md / CLAUDE.md, pre-commit hooks, .security/*
-  helpers, and Monty’s backend engineering taste – with no AI signatures in
-  commit messages.
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
-  - Glob
-  - Grep
+description: "Pedantic backend pre-commit + atomic-commit skill for Django/Optimo repos that enforces local repo rules, pre-commit hooks, and security helpers (no AI signatures in commit messages)."
+allowed-tools: Bash Read Edit Glob Grep
 ---
 
 # Backend Atomic Commit Skill
@@ -471,13 +462,9 @@ phrases when you can be precise.
 
 ## Compatibility Notes
 
-This skill is designed to work with both **Claude Code** and **OpenAI Codex**.
+This Skill is designed to work with both Claude Code and OpenAI Codex.
 
-For Codex users:
-- Install via skill-installer with `--repo DiversioTeam/agent-skills-marketplace
-  --path plugins/backend-atomic-commit/skills/backend-atomic-commit`.
-- Use `$skill backend-atomic-commit` to invoke.
+- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/backend-atomic-commit/commands/`).
+- Codex: install the Skill directory and invoke `name: backend-atomic-commit`.
 
-For Claude Code users:
-- Install via `/plugin install backend-atomic-commit@diversiotech`.
-- Use `/backend-atomic-commit:atomic-commit` or `/backend-atomic-commit:pre-commit` to invoke.
+For installation, see this repo's `README.md`.

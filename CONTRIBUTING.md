@@ -71,16 +71,14 @@ Follow the existing structure (e.g. `monty-code-review`, `backend-atomic-commit`
      ```yaml
      ---
      name: <skill-name>
-     description: >
-       Short summary of what this Skill does.
-     allowed-tools:
-       - Bash
-       - Read
-       - Edit
-       - Glob
-       - Grep
+     description: "Short, single-line summary of what this Skill does."
+     allowed-tools: Bash Read Edit Glob Grep
      ---
      ```
+
+   - For portability across both Codex + Claude Code:
+     - Keep `description` single-line and reasonably short (Codex validates this at startup).
+     - Avoid `anthropic`/`claude` in Skill names and don’t include XML tags in `name`/`description` (Claude).
 
    - Include sections such as:
      - `When to Use This Skill`
@@ -158,6 +156,7 @@ and encouraged – a few guidelines:
 - Always keep JSON valid:
   - You can use `python -m json.tool` or any editor tooling locally to validate
     `.claude-plugin/marketplace.json` and `plugin.json` files.
+- Optionally validate Skills against the Agent Skills spec using `skills-ref validate <path>` (if you have `skills-ref` installed).
 - Prefer small, focused edits over wholesale rewrites:
   - This makes diffs easier to review.
 

@@ -1,18 +1,7 @@
 ---
 name: bruno-api
-description: >
-  Generate comprehensive API endpoint documentation from Bruno (.bru) files by
-  mapping requests to a Django4Lyfe/Diversio-style backend implementation
-  (Django REST Framework or Django Ninja), including auth/permissions,
-  multi-tenant filtering, request/response schemas, and line-numbered code
-  references. Use for single endpoints, directory scans of .bru files, or when
-  writing docs to a specific output path.
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
-  - Glob
-  - Grep
+description: "Generate comprehensive API docs from Bruno (.bru) files by mapping requests to a Django implementation (DRF/Django Ninja), including auth, multi-tenant filtering, schemas, and code references."
+allowed-tools: Bash Read Edit Glob Grep
 ---
 
 # Bruno API Documentation Generator Skill
@@ -157,14 +146,9 @@ Rules:
 
 ## Compatibility Notes
 
-This skill is designed to work with both **Claude Code** and **OpenAI Codex**.
+This Skill is designed to work with both Claude Code and OpenAI Codex.
 
-For Codex users:
-- Install via skill-installer with `--repo DiversioTeam/agent-skills-marketplace
-  --path plugins/bruno-api/skills/bruno-api`.
-- Use `$skill bruno-api` to invoke.
+- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/bruno-api/commands/`).
+- Codex: install the Skill directory and invoke `name: bruno-api`.
 
-For Claude Code users:
-- Install via `/plugin install bruno-api@diversiotech`.
-- Use `/bruno-api:docs` to invoke.
-
+For installation, see this repo's `README.md`.

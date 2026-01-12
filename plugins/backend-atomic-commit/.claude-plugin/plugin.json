@@ -1,6 +1,6 @@
 {
   "name": "backend-atomic-commit",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Pedantic backend pre-commit and atomic-commit Skill for Django/Optimo-style repos, enforcing local AGENTS.md, pre-commit hooks, and Monty’s backend taste.",
   "author": {
     "name": "Diversio Devs"

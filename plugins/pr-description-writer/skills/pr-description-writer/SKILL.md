@@ -1,14 +1,7 @@
 ---
 name: pr-description-writer
-description: >
-  Generates comprehensive, reviewer-friendly PR descriptions with visual
-  diagrams, summary tables, collapsible sections, and structured test plans.
-  Optimized for readability without sacrificing detail.
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
+description: "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, summary tables, collapsible sections, and structured test plans."
+allowed-tools: Bash Read Glob Grep
 ---
 
 # PR Description Writer Skill
@@ -35,185 +28,12 @@ Django/Python backends, React frontends, and infrastructure changes.
 
 ---
 
-## Workflow: Gathering Context
+## Workflow (High Level)
 
-Before writing the PR description, **always gather the complete picture** of
-all changes that will be included in the PR. This means:
-
-1. Local uncommitted changes (staged + unstaged)
-2. Local commits not yet pushed
-3. Commits already pushed to the remote branch
-4. Existing PR details (if a PR already exists)
-
-### Step 1: Detect If Current Branch Has a PR
-
-Use `gh pr view` to check if the current branch already has an associated PR:
-
-```bash
-# Check if current branch has a PR (returns 0 if PR exists, non-zero otherwise)
-gh pr view --json number,title,body,url 2>/dev/null
-
-# If you just need to know if a PR exists (boolean check):
-gh pr view --json number 2>/dev/null && echo "PR exists" || echo "No PR yet"
-```
-
-**Interpretation:**
-- Exit code `0` + JSON output → PR exists, use the PR number for updates
-- Exit code non-zero → No PR yet, description will be for a new PR
-
-### Step 2: Identify the Base Branch
-
-Determine what branch the PR targets (or will target). Use this detection order:
-
-```bash
-# 1. If PR exists, get base from the PR (most reliable)
-gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null
-
-# 2. Get the repo's default branch via GitHub API
-gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
-
-# 3. Fallback: check git remote HEAD
-git remote show origin 2>/dev/null | grep "HEAD branch" | cut -d: -f2 | xargs
-
-# 4. Last resort: check which common branches exist
-git branch -r | grep -E "origin/(main|master|release|develop)$" | head -1 | sed 's|origin/||'
-```
-
-**Detection Priority:**
-1. **Existing PR base** – If PR exists, always use its base branch
-2. **GitHub default** – `gh repo view --json defaultBranchRef` is authoritative
-3. **Git remote HEAD** – Works offline, reflects GitHub's default
-4. **Common branch names** – Check for main/master/release/develop
-
-**Smart Detection Script:**
-
-```bash
-detect_base_branch() {
-  # Try existing PR first
-  local pr_base=$(gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null)
-  if [[ -n "$pr_base" ]]; then
-    echo "$pr_base"
-    return
-  fi
-
-  # Try GitHub API for default branch
-  local gh_default=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null)
-  if [[ -n "$gh_default" ]]; then
-    echo "$gh_default"
-    return
-  fi
-
-  # Try git remote HEAD
-  local remote_head=$(git remote show origin 2>/dev/null | grep "HEAD branch" | cut -d: -f2 | xargs)
-  if [[ -n "$remote_head" ]]; then
-    echo "$remote_head"
-    return
-  fi
-
-  # Fallback to checking common branches
-  for branch in main master release develop; do
-    if git rev-parse --verify "origin/$branch" &>/dev/null; then
-      echo "$branch"
-      return
-    fi
-  done
-
-  echo "main"  # Ultimate fallback
-}
-
-BASE_BRANCH=$(detect_base_branch)
-echo "Using base branch: $BASE_BRANCH"
-```
-
-### Step 3: Gather ALL Changes
-
-**CRITICAL**: The PR description must account for ALL changes, not just the
-latest commit. This includes:
-
-```bash
-# 1. Get the base branch (adjust as needed)
-BASE_BRANCH="origin/release"  # or origin/main, etc.
-
-# 2. View ALL commits that will be in the PR
-git log ${BASE_BRANCH}..HEAD --oneline
-
-# 3. View the FULL diff of all changes (committed + uncommitted)
-#    This shows what reviewers will see in the PR
-git diff ${BASE_BRANCH}...HEAD --stat          # Files changed (committed only)
-git diff ${BASE_BRANCH} --stat                 # Files changed (including uncommitted)
-
-# 4. Check for uncommitted changes that should be included
-git status --short
-
-# 5. If there are uncommitted changes, include them in the diff
-git diff --stat                                # Unstaged changes
-git diff --cached --stat                       # Staged changes
-```
-
-### Step 4: Get Existing PR Details (If Updating)
-
-When updating an existing PR, fetch current details to preserve/enhance:
-
-```bash
-# Get full PR details as JSON
-gh pr view --json number,title,body,url,commits,files
-
-# Get just the current body for reference
-gh pr view --json body --jq '.body'
-
-# Get list of files changed in the PR
-gh pr view --json files --jq '.files[].path'
-
-# Get commit history in the PR
-gh pr view --json commits --jq '.commits[].messageHeadline'
-```
-
-### Step 5: Analyze Changes Comprehensively
-
-```bash
-# View the actual diff to understand what changed
-git diff ${BASE_BRANCH}...HEAD
-
-# For a specific file
-git diff ${BASE_BRANCH}...HEAD -- path/to/file.py
-
-# See commit messages for context on why changes were made
-git log ${BASE_BRANCH}..HEAD --format="%h %s%n%b" | head -100
-```
-
----
-
-## Updating a PR with `gh` CLI
-
-Once the description is generated, use `gh pr edit` to update:
-
-```bash
-# Update PR title and body
-gh pr edit <number> --title "New Title" --body "$(cat <<'EOF'
-## Summary
-...full markdown body here...
-EOF
-)"
-
-# Or update just the body
-gh pr edit --body "$(cat <<'EOF'
-...full markdown body here...
-EOF
-)"
-
-# Update PR for current branch (no number needed if on the branch)
-gh pr edit --body "..."
-```
-
-**Creating a new PR:**
-
-```bash
-gh pr create --title "Title" --body "$(cat <<'EOF'
-## Summary
-...
-EOF
-)" --base release
-```
+1. Gather PR and branch context (see [references/gh-cli.md](references/gh-cli.md) for exact commands).
+2. Identify the base branch and enumerate **all** changes (committed + uncommitted).
+3. Write a layered, reviewer-centric PR description using the structure below.
+4. If the user wants, update/create the PR using `gh` (see [references/gh-cli.md](references/gh-cli.md)).
 
 ---
 
@@ -290,7 +110,7 @@ format based on complexity:
 
 Use for decision trees and linear flows:
 
-```markdown
+````markdown
 ## Feature Flow
 
 ```
@@ -301,13 +121,13 @@ First condition?
      │
     NO ───► Action C
 ```
-```
+````
 
 #### Mermaid (Complex Flows)
 
 Use for multi-step pipelines, state machines, or architectures:
 
-```markdown
+````markdown
 ## Architecture
 
 ```mermaid
@@ -317,13 +137,13 @@ flowchart LR
     C -->|Yes| D[Path A]
     C -->|No| E[Path B]
 ```
-```
+````
 
 #### Box Diagrams (Pipelines)
 
 Use for showing data flow or process stages:
 
-```markdown
+````markdown
 ## Data Pipeline
 
 ```
@@ -332,7 +152,7 @@ Use for showing data flow or process stages:
 │  (description)  │     │  (description)  │     │  (description)  │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
-```
+````
 
 ### Section 3: Detailed Feature Sections
 
@@ -398,7 +218,7 @@ Categories to consider:
 
 Provide both automated and manual testing instructions:
 
-```markdown
+````markdown
 ## How to Test
 
 ```bash
@@ -410,7 +230,7 @@ Provide both automated and manual testing instructions:
 
 1. **Test scenario A**: Step-by-step instructions
 2. **Test scenario B**: Step-by-step instructions
-```
+````
 
 ### Section 6: Breaking Changes / Notes
 
@@ -533,75 +353,9 @@ When disabled:
 
 ---
 
-## Quick Reference: `gh` CLI Commands
+## References
 
-### PR Detection & Info
-
-```bash
-# Check if current branch has a PR
-gh pr view --json number 2>/dev/null && echo "Has PR" || echo "No PR"
-
-# Get PR number for current branch
-gh pr view --json number --jq '.number'
-
-# Get full PR details
-gh pr view --json number,title,body,baseRefName,headRefName,url,state,files,commits
-
-# Get PR URL
-gh pr view --json url --jq '.url'
-```
-
-### PR Creation & Updates
-
-```bash
-# Create new PR
-gh pr create --title "Title" --body "Body" --base release
-
-# Update existing PR (current branch)
-gh pr edit --title "New Title" --body "New Body"
-
-# Update specific PR by number
-gh pr edit 1234 --title "New Title" --body "New Body"
-
-# Add reviewers
-gh pr edit --add-reviewer username1,username2
-
-# Add labels
-gh pr edit --add-label "enhancement,needs-review"
-```
-
-### Viewing Changes
-
-```bash
-# View PR diff
-gh pr diff
-
-# View PR diff for specific PR
-gh pr diff 1234
-
-# View PR files
-gh pr view --json files --jq '.files[].path'
-
-# View PR commits
-gh pr view --json commits --jq '.commits[] | "\(.oid[0:7]) \(.messageHeadline)"'
-```
-
----
-
-## Compatibility Notes
-
-This Skill works with both **Claude Code** and **OpenAI Codex**.
-
-For Codex users:
-- Install via skill-installer with `--repo DiversioTeam/agent-skills-marketplace
-  --path plugins/pr-description-writer/skills/pr-description-writer`.
-- Use `$skill pr-description-writer` to invoke.
-
-For Claude Code users:
-- Install via `/plugin install pr-description-writer@diversiotech`.
-- Use `/pr-description-writer:write-pr` to invoke.
-
----
+- GitHub context-gathering commands (`gh` + `git`): [references/gh-cli.md](references/gh-cli.md)
 
 ## Output
 
@@ -615,3 +369,12 @@ When this Skill generates a PR description, it should:
 5. **Be ready to iterate** based on user feedback.
 
 The description should be copy-paste ready for GitHub.
+
+## Compatibility Notes
+
+This Skill is designed to work with both Claude Code and OpenAI Codex.
+
+- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/pr-description-writer/commands/`).
+- Codex: install the Skill directory and invoke `name: pr-description-writer`.
+
+For installation, see this repo's `README.md`.

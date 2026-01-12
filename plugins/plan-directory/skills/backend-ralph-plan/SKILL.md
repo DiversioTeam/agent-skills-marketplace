@@ -1,16 +1,7 @@
 ---
 name: backend-ralph-plan
-description: >
-  Create a structured plan directory with Ralph Wiggum Loop integration for
-  backend Django projects. Generates PLAN.md (task index), task files, and
-  RALPH-PROMPT.md (the actual prompt for ralph-loop). Use for rigorous,
-  iterative implementation requiring quality gates and verification.
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Bash
+description: "Create a structured plan directory with Ralph Wiggum Loop integration for backend Django projects (PLAN.md, task files, and RALPH-PROMPT.md)."
+allowed-tools: Read Write Edit Glob Bash
 ---
 
 # Backend RALPH Plan Skill
@@ -259,3 +250,12 @@ See `examples/user-preferences/` for a complete working example:
 - `references/plan-template.md` - PLAN.md structure
 - `references/quality-gates.md` - Verification commands
 - `examples/user-preferences/` - Working example
+
+## Compatibility Notes
+
+This Skill is designed to work with both Claude Code and OpenAI Codex.
+
+- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/plan-directory/commands/`).
+- Codex: install the Skill directory and invoke `name: backend-ralph-plan`.
+
+For installation, see this repo's `README.md`.

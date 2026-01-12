@@ -1,6 +1,6 @@
 {
   "name": "pr-description-writer",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections.",
   "author": {
     "name": "Diversio Devs"
