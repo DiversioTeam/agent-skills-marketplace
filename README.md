@@ -210,16 +210,18 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo DiversioTeam/agent-skills-marketplace \
-  --path plugins/monty-code-review/skills/monty-code-review \
-  --path plugins/backend-atomic-commit/skills/backend-atomic-commit \
-  --path plugins/backend-pr-workflow/skills/backend-pr-workflow \
-  --path plugins/bruno-api/skills/bruno-api \
-  --path plugins/code-review-digest-writer/skills/code-review-digest-writer \
-  --path plugins/plan-directory/skills/plan-directory \
-  --path plugins/plan-directory/skills/backend-ralph-plan \
-  --path plugins/pr-description-writer/skills/pr-description-writer \
-  --path plugins/process-code-review/skills/process-code-review \
-  --path plugins/mixpanel-analytics/skills/mixpanel-analytics
+  --ref main \
+  --path \
+    plugins/monty-code-review/skills/monty-code-review \
+    plugins/backend-atomic-commit/skills/backend-atomic-commit \
+    plugins/backend-pr-workflow/skills/backend-pr-workflow \
+    plugins/bruno-api/skills/bruno-api \
+    plugins/code-review-digest-writer/skills/code-review-digest-writer \
+    plugins/plan-directory/skills/plan-directory \
+    plugins/plan-directory/skills/backend-ralph-plan \
+    plugins/pr-description-writer/skills/pr-description-writer \
+    plugins/process-code-review/skills/process-code-review \
+    plugins/mixpanel-analytics/skills/mixpanel-analytics
 ```
 
 Codex console multi-install example:
@@ -240,6 +242,7 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
 
 Notes:
 - Add `--ref <branch-or-tag>` to pin a version.
+- `install-skill-from-github.py` does not overwrite existing Skills; to update, delete the existing `$CODEX_HOME/skills/<skill-name>` directory and reinstall.
 - Codex installs Skills into `~/.codex/skills` by default, and also loads repo-local Skills from `.codex/skills`.
 - Restart Codex after installing Skills.
 
