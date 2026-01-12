@@ -109,7 +109,7 @@
     {
       "name": "clickup-ticket",
       "description": "Create and manage ClickUp tickets directly from Claude Code or Codex. Supports multi-org workspaces, interactive ticket creation, subtasks, backlog management, and intelligent caching.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Diversio Devs"
       },
