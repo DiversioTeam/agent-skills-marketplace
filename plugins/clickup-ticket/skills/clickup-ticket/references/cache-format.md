@@ -4,21 +4,22 @@ The skill caches workspace data locally for fast access.
 
 ## Cache Location
 
-The skill detects the cache directory based on platform:
+The skill uses a single, tool-agnostic cache directory:
 
-1. `$CODEX_HOME/skills/clickup-ticket/cache/` (if `$CODEX_HOME` is set)
-2. `~/.codex/skills/clickup-ticket/cache/` (Codex default)
-3. `~/.config/claude/skills/clickup-ticket/cache/` (Claude Code v1.0.30+)
-4. `~/.claude/skills/clickup-ticket/cache/` (Claude Code legacy)
-5. Fallback: `<skill_dir>/cache/`
+```
+~/.config/clickup-ticket/
+```
 
-**Directory Creation:** If the detected path doesn't exist, the skill creates it
+This location is shared by both Claude Code and Codex, so configuration and
+cached data persist regardless of which tool you use.
+
+**Directory Creation:** If the path doesn't exist, the skill creates it
 automatically. No manual setup is required.
 
 ## Directory Layout
 
 ```
-cache/
+~/.config/clickup-ticket/
 ├── global.json                 # Active org, global preferences
 └── orgs/
     ├── diversio-12345/         # {slug} = {name}-{workspace_id}
