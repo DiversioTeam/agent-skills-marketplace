@@ -46,6 +46,10 @@ Key layout:
   - `mixpanel-analytics/`
     - `.claude-plugin/plugin.json` – plugin manifest for MixPanel analytics.
     - `skills/mixpanel-analytics/SKILL.md` – MixPanel tracking implementation and review Skill.
+  - `clickup-ticket/`
+    - `.claude-plugin/plugin.json` – plugin manifest for ClickUp ticket creation.
+    - `skills/clickup-ticket/SKILL.md` – ClickUp ticket creation and management Skill.
+    - `commands/*.md` – Commands for ticket creation, subtasks, backlog, multi-org.
 
 ## How Claude Code Should Behave Here
 
@@ -174,6 +178,12 @@ When working in this repo, Claude Code should:
   /plugin install mixpanel-analytics@diversiotech
   ```
 
+- Install the ClickUp ticket plugin:
+
+  ```bash
+  /plugin install clickup-ticket@diversiotech
+  ```
+
 ## Codex Skill Installer Notes (For LLMs)
 
 When a user asks how to install these Skills into OpenAI Codex (not Claude's
@@ -215,6 +225,16 @@ marketplace), respond with instructions that avoid hardcoded paths:
   - `mixpanel-analytics` to implement new MixPanel tracking events and review
     implementations for PII protection, schema design, and pattern compliance
     in the Django4Lyfe optimo_analytics module.
+  - `clickup-ticket` to create and manage ClickUp tickets directly from Claude
+    Code or Codex. Supports multi-org workspaces, interactive ticket creation,
+    subtasks, backlog management, and intelligent caching of your ClickUp
+    workspace data. Commands include:
+    - `/clickup-ticket:create-ticket` – Full interactive ticket creation
+    - `/clickup-ticket:quick-ticket` – Fast ticket with defaults
+    - `/clickup-ticket:add-to-backlog` – Ultra-fast backlog addition
+    - `/clickup-ticket:create-subtask` – Add subtask to existing ticket
+    - `/clickup-ticket:switch-org` – Switch between organizations
+    - `/clickup-ticket:configure` – Set up defaults and cache
 
 ## References
 

@@ -1,0 +1,484 @@
+---
+name: clickup-ticket
+description: >
+  Create and manage ClickUp tickets directly from Claude Code or Codex.
+  Supports multi-org workspaces, interactive ticket creation, subtasks,
+  backlog management, and intelligent caching of your ClickUp workspace data.
+allowed-tools:
+  - Bash
+  - Read
+  - Edit
+  - Write
+  - Glob
+  - Grep
+---
+
+# ClickUp Ticket Skill
+
+## When to Use This Skill
+
+Use this skill when you want to:
+
+- **Create tickets** without leaving your terminal or IDE
+- **Add subtasks** to existing tickets during development
+- **Quick-add to backlog** when you spot TODOs or tech debt
+- **Manage multiple ClickUp organizations** (work, personal, clients)
+- **Discover your workspace structure** (spaces, lists, tags, members)
+
+This skill is designed to feel **personalized** - it learns your workspace
+structure, remembers your defaults, and asks simple questions when it needs
+information.
+
+## Prerequisites
+
+### 1. ClickUp API Token
+
+Generate a personal API token:
+
+1. Log into ClickUp
+2. Go to **Settings** → **Apps** (or visit https://app.clickup.com/settings/apps)
+3. Under "API Token", click **Generate** (or **Regenerate**)
+4. Copy the token (starts with `pk_`)
+
+### 2. Environment Variable
+
+Add to your shell profile (`~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`):
+
+```bash
+export CLICKUP_TICKET_SKILL_TOKEN="pk_12345_XXXXXXXXXX"
+```
+
+Then reload your shell:
+
+```bash
+source ~/.bashrc  # or restart your terminal
+```
+
+**Note:** If you have multiple ClickUp accounts (e.g., for different clients),
+you can set up additional tokens. See [Multi-Org Setup](#multi-org-setup).
+
+## Quick Start
+
+```bash
+# First time? Configure the skill
+/clickup-ticket:configure
+
+# Create a ticket interactively
+/clickup-ticket:create-ticket
+
+# Quick ticket with defaults
+/clickup-ticket:quick-ticket "Fix login timeout bug"
+
+# Add to backlog instantly
+/clickup-ticket:add-to-backlog "Refactor auth module"
+```
+
+## Commands Overview
+
+| Command | Purpose |
+|---------|---------|
+| `/clickup-ticket:configure` | First-time setup, set defaults, refresh cache |
+| `/clickup-ticket:create-ticket` | Full interactive ticket creation |
+| `/clickup-ticket:quick-ticket` | Fast ticket creation with defaults |
+| `/clickup-ticket:create-subtask` | Add subtask to an existing ticket |
+| `/clickup-ticket:add-to-backlog` | Ultra-fast addition to backlog list |
+| `/clickup-ticket:list-spaces` | Discover spaces, lists, folders, tags |
+| `/clickup-ticket:switch-org` | Switch between organizations |
+| `/clickup-ticket:add-org` | Add a new organization |
+| `/clickup-ticket:refresh-cache` | Force refresh cached workspace data |
+
+## Core Concepts
+
+### ClickUp Hierarchy
+
+```
+Workspace (Organization)
+  └── Space (e.g., "Engineering", "Product")
+       ├── Folder (optional grouping)
+       │    └── List (e.g., "Auth Refactor")
+       │         └── Task
+       │              └── Subtask
+       └── List (standalone, e.g., "Backlog")
+            └── Task
+                 └── Subtask
+```
+
+**Key points:**
+- Every task belongs to a **List**
+- Lists can be inside **Folders** or directly in a **Space**
+- **Spaces** belong to a **Workspace** (organization)
+- You need a `list_id` to create a task
+
+### Multi-Org Support
+
+This skill supports multiple ClickUp organizations:
+
+- **Work** - Your company's workspace
+- **Personal** - Your personal ClickUp
+- **Clients** - Client workspaces you have access to
+
+Each organization has its own:
+- Cached workspace data (spaces, lists, tags, members)
+- Default settings (list, assignee, priority)
+- Optional separate API token
+
+Switch between orgs with `/clickup-ticket:switch-org`.
+
+### Cache Management
+
+The skill caches your workspace data locally for fast access:
+
+- **Workspace structure** - Spaces, folders, lists
+- **Team members** - Names, emails, IDs for assignment
+- **Tags** - Available tags per space
+- **Statuses** - Available statuses per list
+
+**Cache location:**
+- Claude Code: `~/.config/claude/skills/clickup-ticket/cache/`
+- Codex: `~/.codex/skills/clickup-ticket/cache/`
+
+**Cache refresh:**
+- Auto-refreshes after 24 hours
+- Manual refresh: `/clickup-ticket:refresh-cache`
+- Refreshes automatically if an entity is not found
+
+## Configuration Workflow
+
+### First-Time Setup
+
+When you run `/clickup-ticket:configure` for the first time:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ClickUp Ticket Skill - First Time Setup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Checking for CLICKUP_TICKET_SKILL_TOKEN...
+✓ Token found
+
+Fetching your workspaces...
+✓ Found 2 workspaces
+
+Select your primary workspace:
+
+   [1] Diversio (id: 12345)
+   [2] Personal (id: 67890)
+
+> 1
+
+Fetching workspace data for "Diversio"...
+✓ 3 spaces, 12 lists, 24 members, 18 tags
+
+Select default space for new tickets:
+
+   [1] Engineering
+   [2] Product
+   [3] Design
+
+> 1
+
+Select default list:
+
+   [1] Backlog
+   [2] Sprint 47
+   [3] Tech Debt
+   [4] Bugs
+
+> 1
+
+Default assignee:
+
+   [1] Me (you@yourcompany.com)
+   [2] Unassigned
+   [3] Ask each time
+
+> 1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Configuration complete!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Organization: Diversio
+Default list: Backlog
+Assignee:     you@yourcompany.com
+
+Try: /clickup-ticket:quick-ticket "My first ticket"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Multi-Org Setup
+
+To add additional organizations:
+
+```bash
+/clickup-ticket:add-org
+```
+
+Or if you need a separate token for a client workspace:
+
+```bash
+# Add to shell profile
+export CLICKUP_ACME_CLIENT_TOKEN="pk_99999_YYYYYYYYYY"
+
+# Then run
+/clickup-ticket:add-org --token-env=CLICKUP_ACME_CLIENT_TOKEN
+```
+
+## Ticket Creation Workflows
+
+### Full Interactive Creation
+
+`/clickup-ticket:create-ticket`
+
+Walks you through all options:
+
+1. **Title** (required)
+2. **List** - Shows your lists, defaults to configured default
+3. **Priority** - Urgent / High / Normal / Low
+4. **Assignee** - Shows team members from cache
+5. **Tags** - Shows available tags, multi-select
+6. **Description** - Optional markdown description
+7. **Due date** - Optional, with quick picks (today, tomorrow, next week)
+
+**Output:**
+```
+✅ Ticket Created!
+
+   Title:    Fix N+1 query in dashboard API
+   ID:       #abc123
+   List:     Bugs
+   Priority: High
+   Assignee: you@yourcompany.com
+   Tags:     bug, backend, performance
+   Due:      Fri, Jan 17
+
+   🔗 https://app.clickup.com/t/abc123
+```
+
+### Quick Ticket
+
+`/clickup-ticket:quick-ticket "Title here"`
+
+Creates a ticket instantly with defaults:
+
+```
+/clickup-ticket:quick-ticket "Add rate limiting to auth endpoints"
+
+✅ [Diversio] Add rate limiting to auth endpoints
+   List: Backlog | Priority: Normal | Assignee: me
+   🔗 https://app.clickup.com/t/xyz789
+```
+
+**Flags:**
+- `--priority=high` or `-p high` - Override priority
+- `--list=bugs` - Override list (by name)
+- `--org=personal` - Create in different org
+- `--tag=backend,urgent` - Add tags
+
+### Add to Backlog
+
+`/clickup-ticket:add-to-backlog "Title"`
+
+Ultra-fast backlog addition. Always uses your configured backlog list:
+
+```
+/clickup-ticket:add-to-backlog "Investigate memory leak in worker"
+
+✅ Added to Backlog: "Investigate memory leak in worker"
+   🔗 https://app.clickup.com/t/mem123
+```
+
+### Create Subtask
+
+`/clickup-ticket:create-subtask <parent_id> "Title"`
+
+```
+/clickup-ticket:create-subtask abc123 "Write unit tests"
+
+✅ Subtask created under #abc123
+   #sub456 - Write unit tests
+   🔗 https://app.clickup.com/t/sub456
+```
+
+The parent can be:
+- Task ID: `abc123`
+- Task URL: `https://app.clickup.com/t/abc123`
+- Custom ID (if enabled): `DEV-123`
+
+## Discovery Commands
+
+### List Spaces
+
+`/clickup-ticket:list-spaces`
+
+Shows your workspace structure:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Workspace: Diversio (active)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 Engineering
+   │
+   ├── 📋 Backlog (list_id: 901234567) ⭐ default
+   │      Statuses: to do → in progress → review → done
+   │      Tags: bug, feature, tech-debt, urgent, backend, frontend
+   │
+   ├── 📋 Sprint 47 (list_id: 901234568)
+   ├── 📋 Tech Debt (list_id: 901234569)
+   │
+   └── 📁 Projects/
+       ├── 📋 Auth Refactor (list_id: 901234570)
+       └── 📋 API v3 (list_id: 901234571)
+
+📂 Product
+   ├── 📋 Feature Requests (list_id: 901234600)
+   └── 📋 User Research (list_id: 901234601)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Team Members: 24 cached | Tags: 18 cached
+Last sync: 2 hours ago
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Flags:**
+- `--org=personal` - Show different org
+- `--members` - Also list team members
+- `--tags` - Also list all tags
+
+## Multi-Org Commands
+
+### Switch Organization
+
+`/clickup-ticket:switch-org`
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Switch Organization
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current: Diversio
+
+   [1] Diversio ✓
+   [2] Personal
+   [3] Client: Acme Corp
+
+> 2
+
+Switched to: Personal
+Default list: Personal Tasks
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Or switch directly: `/clickup-ticket:switch-org personal`
+
+### Add Organization
+
+`/clickup-ticket:add-org`
+
+Interactive wizard to add a new org from your accessible workspaces.
+
+## Technical Reference
+
+For detailed technical documentation, see the `references/` directory:
+
+- **[api-endpoints.md](references/api-endpoints.md)** - ClickUp API v2 endpoints used
+- **[cache-format.md](references/cache-format.md)** - Cache directory structure and file formats
+- **[error-handling.md](references/error-handling.md)** - Error messages and handling
+
+### Quick Reference
+
+**Cache location:**
+- Codex: `~/.codex/skills/clickup-ticket/cache/`
+- Claude Code: `~/.config/claude/skills/clickup-ticket/cache/`
+
+**Rate limits:** The skill handles 429 responses with automatic retry and backoff.
+
+**Cache TTL:** 24 hours (configurable). Use `/clickup-ticket:refresh-cache` to force refresh.
+
+## Interactive Prompts
+
+When the skill needs information, it asks with numbered choices:
+
+```
+Priority?  [1] Urgent [2] High [3] Normal [4] Low
+Assignee?  [1] Me [2] Unassigned [3] Other...
+Tags?      [1] bug [2] feature... (comma-separated: 1,3)
+List?      [1] Backlog ⭐ [2] Sprint 47 [3] Other...
+```
+
+Press Enter to accept defaults (marked with ⭐).
+
+## Examples
+
+**Quick bug report:**
+```
+User: Create a ticket for the login bug
+→ ✅ Login bug | List: Bugs | 🔗 https://app.clickup.com/t/bug123
+```
+
+**Subtask from context:**
+```
+User: Add a subtask to abc123 for writing tests
+→ ✅ Write tests (under #abc123) | 🔗 https://app.clickup.com/t/sub789
+```
+
+**Different org:**
+```
+/clickup-ticket:quick-ticket "Buy groceries" --org=personal
+→ ✅ [Personal] Buy groceries | 🔗 https://app.clickup.com/t/xyz
+```
+
+## Advanced Features
+
+- **Custom fields:** `--field="Story Points=3"`
+- **Templates:** `--template=bug` (pre-fills tags, priority)
+- **Branch detection:** Auto-detects `clickup_<id>_` branches
+- **Batch creation:** Accepts markdown lists of tasks
+
+## Integration
+
+Works with other skills in this marketplace:
+- **monty-code-review:** Create tickets from BLOCKING issues
+- **backend-pr-workflow:** Links to ClickUp branch naming conventions
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Cache stale | `/clickup-ticket:refresh-cache` |
+| Reset everything | `/clickup-ticket:configure --reset` |
+| Token not working | `echo $CLICKUP_TICKET_SKILL_TOKEN` to verify |
+| Find list IDs | `/clickup-ticket:list-spaces` or check ClickUp URL |
+
+## Installation
+
+**Claude Code:**
+```bash
+/plugin install clickup-ticket@diversiotech
+```
+
+**Codex:**
+```bash
+$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo DiversioTeam/agent-skills-marketplace \
+  --path plugins/clickup-ticket/skills/clickup-ticket
+```
+
+## Security Considerations
+
+- **Tokens are never stored in files** - Always use environment variables
+- **Cache contains workspace metadata only** - No sensitive task content
+- **Tokens are scoped to your account** - They inherit your ClickUp permissions
+- **Local cache files** - Store only in user's home directory, not in repos
+
+## Changelog
+
+### v0.1.0
+
+- Initial release
+- Multi-org support with cached workspace data
+- Interactive ticket creation with priority, assignees, tags
+- Quick ticket and backlog commands
+- Subtask creation
+- Space/list discovery
