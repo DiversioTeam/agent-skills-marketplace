@@ -98,14 +98,29 @@ agent-skills-marketplace/
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/process-code-review/SKILL.md
 │   │   └── commands/process-review.md
-│   └── mixpanel-analytics/            # MixPanel tracking implementation & review
+│   ├── mixpanel-analytics/            # MixPanel tracking implementation & review
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/mixpanel-analytics/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── implement.md
+│   │       └── review.md
+│   └── clickup-ticket/                # ClickUp ticket management
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/mixpanel-analytics/
+│       ├── skills/clickup-ticket/
 │       │   ├── SKILL.md
 │       │   └── references/
 │       └── commands/
-│           ├── implement.md
-│           └── review.md
+│           ├── configure.md
+│           ├── create-ticket.md
+│           ├── quick-ticket.md
+│           ├── create-subtask.md
+│           ├── add-to-backlog.md
+│           ├── list-spaces.md
+│           ├── switch-org.md
+│           ├── add-org.md
+│           └── refresh-cache.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -126,6 +141,7 @@ agent-skills-marketplace/
 | `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
+| `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
 
 ## Installation
 
@@ -164,6 +180,9 @@ agent-skills-marketplace/
 
    # MixPanel analytics (implement and review tracking events)
    /plugin install mixpanel-analytics@diversiotech
+
+   # ClickUp ticket management (create tickets, subtasks, backlog)
+   /plugin install clickup-ticket@diversiotech
    ```
 
 3. Use plugin-provided slash commands (once plugins are installed):
@@ -182,6 +201,15 @@ agent-skills-marketplace/
    /process-code-review:process-review       # Process code review findings (fix/skip issues)
    /mixpanel-analytics:implement             # Implement new MixPanel tracking events
    /mixpanel-analytics:review                # Review MixPanel implementations for compliance
+   /clickup-ticket:configure                 # Initial setup and org configuration
+   /clickup-ticket:create-ticket             # Full interactive ticket creation
+   /clickup-ticket:quick-ticket              # Fast ticket with minimal prompts
+   /clickup-ticket:create-subtask            # Add subtask to existing ticket
+   /clickup-ticket:add-to-backlog            # Quick add to configured backlog list
+   /clickup-ticket:list-spaces               # Browse workspace hierarchy
+   /clickup-ticket:switch-org                # Switch between organizations
+   /clickup-ticket:add-org                   # Add a new organization
+   /clickup-ticket:refresh-cache             # Force refresh cached data
    ```
 
 ## Install As Codex Skills
@@ -221,7 +249,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/plan-directory/skills/backend-ralph-plan \
     plugins/pr-description-writer/skills/pr-description-writer \
     plugins/process-code-review/skills/process-code-review \
-    plugins/mixpanel-analytics/skills/mixpanel-analytics
+    plugins/mixpanel-analytics/skills/mixpanel-analytics \
+    plugins/clickup-ticket/skills/clickup-ticket
 ```
 
 Codex console multi-install example:
@@ -237,7 +266,8 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/plan-directory/skills/backend-ralph-plan \
   path=plugins/pr-description-writer/skills/pr-description-writer \
   path=plugins/process-code-review/skills/process-code-review \
-  path=plugins/mixpanel-analytics/skills/mixpanel-analytics
+  path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
+  path=plugins/clickup-ticket/skills/clickup-ticket
 ```
 
 Notes:
