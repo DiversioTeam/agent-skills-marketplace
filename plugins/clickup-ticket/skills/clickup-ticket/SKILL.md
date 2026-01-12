@@ -133,9 +133,7 @@ The skill caches your workspace data locally for fast access:
 - **Tags** - Available tags per space
 - **Statuses** - Available statuses per list
 
-**Cache location:**
-- Claude Code: `~/.config/claude/skills/clickup-ticket/cache/`
-- Codex: `~/.codex/skills/clickup-ticket/cache/`
+**Cache location:** `~/.config/clickup-ticket/` (shared by Claude Code and Codex)
 
 **Cache refresh:**
 - Auto-refreshes after 24 hours
@@ -388,9 +386,7 @@ For detailed technical documentation, see the `references/` directory:
 
 ### Quick Reference
 
-**Cache location:**
-- Codex: `~/.codex/skills/clickup-ticket/cache/`
-- Claude Code: `~/.config/claude/skills/clickup-ticket/cache/`
+**Cache location:** `~/.config/clickup-ticket/` (shared by Claude Code and Codex)
 
 **Rate limits:** The skill handles 429 responses with automatic retry and backoff.
 
