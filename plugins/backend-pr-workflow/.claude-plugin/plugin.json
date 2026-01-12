@@ -1,6 +1,6 @@
 {
   "name": "backend-pr-workflow",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Enforces Diversio backend ClickUp-linked PR workflow, branch naming, safe Django migrations, and downtime-safe schema changes.",
   "author": {
     "name": "Diversio Devs"

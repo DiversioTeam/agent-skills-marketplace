@@ -1,6 +1,6 @@
 {
   "name": "code-review-digest-writer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Generates weekly code review digest docs from PR review comments for any GitHub repo.",
   "author": {
     "name": "Diversio Devs"

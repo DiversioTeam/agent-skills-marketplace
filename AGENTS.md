@@ -179,9 +179,9 @@ When working in this repo, Claude Code should:
 When a user asks how to install these Skills into OpenAI Codex (not Claude's
 marketplace), respond with instructions that avoid hardcoded paths:
 
-- Use the skill-installer script at
-  `$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py`
-  (with `CODEX_HOME` defaulting to `~/.codex`).
+- Use the Skill Installer script that ships with Codex:
+  - `$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py`
+  - (with `CODEX_HOME` defaulting to `~/.codex`)
 - Prefer `--repo DiversioTeam/agent-skills-marketplace --path plugins/<plugin>/skills/<skill>`.
 - Mention `--ref <branch-or-tag>` for pinning and the need to restart Codex.
 - Avoid hardcoded absolute user paths like `/Users/<name>/...`.
@@ -218,8 +218,11 @@ marketplace), respond with instructions that avoid hardcoded paths:
 
 ## References
 
-- [Agent Skills Standard](https://agentskills.io/home)
+- [Agent Skills Standard](https://agentskills.io/specification)
+- [Agent Skills Best Practices](https://agentskills.io/best-practices)
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
+- [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
+- [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
 - [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
 - [Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
 - [Agent Skills](https://code.claude.com/docs/en/skills)

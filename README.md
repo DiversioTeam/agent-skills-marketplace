@@ -4,7 +4,7 @@ Agent Skills marketplace for Diversio.
 
 ## Agent Skills Standard
 
-This repo follows the [Agent Skills standard](https://agentskills.io/home): an
+This repo follows the [Agent Skills standard](https://agentskills.io/specification): an
 open, tool-agnostic format for packaging capabilities and workflows for agents.
 A skill is a directory with a required `SKILL.md` that contains YAML frontmatter
 (`name`, `description`) and Markdown instructions, plus optional `scripts/`,
@@ -14,17 +14,25 @@ Key points from the standard:
 - `SKILL.md` is required and starts with YAML frontmatter.
 - `name` must match the skill directory and use lowercase letters, numbers, and hyphens.
 - `description` should explain what the skill does and when to use it.
-- Optional frontmatter fields include `license`, `compatibility`, `metadata`, and experimental `allowed-tools`.
+- Optional frontmatter fields include `license`, `compatibility`, `metadata`, and experimental `allowed-tools` (space-delimited string).
 - Keep `SKILL.md` focused; link to longer guidance in `references/` or helpers in `scripts/`.
 
 Skills are designed for progressive disclosure: agents read metadata first,
 load the full `SKILL.md` when invoked, and open `references/` or `scripts/`
 only if needed.
 
+### Compatibility (Codex + Claude Code)
+
+To keep Skills portable across both OpenAI Codex and Claude Code:
+- Prefer only `name` + `description` in YAML frontmatter; treat other fields as optional/ignored by many runtimes.
+- Keep `description` single-line and ≤500 chars (Codex validates this at startup).
+- Avoid `anthropic`/`claude` in Skill names and don’t include XML tags in `name`/`description` (Claude).
+- Keep `SKILL.md` reasonably small (≈<500 lines); move deep docs into `references/`.
+
 ## Working on Skills (LLM checklist)
 
 - Start with `AGENTS.md` (source of truth); `CLAUDE.md` only includes it.
-- Required structure: `skills/<skill-name>/SKILL.md` with YAML frontmatter (`name`, `description`).
+- Required structure: `plugins/<plugin>/skills/<skill-name>/SKILL.md` with YAML frontmatter (`name`, `description`).
 - Ensure the skill directory name matches `name` and stays in kebab-case.
 - Add or update a corresponding `plugins/<plugin>/commands/*.md` entrypoint.
 - Keep `SKILL.md` focused; put deep docs in `references/` and helpers in `scripts/`.
@@ -69,7 +77,9 @@ agent-skills-marketplace/
 │   ├── plan-directory/                # Structured plan directories + RALPH loop
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/
-│   │   │   ├── plan-directory/SKILL.md
+│   │   │   ├── plan-directory/
+│   │   │   │   ├── SKILL.md
+│   │   │   │   └── references/        # Extended guidance
 │   │   │   └── backend-ralph-plan/    # RALPH loop integration
 │   │   │       ├── SKILL.md
 │   │   │       ├── references/
@@ -80,7 +90,9 @@ agent-skills-marketplace/
 │   │       └── run.md                 # Execute RALPH plans
 │   ├── pr-description-writer/         # PR description generator
 │   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/pr-description-writer/SKILL.md
+│   │   ├── skills/pr-description-writer/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
 │   │   └── commands/write-pr.md
 │   ├── process-code-review/           # Code review processor (fix/skip issues)
 │   │   ├── .claude-plugin/plugin.json
@@ -88,7 +100,9 @@ agent-skills-marketplace/
 │   │   └── commands/process-review.md
 │   └── mixpanel-analytics/            # MixPanel tracking implementation & review
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/mixpanel-analytics/SKILL.md
+│       ├── skills/mixpanel-analytics/
+│       │   ├── SKILL.md
+│       │   └── references/
 │       └── commands/
 │           ├── implement.md
 │           └── review.md
@@ -173,12 +187,12 @@ agent-skills-marketplace/
 ## Install As Codex Skills
 
 Codex can install these Skills directly from GitHub (separate from Claude's
-marketplace). Use the skill-installer script and avoid hardcoded user paths:
+marketplace) using the Skill Installer and avoid hardcoded user paths:
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
-python "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo DiversioTeam/agent-skills-marketplace \
   --path plugins/monty-code-review/skills/monty-code-review
 ```
@@ -194,7 +208,7 @@ Install multiple Skills in one run:
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
-python "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo DiversioTeam/agent-skills-marketplace \
   --path plugins/monty-code-review/skills/monty-code-review \
   --path plugins/backend-atomic-commit/skills/backend-atomic-commit \
@@ -226,13 +240,16 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
 
 Notes:
 - Add `--ref <branch-or-tag>` to pin a version.
-- Codex installs Skills into `$CODEX_HOME/skills` (default `~/.codex/skills`).
+- Codex installs Skills into `~/.codex/skills` by default, and also loads repo-local Skills from `.codex/skills`.
 - Restart Codex after installing Skills.
 
 ## Documentation
 
-- [Agent Skills Standard](https://agentskills.io/home)
+- [Agent Skills Standard](https://agentskills.io/specification)
+- [Agent Skills Best Practices](https://agentskills.io/best-practices)
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
+- [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
+- [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
 - [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
 - [Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
 - [Agent Skills](https://code.claude.com/docs/en/skills)

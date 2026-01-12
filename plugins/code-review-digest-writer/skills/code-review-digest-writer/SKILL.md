@@ -1,17 +1,7 @@
 ---
 name: code-review-digest-writer
-description: >
-  Generates weekly code-review digest docs from PR review comments for any GitHub
-  repository. If present, follows project-specific docs/review-digests/AGENTS.md
-  guidelines. Use this to turn a date-bounded set of PR reviews into a structured
-  markdown “newsletter” that captures themes, repeated issues, and concrete
-  takeaways.
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
-  - Glob
-  - Grep
+description: "Generate weekly code-review digest docs from PR review comments for any GitHub repo, capturing themes, repeated issues, and concrete takeaways."
+allowed-tools: Bash Read Edit Glob Grep
 ---
 
 # Code Review Digest Writer Skill
@@ -200,13 +190,9 @@ which lessons to internalize first.
 
 ## Compatibility Notes
 
-This skill is designed to work with both **Claude Code** and **OpenAI Codex**.
+This Skill is designed to work with both Claude Code and OpenAI Codex.
 
-For Codex users:
-- Install via skill-installer with `--repo DiversioTeam/agent-skills-marketplace
-  --path plugins/code-review-digest-writer/skills/code-review-digest-writer`.
-- Use `$skill code-review-digest-writer` to invoke.
+- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/code-review-digest-writer/commands/`).
+- Codex: install the Skill directory and invoke `name: code-review-digest-writer`.
 
-For Claude Code users:
-- Install via `/plugin install code-review-digest-writer@diversiotech`.
-- Use `/code-review-digest-writer:review-digest` to invoke.
+For installation, see this repo's `README.md`.

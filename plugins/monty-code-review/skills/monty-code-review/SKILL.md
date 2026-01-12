@@ -1,16 +1,7 @@
 ---
 name: monty-code-review
-description: >
-  Hyper-pedantic code review skill that emulates Monty's Django4Lyfe
-  backend engineering philosophy and review style. Use this when reviewing or
-  refactoring Python/Django code in this backend repo and you want a strict,
-  correctness-first, multi-tenant-safe, deeply nitpicky review.
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
-  - Glob
-  - Grep
+description: "Hyper-pedantic Django code review skill emulating Monty's correctness-first, multi-tenant-safe review style."
+allowed-tools: Bash Read Edit Glob Grep
 ---
 
 # Monty Code Review Skill (Backend)
@@ -439,13 +430,9 @@ when calling out violations.
 
 ## Compatibility Notes
 
-This skill is designed to work with both **Claude Code** and **OpenAI Codex**.
+This Skill is designed to work with both Claude Code and OpenAI Codex.
 
-For Codex users:
-- Install via skill-installer with `--repo DiversioTeam/agent-skills-marketplace
-  --path plugins/monty-code-review/skills/monty-code-review`.
-- Use `$skill monty-code-review` to invoke.
+- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/monty-code-review/commands/`).
+- Codex: install the Skill directory and invoke `name: monty-code-review`.
 
-For Claude Code users:
-- Install via `/plugin install monty-code-review@diversiotech`.
-- Use `/monty-code-review:code-review` to invoke.
+For installation, see this repo's `README.md`.

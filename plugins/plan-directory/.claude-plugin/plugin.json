@@ -1,6 +1,6 @@
 {
   "name": "plan-directory",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Create and maintain structured plan directories with a master PLAN.md index and numbered task files (001-*.md) containing checklists, tests, and completion criteria. Includes backend-ralph-plan for RALPH loop execution.",
   "author": {
     "name": "Diversio Devs"

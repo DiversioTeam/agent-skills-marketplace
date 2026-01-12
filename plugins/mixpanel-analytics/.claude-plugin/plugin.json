@@ -1,6 +1,6 @@
 {
   "name": "mixpanel-analytics",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MixPanel analytics tracking implementation and review Skills for Django4Lyfe optimo_analytics module.",
   "author": {
     "name": "Diversio Devs"
