@@ -94,6 +94,14 @@ agent-skills-marketplace/
 │   │   │   ├── SKILL.md
 │   │   │   └── references/
 │   │   └── commands/write-pr.md
+│   ├── session-review-notes/          # PR-ready AI session review notes
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/session-review-notes/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── generate.md
+│   │       └── list-sessions.md
 │   ├── process-code-review/           # Code review processor (fix/skip issues)
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/process-code-review/SKILL.md
@@ -139,6 +147,7 @@ agent-skills-marketplace/
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
 | `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
+| `session-review-notes` | Upsert a single PR comment that serves as an AI session ledger (human steering, deltas, tests) across Codex + Claude Code (not a PR description) |
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
@@ -175,6 +184,9 @@ agent-skills-marketplace/
    # PR description writer
    /plugin install pr-description-writer@diversiotech
 
+   # PR-ready AI session review notes
+   /plugin install session-review-notes@diversiotech
+
    # Code review processor (fix/skip issues from monty-code-review)
    /plugin install process-code-review@diversiotech
 
@@ -198,6 +210,8 @@ agent-skills-marketplace/
    /plan-directory:backend-ralph-plan        # Create RALPH loop-integrated plan for backend
    /plan-directory:run <slug>                # Execute a RALPH plan via ralph-wiggum loop
    /pr-description-writer:write-pr           # Generate a comprehensive PR description
+   /session-review-notes:generate            # Generate PR-ready AI session review notes
+   /session-review-notes:list-sessions       # List recent Codex + Claude sessions (human-readable picker)
    /process-code-review:process-review       # Process code review findings (fix/skip issues)
    /mixpanel-analytics:implement             # Implement new MixPanel tracking events
    /mixpanel-analytics:review                # Review MixPanel implementations for compliance
