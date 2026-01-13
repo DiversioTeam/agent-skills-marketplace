@@ -85,6 +85,17 @@
       "keywords": ["github", "pull-request", "documentation", "workflow", "diversio"]
     },
     {
+      "name": "session-review-notes",
+      "description": "Upsert a single PR comment that serves as an AI session ledger (human steering, deltas, tests) across Codex + Claude Code. Not a PR description.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/session-review-notes",
+      "category": "documentation",
+      "keywords": ["prompt", "session", "pull-request", "review", "documentation", "workflow", "diversio"]
+    },
+    {
       "name": "process-code-review",
       "description": "Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking.",
       "version": "0.1.1",

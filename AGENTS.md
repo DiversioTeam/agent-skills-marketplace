@@ -40,6 +40,9 @@ Key layout:
   - `pr-description-writer/`
     - `.claude-plugin/plugin.json` – plugin manifest for PR descriptions.
     - `skills/pr-description-writer/SKILL.md` – PR description generator Skill.
+  - `session-review-notes/`
+    - `.claude-plugin/plugin.json` – plugin manifest for PR-ready AI session review notes.
+    - `skills/session-review-notes/SKILL.md` – session review notes Skill.
   - `process-code-review/`
     - `.claude-plugin/plugin.json` – plugin manifest for code review processor.
     - `skills/process-code-review/SKILL.md` – process code review findings Skill.
@@ -166,6 +169,12 @@ When working in this repo, Claude Code should:
   /plugin install pr-description-writer@diversiotech
   ```
 
+- Install the session review notes plugin:
+
+  ```bash
+  /plugin install session-review-notes@diversiotech
+  ```
+
 - Install the code review processor plugin:
 
   ```bash
@@ -220,6 +229,11 @@ marketplace), respond with instructions that avoid hardcoded paths:
     automated execution via `/plan-directory:run <slug>`.
   - `pr-description-writer` to generate comprehensive, reviewer-friendly PR
     descriptions with visual diagrams, summary tables, and structured sections.
+  - `session-review-notes` to upsert a single, auto-updating PR comment with AI
+    session notes that summarize intent, what changed, how the human steered the
+    session, review hotspots, tests run, and follow-ups. Command:
+    - `/session-review-notes:generate` – Generate PR-ready AI session review notes
+    - `/session-review-notes:list-sessions` – List recent Codex + Claude sessions (picker for backfill)
   - `process-code-review` to interactively process code review findings from
     monty-code-review output - fix or skip issues with status tracking.
   - `mixpanel-analytics` to implement new MixPanel tracking events and review
