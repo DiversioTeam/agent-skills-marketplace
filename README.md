@@ -175,7 +175,10 @@ agent-skills-marketplace/
    /plugin marketplace add DiversioTeam/agent-skills-marketplace
    ```
 
-2. Install a plugin from the marketplace:
+2. Install a plugin from the marketplace.
+
+   **Recommended:** Install at user scope (default) for compatibility with git worktrees.
+   Project-scope plugins don't persist across worktrees.
 
    ```bash
    # Monty backend code review
@@ -273,7 +276,10 @@ To remove all Diversio plugins and reinstall fresh:
 /plugin uninstall backend-release@diversiotech
 ```
 
-**Note:** If a plugin isn't installed, the uninstall command will simply report it's not found. Run each line individually in Claude Code (slash commands can't be batched).
+**Notes:**
+- If a plugin isn't installed, the uninstall command will report it's not found.
+- Run each line individually in Claude Code (slash commands can't be batched).
+- If a plugin was installed at project scope, add `--scope project` to the uninstall command.
 
 After uninstalling, reinstall using the install commands above.
 
