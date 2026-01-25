@@ -216,8 +216,10 @@ When working in this repo, Claude Code should:
 
 - **Uninstall all Diversio plugins** (Claude Code) to reinstall fresh:
 
+  First check what's installed: `/plugin list` (note `Scope:` field).
+
   ```bash
-  # Run each line to uninstall
+  # User scope (default) - run each line
   /plugin uninstall monty-code-review@diversiotech
   /plugin uninstall backend-atomic-commit@diversiotech
   /plugin uninstall backend-pr-workflow@diversiotech
@@ -232,6 +234,16 @@ When working in this repo, Claude Code should:
   /plugin uninstall repo-docs@diversiotech
   /plugin uninstall backend-release@diversiotech
   ```
+
+  For project-scoped plugins, add `--scope project`:
+
+  ```bash
+  /plugin uninstall <plugin>@diversiotech --scope project
+  ```
+
+  **Troubleshooting:** If a plugin shows in list but "not found" on uninstall,
+  try the other scope. For stuck/disabled plugins, enable first then uninstall.
+  For manual cleanup, delete `.claude/` in project root or check `~/.config/claude/`.
 
 ## Codex Skill Installer Notes (For LLMs)
 

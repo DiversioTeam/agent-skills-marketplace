@@ -259,8 +259,18 @@ agent-skills-marketplace/
 
 To remove all Diversio plugins and reinstall fresh:
 
+**Step 1: Check what's installed and at which scope**
+
 ```bash
-# Uninstall all Diversio plugins (run each line)
+/plugin list
+```
+
+Look for plugins with `@diversiotech` - note the `Scope:` field (user or project).
+
+**Step 2: Uninstall user-scoped plugins**
+
+```bash
+# User scope (default) - run each line
 /plugin uninstall monty-code-review@diversiotech
 /plugin uninstall backend-atomic-commit@diversiotech
 /plugin uninstall backend-pr-workflow@diversiotech
@@ -276,10 +286,25 @@ To remove all Diversio plugins and reinstall fresh:
 /plugin uninstall backend-release@diversiotech
 ```
 
-**Notes:**
-- If a plugin isn't installed, the uninstall command will report it's not found.
-- Run each line individually in Claude Code (slash commands can't be batched).
-- If a plugin was installed at project scope, add `--scope project` to the uninstall command.
+**Step 3: Uninstall project-scoped plugins (if any)**
+
+If `/plugin list` shows plugins at `Scope: project`, uninstall them with:
+
+```bash
+# Project scope - add --scope project flag
+/plugin uninstall monty-code-review@diversiotech --scope project
+/plugin uninstall backend-atomic-commit@diversiotech --scope project
+# ... repeat for each project-scoped plugin
+```
+
+**Troubleshooting:**
+
+| Problem | Solution |
+|---------|----------|
+| Plugin shows in list but "not found" on uninstall | Try the other scope: `--scope project` or `--scope user` |
+| Plugin stuck in disabled state | Enable first (`/plugin enable ...`), then uninstall |
+| Project-scoped plugins don't persist in git worktrees | Uninstall with `--scope project`, reinstall at user scope |
+| Manual cleanup needed | Delete `.claude/` directory in project root, or check `~/.config/claude/` for user config |
 
 After uninstalling, reinstall using the install commands above.
 
