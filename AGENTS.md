@@ -53,6 +53,14 @@ Key layout:
     - `.claude-plugin/plugin.json` – plugin manifest for ClickUp ticket creation.
     - `skills/clickup-ticket/SKILL.md` – ClickUp ticket creation and management Skill.
     - `commands/*.md` – Commands for ticket creation, subtasks, backlog, multi-org.
+  - `repo-docs/`
+    - `.claude-plugin/plugin.json` – plugin manifest for repository documentation generator.
+    - `skills/repo-docs-generator/SKILL.md` – comprehensive AGENTS.md/README.md/CLAUDE.md generator Skill.
+    - `commands/generate.md` – Main command to generate documentation.
+  - `backend-release/`
+    - `.claude-plugin/plugin.json` – plugin manifest for Django4Lyfe release workflow.
+    - `skills/release-manager/SKILL.md` – full release workflow management Skill.
+    - `commands/*.md` – Commands for check, create, and publish releases.
 
 ## How Claude Code Should Behave Here
 
@@ -193,6 +201,18 @@ When working in this repo, Claude Code should:
   /plugin install clickup-ticket@diversiotech
   ```
 
+- Install the repo docs plugin:
+
+  ```bash
+  /plugin install repo-docs@diversiotech
+  ```
+
+- Install the backend release plugin:
+
+  ```bash
+  /plugin install backend-release@diversiotech
+  ```
+
 ## Codex Skill Installer Notes (For LLMs)
 
 When a user asks how to install these Skills into OpenAI Codex (not Claude's
@@ -249,6 +269,16 @@ marketplace), respond with instructions that avoid hardcoded paths:
     - `/clickup-ticket:create-subtask` – Add subtask to existing ticket
     - `/clickup-ticket:switch-org` – Switch between organizations
     - `/clickup-ticket:configure` – Set up defaults and cache
+  - `repo-docs` to generate comprehensive AGENTS.md, README.md, and CLAUDE.md
+    documentation for any repository. Analyzes tech stack, creates ASCII
+    architecture diagrams, and preserves existing documentation. Command:
+    - `/repo-docs:generate [path]` – Generate documentation for repository
+  - `backend-release` to manage the full release workflow for Django4Lyfe backend
+    (Diversio monolith). Handles release PRs, date-based version bumping
+    (YYYY.MM.DD), uv lock updates, and GitHub release publishing. Commands:
+    - `/backend-release:check` – Check what commits are pending release
+    - `/backend-release:create` – Create release PR with cherry-pick method
+    - `/backend-release:publish [PR_NUMBER]` – Publish GitHub release after PR merge
 
 ## References
 
