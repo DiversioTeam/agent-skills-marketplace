@@ -169,59 +169,79 @@ agent-skills-marketplace/
 
 ## Installation
 
-1. Add the marketplace to Claude Code:
+### 1. Add the marketplace
 
-   ```bash
-   /plugin marketplace add DiversioTeam/agent-skills-marketplace
-   ```
+From your terminal (outside Claude Code):
 
-2. Install a plugin from the marketplace.
+```bash
+claude plugin marketplace add DiversioTeam/agent-skills-marketplace
+```
 
-   **Recommended:** Install at user scope (default) for compatibility with git worktrees.
-   Project-scope plugins don't persist across worktrees.
+Or from within a Claude Code session:
 
-   ```bash
-   # Monty backend code review
-   /plugin install monty-code-review@diversiotech
+```
+/plugin marketplace add DiversioTeam/agent-skills-marketplace
+```
 
-   # Backend pre-commit / atomic commit helper
-   /plugin install backend-atomic-commit@diversiotech
+### 2. Install plugins
 
-   # Backend PR workflow (ClickUp + migrations/downtime)
-   /plugin install backend-pr-workflow@diversiotech
+**Recommended:** Install at user scope (default) for compatibility with git worktrees.
+Project-scope plugins don't persist across worktrees.
 
-   # Bruno API docs generator (.bru -> Django endpoint docs)
-   /plugin install bruno-api@diversiotech
+<details>
+<summary><strong>Install All Plugins (CLI commands)</strong></summary>
 
-   # Code review digest writer
-   /plugin install code-review-digest-writer@diversiotech
+Copy-paste these commands in your terminal:
 
-   # Plan directory with RALPH loop integration
-   /plugin install plan-directory@diversiotech
+```bash
+claude plugin install monty-code-review@diversiotech
+claude plugin install backend-atomic-commit@diversiotech
+claude plugin install backend-pr-workflow@diversiotech
+claude plugin install bruno-api@diversiotech
+claude plugin install code-review-digest-writer@diversiotech
+claude plugin install plan-directory@diversiotech
+claude plugin install pr-description-writer@diversiotech
+claude plugin install session-review-notes@diversiotech
+claude plugin install process-code-review@diversiotech
+claude plugin install mixpanel-analytics@diversiotech
+claude plugin install clickup-ticket@diversiotech
+claude plugin install repo-docs@diversiotech
+claude plugin install backend-release@diversiotech
+```
 
-   # PR description writer
-   /plugin install pr-description-writer@diversiotech
+For project-scoped installation (shared with collaborators via `.claude/settings.json`):
 
-   # PR-ready AI session review notes
-   /plugin install session-review-notes@diversiotech
+```bash
+claude plugin install monty-code-review@diversiotech --scope project
+# ... repeat for each plugin
+```
 
-   # Code review processor (fix/skip issues from monty-code-review)
-   /plugin install process-code-review@diversiotech
+</details>
 
-   # MixPanel analytics (implement and review tracking events)
-   /plugin install mixpanel-analytics@diversiotech
+<details>
+<summary><strong>Install Individual Plugins</strong></summary>
 
-   # ClickUp ticket management (create tickets, subtasks, backlog)
-   /plugin install clickup-ticket@diversiotech
+| Plugin | CLI Command |
+|--------|-------------|
+| Monty backend code review | `claude plugin install monty-code-review@diversiotech` |
+| Backend pre-commit / atomic commit | `claude plugin install backend-atomic-commit@diversiotech` |
+| Backend PR workflow | `claude plugin install backend-pr-workflow@diversiotech` |
+| Bruno API docs generator | `claude plugin install bruno-api@diversiotech` |
+| Code review digest writer | `claude plugin install code-review-digest-writer@diversiotech` |
+| Plan directory + RALPH loop | `claude plugin install plan-directory@diversiotech` |
+| PR description writer | `claude plugin install pr-description-writer@diversiotech` |
+| Session review notes | `claude plugin install session-review-notes@diversiotech` |
+| Code review processor | `claude plugin install process-code-review@diversiotech` |
+| MixPanel analytics | `claude plugin install mixpanel-analytics@diversiotech` |
+| ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
+| Repository docs generator | `claude plugin install repo-docs@diversiotech` |
+| Backend release workflow | `claude plugin install backend-release@diversiotech` |
 
-   # Repository documentation generator (AGENTS.md, README.md, CLAUDE.md)
-   /plugin install repo-docs@diversiotech
+</details>
 
-   # Django4Lyfe backend release workflow
-   /plugin install backend-release@diversiotech
-   ```
+### 3. Use slash commands
 
-3. Use plugin-provided slash commands (once plugins are installed):
+Once plugins are installed:
 
    ```text
    /monty-code-review:code-review            # Hyper-pedantic backend code review
@@ -255,79 +275,84 @@ agent-skills-marketplace/
    /backend-release:publish                  # Publish GitHub release after PR merge
    ```
 
-### Uninstall All Diversio Plugins (Claude Code)
+### Uninstall Plugins (Claude Code)
 
-To remove all Diversio plugins and reinstall fresh:
+<details>
+<summary><strong>Uninstall All Diversio Plugins</strong></summary>
 
-**Step 1: Check what's installed and at which scope**
+**Step 1: Check what's installed**
 
 ```bash
-/plugin list
+claude plugin list
 ```
+
+Or inside Claude Code: `/plugin list`
 
 Look for plugins with `@diversiotech` - note the `Scope:` field (user or project).
 
 **Step 2: Uninstall user-scoped plugins**
 
+Copy-paste these commands in your terminal:
+
 ```bash
-# User scope (default) - run each line
-/plugin uninstall monty-code-review@diversiotech
-/plugin uninstall backend-atomic-commit@diversiotech
-/plugin uninstall backend-pr-workflow@diversiotech
-/plugin uninstall bruno-api@diversiotech
-/plugin uninstall code-review-digest-writer@diversiotech
-/plugin uninstall plan-directory@diversiotech
-/plugin uninstall pr-description-writer@diversiotech
-/plugin uninstall session-review-notes@diversiotech
-/plugin uninstall process-code-review@diversiotech
-/plugin uninstall mixpanel-analytics@diversiotech
-/plugin uninstall clickup-ticket@diversiotech
-/plugin uninstall repo-docs@diversiotech
-/plugin uninstall backend-release@diversiotech
+claude plugin uninstall monty-code-review@diversiotech
+claude plugin uninstall backend-atomic-commit@diversiotech
+claude plugin uninstall backend-pr-workflow@diversiotech
+claude plugin uninstall bruno-api@diversiotech
+claude plugin uninstall code-review-digest-writer@diversiotech
+claude plugin uninstall plan-directory@diversiotech
+claude plugin uninstall pr-description-writer@diversiotech
+claude plugin uninstall session-review-notes@diversiotech
+claude plugin uninstall process-code-review@diversiotech
+claude plugin uninstall mixpanel-analytics@diversiotech
+claude plugin uninstall clickup-ticket@diversiotech
+claude plugin uninstall repo-docs@diversiotech
+claude plugin uninstall backend-release@diversiotech
 ```
 
 **Step 3: Uninstall project-scoped plugins (if any)**
 
-If `/plugin list` shows plugins at `Scope: project`, uninstall them with:
+If `claude plugin list` shows plugins at `Scope: project`:
 
 ```bash
-# Project scope - add --scope project flag
-/plugin uninstall monty-code-review@diversiotech --scope project
-/plugin uninstall backend-atomic-commit@diversiotech --scope project
-# ... repeat for each project-scoped plugin
+claude plugin uninstall monty-code-review@diversiotech --scope project
+claude plugin uninstall backend-atomic-commit@diversiotech --scope project
+claude plugin uninstall backend-pr-workflow@diversiotech --scope project
+claude plugin uninstall bruno-api@diversiotech --scope project
+claude plugin uninstall code-review-digest-writer@diversiotech --scope project
+claude plugin uninstall plan-directory@diversiotech --scope project
+claude plugin uninstall pr-description-writer@diversiotech --scope project
+claude plugin uninstall session-review-notes@diversiotech --scope project
+claude plugin uninstall process-code-review@diversiotech --scope project
+claude plugin uninstall mixpanel-analytics@diversiotech --scope project
+claude plugin uninstall clickup-ticket@diversiotech --scope project
+claude plugin uninstall repo-docs@diversiotech --scope project
+claude plugin uninstall backend-release@diversiotech --scope project
 ```
 
-**Troubleshooting:**
+</details>
+
+<details>
+<summary><strong>Troubleshooting</strong></summary>
 
 | Problem | Solution |
 |---------|----------|
 | Plugin shows in list but "not found" on uninstall | Try the other scope: `--scope project` or `--scope user` |
-| Plugin stuck in disabled state | Enable first (`/plugin enable ...`), then uninstall |
+| Plugin stuck in disabled state | Enable first (`claude plugin enable ...`), then uninstall |
 | Project-scoped plugins don't persist in git worktrees | Uninstall with `--scope project`, reinstall at user scope |
-| Manual cleanup needed | Delete `.claude/` directory in project root, or check `~/.config/claude/` for user config |
+| Manual cleanup needed | Delete `.claude/` directory in project root, or check `~/.claude/` for user config |
+
+</details>
 
 After uninstalling, reinstall using the install commands above.
 
 ## Install As Codex Skills
 
 Codex can install these Skills directly from GitHub (separate from Claude's
-marketplace) using the Skill Installer and avoid hardcoded user paths:
+marketplace) using the Skill Installer.
 
-```bash
-CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-
-python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo DiversioTeam/agent-skills-marketplace \
-  --path plugins/monty-code-review/skills/monty-code-review
-```
-
-You can also invoke the installer from the Codex console:
-
-```text
-$skill-installer install from github repo=DiversioTeam/agent-skills-marketplace path=plugins/monty-code-review/skills/monty-code-review
-```
-
-Install multiple Skills in one run:
+<details>
+<summary><strong>Install All Skills (Codex)</strong></summary>
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -344,6 +369,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/plan-directory/skills/plan-directory \
     plugins/plan-directory/skills/backend-ralph-plan \
     plugins/pr-description-writer/skills/pr-description-writer \
+    plugins/session-review-notes/skills/session-review-notes \
     plugins/process-code-review/skills/process-code-review \
     plugins/mixpanel-analytics/skills/mixpanel-analytics \
     plugins/clickup-ticket/skills/clickup-ticket \
@@ -351,7 +377,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/backend-release/skills/release-manager
 ```
 
-Codex console multi-install example:
+**Codex console alternative:**
 
 ```text
 $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace \
@@ -363,6 +389,7 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/plan-directory/skills/plan-directory \
   path=plugins/plan-directory/skills/backend-ralph-plan \
   path=plugins/pr-description-writer/skills/pr-description-writer \
+  path=plugins/session-review-notes/skills/session-review-notes \
   path=plugins/process-code-review/skills/process-code-review \
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
   path=plugins/clickup-ticket/skills/clickup-ticket \
@@ -370,18 +397,31 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/backend-release/skills/release-manager
 ```
 
-Notes:
-- Add `--ref <branch-or-tag>` to pin a version.
-- `install-skill-from-github.py` does not overwrite existing Skills; to update, delete the existing `$CODEX_HOME/skills/<skill-name>` directory and reinstall.
-- Codex installs Skills into `~/.codex/skills` by default, and also loads repo-local Skills from `.codex/skills`.
-- Restart Codex after installing Skills.
+</details>
 
-### Uninstall All Diversio Skills (Codex)
-
-To remove all Diversio skills and reinstall fresh, copy-paste this entire block:
+<details>
+<summary><strong>Install Individual Skills (Codex)</strong></summary>
 
 ```bash
-# Uninstall all Diversio skills (safe: continues if skill doesn't exist)
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+
+python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo DiversioTeam/agent-skills-marketplace \
+  --path plugins/monty-code-review/skills/monty-code-review
+```
+
+Or from the Codex console:
+
+```text
+$skill-installer install from github repo=DiversioTeam/agent-skills-marketplace path=plugins/monty-code-review/skills/monty-code-review
+```
+
+</details>
+
+<details>
+<summary><strong>Uninstall All Skills (Codex)</strong></summary>
+
+```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/backend-atomic-commit" \
@@ -400,7 +440,13 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
 echo "Done. Restart Codex and reinstall skills."
 ```
 
-After removing, restart Codex and reinstall using the multi-install command above.
+</details>
+
+**Notes:**
+- Add `--ref <branch-or-tag>` to pin a version.
+- The installer does not overwrite existing Skills; delete `$CODEX_HOME/skills/<skill-name>` first to update.
+- Codex installs Skills into `~/.codex/skills` by default.
+- Restart Codex after installing Skills.
 
 ## Documentation
 
@@ -410,6 +456,7 @@ After removing, restart Codex and reinstall using the multi-install command abov
 - [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
 - [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
 - [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
+- [Discover and Install Plugins](https://code.claude.com/docs/en/discover-plugins)
 - [Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
 - [Agent Skills](https://code.claude.com/docs/en/skills)
 
