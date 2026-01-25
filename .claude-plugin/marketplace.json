@@ -130,14 +130,14 @@
     },
     {
       "name": "repo-docs",
-      "description": "Generate comprehensive AGENTS.md, README.md, and CLAUDE.md documentation for any repository with ASCII architecture diagrams and tech stack analysis.",
+      "description": "Generate and canonicalize repository documentation. Create new docs or audit existing AGENTS.md/CLAUDE.md to enforce single-source-of-truth pattern.",
       "version": "0.1.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/repo-docs",
       "category": "documentation",
-      "keywords": ["documentation", "agents-md", "readme", "claude-md", "architecture", "ascii-diagrams", "tech-stack"]
+      "keywords": ["documentation", "agents-md", "readme", "claude-md", "architecture", "ascii-diagrams", "tech-stack", "canonicalize"]
     },
     {
       "name": "backend-release",

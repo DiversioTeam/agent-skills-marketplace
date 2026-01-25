@@ -1,7 +1,7 @@
 {
   "name": "repo-docs",
   "version": "0.1.0",
-  "description": "Generate comprehensive AGENTS.md, README.md, and CLAUDE.md documentation for any repository. Deep-dives into codebase structure, identifies technologies, creates ASCII architecture diagrams, and respects existing documentation.",
+  "description": "Generate and canonicalize repository documentation. Create new AGENTS.md/README.md/CLAUDE.md from scratch, or audit existing docs to make AGENTS.md canonical and normalize CLAUDE.md to minimal stubs.",
   "author": {
     "name": "Diversio Devs"
   }

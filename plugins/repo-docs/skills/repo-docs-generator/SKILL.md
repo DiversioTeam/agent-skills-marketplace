@@ -560,3 +560,211 @@ find . -maxdepth 2 -name "*.md" -type f
 ```
 
 **When in doubt:** Read everything first, enhance carefully, preserve human content, use standard ASCII only for diagrams.
+
+---
+
+## Canonicalize Mode
+
+Use `/repo-docs:canonicalize` to audit and fix existing documentation across a repository, making AGENTS.md the canonical source of truth and normalizing all CLAUDE.md files to minimal stubs.
+
+### When to Use Canonicalize
+
+- Repository has scattered/divergent AGENTS.md and CLAUDE.md files
+- Documentation contains stale content (old package managers, outdated commands)
+- CLAUDE.md files have unique content that should live in AGENTS.md
+- Want to enforce the "single source of truth" pattern across a codebase
+
+### Canonicalize Workflow
+
+#### Phase 1: Discovery
+
+Find all directories with AGENTS.md and/or CLAUDE.md:
+
+```bash
+# Find all AGENTS.md and CLAUDE.md files recursively
+find . -name "AGENTS.md" -o -name "CLAUDE.md" | sort
+
+# Group by directory
+find . -name "AGENTS.md" -o -name "CLAUDE.md" | xargs -I{} dirname {} | sort -u
+```
+
+#### Phase 2: Per-Directory Analysis
+
+For each directory with docs, analyze the **actual** current behavior:
+
+**Tooling Analysis:**
+```bash
+# Check for uv (modern Python)
+ls uv.lock pyproject.toml 2>/dev/null
+
+# Check for .bin/* wrappers
+ls .bin/ 2>/dev/null
+
+# Check CI configuration
+ls .github/workflows/*.yml 2>/dev/null
+cat .github/workflows/*.yml 2>/dev/null | grep -E "run:|command:" | head -20
+
+# Check for Makefile/scripts
+ls Makefile *.sh scripts/ 2>/dev/null
+```
+
+**Identify Stale Patterns (remove these):**
+- `pip install -r requirements.txt` → should be `uv sync`
+- `poetry install` / `poetry run` → should be `uv sync` / `uv run`
+- `python manage.py` → should be `.bin/django` or `uv run python manage.py`
+- `pytest` → should be `.bin/pytest` or `uv run pytest`
+- References to old Django versions, old CI patterns, removed features
+
+**Identify Current Patterns (use these):**
+- `uv sync`, `uv run ...`
+- `.bin/django`, `.bin/pytest`, `.bin/ruff`, `.bin/mypy`
+- Current CI job names and commands
+- Actual architecture from code inspection
+
+#### Phase 3: Comparison & Merge
+
+For each directory:
+
+1. **Read both files:**
+   ```bash
+   cat AGENTS.md 2>/dev/null
+   cat CLAUDE.md 2>/dev/null
+   ```
+
+2. **Identify content categories:**
+   - **Keep**: Still true and important
+   - **Remove**: Stale, outdated, or incorrect
+   - **Merge**: In CLAUDE.md but not AGENTS.md (move to AGENTS.md)
+
+3. **Merge strategy:**
+   - If CLAUDE.md has better/more current detail → move to AGENTS.md
+   - If both have same info → keep AGENTS.md version
+   - If conflict → prefer what matches actual code behavior
+
+#### Phase 4: Rewrite AGENTS.md
+
+Update AGENTS.md to be canonical for its directory scope:
+
+**Command updates:**
+````markdown
+## Common Commands
+
+```bash
+# Environment setup
+uv sync                              # Install dependencies
+
+# Running the server
+.bin/django runserver                # Or: uv run python manage.py runserver
+
+# Testing
+.bin/pytest                          # Or: uv run pytest
+.bin/pytest -x -vvs path/to/test.py  # Single test with output
+
+# Linting
+.bin/ruff check .                    # Check for issues
+.bin/ruff format .                   # Auto-format
+
+# Type checking
+.bin/mypy .                          # Run mypy
+```
+````
+
+**Behavior descriptions must match actual code:**
+- Check what CI actually runs, not what old docs say
+- Verify management commands exist before documenting them
+- Confirm architecture matches current codebase structure
+
+#### Phase 5: Normalize CLAUDE.md
+
+Replace every CLAUDE.md with this minimal stub:
+
+```markdown
+@AGENTS.md
+
+---
+
+## Notes
+
+This `CLAUDE.md` intentionally sources `AGENTS.md` so that requirements,
+commands, and agent behavior live in a single source of truth for this repo.
+
+For Claude Code best practices on `CLAUDE.md` / `AGENTS.md` in web-based repos,
+see:
+- https://docs.claude.com/en/docs/claude-code/claude-code-on-the-web#best-practices
+
+Relevant guidance (summarized):
+- Document requirements: clearly specify dependencies and commands for the
+  project.
+- If you have an `AGENTS.md` file, you can source it in your `CLAUDE.md` using
+  `@AGENTS.md` to maintain a single source of truth.
+```
+
+**Important:** No additional rules, requirements, or divergent specs in CLAUDE.md. All behavioral guidance must live in AGENTS.md.
+
+### Canonicalize Output Shape
+
+```
+## Documentation Canonicalized
+
+**Repository:** /path/to/repo
+**Directories processed:** N
+
+### Summary by Directory:
+
+| Directory | AGENTS.md | CLAUDE.md | Changes |
+|-----------|-----------|-----------|---------|
+| `/` | Updated | Normalized | Merged 3 sections, removed stale pip commands |
+| `/backend` | Updated | Normalized | Updated to .bin/* wrappers |
+| `/infra` | Created | Normalized | Was CLAUDE.md only, now has AGENTS.md |
+
+### Stale Content Removed:
+
+- `pip install -r requirements.txt` → `uv sync`
+- `poetry run pytest` → `.bin/pytest`
+- References to Django 3.x (now 4.x)
+- Old CI workflow names
+
+### Content Merged from CLAUDE.md → AGENTS.md:
+
+- `/backend/CLAUDE.md`: Database migration safety rules
+- `/infra/CLAUDE.md`: Terraform state locking guidance
+
+### All CLAUDE.md files now source @AGENTS.md
+```
+
+### Canonicalize Rules
+
+1. **Analyze before changing** - Always understand actual behavior first
+2. **AGENTS.md is the source of truth** - All rules live there
+3. **CLAUDE.md is just a pointer** - Minimal stub, no unique content
+4. **Commands must be current** - `uv`, `.bin/*` wrappers, actual CI commands
+5. **Remove stale content aggressively** - Old package managers, old patterns
+6. **Merge, don't lose** - Move valuable CLAUDE.md content to AGENTS.md first
+7. **Recursive** - Process every directory with docs, not just root
+8. **Confirm before destructive changes** - Show diff, ask user if uncertain
+
+### Handling Edge Cases
+
+#### Directory has CLAUDE.md but no AGENTS.md
+
+1. Create AGENTS.md from CLAUDE.md content
+2. Update to current patterns
+3. Replace CLAUDE.md with minimal stub
+
+#### Directory has both but CLAUDE.md has unique rules
+
+1. Merge unique rules into AGENTS.md
+2. Verify rules match actual code behavior
+3. Replace CLAUDE.md with minimal stub
+
+#### AGENTS.md references files/commands that don't exist
+
+1. Remove or update the reference
+2. Document what actually exists
+3. Note the removal in output report
+
+#### Subdirectory AGENTS.md contradicts parent
+
+1. Subdirectory AGENTS.md is authoritative for its scope
+2. Parent should not repeat subdirectory rules
+3. Each AGENTS.md documents its directory scope only
