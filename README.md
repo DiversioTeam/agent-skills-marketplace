@@ -114,21 +114,34 @@ agent-skills-marketplace/
 │   │   └── commands/
 │   │       ├── implement.md
 │   │       └── review.md
-│   └── clickup-ticket/                # ClickUp ticket management
+│   ├── clickup-ticket/                # ClickUp ticket management
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/clickup-ticket/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── configure.md
+│   │       ├── create-ticket.md
+│   │       ├── quick-ticket.md
+│   │       ├── create-subtask.md
+│   │       ├── add-to-backlog.md
+│   │       ├── list-spaces.md
+│   │       ├── switch-org.md
+│   │       ├── add-org.md
+│   │       └── refresh-cache.md
+│   ├── repo-docs/                     # Repository documentation generator
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/repo-docs-generator/SKILL.md
+│   │   └── commands/
+│   │       ├── generate.md
+│   │       └── canonicalize.md
+│   └── backend-release/               # Django4Lyfe release workflow
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/clickup-ticket/
-│       │   ├── SKILL.md
-│       │   └── references/
+│       ├── skills/release-manager/SKILL.md
 │       └── commands/
-│           ├── configure.md
-│           ├── create-ticket.md
-│           ├── quick-ticket.md
-│           ├── create-subtask.md
-│           ├── add-to-backlog.md
-│           ├── list-spaces.md
-│           ├── switch-org.md
-│           ├── add-org.md
-│           └── refresh-cache.md
+│           ├── check.md
+│           ├── create.md
+│           └── publish.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -151,6 +164,8 @@ agent-skills-marketplace/
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
+| `repo-docs` | Generate and canonicalize repository documentation (AGENTS.md, README.md, CLAUDE.md) with ASCII architecture diagrams and single-source-of-truth pattern |
+| `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 
 ## Installation
 
@@ -195,6 +210,12 @@ agent-skills-marketplace/
 
    # ClickUp ticket management (create tickets, subtasks, backlog)
    /plugin install clickup-ticket@diversiotech
+
+   # Repository documentation generator (AGENTS.md, README.md, CLAUDE.md)
+   /plugin install repo-docs@diversiotech
+
+   # Django4Lyfe backend release workflow
+   /plugin install backend-release@diversiotech
    ```
 
 3. Use plugin-provided slash commands (once plugins are installed):
@@ -224,7 +245,37 @@ agent-skills-marketplace/
    /clickup-ticket:switch-org                # Switch between organizations
    /clickup-ticket:add-org                   # Add a new organization
    /clickup-ticket:refresh-cache             # Force refresh cached data
+   /repo-docs:generate                       # Generate new AGENTS.md, README.md, CLAUDE.md
+   /repo-docs:canonicalize                   # Audit and fix existing docs (make AGENTS.md canonical)
+   /backend-release:check                    # Check what commits are pending release
+   /backend-release:create                   # Create release PR with cherry-pick method
+   /backend-release:publish                  # Publish GitHub release after PR merge
    ```
+
+### Uninstall All Diversio Plugins (Claude Code)
+
+To remove all Diversio plugins and reinstall fresh:
+
+```bash
+# Uninstall all Diversio plugins (run each line)
+/plugin uninstall monty-code-review@diversiotech
+/plugin uninstall backend-atomic-commit@diversiotech
+/plugin uninstall backend-pr-workflow@diversiotech
+/plugin uninstall bruno-api@diversiotech
+/plugin uninstall code-review-digest-writer@diversiotech
+/plugin uninstall plan-directory@diversiotech
+/plugin uninstall pr-description-writer@diversiotech
+/plugin uninstall session-review-notes@diversiotech
+/plugin uninstall process-code-review@diversiotech
+/plugin uninstall mixpanel-analytics@diversiotech
+/plugin uninstall clickup-ticket@diversiotech
+/plugin uninstall repo-docs@diversiotech
+/plugin uninstall backend-release@diversiotech
+```
+
+**Note:** If a plugin isn't installed, the uninstall command will simply report it's not found. Run each line individually in Claude Code (slash commands can't be batched).
+
+After uninstalling, reinstall using the install commands above.
 
 ## Install As Codex Skills
 
@@ -264,7 +315,9 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/pr-description-writer/skills/pr-description-writer \
     plugins/process-code-review/skills/process-code-review \
     plugins/mixpanel-analytics/skills/mixpanel-analytics \
-    plugins/clickup-ticket/skills/clickup-ticket
+    plugins/clickup-ticket/skills/clickup-ticket \
+    plugins/repo-docs/skills/repo-docs-generator \
+    plugins/backend-release/skills/release-manager
 ```
 
 Codex console multi-install example:
@@ -281,7 +334,9 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/pr-description-writer/skills/pr-description-writer \
   path=plugins/process-code-review/skills/process-code-review \
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
-  path=plugins/clickup-ticket/skills/clickup-ticket
+  path=plugins/clickup-ticket/skills/clickup-ticket \
+  path=plugins/repo-docs/skills/repo-docs-generator \
+  path=plugins/backend-release/skills/release-manager
 ```
 
 Notes:
@@ -289,6 +344,32 @@ Notes:
 - `install-skill-from-github.py` does not overwrite existing Skills; to update, delete the existing `$CODEX_HOME/skills/<skill-name>` directory and reinstall.
 - Codex installs Skills into `~/.codex/skills` by default, and also loads repo-local Skills from `.codex/skills`.
 - Restart Codex after installing Skills.
+
+### Uninstall All Diversio Skills (Codex)
+
+To remove all Diversio skills and reinstall fresh, copy-paste this entire block:
+
+```bash
+# Uninstall all Diversio skills (safe: continues if skill doesn't exist)
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+rm -rf "$CODEX_HOME/skills/monty-code-review" \
+       "$CODEX_HOME/skills/backend-atomic-commit" \
+       "$CODEX_HOME/skills/backend-pr-workflow" \
+       "$CODEX_HOME/skills/bruno-api" \
+       "$CODEX_HOME/skills/code-review-digest-writer" \
+       "$CODEX_HOME/skills/plan-directory" \
+       "$CODEX_HOME/skills/backend-ralph-plan" \
+       "$CODEX_HOME/skills/pr-description-writer" \
+       "$CODEX_HOME/skills/session-review-notes" \
+       "$CODEX_HOME/skills/process-code-review" \
+       "$CODEX_HOME/skills/mixpanel-analytics" \
+       "$CODEX_HOME/skills/clickup-ticket" \
+       "$CODEX_HOME/skills/repo-docs-generator" \
+       "$CODEX_HOME/skills/release-manager"
+echo "Done. Restart Codex and reinstall skills."
+```
+
+After removing, restart Codex and reinstall using the multi-install command above.
 
 ## Documentation
 

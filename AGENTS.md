@@ -53,6 +53,15 @@ Key layout:
     - `.claude-plugin/plugin.json` – plugin manifest for ClickUp ticket creation.
     - `skills/clickup-ticket/SKILL.md` – ClickUp ticket creation and management Skill.
     - `commands/*.md` – Commands for ticket creation, subtasks, backlog, multi-org.
+  - `repo-docs/`
+    - `.claude-plugin/plugin.json` – plugin manifest for repository documentation generator.
+    - `skills/repo-docs-generator/SKILL.md` – comprehensive AGENTS.md/README.md/CLAUDE.md generator Skill.
+    - `commands/generate.md` – Generate new documentation from scratch.
+    - `commands/canonicalize.md` – Audit and fix existing docs (make AGENTS.md canonical, normalize CLAUDE.md).
+  - `backend-release/`
+    - `.claude-plugin/plugin.json` – plugin manifest for Django4Lyfe release workflow.
+    - `skills/release-manager/SKILL.md` – full release workflow management Skill.
+    - `commands/*.md` – Commands for check, create, and publish releases.
 
 ## How Claude Code Should Behave Here
 
@@ -193,6 +202,37 @@ When working in this repo, Claude Code should:
   /plugin install clickup-ticket@diversiotech
   ```
 
+- Install the repo docs plugin:
+
+  ```bash
+  /plugin install repo-docs@diversiotech
+  ```
+
+- Install the backend release plugin:
+
+  ```bash
+  /plugin install backend-release@diversiotech
+  ```
+
+- **Uninstall all Diversio plugins** (Claude Code) to reinstall fresh:
+
+  ```bash
+  # Run each line to uninstall
+  /plugin uninstall monty-code-review@diversiotech
+  /plugin uninstall backend-atomic-commit@diversiotech
+  /plugin uninstall backend-pr-workflow@diversiotech
+  /plugin uninstall bruno-api@diversiotech
+  /plugin uninstall code-review-digest-writer@diversiotech
+  /plugin uninstall plan-directory@diversiotech
+  /plugin uninstall pr-description-writer@diversiotech
+  /plugin uninstall session-review-notes@diversiotech
+  /plugin uninstall process-code-review@diversiotech
+  /plugin uninstall mixpanel-analytics@diversiotech
+  /plugin uninstall clickup-ticket@diversiotech
+  /plugin uninstall repo-docs@diversiotech
+  /plugin uninstall backend-release@diversiotech
+  ```
+
 ## Codex Skill Installer Notes (For LLMs)
 
 When a user asks how to install these Skills into OpenAI Codex (not Claude's
@@ -206,6 +246,29 @@ marketplace), respond with instructions that avoid hardcoded paths:
 - Avoid hardcoded absolute user paths like `/Users/<name>/...`.
 - If the user wants Codex-console commands, provide `$skill-installer` examples
   that mirror the repo/path usage above.
+
+- **Uninstall all Diversio skills** (Codex) to reinstall fresh:
+
+  ```bash
+  # Uninstall all Diversio skills (safe: continues if skill doesn't exist)
+  CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+  rm -rf "$CODEX_HOME/skills/monty-code-review" \
+         "$CODEX_HOME/skills/backend-atomic-commit" \
+         "$CODEX_HOME/skills/backend-pr-workflow" \
+         "$CODEX_HOME/skills/bruno-api" \
+         "$CODEX_HOME/skills/code-review-digest-writer" \
+         "$CODEX_HOME/skills/plan-directory" \
+         "$CODEX_HOME/skills/backend-ralph-plan" \
+         "$CODEX_HOME/skills/pr-description-writer" \
+         "$CODEX_HOME/skills/session-review-notes" \
+         "$CODEX_HOME/skills/process-code-review" \
+         "$CODEX_HOME/skills/mixpanel-analytics" \
+         "$CODEX_HOME/skills/clickup-ticket" \
+         "$CODEX_HOME/skills/repo-docs-generator" \
+         "$CODEX_HOME/skills/release-manager"
+  ```
+
+  After removing, restart Codex and reinstall using the Skill Installer.
 
 ## Usage Notes for Humans
 
@@ -249,6 +312,18 @@ marketplace), respond with instructions that avoid hardcoded paths:
     - `/clickup-ticket:create-subtask` – Add subtask to existing ticket
     - `/clickup-ticket:switch-org` – Switch between organizations
     - `/clickup-ticket:configure` – Set up defaults and cache
+  - `repo-docs` to generate and canonicalize repository documentation. Commands:
+    - `/repo-docs:generate [path]` – Generate new AGENTS.md, README.md, CLAUDE.md
+      from scratch with ASCII architecture diagrams and tech stack analysis.
+    - `/repo-docs:canonicalize [path]` – Audit existing docs across a repo: update
+      AGENTS.md to match current tooling (uv, .bin/*), merge CLAUDE.md content
+      into AGENTS.md, normalize all CLAUDE.md to minimal `@AGENTS.md` stubs.
+  - `backend-release` to manage the full release workflow for Django4Lyfe backend
+    (Diversio monolith). Handles release PRs, date-based version bumping
+    (YYYY.MM.DD), uv lock updates, and GitHub release publishing. Commands:
+    - `/backend-release:check` – Check what commits are pending release
+    - `/backend-release:create` – Create release PR with cherry-pick method
+    - `/backend-release:publish [PR_NUMBER]` – Publish GitHub release after PR merge
 
 ## References
 
