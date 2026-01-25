@@ -1,6 +1,6 @@
 {
   "name": "repo-docs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Generate and canonicalize repository documentation. Create new AGENTS.md/README.md/CLAUDE.md from scratch, or audit existing docs to make AGENTS.md canonical and normalize CLAUDE.md to minimal stubs.",
   "author": {
     "name": "Diversio Devs"

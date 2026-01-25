@@ -1,8 +1,8 @@
 ---
 name: repo-docs-generator
-description: Generate comprehensive AGENTS.md, README.md, and CLAUDE.md documentation for any repository. Deep-dives into codebase structure, identifies technologies, creates ASCII architecture diagrams, and respects existing documentation content.
+description: "Generate comprehensive AGENTS.md, README.md, and CLAUDE.md documentation for any repository. Deep-dives into codebase structure, identifies technologies, creates ASCII architecture diagrams, and respects existing documentation content."
 allowed-tools: Bash Read Edit Write Grep Glob Task
-argument-hint: [path] (e.g., "/path/to/repo" or "." for current directory)
+argument-hint: "[path] (e.g., /path/to/repo or . for current directory)"
 ---
 
 # Repository Documentation Generator Skill

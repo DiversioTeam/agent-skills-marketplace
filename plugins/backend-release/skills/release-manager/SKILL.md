@@ -1,8 +1,8 @@
 ---
 name: release-manager
-description: Create and manage release PRs against master branch. Use this when preparing releases, bumping versions, resolving merge conflicts, and publishing GitHub releases. Handles the full release workflow including cherry-picking, version bumping in pyproject.toml, running uv lock, and creating GitHub releases.
+description: "Create and manage release PRs against master branch. Use this when preparing releases, bumping versions, resolving merge conflicts, and publishing GitHub releases. Handles the full release workflow including cherry-picking, version bumping in pyproject.toml, running uv lock, and creating GitHub releases."
 allowed-tools: Bash Read Edit Grep Glob
-argument-hint: [action] (e.g., "create", "publish", "check")
+argument-hint: "[action] (e.g., create, publish, check)"
 ---
 
 # Release Manager Skill

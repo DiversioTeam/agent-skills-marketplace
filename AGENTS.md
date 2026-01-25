@@ -111,6 +111,26 @@ When working in this repo, Claude Code should:
      appears as a `/plugin-name:command` entry in Claude Code's slash command
      palette.
 
+   - **SKILL.md YAML frontmatter:** Always quote string values in the YAML
+     frontmatter that contain special characters (colons, brackets, commas,
+     quotes). Unquoted strings with colons can cause YAML parsing errors:
+     ```yaml
+     # CORRECT - strings with special chars are quoted
+     ---
+     name: my-skill
+     description: "Use this when preparing releases, bumping versions, etc."
+     allowed-tools: Bash Read Edit Grep Glob
+     argument-hint: "[action] (e.g., create, publish)"
+     ---
+
+     # WRONG - unquoted strings with colons cause parse errors
+     ---
+     name: my-skill
+     description: Use this when preparing releases, bumping versions, etc.
+     argument-hint: [action] (e.g., "create", "publish")
+     ---
+     ```
+
 4. **Follow existing naming and structure.**
    - New plugins should mirror the structure of `monty-code-review`:
      - `plugins/<plugin>/`
