@@ -1,0 +1,158 @@
+name: Notify Plugin Updates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/**'
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit to diff
+
+      - name: Detect updated plugins and build notification
+        id: detect
+        run: |
+          # Get list of changed plugin directories
+          CHANGED_PLUGINS=$(git diff --name-only HEAD~1 HEAD -- plugins/ | \
+            grep -oE 'plugins/[^/]+' | sort -u || true)
+
+          if [ -z "$CHANGED_PLUGINS" ]; then
+            echo "No plugin changes detected"
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "has_updates=true" >> $GITHUB_OUTPUT
+
+          # Build the Slack message
+          MESSAGE=""
+
+          for PLUGIN_PATH in $CHANGED_PLUGINS; do
+            PLUGIN_NAME=$(basename "$PLUGIN_PATH")
+
+            # Get version from plugin.json
+            PLUGIN_JSON="$PLUGIN_PATH/.claude-plugin/plugin.json"
+            if [ -f "$PLUGIN_JSON" ]; then
+              VERSION=$(jq -r '.version // "unknown"' "$PLUGIN_JSON")
+            else
+              VERSION="unknown"
+            fi
+
+            # Find the main SKILL.md (first one found)
+            SKILL_FILE=$(find "$PLUGIN_PATH/skills" -name "SKILL.md" -type f | head -1)
+
+            # Extract latest changelog entry
+            CHANGELOG=""
+            if [ -n "$SKILL_FILE" ] && [ -f "$SKILL_FILE" ]; then
+              # Extract content between first "### v" and second "### v" (or end of changelog section)
+              CHANGELOG=$(awk '
+                /^### v[0-9]/ {
+                  if (found) exit
+                  found=1
+                  next
+                }
+                found && /^### v[0-9]/ { exit }
+                found && /^## [^C]/ { exit }
+                found { print }
+              ' "$SKILL_FILE" | head -20)
+            fi
+
+            # Format this plugin's update
+            MESSAGE="${MESSAGE}*:electric_plug: ${PLUGIN_NAME}* \`v${VERSION}\`"$'\n'
+
+            if [ -n "$CHANGELOG" ]; then
+              # Convert markdown bullets to Slack format
+              FORMATTED_CHANGELOG=$(echo "$CHANGELOG" | \
+                sed 's/^- \*\*\([^*]*\)\*\*/• *\1*/g' | \
+                sed 's/^- /• /g' | \
+                grep -v '^$' | \
+                head -8)
+              MESSAGE="${MESSAGE}${FORMATTED_CHANGELOG}"$'\n'
+            fi
+
+            MESSAGE="${MESSAGE}"$'\n'
+          done
+
+          # Add reinstall instructions
+          PLUGIN_LIST=$(echo "$CHANGED_PLUGINS" | xargs -I{} basename {} | tr '\n' ' ')
+          MESSAGE="${MESSAGE}_Reinstall:_ \`/plugin install <name>@diversiotech\`"$'\n'
+          MESSAGE="${MESSAGE}_Plugins:_ ${PLUGIN_LIST}"
+
+          # Store message for next step (handle multiline)
+          EOF_MARKER=$(openssl rand -hex 8)
+          echo "message<<${EOF_MARKER}" >> $GITHUB_OUTPUT
+          echo "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "${EOF_MARKER}" >> $GITHUB_OUTPUT
+
+          # Also store plugin count
+          PLUGIN_COUNT=$(echo "$CHANGED_PLUGINS" | wc -l | tr -d ' ')
+          echo "plugin_count=$PLUGIN_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Post to Slack
+        if: steps.detect.outputs.has_updates == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_PLUGIN_UPDATES_WEBHOOK }}
+        run: |
+          # Build the payload
+          COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          AUTHOR="${{ github.actor }}"
+
+          # Determine header based on plugin count
+          PLUGIN_COUNT="${{ steps.detect.outputs.plugin_count }}"
+          if [ "$PLUGIN_COUNT" -eq 1 ]; then
+            HEADER=":package: Plugin Updated"
+          else
+            HEADER=":package: ${PLUGIN_COUNT} Plugins Updated"
+          fi
+
+          # Create Slack Block Kit payload for rich formatting
+          PAYLOAD=$(jq -n \
+            --arg header "$HEADER" \
+            --arg message "${{ steps.detect.outputs.message }}" \
+            --arg commit_url "$COMMIT_URL" \
+            --arg commit_msg "$COMMIT_MSG" \
+            --arg author "$AUTHOR" \
+            '{
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": $header,
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $message
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ("by *" + $author + "* • <" + $commit_url + "|" + $commit_msg + ">")
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                }
+              ]
+            }')
+
+          # Post to Slack
+          curl -X POST \
+            -H 'Content-type: application/json' \
+            --data "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL"
