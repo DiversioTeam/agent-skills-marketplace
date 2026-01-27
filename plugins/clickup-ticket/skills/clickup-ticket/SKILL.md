@@ -643,7 +643,7 @@ $CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py 
 - **New:** `list-tickets` - Powerful filtering (status, assignee, tags, dates)
 - **New:** `my-tickets` - View assigned tickets grouped by urgency
 - **Updated:** API reference with correct query parameters
-- **Note:** Text search by name not available (ClickUp API limitation)
+- **Note:** Text search by task name not available (ClickUp API limitation)
 
 ### v0.1.0
 

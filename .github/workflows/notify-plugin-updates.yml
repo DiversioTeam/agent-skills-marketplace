@@ -81,10 +81,11 @@ jobs:
             MESSAGE="${MESSAGE}"$'\n'
           done
 
-          # Add reinstall instructions
+          # Add reinstall instructions and mention developers
           PLUGIN_LIST=$(echo "$CHANGED_PLUGINS" | xargs -I{} basename {} | tr '\n' ' ')
           MESSAGE="${MESSAGE}_Reinstall:_ \`/plugin install <name>@diversiotech\`"$'\n'
-          MESSAGE="${MESSAGE}_Plugins:_ ${PLUGIN_LIST}"
+          MESSAGE="${MESSAGE}_Plugins:_ ${PLUGIN_LIST}"$'\n\n'
+          MESSAGE="${MESSAGE}cc @developers"
 
           # Store message for next step (handle multiline)
           EOF_MARKER=$(openssl rand -hex 8)
@@ -115,6 +116,7 @@ jobs:
           fi
 
           # Create Slack Block Kit payload for rich formatting
+          # Using legacy webhook - can specify channel in payload
           PAYLOAD=$(jq -n \
             --arg header "$HEADER" \
             --arg message "${{ steps.detect.outputs.message }}" \
@@ -122,6 +124,9 @@ jobs:
             --arg commit_msg "$COMMIT_MSG" \
             --arg author "$AUTHOR" \
             '{
+              "channel": "#ask-tech-team",
+              "username": "Plugin Updates",
+              "icon_emoji": ":package:",
               "blocks": [
                 {
                   "type": "header",
