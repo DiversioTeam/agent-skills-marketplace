@@ -67,10 +67,12 @@ jobs:
             MESSAGE="${MESSAGE}*:electric_plug: ${PLUGIN_NAME}* \`v${VERSION}\`"$'\n'
 
             if [ -n "$CHANGELOG" ]; then
-              # Convert markdown bullets to Slack format
+              # Convert markdown to Slack format, escape backticks
               FORMATTED_CHANGELOG=$(echo "$CHANGELOG" | \
+                sed 's/`//g' | \
                 sed 's/^- \*\*\([^*]*\)\*\*/• *\1*/g' | \
                 sed 's/^- /• /g' | \
+                sed 's/\*\*\([^*]*\)\*\*/*\1*/g' | \
                 grep -v '^$' | \
                 head -8)
               MESSAGE="${MESSAGE}${FORMATTED_CHANGELOG}"$'\n'
