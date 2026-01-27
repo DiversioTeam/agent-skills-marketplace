@@ -1,9 +1,10 @@
 ---
 name: clickup-ticket
 description: >
-  Create and manage ClickUp tickets directly from Claude Code or Codex.
-  Supports multi-org workspaces, interactive ticket creation, subtasks,
-  backlog management, and intelligent caching of your ClickUp workspace data.
+  Fetch, filter, and create ClickUp tickets directly from Claude Code or Codex.
+  Read tickets by ID, filter by status/assignee/tags/dates, view your assigned
+  tickets, create tickets interactively, and manage multi-org workspaces with
+  intelligent caching.
 allowed-tools:
   - Bash
   - Read
@@ -19,6 +20,9 @@ allowed-tools:
 
 Use this skill when you want to:
 
+- **Fetch ticket details** by ID or URL to understand requirements
+- **List and filter tickets** by status, assignee, tags, due dates, and more
+- **View your assigned tickets** with smart grouping by urgency
 - **Create tickets** without leaving your terminal or IDE
 - **Add subtasks** to existing tickets during development
 - **Quick-add to backlog** when you spot TODOs or tech debt
@@ -77,6 +81,9 @@ you can set up additional tokens. See [Multi-Org Setup](#multi-org-setup).
 
 | Command | Purpose |
 |---------|---------|
+| `/clickup-ticket:get-ticket` | Fetch full details of a single ticket |
+| `/clickup-ticket:list-tickets` | List/filter tickets with powerful filtering |
+| `/clickup-ticket:my-tickets` | Quick view of tickets assigned to you |
 | `/clickup-ticket:configure` | First-time setup, set defaults, refresh cache |
 | `/clickup-ticket:create-ticket` | Full interactive ticket creation |
 | `/clickup-ticket:quick-ticket` | Fast ticket creation with defaults |
@@ -139,6 +146,166 @@ The skill caches your workspace data locally for fast access:
 - Auto-refreshes after 24 hours
 - Manual refresh: `/clickup-ticket:refresh-cache`
 - Refreshes automatically if an entity is not found
+
+## Ticket Reading Workflows
+
+### Get Single Ticket
+
+`/clickup-ticket:get-ticket <id|url>`
+
+Fetch complete details for any ticket you have access to.
+
+**Input formats accepted:**
+- Task ID: `abc123` or `#abc123`
+- Task URL: `https://app.clickup.com/t/abc123`
+- Custom ID: `DEV-123` (requires `--org` flag for workspace context)
+
+**Example:**
+```
+/clickup-ticket:get-ticket abc123
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#abc123 - Fix N+1 query in dashboard API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Status:     🔵 In Progress
+Priority:   🔴 High
+List:       Engineering > Bugs
+Assignees:  @you, @teammate
+Tags:       bug, backend, performance
+
+Due:        Fri, Jan 31 (in 4 days)
+Created:    Mon, Jan 20 by @creator
+
+📝 Description:
+   The dashboard API has N+1 queries when loading widgets.
+   Need to optimize with select_related and prefetch_related.
+
+📋 Checklist (2/5):
+   ✓ Identify problematic queries
+   ✓ Add select_related
+   ○ Add prefetch_related
+   ○ Write tests
+   ○ Verify with django-debug-toolbar
+
+🔗 https://app.clickup.com/t/abc123
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Flags:**
+- `--subtasks` - Include full subtask details
+- `--comments` - Include recent comments (last 10)
+- `--markdown` - Return description with markdown formatting
+- `--org=<slug>` - Specify organization (required for custom IDs)
+
+### List and Filter Tickets
+
+`/clickup-ticket:list-tickets [filters]`
+
+Powerful workspace-wide filtering using the Get Filtered Team Tasks API.
+
+**Available Filters:**
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `--list=<name\|id>` | Filter by list | `--list=Backlog` |
+| `--space=<name\|id>` | Filter by space | `--space=Engineering` |
+| `--project=<name\|id>` | Filter by project/folder | `--project=Projects` |
+| `--status=<status>` | Filter by status | `--status="in progress"` |
+| `--assignee=<email\|me>` | Filter by assignee | `--assignee=me` |
+| `--tag=<tags>` | Filter by tags | `--tag=bug,urgent` |
+| `--priority=<1-4>` | Filter by priority | `--priority=1` (urgent) |
+| `--due-before=<date>` | Due before date | `--due-before=2024-02-01` |
+| `--due-after=<date>` | Due after date | `--due-after=tomorrow` |
+| `--created-after=<date>` | Created after | `--created-after="last week"` |
+| `--include-closed` | Include closed tasks | (flag) |
+| `--subtasks` | Include subtasks | (flag) |
+| `--limit=<n>` | Limit results | `--limit=50` |
+| `--page=<n>` | Pagination | `--page=2` |
+| `--sort=<field>` | Sort by field | `--sort=due_date` |
+| `--reverse` | Reverse sort | (flag) |
+
+**Date formats supported:**
+- ISO: `2024-01-31`
+- Relative: `today`, `tomorrow`, `yesterday`
+- Natural: `next week`, `last monday`, `in 3 days`
+
+**Example:**
+```
+/clickup-ticket:list-tickets --space=Engineering --tag=bug --priority=2
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tickets (5 found) - Engineering bugs, High priority
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ID       Status        Title                          Due        Assignee
+──────── ──────────── ────────────────────────────── ────────── ─────────
+#abc123  🔵 Progress   Fix N+1 query in dashboard     Jan 31     @you
+#def456  🟡 Review     Race condition in auth         Feb 2      @teammate
+#ghi789  ⚪ To Do      Memory leak in worker          Feb 5      —
+#jkl012  ⚪ To Do      Timeout handling in API        —          @you
+#mno345  🔵 Progress   Broken pagination              Feb 1      @other
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### My Tickets
+
+`/clickup-ticket:my-tickets`
+
+Quick view of tickets assigned to you, grouped by urgency.
+
+**Default behavior:**
+- Shows open tickets only
+- Grouped: Overdue → Due This Week → No Due Date
+- Sorted by due date within groups
+
+**Example:**
+```
+/clickup-ticket:my-tickets
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+My Tickets (8 open) - Diversio
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔴 OVERDUE (2)
+   #abc123  Fix N+1 query           Bugs        Due: Jan 25 (2 days ago)
+   #def456  Update auth flow        Sprint 47   Due: Jan 26 (yesterday)
+
+📅 DUE THIS WEEK (3)
+   #ghi789  Add rate limiting       Backlog     Due: Jan 28 (tomorrow)
+   #jkl012  Review PR #456          Sprint 47   Due: Jan 30 (Thu)
+   #mno345  Deploy staging          Sprint 47   Due: Jan 31 (Fri)
+
+📋 NO DUE DATE (3)
+   #pqr678  Tech debt: cleanup      Backlog
+   #stu901  Investigate memory      Backlog
+   #vwx234  Add logging             Tech Debt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Flags:**
+- `--overdue` - Show only overdue tickets
+- `--due-today` - Show tickets due today
+- `--due-this-week` - Show tickets due this week
+- `--space=<name>` - Filter by space
+- `--include-closed` - Include completed tickets
+
+### API Limitations
+
+**Important:** The ClickUp API does **not** support text search by task name
+or description. This is a [highly requested feature](https://feedback.clickup.com/public-api/p/using-api-get-tasks-to-search-by-title)
+that has been pending since 2020.
+
+**Workarounds:**
+1. Use filters (`--tag`, `--list`, `--status`, `--assignee`) to narrow results
+2. If you know the ticket ID, use `get-ticket` directly
+3. Use `list-spaces` to find the right list, then filter by list
+
+**Response limits:**
+- API returns max 100 tasks per request
+- Use `--page` for pagination
+- Use filters to reduce result set
 
 ## Configuration Workflow
 
@@ -469,6 +636,14 @@ $CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py 
 - **Local cache files** - Store only in user's home directory, not in repos
 
 ## Changelog
+
+### v0.2.0
+
+- **New:** `get-ticket` - Fetch full ticket details by ID or URL
+- **New:** `list-tickets` - Powerful filtering (status, assignee, tags, dates)
+- **New:** `my-tickets` - Quick view of assigned tickets grouped by urgency
+- **Updated:** API endpoints reference with full query parameter documentation
+- **Note:** Text search by task name not available (ClickUp API limitation)
 
 ### v0.1.0
 

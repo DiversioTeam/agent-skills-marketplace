@@ -1,7 +1,7 @@
 {
   "name": "clickup-ticket",
-  "version": "0.1.1",
-  "description": "Create and manage ClickUp tickets directly from Claude Code or Codex. Supports multi-org workspaces, interactive ticket creation, subtasks, backlog management, and intelligent caching of your ClickUp workspace data.",
+  "version": "0.2.0",
+  "description": "Fetch, filter, and create ClickUp tickets directly from Claude Code or Codex. Supports reading tickets by ID, powerful filtering (status, assignee, tags, dates), viewing your assigned tickets, multi-org workspaces, subtasks, and intelligent caching.",
   "author": {
     "name": "Diversio Devs"
   }

@@ -50,9 +50,9 @@ Key layout:
     - `.claude-plugin/plugin.json` – plugin manifest for MixPanel analytics.
     - `skills/mixpanel-analytics/SKILL.md` – MixPanel tracking implementation and review Skill.
   - `clickup-ticket/`
-    - `.claude-plugin/plugin.json` – plugin manifest for ClickUp ticket creation.
-    - `skills/clickup-ticket/SKILL.md` – ClickUp ticket creation and management Skill.
-    - `commands/*.md` – Commands for ticket creation, subtasks, backlog, multi-org.
+    - `.claude-plugin/plugin.json` – plugin manifest for ClickUp ticket management.
+    - `skills/clickup-ticket/SKILL.md` – ClickUp ticket fetching, filtering, and creation Skill.
+    - `commands/*.md` – Commands for reading, filtering, creating tickets, subtasks, multi-org.
   - `repo-docs/`
     - `.claude-plugin/plugin.json` – plugin manifest for repository documentation generator.
     - `skills/repo-docs-generator/SKILL.md` – comprehensive AGENTS.md/README.md/CLAUDE.md generator Skill.
@@ -334,10 +334,13 @@ marketplace), respond with instructions that avoid hardcoded paths:
   - `mixpanel-analytics` to implement new MixPanel tracking events and review
     implementations for PII protection, schema design, and pattern compliance
     in the Django4Lyfe optimo_analytics module.
-  - `clickup-ticket` to create and manage ClickUp tickets directly from Claude
-    Code or Codex. Supports multi-org workspaces, interactive ticket creation,
-    subtasks, backlog management, and intelligent caching of your ClickUp
-    workspace data. Commands include:
+  - `clickup-ticket` to fetch, filter, and create ClickUp tickets directly from
+    Claude Code or Codex. Supports reading tickets by ID, powerful filtering
+    (status, assignee, tags, dates), viewing assigned tickets, multi-org
+    workspaces, subtasks, and intelligent caching of workspace data. Commands:
+    - `/clickup-ticket:get-ticket <id>` – Fetch full ticket details by ID or URL
+    - `/clickup-ticket:list-tickets` – List/filter tickets (status, assignee, tags, dates)
+    - `/clickup-ticket:my-tickets` – View your assigned tickets grouped by urgency
     - `/clickup-ticket:create-ticket` – Full interactive ticket creation
     - `/clickup-ticket:quick-ticket` – Fast ticket with defaults
     - `/clickup-ticket:add-to-backlog` – Ultra-fast backlog addition
