@@ -1,0 +1,92 @@
+name: Validate Marketplace
+
+on:
+  pull_request:
+    paths:
+      - ".claude-plugin/**"
+      - "plugins/**"
+      - ".github/workflows/validate-marketplace.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".claude-plugin/**"
+      - "plugins/**"
+      - ".github/workflows/validate-marketplace.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate JSON and plugin consistency
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Validating marketplace.json is valid JSON..."
+          jq -e . .claude-plugin/marketplace.json >/dev/null
+
+          echo "Validating plugin list has unique names..."
+          DUPLICATE_NAMES="$(jq -r '.plugins[].name' .claude-plugin/marketplace.json | sort | uniq -d || true)"
+          if [[ -n "${DUPLICATE_NAMES}" ]]; then
+            echo "Duplicate plugin names in .claude-plugin/marketplace.json:"
+            echo "${DUPLICATE_NAMES}"
+            exit 1
+          fi
+
+          MARKETPLACE_PLUGINS="$(jq -r '.plugins[].name' .claude-plugin/marketplace.json | sort -u)"
+          PLUGIN_DIRS="$(ls -1 plugins | sort -u)"
+
+          echo "Validating marketplace entries match plugin directories..."
+          EXTRA_DIRS="$(comm -23 <(echo "${PLUGIN_DIRS}") <(echo "${MARKETPLACE_PLUGINS}") || true)"
+          if [[ -n "${EXTRA_DIRS}" ]]; then
+            echo "Plugin directories missing from .claude-plugin/marketplace.json:"
+            echo "${EXTRA_DIRS}"
+            exit 1
+          fi
+
+          echo "Validating each marketplace plugin entry..."
+          for NAME in ${MARKETPLACE_PLUGINS}; do
+            if [[ ! -d "plugins/${NAME}" ]]; then
+              echo "Missing plugin directory: plugins/${NAME}"
+              exit 1
+            fi
+
+            SOURCE="$(jq -r --arg name "${NAME}" '.plugins[] | select(.name == $name) | .source' .claude-plugin/marketplace.json)"
+            if [[ "${SOURCE}" != "./plugins/${NAME}" ]]; then
+              echo "Marketplace source mismatch for ${NAME}: expected ./plugins/${NAME}, got ${SOURCE}"
+              exit 1
+            fi
+
+            PLUGIN_JSON="plugins/${NAME}/.claude-plugin/plugin.json"
+            if [[ ! -f "${PLUGIN_JSON}" ]]; then
+              echo "Missing plugin manifest: ${PLUGIN_JSON}"
+              exit 1
+            fi
+
+            jq -e . "${PLUGIN_JSON}" >/dev/null
+
+            PLUGIN_NAME="$(jq -r '.name' "${PLUGIN_JSON}")"
+            if [[ "${PLUGIN_NAME}" != "${NAME}" ]]; then
+              echo "plugin.json name mismatch for ${NAME}: got ${PLUGIN_NAME}"
+              exit 1
+            fi
+
+            PLUGIN_VERSION="$(jq -r '.version' "${PLUGIN_JSON}")"
+            MARKETPLACE_VERSION="$(jq -r --arg name "${NAME}" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)"
+            if [[ "${PLUGIN_VERSION}" != "${MARKETPLACE_VERSION}" ]]; then
+              echo "Version mismatch for ${NAME}: plugin.json=${PLUGIN_VERSION} marketplace=${MARKETPLACE_VERSION}"
+              exit 1
+            fi
+
+            SKILL_COUNT="$(find "plugins/${NAME}/skills" -type f -name 'SKILL.md' | wc -l | tr -d ' ')"
+            if [[ "${SKILL_COUNT}" -eq 0 ]]; then
+              echo "No SKILL.md found under plugins/${NAME}/skills"
+              exit 1
+            fi
+          done
+
+          echo "All marketplace validation checks passed."
+
