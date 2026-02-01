@@ -166,6 +166,8 @@ agent-skills-marketplace/
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
 | `repo-docs` | Generate and canonicalize repository documentation (AGENTS.md, README.md, CLAUDE.md) with ASCII architecture diagrams and single-source-of-truth pattern |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
+| `terraform-atomic-commit` | Terraform pre-commit / atomic-commit Skill for terraform-modules/infrastructure-style repos (fmt/validate/tflint/terraform-docs; no AI commit signatures) |
+| `terraform-pr-workflow` | Terraform/Terragrunt PR workflow Skill (branch naming, PR hygiene, read-only CI gates, and versioning expectations for breaking changes) |
 
 ## Installation
 
@@ -207,6 +209,8 @@ claude plugin install mixpanel-analytics@diversiotech
 claude plugin install clickup-ticket@diversiotech
 claude plugin install repo-docs@diversiotech
 claude plugin install backend-release@diversiotech
+claude plugin install terraform-atomic-commit@diversiotech
+claude plugin install terraform-pr-workflow@diversiotech
 ```
 
 For project-scoped installation (shared with collaborators via `.claude/settings.json`):
@@ -236,6 +240,8 @@ claude plugin install monty-code-review@diversiotech --scope project
 | ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
 | Repository docs generator | `claude plugin install repo-docs@diversiotech` |
 | Backend release workflow | `claude plugin install backend-release@diversiotech` |
+| Terraform atomic commit | `claude plugin install terraform-atomic-commit@diversiotech` |
+| Terraform PR workflow | `claude plugin install terraform-pr-workflow@diversiotech` |
 
 </details>
 

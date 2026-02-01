@@ -1,0 +1,9 @@
+{
+  "name": "terraform-pr-workflow",
+  "version": "0.1.0",
+  "description": "PR workflow Skill for Terraform/Terragrunt repos: branch naming, PR hygiene, read-only CI gates, and versioning/changelog expectations for breaking changes.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}
+
