@@ -149,6 +149,17 @@
       "source": "./plugins/backend-release",
       "category": "process",
       "keywords": ["django", "backend", "release", "version", "github", "pr", "deployment", "diversio"]
+    },
+    {
+      "name": "terraform",
+      "description": "Terraform/Terragrunt workflow tools: atomic-commit quality gates and PR workflow checks.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/terraform",
+      "category": "process",
+      "keywords": ["terraform", "terragrunt", "workflow", "pre-commit", "atomic-commit", "pr", "versioning", "infrastructure", "diversio"]
     }
   ]
 }

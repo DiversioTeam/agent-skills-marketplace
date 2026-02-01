@@ -135,13 +135,22 @@ agent-skills-marketplace/
 │   │   └── commands/
 │   │       ├── generate.md
 │   │       └── canonicalize.md
-│   └── backend-release/               # Django4Lyfe release workflow
+│   ├── backend-release/               # Django4Lyfe release workflow
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/release-manager/SKILL.md
+│   │   └── commands/
+│   │       ├── check.md
+│   │       ├── create.md
+│   │       └── publish.md
+│   └── terraform/                     # Terraform/Terragrunt workflows
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/release-manager/SKILL.md
+│       ├── skills/
+│       │   ├── terraform-atomic-commit/SKILL.md
+│       │   └── terraform-pr-workflow/SKILL.md
 │       └── commands/
-│           ├── check.md
-│           ├── create.md
-│           └── publish.md
+│           ├── pre-commit.md
+│           ├── atomic-commit.md
+│           └── check-pr.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -166,6 +175,7 @@ agent-skills-marketplace/
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
 | `repo-docs` | Generate and canonicalize repository documentation (AGENTS.md, README.md, CLAUDE.md) with ASCII architecture diagrams and single-source-of-truth pattern |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
+| `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 
 ## Installation
 
@@ -207,6 +217,7 @@ claude plugin install mixpanel-analytics@diversiotech
 claude plugin install clickup-ticket@diversiotech
 claude plugin install repo-docs@diversiotech
 claude plugin install backend-release@diversiotech
+claude plugin install terraform@diversiotech
 ```
 
 For project-scoped installation (shared with collaborators via `.claude/settings.json`):
@@ -236,6 +247,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
 | Repository docs generator | `claude plugin install repo-docs@diversiotech` |
 | Backend release workflow | `claude plugin install backend-release@diversiotech` |
+| Terraform workflows | `claude plugin install terraform@diversiotech` |
 
 </details>
 
@@ -273,6 +285,9 @@ Once plugins are installed:
    /backend-release:check                    # Check what commits are pending release
    /backend-release:create                   # Create release PR with cherry-pick method
    /backend-release:publish                  # Publish GitHub release after PR merge
+   /terraform:pre-commit                     # Fix Terraform/Terragrunt repos to meet fmt/validate/docs standards
+   /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
+   /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
    ```
 
 ### Uninstall Plugins (Claude Code)
@@ -308,6 +323,7 @@ claude plugin uninstall mixpanel-analytics@diversiotech
 claude plugin uninstall clickup-ticket@diversiotech
 claude plugin uninstall repo-docs@diversiotech
 claude plugin uninstall backend-release@diversiotech
+claude plugin uninstall terraform@diversiotech
 ```
 
 **Step 3: Uninstall project-scoped plugins (if any)**
@@ -328,6 +344,7 @@ claude plugin uninstall mixpanel-analytics@diversiotech --scope project
 claude plugin uninstall clickup-ticket@diversiotech --scope project
 claude plugin uninstall repo-docs@diversiotech --scope project
 claude plugin uninstall backend-release@diversiotech --scope project
+claude plugin uninstall terraform@diversiotech --scope project
 ```
 
 </details>
@@ -374,7 +391,9 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/mixpanel-analytics/skills/mixpanel-analytics \
     plugins/clickup-ticket/skills/clickup-ticket \
     plugins/repo-docs/skills/repo-docs-generator \
-    plugins/backend-release/skills/release-manager
+    plugins/backend-release/skills/release-manager \
+    plugins/terraform/skills/terraform-atomic-commit \
+    plugins/terraform/skills/terraform-pr-workflow
 ```
 
 **Codex console alternative:**
@@ -394,7 +413,9 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
   path=plugins/clickup-ticket/skills/clickup-ticket \
   path=plugins/repo-docs/skills/repo-docs-generator \
-  path=plugins/backend-release/skills/release-manager
+  path=plugins/backend-release/skills/release-manager \
+  path=plugins/terraform/skills/terraform-atomic-commit \
+  path=plugins/terraform/skills/terraform-pr-workflow
 ```
 
 </details>
@@ -436,7 +457,9 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/mixpanel-analytics" \
        "$CODEX_HOME/skills/clickup-ticket" \
        "$CODEX_HOME/skills/repo-docs-generator" \
-       "$CODEX_HOME/skills/release-manager"
+       "$CODEX_HOME/skills/release-manager" \
+       "$CODEX_HOME/skills/terraform-atomic-commit" \
+       "$CODEX_HOME/skills/terraform-pr-workflow"
 echo "Done. Restart Codex and reinstall skills."
 ```
 
