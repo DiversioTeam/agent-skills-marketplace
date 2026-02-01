@@ -35,11 +35,19 @@ PR description must include either:
   - `terragrunt plan` output summary for the relevant stacks, or
 - **A clear explanation** of why plans weren’t run (missing creds, non-executable change, doc-only PR, etc.) plus what validation was done instead (fmt/validate/lint).
 
+Strongly preferred sections (when applicable):
+- `What changed`
+- `Plan / Validation`
+- `Risk / Rollout`
+- `Breaking changes` (if any)
+- `Versioning` (module repos)
+
 ### 3) CI must be read-only
 
 - CI should run `fmt`, `validate`, `tflint`, and optionally `plan`.
 - CI should **not** run `apply`.
 - If the repo currently has `apply` in CI, flag as `[BLOCKING]` and recommend moving applies to a gated/manual workflow.
+- Verify by scanning `.github/workflows/*.yml` for `apply` usage (`terraform apply`, `terragrunt apply`, `run-all apply`).
 
 ### 4) Versioning expectations for module libraries
 
@@ -52,6 +60,7 @@ Then require:
 
 - Explicit callout in PR description (“Interface change”) with migration notes.
 - A versioning plan aligned with the repo’s conventions (tags/releases/`VERSIONING.md` when present).
+- “Moving ref” avoidance: consumers should pin to a tag/SHA rather than a branch when the repo supports releases.
 
 ### 5) Breaking changes and changelog/release notes
 
@@ -72,4 +81,3 @@ Return:
 - `Verdict:` **MERGE-READY** / **NOT READY**
 - `Findings:` bullets with `[BLOCKING]` / `[SHOULD_FIX]` / `[NIT]`
 - `Suggested edits:` concrete fixes to branch name / PR title / PR body sections
-

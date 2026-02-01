@@ -85,8 +85,17 @@ If pre-commit hooks fail due to tool-version mismatch, prefer installing the rep
        - `terraform init -backend=false`
        - `terraform validate`
      - Clean up `.terraform/` and lockfiles created during local validation.
+     - Practical pattern (handles modules that reference an `aws.global` alias):
+       - Create a temporary `ci_providers.tf` inside the module directory:
+         - `provider "aws" { region = "us-east-1" }`
+         - `provider "aws" { alias = "global" region = "us-east-1" }`
+       - Then run `init/validate`, and delete `ci_providers.tf` afterwards.
+     - Avoid committing `.terraform/` directories. Only commit `.terraform.lock.hcl` if the repo explicitly wants lockfiles versioned.
    - Terragrunt repos:
      - Prefer focused validation/plans for only the changed stacks (avoid full `run-all` unless required).
+     - If a pre-commit hook fails due to a Terragrunt CLI flag mismatch, treat it as a tool-version drift problem first:
+       - Install the repo’s pinned Terragrunt version (e.g. via `.tool-versions` + `asdf install`).
+       - Re-run `pre-commit run`.
 
 4. **TFLint (when configured)**
    - If the repo uses `tflint` (pre-commit hook or `.tflint.hcl`), run it on changed modules/stacks.
@@ -94,6 +103,9 @@ If pre-commit hooks fail due to tool-version mismatch, prefer installing the rep
 
 5. **terraform-docs consistency (when used)**
    - If a module README contains `<!-- BEGIN_TF_DOCS -->`, regenerate docs and ensure the resulting diff is committed.
+   - Recommended command (adjust to repo conventions):
+     - `terraform-docs markdown table --output-file README.md --output-mode inject <module_dir>`
+   - If `terraform-docs` tries to generate provider lockfiles, prefer a repo-approved invocation (some repos use `--lockfile=false`).
    - Treat “docs drift” as `[SHOULD_FIX]` (or `[BLOCKING]` when the repo enforces it in CI).
 
 ## Atomic Commit Mode Additions
@@ -113,4 +125,3 @@ Return:
 - `Changes made:` brief list
 - `Remaining issues:` with `[BLOCKING]` / `[SHOULD_FIX]` / `[NIT]`
 - `Proposed commit message:` (atomic-commit mode only)
-
