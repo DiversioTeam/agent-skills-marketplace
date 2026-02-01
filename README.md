@@ -135,13 +135,23 @@ agent-skills-marketplace/
 │   │   └── commands/
 │   │       ├── generate.md
 │   │       └── canonicalize.md
-│   └── backend-release/               # Django4Lyfe release workflow
+│   ├── backend-release/               # Django4Lyfe release workflow
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/release-manager/SKILL.md
+│   │   └── commands/
+│   │       ├── check.md
+│   │       ├── create.md
+│   │       └── publish.md
+│   ├── terraform-atomic-commit/       # Terraform pre-commit & atomic-commit
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/terraform-atomic-commit/SKILL.md
+│   │   └── commands/
+│   │       ├── pre-commit.md
+│   │       └── atomic-commit.md
+│   └── terraform-pr-workflow/         # Terraform PR workflow
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/release-manager/SKILL.md
-│       └── commands/
-│           ├── check.md
-│           ├── create.md
-│           └── publish.md
+│       ├── skills/terraform-pr-workflow/SKILL.md
+│       └── commands/check-pr.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -279,6 +289,9 @@ Once plugins are installed:
    /backend-release:check                    # Check what commits are pending release
    /backend-release:create                   # Create release PR with cherry-pick method
    /backend-release:publish                  # Publish GitHub release after PR merge
+   /terraform-atomic-commit:pre-commit       # Fix Terraform/Terragrunt repos to meet fmt/validate/docs standards
+   /terraform-atomic-commit:atomic-commit    # Strict atomic commit helper for Terraform/Terragrunt repos
+   /terraform-pr-workflow:check-pr           # Terraform/Terragrunt PR workflow check
    ```
 
 ### Uninstall Plugins (Claude Code)
@@ -314,6 +327,8 @@ claude plugin uninstall mixpanel-analytics@diversiotech
 claude plugin uninstall clickup-ticket@diversiotech
 claude plugin uninstall repo-docs@diversiotech
 claude plugin uninstall backend-release@diversiotech
+claude plugin uninstall terraform-atomic-commit@diversiotech
+claude plugin uninstall terraform-pr-workflow@diversiotech
 ```
 
 **Step 3: Uninstall project-scoped plugins (if any)**
@@ -334,6 +349,8 @@ claude plugin uninstall mixpanel-analytics@diversiotech --scope project
 claude plugin uninstall clickup-ticket@diversiotech --scope project
 claude plugin uninstall repo-docs@diversiotech --scope project
 claude plugin uninstall backend-release@diversiotech --scope project
+claude plugin uninstall terraform-atomic-commit@diversiotech --scope project
+claude plugin uninstall terraform-pr-workflow@diversiotech --scope project
 ```
 
 </details>
@@ -380,7 +397,9 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/mixpanel-analytics/skills/mixpanel-analytics \
     plugins/clickup-ticket/skills/clickup-ticket \
     plugins/repo-docs/skills/repo-docs-generator \
-    plugins/backend-release/skills/release-manager
+    plugins/backend-release/skills/release-manager \
+    plugins/terraform-atomic-commit/skills/terraform-atomic-commit \
+    plugins/terraform-pr-workflow/skills/terraform-pr-workflow
 ```
 
 **Codex console alternative:**
@@ -400,7 +419,9 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
   path=plugins/clickup-ticket/skills/clickup-ticket \
   path=plugins/repo-docs/skills/repo-docs-generator \
-  path=plugins/backend-release/skills/release-manager
+  path=plugins/backend-release/skills/release-manager \
+  path=plugins/terraform-atomic-commit/skills/terraform-atomic-commit \
+  path=plugins/terraform-pr-workflow/skills/terraform-pr-workflow
 ```
 
 </details>
@@ -442,7 +463,9 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/mixpanel-analytics" \
        "$CODEX_HOME/skills/clickup-ticket" \
        "$CODEX_HOME/skills/repo-docs-generator" \
-       "$CODEX_HOME/skills/release-manager"
+       "$CODEX_HOME/skills/release-manager" \
+       "$CODEX_HOME/skills/terraform-atomic-commit" \
+       "$CODEX_HOME/skills/terraform-pr-workflow"
 echo "Done. Restart Codex and reinstall skills."
 ```
 
