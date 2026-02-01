@@ -10,13 +10,13 @@ allowed-tools: Bash Read Edit Glob Grep
 
 Use this Skill in Terraform / Terragrunt repos (for example `terraform-modules/` and `infrastructure/`) when you want:
 
-- `/terraform-atomic-commit:pre-commit` – to actively fix formatting + lint issues and get the working tree into a clean, reviewable state.
-- `/terraform-atomic-commit:atomic-commit` – to enforce atomicity of the staged diff, run the repo’s quality gates, and propose a commit message (no AI signatures).
+- `/terraform:pre-commit` – to actively fix formatting + lint issues and get the working tree into a clean, reviewable state.
+- `/terraform:atomic-commit` – to enforce atomicity of the staged diff, run the repo’s quality gates, and propose a commit message (no AI signatures).
 
 ## Example Prompts
 
-- “Run `/terraform-atomic-commit:pre-commit` and fix all issues in the files shown by `git status` (fmt, validate, docs).”
-- “Use `/terraform-atomic-commit:atomic-commit` to confirm the staged diff is atomic and ready; propose a commit message.”
+- “Run `/terraform:pre-commit` and fix all issues in the files shown by `git status` (fmt, validate, docs).”
+- “Use `/terraform:atomic-commit` to confirm the staged diff is atomic and ready; propose a commit message.”
 - “We’re in a Terragrunt repo: enforce formatting, skip any apply, and run read-only validation checks where possible.”
 
 ## Modes

@@ -151,26 +151,15 @@
       "keywords": ["django", "backend", "release", "version", "github", "pr", "deployment", "diversio"]
     },
     {
-      "name": "terraform-atomic-commit",
-      "description": "Terraform-focused pre-commit and atomic-commit Skill for terraform-modules/infrastructure-style repos (fmt/validate/tflint/terraform-docs; no AI commit signatures).",
+      "name": "terraform",
+      "description": "Terraform/Terragrunt workflow tools: atomic-commit quality gates and PR workflow checks.",
       "version": "0.1.0",
       "author": {
         "name": "Diversio Devs"
       },
-      "source": "./plugins/terraform-atomic-commit",
+      "source": "./plugins/terraform",
       "category": "process",
-      "keywords": ["terraform", "terragrunt", "pre-commit", "atomic-commit", "infrastructure", "diversio"]
-    },
-    {
-      "name": "terraform-pr-workflow",
-      "description": "PR workflow Skill for Terraform/Terragrunt repos: branch naming, PR hygiene, read-only CI gates, and versioning/changelog expectations for breaking changes.",
-      "version": "0.1.0",
-      "author": {
-        "name": "Diversio Devs"
-      },
-      "source": "./plugins/terraform-pr-workflow",
-      "category": "process",
-      "keywords": ["terraform", "terragrunt", "workflow", "pr", "versioning", "infrastructure", "diversio"]
+      "keywords": ["terraform", "terragrunt", "workflow", "pre-commit", "atomic-commit", "pr", "versioning", "infrastructure", "diversio"]
     }
   ]
 }

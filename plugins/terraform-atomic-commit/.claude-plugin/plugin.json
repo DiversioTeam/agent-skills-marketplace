@@ -1,9 +1,0 @@
-{
-  "name": "terraform-atomic-commit",
-  "version": "0.1.0",
-  "description": "Terraform-focused pre-commit and atomic-commit Skill for terraform-modules/infrastructure-style repos (fmt/validate/tflint/terraform-docs; no AI commit signatures).",
-  "author": {
-    "name": "Diversio Devs"
-  }
-}
-

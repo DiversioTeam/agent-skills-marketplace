@@ -62,14 +62,11 @@ Key layout:
     - `.claude-plugin/plugin.json` – plugin manifest for Django4Lyfe release workflow.
     - `skills/release-manager/SKILL.md` – full release workflow management Skill.
     - `commands/*.md` – Commands for check, create, and publish releases.
-  - `terraform-atomic-commit/`
-    - `.claude-plugin/plugin.json` – plugin manifest for Terraform pre-commit / atomic commit.
+  - `terraform/`
+    - `.claude-plugin/plugin.json` – plugin manifest for Terraform/Terragrunt workflows.
     - `skills/terraform-atomic-commit/SKILL.md` – Terraform atomic commit Skill.
-    - `commands/*.md` – Commands for pre-commit and atomic-commit.
-  - `terraform-pr-workflow/`
-    - `.claude-plugin/plugin.json` – plugin manifest for Terraform PR workflow checks.
     - `skills/terraform-pr-workflow/SKILL.md` – Terraform PR workflow Skill.
-    - `commands/*.md` – Commands for PR workflow checks.
+    - `commands/*.md` – Commands for pre-commit, atomic-commit, and PR workflow checks.
 
 ## How Claude Code Should Behave Here
 
@@ -371,11 +368,11 @@ marketplace), respond with instructions that avoid hardcoded paths:
     - `/backend-release:publish [PR_NUMBER]` – Publish GitHub release after PR merge
   - `terraform-atomic-commit` for Terraform/Terragrunt pre-commit fixes and strict
     atomic commits (fmt/validate/docs drift; no apply; no AI commit signatures). Commands:
-    - `/terraform-atomic-commit:pre-commit` – Fix and validate changed IaC files
-    - `/terraform-atomic-commit:atomic-commit` – Enforce staged atomicity + propose commit message
+    - `/terraform:pre-commit` – Fix and validate changed IaC files
+    - `/terraform:atomic-commit` – Enforce staged atomicity + propose commit message
   - `terraform-pr-workflow` for Terraform/Terragrunt PR workflow checks (naming,
     PR hygiene, read-only CI gates, versioning expectations). Command:
-    - `/terraform-pr-workflow:check-pr` – Review PR workflow quality
+    - `/terraform:check-pr` – Review PR workflow quality
 
 ## References
 

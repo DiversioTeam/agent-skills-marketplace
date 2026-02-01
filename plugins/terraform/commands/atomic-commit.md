@@ -4,7 +4,7 @@ description: Strict Terraform atomic commit helper using the terraform-atomic-co
 
 Run your `terraform-atomic-commit` Skill in **atomic-commit** mode.
 
-Do everything the `/terraform-atomic-commit:pre-commit` command would do, plus:
+Do everything the `/terraform:pre-commit` command would do, plus:
 
 - Verify that the **staged changes are atomic** – one coherent change, not a grab bag of unrelated edits.
 - Enforce that all quality gates are green (fmt/lint/validate/docs).
@@ -18,4 +18,3 @@ Your output should clearly state whether the commit is ready:
 - List `What’s aligned`.
 - List `Needs changes` with `[BLOCKING]`, `[SHOULD_FIX]`, and `[NIT]` tags.
 - Show the proposed commit message and list of files it would cover.
-
