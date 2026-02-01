@@ -100,12 +100,14 @@ If pre-commit hooks fail due to tool-version mismatch, prefer installing the rep
 4. **TFLint (when configured)**
    - If the repo uses `tflint` (pre-commit hook or `.tflint.hcl`), run it on changed modules/stacks.
    - If not configured, do not introduce a brand-new tflint setup as part of a formatting-only commit unless explicitly requested.
+     - If tflint is desired but missing, propose a separate, atomic commit that adds a baseline `.tflint.hcl` + CI gate.
 
 5. **terraform-docs consistency (when used)**
    - If a module README contains `<!-- BEGIN_TF_DOCS -->`, regenerate docs and ensure the resulting diff is committed.
    - Recommended command (adjust to repo conventions):
      - `terraform-docs markdown table --output-file README.md --output-mode inject <module_dir>`
    - If `terraform-docs` tries to generate provider lockfiles, prefer a repo-approved invocation (some repos use `--lockfile=false`).
+   - After regeneration, check that `git diff` is clean (or explicitly commit the README changes as part of the same atomic change).
    - Treat “docs drift” as `[SHOULD_FIX]` (or `[BLOCKING]` when the repo enforces it in CI).
 
 ## Atomic Commit Mode Additions
