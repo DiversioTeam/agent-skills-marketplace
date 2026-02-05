@@ -61,7 +61,8 @@ agent-skills-marketplace/
 │   │   ├── skills/backend-atomic-commit/SKILL.md
 │   │   └── commands/
 │   │       ├── pre-commit.md
-│   │       └── atomic-commit.md
+│   │       ├── atomic-commit.md
+│   │       └── commit.md
 │   ├── backend-pr-workflow/           # Backend PR workflow plugin
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/backend-pr-workflow/SKILL.md
@@ -163,7 +164,7 @@ agent-skills-marketplace/
 | Plugin | Description |
 |--------|-------------|
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill |
-| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill that enforces AGENTS.md, pre-commit hooks, .security helpers, and Monty's backend taste (no AI commit signatures) |
+| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and Monty's backend taste (no AI commit signatures) |
 | `backend-pr-workflow` | Backend PR workflow Skill that enforces ClickUp-linked branch/PR naming, safe migrations, and downtime-safe schema changes |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
@@ -259,6 +260,7 @@ Once plugins are installed:
    /monty-code-review:code-review            # Hyper-pedantic backend code review
    /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
    /backend-atomic-commit:atomic-commit      # Strict atomic commit helper (all gates green, no AI signature)
+   /backend-atomic-commit:commit             # Run all gates, fix, and create commit (full closure)
    /backend-pr-workflow:check-pr             # Backend PR workflow & migrations check
    /bruno-api:docs                           # Generate endpoint docs from Bruno (.bru) files
    /code-review-digest-writer:review-digest  # Generate a code review digest

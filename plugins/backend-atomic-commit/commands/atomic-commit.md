@@ -16,6 +16,13 @@ Do everything the `/backend-atomic-commit:pre-commit` command would do, plus:
   - Django system checks
   - Relevant pytest subsets
   - Pre-commit hooks
+- Treat the above as a **convergence loop** (not one pass): if any gate fails,
+  fix the reported issue, re-run the same gate, and keep going until everything
+  is green and hooks stop rewriting files.
+- Budget: up to **3 attempts per failing gate** and **10 total pipeline
+  passes**. If a gate is stuck (same error after 3 fix attempts), report it as
+  `[BLOCKING]` and continue with other gates.
+- Do **not** use TodoWrite to track gate results — report directly in output.
 - Propose a commit message that:
   - Extracts the ticket ID from the branch name using local `AGENTS.md`
     conventions (e.g. `clickup_<ticket_id>_...` → `<ticket_id>: Description`).
@@ -31,4 +38,3 @@ Your output should clearly state whether the commit is ready:
 If any `[BLOCKING]` issues remain (failed checks, non-atomic changes, banned
 patterns, etc.), mark the commit as **not ready** and explain exactly what must
 be fixed before committing.
-

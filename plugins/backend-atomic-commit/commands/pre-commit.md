@@ -16,6 +16,12 @@ Focus on:
      before CI (avoids baseline errors in unmodified code).
   3. `python manage.py check --fail-level WARNING` for Django system checks.
   4. Any pre-commit hooks defined in `.pre-commit-config.yaml`.
+- Treat the above as a **convergence loop** (not one pass): if a check fails or
+  rewrites files, fix/restage, then re-run until all checks pass cleanly.
+- Budget: up to **3 attempts per failing check** and **10 total pipeline
+  passes**. If a check still fails after 3 real fix attempts, report it as
+  `[BLOCKING]` and move on to other issues.
+- Do **not** use TodoWrite to track gate results — report directly in output.
 - **IMPORTANT**: For any file you touch, resolve **ALL** ruff and ty errors in
   that file—not just the ones you introduced. CI will fail on pre-existing
   errors in modified files. Do not dismiss errors as "pre-existing".
@@ -26,4 +32,3 @@ and index in the cleanest, most standards-compliant state you can, and report:
 - Fixes you applied.
 - Remaining `[BLOCKING]`, `[SHOULD_FIX]`, and `[NIT]` issues.
 - Which checks you ran and their status.
-
