@@ -24,6 +24,7 @@ Key layout:
   - `backend-atomic-commit/`
     - `.claude-plugin/plugin.json` – plugin manifest for backend pre-commit / atomic commit.
     - `skills/backend-atomic-commit/SKILL.md` – backend atomic commit Skill.
+    - `commands/*.md` – Commands for pre-commit, atomic-commit, and commit (run→fix→commit).
   - `backend-pr-workflow/`
     - `.claude-plugin/plugin.json` – plugin manifest for backend PR workflow checks.
     - `skills/backend-pr-workflow/SKILL.md` – backend PR workflow Skill.
@@ -316,7 +317,8 @@ marketplace), respond with instructions that avoid hardcoded paths:
   - `backend-atomic-commit` for backend pre-commit fixes and strict atomic
      commits that obey local `AGENTS.md`, `.pre-commit-config.yaml`,
      `.security/*` helpers, and Monty's backend taste (no AI commit
-     signatures).
+     signatures). Includes `/backend-atomic-commit:commit` for full
+     run→fix→commit closure with convergence budgets and stuck detection.
   - `backend-pr-workflow` for backend PR workflow checks (ClickUp-linked
     branch/PR naming, migrations, downtime-safe schema changes).
   - `bruno-api` to generate API endpoint documentation from Bruno (`.bru`)
