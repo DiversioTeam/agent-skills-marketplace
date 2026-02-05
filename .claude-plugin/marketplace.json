@@ -131,7 +131,7 @@
     {
       "name": "repo-docs",
       "description": "Generate and canonicalize repository documentation. Create new docs or audit existing AGENTS.md/CLAUDE.md to enforce single-source-of-truth pattern.",
-      "version": "0.1.2",
+      "version": "0.1.1",
       "author": {
         "name": "Diversio Devs"
       },
