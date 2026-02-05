@@ -22,6 +22,8 @@ backend) when you want:
   - Ensure all quality gates are green (no shortcuts).
   - Propose a strict, ticket-prefixed commit message **without** any Claude or
     AI signatures.
+- `/backend-atomic-commit:commit` – to run `atomic-commit`, then **create the
+  commit** once all gates are green (no bypassing commit-msg hooks).
 
 ## Example Prompts
 
@@ -47,6 +49,10 @@ backend) when you want:
   - verify tests and `.security/*` scripts,
   and then tell me whether the commit is ready and what the commit message
   should be.”
+- “Use `/backend-atomic-commit:commit` to run all gates on my staged changes,
+  then create the commit once everything is green. If something fails, keep
+  fixing and re-running until it commits or you have a clear `[BLOCKING]`
+  reason it can’t.”
 
 If you’re not in a backend repo (no `manage.py`, no backend-style `AGENTS.md`,
 no `.pre-commit-config.yaml`), this Skill should say so explicitly and fall
@@ -67,6 +73,10 @@ This Skill behaves differently based on how it is invoked:
   - Requires all gates to be green.
   - Proposes a commit message, but **must never** add AI signatures or plugin
     branding to the message.
+- `commit` mode – invoked via `/backend-atomic-commit:commit`:
+  - Runs everything from `atomic-commit` mode.
+  - Creates the commit once all gates are green.
+  - Must still never add AI signatures or plugin branding to the message.
 
 The command markdown sets the mode. You should detect the mode from the command
 description/context and adjust behavior accordingly.
@@ -77,6 +87,10 @@ Emulate Monty’s backend engineering and review taste, tuned for pre-commit:
 
 1. **Correctness & invariants** – multi-tenancy, time dimensions, and security
    constraints come first.
+   - Never eyeball date/time math (day-of-week, "yesterday", timezone edges).
+     Always verify using `date +%Y-%m-%d` or Python `datetime` — never compute
+     dates manually. Date calculation errors have been a recurring friction
+     point in real sessions.
 2. **Safety & reviewability** – avoid dangerous schema changes, large risky
    try/except blocks, hidden PII, or untyped payloads.
 3. **Atomic commits** – one commit should represent one coherent change; split
@@ -105,6 +119,9 @@ When this Skill runs, you should first gather context using `Bash`, `Read`,
   - `git log --oneline -10`
 - Repo configuration:
   - Read `AGENTS.md` and `CLAUDE.md` (if present) for repo-specific rules.
+  - If they’re missing or obviously stale, recommend generating/canonicalizing
+    them so linting/workflow rules are persistent (AGENTS.md canonical, CLAUDE.md
+    as a minimal stub that sources it).
   - Detect `.pre-commit-config.yaml`.
   - Detect `.security/` scripts, especially:
     - `./.security/ruff_pr_diff.sh`
@@ -197,6 +214,65 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
      referenced but not present), do **not** crash:
      - Record a `[SHOULD_FIX]` issue stating which hook is missing and why it
        matters.
+
+7. **Convergence loop (do not stop early)**
+   - Treat the pipeline above as **iterative**, not one-shot.
+   - You are **not done** until:
+     - The relevant pre-commit hooks pass, and
+     - Ruff/ty/djlint/Django checks you ran are green, and
+     - The index/working tree is **stable** (hooks are no longer rewriting
+       files).
+   - Use a tight fix → rerun loop:
+     1. Re-run the *smallest scoped* failing check on the relevant files.
+     2. Fix only the reported file(s).
+     3. Re-run the same check until it passes.
+     4. Only then advance to the next gate.
+   - Prefer scoping pre-commit to changed files to avoid unrelated baseline
+     failures:
+     ```bash
+     # atomic-commit mode: staged files only
+     pre-commit run --files $(git diff --cached --name-only --diff-filter=ACMR)
+
+     # pre-commit mode: all modified files
+     pre-commit run --files $(git diff --name-only --diff-filter=ACMR)
+     ```
+   - If hooks modify files, always re-check `git status` and restage *only* the
+     intended files (atomic commits should not accidentally grow).
+
+   ### Iteration budgets
+
+   - **Per-check limit**: Do not attempt to fix the same check failure more than
+     **3 times** with the same approach. If the same error (or substantively
+     identical error) reappears after 3 real fix attempts, that check is
+     **stuck**.
+   - **Total pipeline limit**: Do not run more than **10 full pipeline passes**
+     across the session. After 10, stop and report.
+
+   ### Stuck detection
+
+   You are stuck on a check when **any** of these are true:
+   - The **same error message** reappears after you applied a fix for it (your
+     fix is not working or is being reverted by another tool).
+   - A fix for one tool **breaks another** in a cycle (e.g., djlint reformats →
+     ruff flags → you fix → djlint re-reformats the same spot).
+   - You have exhausted the 3-attempt per-check budget.
+
+   When stuck:
+   1. **Stop** attempting that specific fix.
+   2. Report it as `[BLOCKING]` with:
+      - The exact error.
+      - What you tried (briefly).
+      - Why it is not resolving (tool conflict, unfamiliar pattern, etc.).
+   3. **Continue** fixing other unrelated issues if any remain.
+   4. In final output, clearly separate "Fixed" from "Stuck / Needs Human".
+
+   ### No TodoWrite for this pipeline
+
+   Do **not** use `TodoWrite` or `TaskCreate` to track individual gate results.
+   This is a fixed, known sequence — not an open-ended task list. Tracking ruff/
+   djlint/ty failures as todo items wastes tokens and context window. Report
+   results directly in the final output using the existing severity-tagged
+   sections (`Checks run`, `Needs changes`, etc.).
 
 ## Monty Backend Taste – Auto-Fix Rules
 
@@ -306,6 +382,46 @@ always summarize edits.
     by translation/i18n constraints.
 - Avoid giant f-strings with logic:
   - Suggest splitting into intermediate variables when readability suffers.
+
+### Django templates and djlint
+
+- Treat template lint failures (djlint + template pre-commit hooks) as
+  first-class problems, not “formatting nits”. In `atomic-commit` mode, they
+  are usually `[BLOCKING]`.
+- Common djlint blockers (fix patterns):
+  - **Inline styles** (`style="..."`):
+    - Prefer CSS classes / existing utility frameworks.
+    - If new styling is required, add it via the repo’s normal CSS pipeline
+      (not ad-hoc inline styles).
+  - **Unnamed endblocks**:
+    - If templates use named blocks, always close them with the name:
+      - `{% block content %} ... {% endblock content %}`
+    - Do not leave bare `{% endblock %}` when the repo’s linting expects names.
+- Workflow:
+  - After any template edit, run the relevant template hooks (or `djlint --lint
+    --check <file>` when that’s what the repo uses), fix, and re-run until
+    clean.
+  - If hooks auto-reformat templates, accept the changes and restage the file.
+- Optional acceleration (Claude Code):
+  - Recommend an `afterEdit` hook for `*.html` in `.claude/settings.json` to run
+    djlint on the edited file, using the repo's wrapper (`.bin/djlint`, `uv run
+    djlint`, etc.) when available.
+- Configuration discovery:
+  - Look for `[tool.djlint]` in `pyproject.toml` or a standalone `.djlintrc`
+    file for project-specific settings (profile, indent, max_line_length,
+    custom rules, ignored rules). Respect these when they exist.
+  - If no djlint config is found but djlint hooks are in
+    `.pre-commit-config.yaml`, note this as `[SHOULD_FIX]` — the project
+    should have explicit djlint configuration to avoid ambiguity.
+- Reformat-first protocol:
+  - Always run `djlint --reformat` (or the repo's reformat hook) **before**
+    running `djlint --lint --check`. Reformatting resolves most lint issues
+    automatically.
+  - After reformatting, re-stage the modified templates (`git add <file>`)
+    before running the lint check.
+  - If the lint check still fails after a fresh reformat, the remaining errors
+    are structural (missing attributes, banned patterns) and must be fixed by
+    hand.
 
 ### Security & secrets
 
