@@ -10,7 +10,9 @@ Recursively processes every directory with AGENTS.md and/or CLAUDE.md to:
 2. **Compare** existing docs against reality
 3. **Merge** valuable CLAUDE.md content into AGENTS.md
 4. **Rewrite** AGENTS.md with current commands and patterns
-5. **Normalize** CLAUDE.md to minimal stub (`@AGENTS.md` + best-practices note)
+5. **Encode** quality gates and common failure modes (pre-commit/djlint
+   “gotchas”, required commit message patterns) to reduce repetitive lint loops
+6. **Normalize** CLAUDE.md to minimal stub (`@AGENTS.md` + best-practices note)
 
 **Arguments:**
 - `[path]` - Path to repository (defaults to `.` for current directory)

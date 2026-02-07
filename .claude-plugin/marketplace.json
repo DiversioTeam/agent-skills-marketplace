@@ -130,8 +130,8 @@
     },
     {
       "name": "repo-docs",
-      "description": "Generate and canonicalize repository documentation. Create new docs or audit existing AGENTS.md/CLAUDE.md to enforce single-source-of-truth pattern.",
-      "version": "0.1.1",
+      "description": "Generate and canonicalize repository documentation with quality-gate awareness. Create new docs or audit existing AGENTS.md/CLAUDE.md to enforce single-source-of-truth pattern.",
+      "version": "0.1.2",
       "author": {
         "name": "Diversio Devs"
       },
