@@ -12,7 +12,7 @@ Do everything the `/backend-atomic-commit:pre-commit` command would do, plus:
   - `.security/ruff_pr_diff.sh`
   - `.security/local_imports_pr_diff.sh`
   - Ruff lint + format
-  - ty / type checks
+  - Active type gate checks (`ty` if configured; else `pyright`; else `mypy`)
   - Django system checks
   - Relevant pytest subsets
   - Pre-commit hooks

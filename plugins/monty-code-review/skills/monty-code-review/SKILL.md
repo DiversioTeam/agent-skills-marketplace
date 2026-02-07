@@ -85,6 +85,9 @@ When this skill is active and you are asked to review a change or diff, follow t
 5. Check tooling & static analysis
    - Where possible, run or mentally simulate relevant tooling (e.g., `ruff`, type
      checkers, and pre-commit hooks) for the changed files.
+   - Detect Python type checker in this order unless repo docs/CI differ:
+     - `ty`, then `pyright`, then `mypy`.
+   - If `ty` is configured in the repo, treat it as mandatory and blocking.
    - Treat any violations that indicate correctness, security, or contract issues as
      at least `[SHOULD_FIX]`, and often `[BLOCKING]`.
    - Avoid introducing new `# noqa` or similar suppressions unless there is a clear,
@@ -165,6 +168,8 @@ Use these tags consistently:
     per-row queries).
   - Missing tests for critical branches or regression scenarios.
   - Confusing control flow or naming that obscures invariants or intent.
+- Type-check debt that is not currently breaking merge gates but should be
+  reduced before follow-up work.
 - `[NIT]`
   - Docstring tone/punctuation, minor style deviations, f-string usage, import order.
   - Non-critical duplication that could be refactored later.

@@ -14,8 +14,9 @@ Workflow:
    staged, do **not** guess: either stage what the user explicitly intends, or ask
    them to stage/select files first (atomic commits must stay atomic).
 2. Run the full `atomic-commit` convergence loop (pre-commit hooks, `.security/*`,
-   Ruff, ty, Django checks, relevant pytest subsets), fixing and re-running until
-   everything is green and hooks stop rewriting files.
+   Ruff, active type gate checks (`ty`/`pyright`/`mypy`), Django checks,
+   relevant pytest subsets), fixing and re-running until everything is green and
+   hooks stop rewriting files.
    - Apply the Skill’s explicit iteration budgets + stuck protocol (3 attempts per
      failing gate, 10 total pipeline passes). If a gate is stuck, stop and report
      it as `[BLOCKING]` with the exact error + what was tried.

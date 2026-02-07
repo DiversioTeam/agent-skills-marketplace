@@ -30,6 +30,10 @@ Step 2: /process-code-review:process-review *_review.md → Fix/skip issues
 Step 3: /backend-atomic-commit:pre-commit → Run pre-commit checks and fix issues
 ```
 
+Before applying fixes, read local typing policy docs when present (for example
+`docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`,
+`AGENTS.md`) and align type-check behavior with those rules.
+
 ## Example Prompts
 
 ### Basic Usage
@@ -162,8 +166,12 @@ After each fix, run quality checks:
 
 - `ruff check <file> --fix` - Auto-fix linting issues
 - `ruff format <file>` - Format code
-- `ty check <file>` - Type check (baseline acceptable)
+- Active type gate (`ty` if configured; else `pyright`; else `mypy`) - Type check
 - `python manage.py check` - Django system checks (if applicable)
+
+For touched files, "baseline acceptable" is not allowed. Resolve all active
+type-gate errors before moving on. If repo policy requires wider type checks
+before merge, run them before final completion.
 
 If quality checks reveal additional issues, fix them before moving on.
 
@@ -233,7 +241,8 @@ Before marking a review as complete, verify:
 2. All [SHOULD_FIX] issues are addressed or have a documented deferral reason
 3. Linting passes: `.bin/ruff check --fix`
 4. Formatting is correct: `.bin/ruff format`
-5. Type checks pass baseline: `.bin/ty check`
+5. Active type gate passes for touched files, and any repo-required broad type
+   gate is satisfied before merge
 6. Relevant tests still pass
 
 ## Handling Arguments

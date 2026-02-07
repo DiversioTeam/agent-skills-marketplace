@@ -217,13 +217,18 @@ Prompt the author to confirm they have checked:
   - No `print()` / `ipdb` / `pdb` left behind.
 - Tests have been added or updated for new functionality.
 - Tests are passing in CI.
+- Active Python type gate is passing for touched files:
+  - Detect in this order unless repo docs/CI differ: `ty`, then `pyright`,
+    then `mypy`.
+  - If `ty` is configured, it is mandatory and blocking.
 - Pre-commit hooks and coding conventions have been applied.
 - Code coverage has not regressed significantly.
 - For Django changes: migrations have been cleaned up and regenerated if there
   were multiple schema iterations.
 
 If any of these fail obviously based on the PR description or user input, emit
-appropriate `[SHOULD_FIX]` or `[BLOCKING]` bullets.
+appropriate `[SHOULD_FIX]` or `[BLOCKING]` bullets. Type-gate failures should
+generally be `[BLOCKING]` for merge readiness.
 
 ## Checklist 4 – Releases, Hotfixes, and Tags
 

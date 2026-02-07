@@ -56,7 +56,7 @@ find . -maxdepth 2 -name "*.md" -type f 2>/dev/null
 
 # 6. Identify quality gates (pre-commit, linters, formatters)
 ls .pre-commit-config.yaml .pre-commit-config.yml 2>/dev/null
-rg -n "djlint|ruff|mypy|ty|eslint|prettier|black|isort" .pre-commit-config.yaml .pre-commit-config.yml pyproject.toml package.json 2>/dev/null | head -50
+rg -n "djlint|ruff|mypy|pyright|ty|eslint|prettier|black|isort" .pre-commit-config.yaml .pre-commit-config.yml pyproject.toml package.json 2>/dev/null | head -50
 ```
 
 ### Phase 2: Analysis
@@ -79,8 +79,14 @@ ROI documentation target. In AGENTS.md, explicitly document:
 
 - How to run the gates (preferred wrappers, scoped vs all-files behavior)
 - What the gates enforce (template rules, type checks, commit-msg conventions)
+- Type-gate detection and precedence for Python repos:
+  - `ty` first when configured, then `pyright`, then `mypy`
+  - `ty` is mandatory if configured
+  - no "baseline acceptable" language for touched files
 - “Gotchas” that repeatedly waste time (e.g., djlint inline styles, named
   endblocks, date/time math that must be verified with code/tests)
+- Local typing policy docs if present (for example:
+  `docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`)
 
 ### Phase 3: Documentation Generation
 
@@ -623,7 +629,7 @@ ls Makefile *.sh scripts/ 2>/dev/null
 
 # Check pre-commit + linting configuration (often the real “source of truth”)
 ls .pre-commit-config.yaml .pre-commit-config.yml 2>/dev/null
-rg -n "djlint|ruff|mypy|ty|eslint|prettier|black|isort" .pre-commit-config.yaml .pre-commit-config.yml pyproject.toml package.json 2>/dev/null | head -50
+rg -n "djlint|ruff|mypy|pyright|ty|eslint|prettier|black|isort" .pre-commit-config.yaml .pre-commit-config.yml pyproject.toml package.json 2>/dev/null | head -50
 ```
 
 **Identify Stale Patterns (remove these):**
@@ -635,7 +641,8 @@ rg -n "djlint|ruff|mypy|ty|eslint|prettier|black|isort" .pre-commit-config.yaml 
 
 **Identify Current Patterns (use these):**
 - `uv sync`, `uv run ...`
-- `.bin/django`, `.bin/pytest`, `.bin/ruff`, `.bin/mypy`
+- `.bin/django`, `.bin/pytest`, `.bin/ruff`, plus active type gate wrapper
+  (`.bin/ty`, `.bin/pyright`, or `.bin/mypy`)
 - `pre-commit run ...` (and any repo wrappers like `make precommit`)
 - Current CI job names and commands
 - Actual architecture from code inspection
@@ -687,7 +694,10 @@ uv sync                              # Install dependencies
 pre-commit run --all-files           # Or: pre-commit run --files <changed files>
 
 # Type checking
-.bin/mypy .                          # Run mypy
+# Prefer ty when configured, then pyright, then mypy
+.bin/ty check .                      # Run ty (if configured)
+.bin/pyright .                       # Or pyright
+.bin/mypy .                          # Or mypy
 ```
 ````
 

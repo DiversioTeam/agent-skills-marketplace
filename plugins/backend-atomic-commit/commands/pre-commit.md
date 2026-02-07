@@ -12,8 +12,9 @@ Focus on:
   type-hint problems.
 - Running the following checks in order:
   1. `.bin/ruff check --fix` and `.bin/ruff format` on modified Python files.
-  2. `.bin/ty check` on **modified Python files only** to catch type errors
-     before CI (avoids baseline errors in unmodified code).
+  2. Active type gate (`ty` if configured; else `pyright`; else `mypy`) on
+     **modified Python files only** during iteration, then any repo-required
+     wider type gate before final readiness.
   3. `python manage.py check --fail-level WARNING` for Django system checks.
   4. Any pre-commit hooks defined in `.pre-commit-config.yaml`.
 - Treat the above as a **convergence loop** (not one pass): if a check fails or
@@ -22,9 +23,10 @@ Focus on:
   passes**. If a check still fails after 3 real fix attempts, report it as
   `[BLOCKING]` and move on to other issues.
 - Do **not** use TodoWrite to track gate results — report directly in output.
-- **IMPORTANT**: For any file you touch, resolve **ALL** ruff and ty errors in
-  that file—not just the ones you introduced. CI will fail on pre-existing
-  errors in modified files. Do not dismiss errors as "pre-existing".
+- **IMPORTANT**: For any file you touch, resolve **ALL** ruff and active
+  type-check errors in that file—not just the ones you introduced. CI will fail
+  on pre-existing errors in modified files. Do not dismiss errors as
+  "pre-existing".
 
 Do **not** propose a commit message in this mode; just leave the working tree
 and index in the cleanest, most standards-compliant state you can, and report:

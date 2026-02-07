@@ -71,12 +71,21 @@ Optional: `/plan-directory:run <slug> --max-iterations 50`
 |-------|---------|-------------|
 | Lint command | `ruff check` | Prefix with `.bin/` if needed |
 | Format command | `ruff format` | |
-| Type check | `ty` | Or `mypy`, `pyright` |
+| Type gate | Auto-detect (`ty` → `pyright` → `mypy`) | `ty` is mandatory if configured |
 | Test command | `pytest` | |
 | Test config | `` | e.g., `--dc=TestLocalApp` |
 | Django command | `django` | |
 | Coverage target | `90` | Minimum percentage |
 | Max iterations | `100` | Ralph loop limit |
+
+Type policy for generated plans:
+
+- Detect type checker in this order unless repo docs/CI specify otherwise:
+  `ty`, then `pyright`, then `mypy`.
+- If `ty` is configured (`[tool.ty]`, `ty.toml`, `.bin/ty`, CI/pre-commit), it
+  is mandatory and blocking.
+- Generated tasks should not use "baseline acceptable" language for touched
+  files.
 
 ## Task Granularity Guidelines
 

@@ -349,8 +349,10 @@ properties = MxpNewEventSchema(
 .bin/ruff check optimo_analytics/ --fix
 .bin/ruff format optimo_analytics/
 
-# 2. Type checking
-.bin/ty check optimo_analytics/
+# 2. Type checking (strict)
+# Prefer ty when configured; else pyright; else mypy.
+.bin/ty check optimo_analytics/          # or: .bin/pyright optimo_analytics/
+                                         # or: .bin/mypy optimo_analytics/
 
 # 3. Django checks
 DJANGO_CONFIGURATION=DevApp uv run python manage.py check
@@ -360,4 +362,3 @@ DJANGO_CONFIGURATION=DevApp uv run python manage.py check
 ```
 
 ---
-

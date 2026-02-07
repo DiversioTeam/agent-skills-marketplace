@@ -53,15 +53,22 @@ ruff format <path>
 ### Type Checking
 
 ```bash
-# Using ty (if available)
-ty <path>
+# Detect in this order unless repo docs/CI differ:
+# 1) ty, 2) pyright, 3) mypy
 
-# Using mypy
-mypy <path>
+# Using ty (preferred when configured)
+ty check <path>
 
 # Using pyright
 pyright <path>
+
+# Using mypy
+mypy <path>
 ```
+
+Rules:
+- If `ty` is configured in the repo, treat it as mandatory and blocking.
+- Do not use "baseline acceptable" language for touched files.
 
 ### Testing
 
@@ -117,7 +124,7 @@ Many projects use wrapper scripts. Common patterns:
 ```bash
 .bin/ruff check <path>
 .bin/ruff format <path>
-.bin/ty <path>
+.bin/ty check <path>
 .bin/pytest <args>
 .bin/django <command>
 ```

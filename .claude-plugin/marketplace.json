@@ -21,7 +21,7 @@
     {
       "name": "monty-code-review",
       "description": "Hyper-pedantic Django4Lyfe backend code review Skill (Monty's taste).",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -32,7 +32,7 @@
     {
       "name": "backend-pr-workflow",
       "description": "Enforces Diversio backend ClickUp-linked PR workflow, branch naming, safe Django migrations, and downtime-safe schema changes.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Diversio Devs"
       },
@@ -43,7 +43,7 @@
     {
       "name": "backend-atomic-commit",
       "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security/* helpers, and Monty's backend taste without AI commit signatures.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -54,7 +54,7 @@
     {
       "name": "bruno-api",
       "description": "Comprehensive API documentation generator from Bruno (.bru) files that maps endpoints to Django4Lyfe implementations (DRF/Django Ninja).",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -65,7 +65,7 @@
     {
       "name": "plan-directory",
       "description": "Create and maintain structured plan directories with a master PLAN.md index and numbered task files (001-*.md) containing checklists, tests, and completion criteria. Includes backend-ralph-plan for RALPH loop execution.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -87,7 +87,7 @@
     {
       "name": "process-code-review",
       "description": "Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -98,7 +98,7 @@
     {
       "name": "mixpanel-analytics",
       "description": "MixPanel analytics tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Diversio Devs"
       },
@@ -120,7 +120,7 @@
     {
       "name": "repo-docs",
       "description": "Generate and canonicalize repository documentation with quality-gate awareness. Create new docs or audit existing AGENTS.md/CLAUDE.md to enforce single-source-of-truth pattern.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Diversio Devs"
       },
@@ -131,7 +131,7 @@
     {
       "name": "backend-release",
       "description": "Manages the full release workflow for Django4Lyfe backend - creating release PRs, version bumping (YYYY.MM.DD), conflict resolution, and GitHub releases.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Diversio Devs"
       },
