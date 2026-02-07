@@ -53,6 +53,10 @@ ls Dockerfile docker-compose.yml .github/workflows .circleci serverless.yml 2>/d
 
 # 5. Check for existing documentation
 find . -maxdepth 2 -name "*.md" -type f 2>/dev/null
+
+# 6. Identify quality gates (pre-commit, linters, formatters)
+ls .pre-commit-config.yaml .pre-commit-config.yml 2>/dev/null
+rg -n "djlint|ruff|mypy|ty|eslint|prettier|black|isort" .pre-commit-config.yaml .pre-commit-config.yml pyproject.toml package.json 2>/dev/null | head -50
 ```
 
 ### Phase 2: Analysis
@@ -67,6 +71,16 @@ Based on discovery, identify:
 6. **Data Storage**: PostgreSQL, MongoDB, Redis, S3, etc.
 7. **CI/CD**: GitHub Actions, CircleCI, Jenkins, etc.
 8. **Deployment**: Docker, Kubernetes, Lambda, Heroku, etc.
+
+### Phase 2.5: Quality Gates (High ROI)
+
+If the repo uses pre-commit and/or strict linters, treat them as the highest
+ROI documentation target. In AGENTS.md, explicitly document:
+
+- How to run the gates (preferred wrappers, scoped vs all-files behavior)
+- What the gates enforce (template rules, type checks, commit-msg conventions)
+- “Gotchas” that repeatedly waste time (e.g., djlint inline styles, named
+  endblocks, date/time math that must be verified with code/tests)
 
 ### Phase 3: Documentation Generation
 
@@ -606,6 +620,10 @@ cat .github/workflows/*.yml 2>/dev/null | grep -E "run:|command:" | head -20
 
 # Check for Makefile/scripts
 ls Makefile *.sh scripts/ 2>/dev/null
+
+# Check pre-commit + linting configuration (often the real “source of truth”)
+ls .pre-commit-config.yaml .pre-commit-config.yml 2>/dev/null
+rg -n "djlint|ruff|mypy|ty|eslint|prettier|black|isort" .pre-commit-config.yaml .pre-commit-config.yml pyproject.toml package.json 2>/dev/null | head -50
 ```
 
 **Identify Stale Patterns (remove these):**
@@ -618,6 +636,7 @@ ls Makefile *.sh scripts/ 2>/dev/null
 **Identify Current Patterns (use these):**
 - `uv sync`, `uv run ...`
 - `.bin/django`, `.bin/pytest`, `.bin/ruff`, `.bin/mypy`
+- `pre-commit run ...` (and any repo wrappers like `make precommit`)
 - Current CI job names and commands
 - Actual architecture from code inspection
 
@@ -664,6 +683,9 @@ uv sync                              # Install dependencies
 .bin/ruff check .                    # Check for issues
 .bin/ruff format .                   # Auto-format
 
+# Pre-commit (if present, this is usually the authoritative lint gate)
+pre-commit run --all-files           # Or: pre-commit run --files <changed files>
+
 # Type checking
 .bin/mypy .                          # Run mypy
 ```
@@ -673,6 +695,10 @@ uv sync                              # Install dependencies
 - Check what CI actually runs, not what old docs say
 - Verify management commands exist before documenting them
 - Confirm architecture matches current codebase structure
+- If `.pre-commit-config.*` exists, summarize key hooks and “gotchas” in
+  AGENTS.md (e.g. djlint template rules, required commit message prefixes) so
+  agents write compliant code on the first pass instead of discovering failures
+  at commit time.
 
 #### Phase 5: Normalize CLAUDE.md
 
@@ -742,6 +768,10 @@ Relevant guidance (summarized):
 6. **Merge, don't lose** - Move valuable CLAUDE.md content to AGENTS.md first
 7. **Recursive** - Process every directory with docs, not just root
 8. **Confirm before destructive changes** - Show diff, ask user if uncertain
+9. **Encode recurring failure modes** - If linters (pre-commit/djlint) or
+   reasoning pitfalls (date/time math) repeatedly trip agents, write explicit
+   “gotchas” and verification commands into AGENTS.md so they’re avoided up
+   front.
 
 ### Handling Edge Cases
 
