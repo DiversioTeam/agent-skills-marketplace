@@ -71,6 +71,14 @@ Read key reference files:
 - `optimo_analytics/service/AGENTS.md` – service layer patterns
 - `optimo_analytics/tests/AGENTS.md` – test patterns
 
+Type gate policy:
+- Detect Python type checker in this order unless repo docs/CI differ:
+  `ty`, then `pyright`, then `mypy`.
+- If `ty` is configured, it is mandatory and blocking.
+- For touched files, do not accept "baseline acceptable" type-check outcomes.
+- Read local typing policy docs when present (for example
+  `docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`).
+
 ---
 
 # Implementation Mode

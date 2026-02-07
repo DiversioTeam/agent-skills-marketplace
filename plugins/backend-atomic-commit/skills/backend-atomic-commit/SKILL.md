@@ -34,14 +34,14 @@ backend) when you want:
   `[BLOCKING]`.”
 - “Use `/backend-atomic-commit:atomic-commit` to prepare an atomic commit for
   the staged changes in `backend/`. Enforce all pre-commit hooks and
-  `.security` scripts, run Ruff, ty, Django checks, and relevant pytest
+  `.security` scripts, run Ruff, active type gate checks, Django checks, and relevant pytest
   subsets, then propose a ticket-prefixed commit message with **no AI
   signature** and clearly mark any `[BLOCKING]` issues.”
 - “Treat my current backend changes as one logical bugfix and run
   `/backend-atomic-commit:pre-commit` in a strict mode: eliminate local
   imports, fix type hints (no `Any`, no string-based annotations), clean up
   debug statements, and ensure Ruff, `.security/local_imports_pr_diff.sh`,
-  ty, and Django checks are happy."
+  active type gate checks, and Django checks are happy."
 - “Before I commit these `optimo_*` changes, run
   `/backend-atomic-commit:atomic-commit --auto` to:
   - enforce structured logging with `TypedDict` payloads,
@@ -129,8 +129,12 @@ When this Skill runs, you should first gather context using `Bash`, `Read`,
   - Detect `manage.py` / Django project layout.
 - Tool availability:
   - `uv` and `.bin/` wrappers:
-    - `.bin/ruff`, `.bin/ty`, `.bin/django`, `.bin/pytest`.
+    - `.bin/ruff`, `.bin/ty`, `.bin/pyright`, `.bin/mypy`, `.bin/django`,
+      `.bin/pytest`.
   - Fallback to `uv run` or plain `python` / `pytest` / `ruff` where necessary.
+  - Read local typing policy docs when present (for example:
+    `docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`) and
+    follow them over this default.
 
 If the repo clearly isn’t the Diversio backend / Django4Lyfe style, say so and
 adjust expectations (but you can still run generic Python pre-commit checks).
@@ -173,26 +177,43 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
    - Treat failures as at least `[SHOULD_FIX]` and usually `[BLOCKING]` for
      `atomic-commit`.
 
-4. **Type checking with ty**
-   - Run `ty` on **modified Python files only** to catch type errors before CI:
+4. **Type checking with active repository gate (ty-first)**
+   - Detect the type gate in this order (unless repo docs/CI explicitly differ):
+     - `ty` if configured (`[tool.ty]`, `ty.toml`, `.bin/ty`, or CI/pre-commit).
+     - Else `pyright` if configured.
+     - Else `mypy` if configured.
+   - Run the active checker on **modified Python files only** during iteration:
      ```bash
-     # For staged files (atomic-commit mode):
+     # ty example - staged files (atomic-commit mode):
      .bin/ty check $(git diff --cached --name-only --diff-filter=ACMR | grep '\.py$')
 
-     # For all modified files (pre-commit mode):
+     # ty example - all modified files (pre-commit mode):
      .bin/ty check $(git diff --name-only --diff-filter=ACMR | grep '\.py$')
+
+     # pyright example - staged files (atomic-commit mode):
+     .bin/pyright $(git diff --cached --name-only --diff-filter=ACMR | grep '\.py$')
+
+     # pyright example - all modified files (pre-commit mode):
+     .bin/pyright $(git diff --name-only --diff-filter=ACMR | grep '\.py$')
+
+     # mypy example - staged files (atomic-commit mode):
+     .bin/mypy $(git diff --cached --name-only --diff-filter=ACMR | grep '\.py$')
+
+     # mypy example - all modified files (pre-commit mode):
+     .bin/mypy $(git diff --name-only --diff-filter=ACMR | grep '\.py$')
      ```
-   - This scoped approach avoids triggering baseline errors in **unmodified**
-     files while matching CircleCI's `ty` check behavior.
-   - **IMPORTANT**: For any file you touch, you must resolve **ALL** `ty` errors
-     in that file—not just the ones you introduced. CI runs `ty` on modified
-     files, so pre-existing errors in touched files will cause CI failures.
+   - Scoped checks are for speed only; if the repo/CI requires a wider check
+     before merge/commit, run that gate before final "ready" verdict.
+   - **IMPORTANT**: For any file you touch, you must resolve **ALL** active
+     type-check errors in that file—not just the ones you introduced. If CI
+     checks modified files, pre-existing errors in touched files will still
+     cause failures.
      Do **not** dismiss errors as "pre-existing" if the file is in your diff.
    - Common pitfall: Fixing ruff ARG002 (unused argument) by prefixing with `_`
      may satisfy ruff but break `ty` if the method signature must match a parent
      class (e.g., Django admin methods). Always run both checks together.
-   - Treat **any** `ty` errors in modified files as `[BLOCKING]` for
-     `atomic-commit` mode or `[SHOULD_FIX]` for `pre-commit` mode.
+   - Treat **any** active type-check errors in modified files as `[BLOCKING]`
+     for `atomic-commit` mode or `[SHOULD_FIX]` for `pre-commit` mode.
 
 5. **Django system checks**
    - Run `.bin/django check` or equivalent:
@@ -219,7 +240,7 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
    - Treat the pipeline above as **iterative**, not one-shot.
    - You are **not done** until:
      - The relevant pre-commit hooks pass, and
-     - Ruff/ty/djlint/Django checks you ran are green, and
+     - Ruff/type-gate/djlint/Django checks you ran are green, and
      - The index/working tree is **stable** (hooks are no longer rewriting
        files).
    - Use a tight fix → rerun loop:
@@ -227,8 +248,8 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
      2. Fix only the reported file(s).
      3. Re-run the same check until it passes.
      4. Only then advance to the next gate.
-   - Prefer scoping pre-commit to changed files to avoid unrelated baseline
-     failures:
+   - Prefer scoping pre-commit to changed files for faster iteration; still run
+     repo-required wide gates before final readiness:
      ```bash
      # atomic-commit mode: staged files only
      pre-commit run --files $(git diff --cached --name-only --diff-filter=ACMR)
@@ -270,7 +291,7 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
 
    Do **not** use `TodoWrite` or `TaskCreate` to track individual gate results.
    This is a fixed, known sequence — not an open-ended task list. Tracking ruff/
-   djlint/ty failures as todo items wastes tokens and context window. Report
+   djlint/type-check failures as todo items wastes tokens and context window. Report
    results directly in the final output using the existing severity-tagged
    sections (`Checks run`, `Needs changes`, etc.).
 
@@ -480,7 +501,7 @@ you must be **very strict**:
      - `./.security/ruff_pr_diff.sh`
      - `./.security/local_imports_pr_diff.sh`
      - `.bin/ruff check` / `ruff format`
-     - `.bin/ty check <staged_python_files>` (scoped to modified files only)
+     - active type gate on staged Python files (`ty`/`pyright`/`mypy`)
      - `.bin/django check` / `manage.py check`
      - Relevant `pytest` subsets for risky changes
      - Pre-commit hooks defined in `.pre-commit-config.yaml`
@@ -532,7 +553,7 @@ In `pre-commit` mode (invoked via `/backend-atomic-commit:pre-commit`):
   - Formatting, linting, local imports, obvious type hints, logging patterns,
     removal of debug code, and consistent fixtures.
 - You must:
-  - Run the same gates described above (Ruff, `.security/*`, ty, Django
+  - Run the same gates described above (Ruff, `.security/*`, active type gate, Django
     checks, tests as appropriate).
   - Re-run or re-stage files modified by tools or hooks.
 - You do **not** propose a commit or check atomicity.

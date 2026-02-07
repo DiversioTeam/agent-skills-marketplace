@@ -1,6 +1,6 @@
 {
   "name": "bruno-api",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Comprehensive API documentation generator from Bruno (.bru) files that maps endpoints to Django4Lyfe implementations (DRF/Django Ninja).",
   "author": {
     "name": "Diversio Devs"

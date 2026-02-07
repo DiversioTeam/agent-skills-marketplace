@@ -38,7 +38,7 @@ Specify your project's commands (defaults shown):
 |---------|---------|---------------------------|
 | Lint | `ruff check` | `.bin/ruff check` |
 | Format | `ruff format` | `.bin/ruff format` |
-| Types | `ty` | `.bin/ty` |
+| Types | Auto-detect (`ty` → `pyright` → `mypy`) | `.bin/ty` when configured |
 | Tests | `pytest` | `.bin/pytest` |
 | Django | `django` | `.bin/django` |
 | Test config | (none) | `--dc=TestLocalApp` |

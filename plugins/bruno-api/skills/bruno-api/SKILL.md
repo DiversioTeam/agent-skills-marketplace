@@ -130,6 +130,9 @@ Rules:
 - Include at least one realistic example request and success response.
 - If response shape is dynamic or large, document the stable contract and
   include a representative sample, not the entire universe of fields.
+- If you recommend follow-up code changes, mention the repo's active type gate
+  (`ty` first when configured, else `pyright`, else `mypy`) and avoid
+  recommending blanket suppressions.
 - When you’re unsure, be explicit about assumptions and mark with `[SHOULD_FIX]`.
 
 ### Step 5 — Handle `--output` and `--scan`

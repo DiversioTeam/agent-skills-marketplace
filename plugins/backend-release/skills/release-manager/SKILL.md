@@ -187,7 +187,15 @@ Before creating a release PR, verify:
    .bin/ruff format <file>
    ```
 
-2. **RLS policies for new models:**
+2. **Active Python type gate passes (strict):**
+   - Detect in this order unless repo docs/CI differ:
+     - `ty` (mandatory if configured)
+     - `pyright`
+     - `mypy`
+   - Run on touched paths at minimum, and run any repo-required broad gate
+     before final release readiness.
+
+3. **RLS policies for new models:**
    ```bash
    # Check status
    .bin/django optimo_bootstrap_support_shell_rls

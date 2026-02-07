@@ -27,6 +27,7 @@ Generate a structured review report with:
 - Summary table showing pass/fail status per category.
 - Issues found with severity tags (`[P0]`, `[P1]`, `[P2]`, `[P3]`).
 - Specific file:line references and recommended fixes.
-- Quality gate status (Ruff, ty, Django check, tests).
+- Quality gate status (Ruff, active type gate, Django check, tests). Type gate
+  detection order: `ty` (if configured), then `pyright`, then `mypy`.
 
 If issues found, suggest using `/mixpanel-analytics:implement` to fix them.

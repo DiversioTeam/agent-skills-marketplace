@@ -20,6 +20,8 @@ Focus on:
 
 After implementation:
 
-- Run post-implementation validations (Ruff, ty, Django check, pytest).
+- Run post-implementation validations (Ruff, active type gate, Django check,
+  pytest). Type gate detection order: `ty` (if configured), then `pyright`,
+  then `mypy`.
 - Report what was created and any remaining issues.
 - Suggest running `/mixpanel-analytics:review` to validate the implementation.

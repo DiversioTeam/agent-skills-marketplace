@@ -134,14 +134,32 @@ When working in this repo, Claude Code should:
      ---
      ```
 
-4. **Follow existing naming and structure.**
+4. **Treat Python typing as a strict quality gate in code-touching skills.**
+   - Skills that edit or review Python code must define type-gate detection and
+     enforcement explicitly.
+   - Detection precedence should be:
+     - `ty` first, then `pyright`, then `mypy` (unless target repo docs/CI say
+       otherwise).
+   - If `ty` is configured in the target repo (`[tool.ty]`, `ty.toml`,
+     `.bin/ty`, or CI/pre-commit usage), treat it as mandatory and blocking.
+   - Do not document or encourage "baseline acceptable" behavior for touched
+     files.
+   - Prefer narrow, justified suppressions only when no better typing solution
+     exists; do not default to blanket `# noqa` or broad type-ignore patterns.
+   - Canonical marketplace policy reference:
+     - `docs/python-typing-and-ty-best-practices.md`
+   - In target codebases, also read local policy docs when present (for example
+     `docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`,
+     `AGENTS.md`).
+
+5. **Follow existing naming and structure.**
    - New plugins should mirror the structure of `monty-code-review`:
      - `plugins/<plugin>/`
        - `.claude-plugin/plugin.json`
        - `skills/<skill-name>/SKILL.md`
    - Use `kebab-case` for plugin folder names where possible.
 
-5. **Do not modify application behavior here.**
+6. **Do not modify application behavior here.**
    - This repo should not contain Django/React/Terraform or other app logic.
    - If a plugin needs to describe behavior in another repo, document it here but
      change the actual code in that other repo.
