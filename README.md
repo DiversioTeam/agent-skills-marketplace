@@ -95,14 +95,6 @@ agent-skills-marketplace/
 │   │   │   ├── SKILL.md
 │   │   │   └── references/
 │   │   └── commands/write-pr.md
-│   ├── session-review-notes/          # PR-ready AI session review notes
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/session-review-notes/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/
-│   │       ├── generate.md
-│   │       └── list-sessions.md
 │   ├── process-code-review/           # Code review processor (fix/skip issues)
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/process-code-review/SKILL.md
@@ -170,7 +162,6 @@ agent-skills-marketplace/
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
 | `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
-| `session-review-notes` | Upsert a single PR comment that serves as an AI session ledger (human steering, deltas, tests) across Codex + Claude Code (not a PR description) |
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
@@ -212,7 +203,6 @@ claude plugin install bruno-api@diversiotech
 claude plugin install code-review-digest-writer@diversiotech
 claude plugin install plan-directory@diversiotech
 claude plugin install pr-description-writer@diversiotech
-claude plugin install session-review-notes@diversiotech
 claude plugin install process-code-review@diversiotech
 claude plugin install mixpanel-analytics@diversiotech
 claude plugin install clickup-ticket@diversiotech
@@ -242,7 +232,6 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Code review digest writer | `claude plugin install code-review-digest-writer@diversiotech` |
 | Plan directory + RALPH loop | `claude plugin install plan-directory@diversiotech` |
 | PR description writer | `claude plugin install pr-description-writer@diversiotech` |
-| Session review notes | `claude plugin install session-review-notes@diversiotech` |
 | Code review processor | `claude plugin install process-code-review@diversiotech` |
 | MixPanel analytics | `claude plugin install mixpanel-analytics@diversiotech` |
 | ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
@@ -268,8 +257,6 @@ Once plugins are installed:
    /plan-directory:backend-ralph-plan        # Create RALPH loop-integrated plan for backend
    /plan-directory:run <slug>                # Execute a RALPH plan via ralph-wiggum loop
    /pr-description-writer:write-pr           # Generate a comprehensive PR description
-   /session-review-notes:generate            # Generate PR-ready AI session review notes
-   /session-review-notes:list-sessions       # List recent Codex + Claude sessions (human-readable picker)
    /process-code-review:process-review       # Process code review findings (fix/skip issues)
    /mixpanel-analytics:implement             # Implement new MixPanel tracking events
    /mixpanel-analytics:review                # Review MixPanel implementations for compliance
@@ -319,7 +306,6 @@ claude plugin uninstall bruno-api@diversiotech
 claude plugin uninstall code-review-digest-writer@diversiotech
 claude plugin uninstall plan-directory@diversiotech
 claude plugin uninstall pr-description-writer@diversiotech
-claude plugin uninstall session-review-notes@diversiotech
 claude plugin uninstall process-code-review@diversiotech
 claude plugin uninstall mixpanel-analytics@diversiotech
 claude plugin uninstall clickup-ticket@diversiotech
@@ -340,7 +326,6 @@ claude plugin uninstall bruno-api@diversiotech --scope project
 claude plugin uninstall code-review-digest-writer@diversiotech --scope project
 claude plugin uninstall plan-directory@diversiotech --scope project
 claude plugin uninstall pr-description-writer@diversiotech --scope project
-claude plugin uninstall session-review-notes@diversiotech --scope project
 claude plugin uninstall process-code-review@diversiotech --scope project
 claude plugin uninstall mixpanel-analytics@diversiotech --scope project
 claude plugin uninstall clickup-ticket@diversiotech --scope project
@@ -388,7 +373,6 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/plan-directory/skills/plan-directory \
     plugins/plan-directory/skills/backend-ralph-plan \
     plugins/pr-description-writer/skills/pr-description-writer \
-    plugins/session-review-notes/skills/session-review-notes \
     plugins/process-code-review/skills/process-code-review \
     plugins/mixpanel-analytics/skills/mixpanel-analytics \
     plugins/clickup-ticket/skills/clickup-ticket \
@@ -410,7 +394,6 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/plan-directory/skills/plan-directory \
   path=plugins/plan-directory/skills/backend-ralph-plan \
   path=plugins/pr-description-writer/skills/pr-description-writer \
-  path=plugins/session-review-notes/skills/session-review-notes \
   path=plugins/process-code-review/skills/process-code-review \
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
   path=plugins/clickup-ticket/skills/clickup-ticket \
@@ -454,7 +437,6 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/plan-directory" \
        "$CODEX_HOME/skills/backend-ralph-plan" \
        "$CODEX_HOME/skills/pr-description-writer" \
-       "$CODEX_HOME/skills/session-review-notes" \
        "$CODEX_HOME/skills/process-code-review" \
        "$CODEX_HOME/skills/mixpanel-analytics" \
        "$CODEX_HOME/skills/clickup-ticket" \

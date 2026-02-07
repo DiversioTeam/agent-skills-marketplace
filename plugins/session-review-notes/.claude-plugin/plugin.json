@@ -1,8 +1,0 @@
-{
-  "name": "session-review-notes",
-  "version": "0.1.0",
-  "description": "Upsert a single PR comment that serves as an AI session ledger (human steering, deltas, tests) across Codex + Claude Code. Not a PR description.",
-  "author": {
-    "name": "Diversio Devs"
-  }
-}
