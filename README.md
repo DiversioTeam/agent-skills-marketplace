@@ -135,15 +135,19 @@ agent-skills-marketplace/
 │   │       ├── check.md
 │   │       ├── create.md
 │   │       └── publish.md
-│   └── terraform/                     # Terraform/Terragrunt workflows
+│   ├── terraform/                     # Terraform/Terragrunt workflows
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/
+│   │   │   ├── terraform-atomic-commit/SKILL.md
+│   │   │   └── terraform-pr-workflow/SKILL.md
+│   │   └── commands/
+│   │       ├── pre-commit.md
+│   │       ├── atomic-commit.md
+│   │       └── check-pr.md
+│   └── login-cta-attribution-skill/   # CTA login attribution
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/
-│       │   ├── terraform-atomic-commit/SKILL.md
-│       │   └── terraform-pr-workflow/SKILL.md
-│       └── commands/
-│           ├── pre-commit.md
-│           ├── atomic-commit.md
-│           └── check-pr.md
+│       ├── skills/login-cta-attribution-skill/SKILL.md
+│       └── commands/implement.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -168,6 +172,7 @@ agent-skills-marketplace/
 | `repo-docs` | Generate and canonicalize repository documentation (AGENTS.md, README.md, CLAUDE.md) with ASCII architecture diagrams and single-source-of-truth pattern |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
+| `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
 
 ## Installation
 
@@ -209,6 +214,7 @@ claude plugin install clickup-ticket@diversiotech
 claude plugin install repo-docs@diversiotech
 claude plugin install backend-release@diversiotech
 claude plugin install terraform@diversiotech
+claude plugin install login-cta-attribution-skill@diversiotech
 ```
 
 For project-scoped installation (shared with collaborators via `.claude/settings.json`):
@@ -238,6 +244,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Repository docs generator | `claude plugin install repo-docs@diversiotech` |
 | Backend release workflow | `claude plugin install backend-release@diversiotech` |
 | Terraform workflows | `claude plugin install terraform@diversiotech` |
+| Login CTA attribution | `claude plugin install login-cta-attribution-skill@diversiotech` |
 
 </details>
 
@@ -277,6 +284,7 @@ Once plugins are installed:
    /terraform:pre-commit                     # Fix Terraform/Terragrunt repos to meet fmt/validate/docs standards
    /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
    /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
+   /login-cta-attribution-skill:implement   # Add new CTA login attribution source
    ```
 
 ### Uninstall Plugins (Claude Code)
@@ -312,6 +320,7 @@ claude plugin uninstall clickup-ticket@diversiotech
 claude plugin uninstall repo-docs@diversiotech
 claude plugin uninstall backend-release@diversiotech
 claude plugin uninstall terraform@diversiotech
+claude plugin uninstall login-cta-attribution-skill@diversiotech
 ```
 
 **Step 3: Uninstall project-scoped plugins (if any)**
@@ -332,6 +341,7 @@ claude plugin uninstall clickup-ticket@diversiotech --scope project
 claude plugin uninstall repo-docs@diversiotech --scope project
 claude plugin uninstall backend-release@diversiotech --scope project
 claude plugin uninstall terraform@diversiotech --scope project
+claude plugin uninstall login-cta-attribution-skill@diversiotech --scope project
 ```
 
 </details>
@@ -379,7 +389,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/repo-docs/skills/repo-docs-generator \
     plugins/backend-release/skills/release-manager \
     plugins/terraform/skills/terraform-atomic-commit \
-    plugins/terraform/skills/terraform-pr-workflow
+    plugins/terraform/skills/terraform-pr-workflow \
+    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
 ```
 
 **Codex console alternative:**
@@ -400,7 +411,8 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/repo-docs/skills/repo-docs-generator \
   path=plugins/backend-release/skills/release-manager \
   path=plugins/terraform/skills/terraform-atomic-commit \
-  path=plugins/terraform/skills/terraform-pr-workflow
+  path=plugins/terraform/skills/terraform-pr-workflow \
+  path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
 ```
 
 </details>
@@ -443,7 +455,8 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/repo-docs-generator" \
        "$CODEX_HOME/skills/release-manager" \
        "$CODEX_HOME/skills/terraform-atomic-commit" \
-       "$CODEX_HOME/skills/terraform-pr-workflow"
+       "$CODEX_HOME/skills/terraform-pr-workflow" \
+       "$CODEX_HOME/skills/login-cta-attribution-skill"
 echo "Done. Restart Codex and reinstall skills."
 ```
 
