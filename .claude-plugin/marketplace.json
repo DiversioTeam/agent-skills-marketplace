@@ -149,6 +149,17 @@
       "source": "./plugins/terraform",
       "category": "process",
       "keywords": ["terraform", "terragrunt", "workflow", "pre-commit", "atomic-commit", "pr", "versioning", "infrastructure", "diversio"]
+    },
+    {
+      "name": "login-cta-attribution-skill",
+      "description": "CTA login attribution implementation Skill for Django4Lyfe: guides adding new CTA sources, button/tab attribution, and enum registration.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/login-cta-attribution-skill",
+      "category": "code-analysis",
+      "keywords": ["django", "cta", "attribution", "login", "tracking", "slack", "teams", "email", "optimo", "diversio"]
     }
   ]
 }

@@ -65,6 +65,10 @@ Key layout:
     - `skills/terraform-atomic-commit/SKILL.md` – Terraform atomic commit Skill.
     - `skills/terraform-pr-workflow/SKILL.md` – Terraform PR workflow Skill.
     - `commands/*.md` – Commands for pre-commit, atomic-commit, and PR workflow checks.
+  - `login-cta-attribution-skill/`
+    - `.claude-plugin/plugin.json` – plugin manifest for CTA login attribution.
+    - `skills/login-cta-attribution-skill/SKILL.md` – CTA attribution implementation Skill.
+    - `commands/implement.md` – Implement new CTA sources with attribution.
 
 ## How Claude Code Should Behave Here
 
@@ -249,6 +253,12 @@ When working in this repo, Claude Code should:
   /plugin install backend-release@diversiotech
   ```
 
+- Install the login CTA attribution plugin:
+
+  ```bash
+  /plugin install login-cta-attribution-skill@diversiotech
+  ```
+
 - **Uninstall all Diversio plugins** (Claude Code) to reinstall fresh:
 
   First check what's installed: `/plugin list` (note `Scope:` field).
@@ -267,6 +277,7 @@ When working in this repo, Claude Code should:
   /plugin uninstall clickup-ticket@diversiotech
   /plugin uninstall repo-docs@diversiotech
   /plugin uninstall backend-release@diversiotech
+  /plugin uninstall login-cta-attribution-skill@diversiotech
   ```
 
   For project-scoped plugins, add `--scope project`:
@@ -312,7 +323,8 @@ marketplace), respond with instructions that avoid hardcoded paths:
          "$CODEX_HOME/skills/repo-docs-generator" \
          "$CODEX_HOME/skills/release-manager" \
          "$CODEX_HOME/skills/terraform-atomic-commit" \
-         "$CODEX_HOME/skills/terraform-pr-workflow"
+         "$CODEX_HOME/skills/terraform-pr-workflow" \
+         "$CODEX_HOME/skills/login-cta-attribution-skill"
   ```
 
   After removing, restart Codex and reinstall using the Skill Installer.
@@ -377,6 +389,11 @@ marketplace), respond with instructions that avoid hardcoded paths:
   - `terraform-pr-workflow` for Terraform/Terragrunt PR workflow checks (naming,
     PR hygiene, read-only CI gates, versioning expectations). Command:
     - `/terraform:check-pr` – Review PR workflow quality
+  - `login-cta-attribution-skill` to implement new CTA login attribution sources
+    for the Django4Lyfe backend. Guides adding new CTA sources (Slack, Teams,
+    Email) with proper enum registration, allowlist updates, button/tab
+    attribution, URL generation, and tests. Command:
+    - `/login-cta-attribution-skill:implement` – Add a new CTA source with full attribution
 
 ## References
 
