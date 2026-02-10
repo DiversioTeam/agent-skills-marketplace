@@ -32,4 +32,8 @@ Creates a release PR using the clean cherry-pick method:
 - Runs `./.security/ruff_pr_diff.sh`
 - Checks RLS policies with `.bin/django optimo_bootstrap_support_shell_rls`
 
+**Merge strategy:**
+- Release PRs to master MUST be merged using **"Create a merge commit"** (not squash)
+- Squash merging breaks commit ancestry and causes `master..release` divergence
+
 See the SKILL.md for full workflow details.

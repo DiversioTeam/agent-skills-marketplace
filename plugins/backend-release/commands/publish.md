@@ -9,6 +9,7 @@ After a release PR is merged to master, this command:
 1. Verifies the PR is actually merged
 2. Gets the PR body (list of included PRs)
 3. Creates a GitHub release with matching tag
+4. Merges master back into release to keep branches in sync
 
 **Arguments:**
 - `[PR_NUMBER]` - The merged release PR number
@@ -30,5 +31,12 @@ After a release PR is merged to master, this command:
 - Tag must match version in `pyproject.toml`
 - Release notes contain the list of PR URLs from the release PR body
 - Always verify with `gh release list --limit 3` after publishing
+- **Always merge master back into release** after publishing — this prevents `master..release` from growing unboundedly. The publish step does this automatically:
+  ```bash
+  git fetch origin
+  git checkout release
+  git merge origin/master --no-edit
+  git push origin release
+  ```
 
 See the SKILL.md for complete workflow.
