@@ -103,7 +103,13 @@ git commit -m "Merge origin/master into release-branch"
 
 ### 6. Publish GitHub Release
 
-After PR is merged to master, create a GitHub release:
+After PR is merged to master, create a GitHub release.
+
+**IMPORTANT: Merge Strategy** — Release PRs to master MUST be merged using
+**"Create a merge commit"** (not squash). Squash merging breaks commit ancestry
+and causes `master..release` to grow unboundedly. If GitHub is configured to
+allow multiple merge strategies, always select "Create a merge commit" for
+release PRs.
 
 #### Step 1: Verify PR is merged
 
@@ -174,6 +180,26 @@ EOF
 gh release list --limit 3
 ```
 
+### 7. Merge Master Back Into Release
+
+**This step is mandatory after every release PR merge.** It closes the ancestry
+loop so `git log origin/master..origin/release` only shows genuinely new commits.
+
+```bash
+git fetch origin
+git checkout release
+git merge origin/master --no-edit
+git push origin release
+```
+
+**Why this matters**: Even with merge commits, master and release diverge after
+each release because master gets a merge commit that release doesn't have. The
+merge-back step gives release a pointer to master's latest state, letting git
+correctly identify which commits have been delivered.
+
+If the merge-back is skipped, `master..release` accumulates stale commits and
+the next release PR will list changes that were already shipped.
+
 ## Pre-Release Checks
 
 Before creating a release PR, verify:
@@ -240,6 +266,8 @@ When listing releases:
 6. **Verify PR is merged before publishing release** - Check with `gh pr view`
 7. **Always publish GitHub release after merge** - Every merged release PR needs a corresponding GitHub release
 8. **Tag must match version in pyproject.toml** - e.g., version `2026.01.21-2` = tag `2026.01.21-2`
+9. **Always merge master back into release after publish** - Run `git merge origin/master --no-edit` on release after every release PR merge. This prevents `master..release` from growing unboundedly.
+10. **Never squash-merge release PRs** - Release PRs to master MUST use "Create a merge commit". Squash merging breaks commit ancestry tracking.
 
 ## Full End-to-End Example
 
@@ -284,8 +312,15 @@ gh release create 2026.01.21 \
   --notes "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607" \
   --target master
 
-# 10. Verify release
+# 10. Merge master back into release (MANDATORY)
+git fetch origin
+git checkout release
+git merge origin/master --no-edit
+git push origin release
+
+# 11. Verify release and branch sync
 gh release list --limit 3
+git log origin/master..origin/release --oneline  # Should be empty
 ```
 
 ## Quick Reference Commands

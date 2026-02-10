@@ -1,7 +1,7 @@
 {
   "name": "backend-release",
-  "version": "0.1.2",
-  "description": "Manages the full release workflow for Django4Lyfe backend - creating release PRs, version bumping, conflict resolution, and GitHub releases with date-based versioning (YYYY.MM.DD).",
+  "version": "0.2.0",
+  "description": "Manages the full release workflow for Django4Lyfe backend - creating release PRs, version bumping, conflict resolution, GitHub releases with date-based versioning (YYYY.MM.DD), and post-release branch sync.",
   "author": {
     "name": "Diversio Devs"
   }
