@@ -146,7 +146,9 @@ agent-skills-marketplace/
 │   │       └── check-pr.md
 │   └── login-cta-attribution-skill/   # CTA login attribution
 │       ├── .claude-plugin/plugin.json
-│       ├── skills/login-cta-attribution-skill/SKILL.md
+│       ├── skills/login-cta-attribution-skill/
+│       │   ├── SKILL.md
+│       │   └── references/
 │       └── commands/implement.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md

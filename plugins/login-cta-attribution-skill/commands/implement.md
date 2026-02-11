@@ -29,14 +29,17 @@ Focus on:
 - Ensuring button `.label` matches actual UI button text.
 - Writing tests that use enum values, never magic strings.
 - Updating platform AGENTS.md files with new CTA rules.
+- Applying type-gate detection precedence (unless repo docs/CI override):
+  `ty` -> `pyright` -> `mypy`.
 
 After implementation:
 
 - **Preferred:** Run `/backend-atomic-commit:pre-commit` to validate changed files
   (full pre-commit suite with auto-fixes).
 - **Fallback only** (if not available): manually run on **changed files only**:
-  `.bin/ruff check --fix` + `.bin/ruff format`, `.bin/ty check`,
-  `python manage.py check`.
+  `.bin/ruff check --fix` + `.bin/ruff format`, then active type gate:
+  `.bin/ty check` (or `.bin/pyright` or `.bin/mypy`), then
+  `.bin/django check` (or `python manage.py check`).
 - Run pytest on attribution tests:
   ```bash
   pytest optimo_core/tests/test_login_attribution*.py
