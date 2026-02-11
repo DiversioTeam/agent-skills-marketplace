@@ -1,0 +1,8 @@
+{
+  "name": "login-cta-attribution-skill",
+  "version": "0.1.0",
+  "description": "CTA login attribution implementation Skill for Django4Lyfe: guides adding new CTA sources, button/tab attribution, and enum registration.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}
