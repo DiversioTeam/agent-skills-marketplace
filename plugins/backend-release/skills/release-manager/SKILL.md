@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: "Create and manage release PRs against master branch. Use this when preparing releases, bumping versions, resolving merge conflicts, and publishing GitHub releases. Handles the full release workflow including cherry-picking, version bumping in pyproject.toml, running uv lock, and creating GitHub releases."
+description: "Create and manage release PRs against master branch. Use this when preparing releases, bumping versions, resolving merge conflicts, and publishing GitHub releases. Handles the full release workflow including merging release into master, version bumping in pyproject.toml, running uv lock, and creating GitHub releases."
 allowed-tools: Bash Read Edit Grep Glob
 argument-hint: "[action] (e.g., create, publish, check)"
 ---
@@ -24,22 +24,63 @@ Manages the full release workflow for Django4Lyfe backend releases to production
 
 ```bash
 git fetch origin master release
-git log origin/master..origin/release --oneline
+
+# PRIMARY CHECK — are there actual code differences between the branches?
+git diff --stat origin/master origin/release
 ```
 
-This shows commits on release that are not yet on master.
+`git diff --stat` compares the actual tree state (file contents), not commit
+history. It is the only reliable way to determine whether there is something to
+release. If the output is empty, there is nothing to release — stop here.
 
-### 2. Create Release PR (Clean Cherry-Pick Method)
+If there ARE differences, identify which PRs they belong to. Use GitHub's PR
+metadata (merge timestamps), not git commit ancestry:
 
-Always use the cherry-pick method to avoid merge conflicts:
+```bash
+# Get the merge date of the last release PR (the definitive cutoff).
+# The release PR's merge to master is the exact moment `git merge origin/release`
+# captured the release branch state. Anything merged to release BEFORE that
+# moment was included; anything AFTER is genuinely new.
+LAST_RELEASE_DATE=$(gh pr list --base master --state merged --limit 100 \
+  --json number,title,mergedAt \
+  --jq '[.[] | select(.title | test("^(Release|Hotfix)"))] | sort_by(.mergedAt) | last | .mergedAt // empty' \
+  2>/dev/null || echo "")
+
+# List PRs merged to release since that date
+if [ -n "${LAST_RELEASE_DATE}" ]; then
+  gh pr list --base release --state merged --limit 100 --json number,title,mergedAt \
+    --jq "[.[] | select(.mergedAt > \"${LAST_RELEASE_DATE}\")] | sort_by(.mergedAt) | .[] | \"#\\(.number): \\(.title)\""
+else
+  # No previous release — list recent merged PRs as candidates
+  gh pr list --base release --state merged --limit 20 --json number,title \
+    --jq '.[] | "#\(.number): \(.title)"'
+fi
+```
+
+**Why the release PR's `mergedAt` instead of `publishedAt`?** GitHub release
+`publishedAt` is when a human clicks "Publish" — which can be minutes or hours
+after the release PR actually merges. PRs merged to release in that gap would
+be missed on the next check. The release PR's `mergedAt` is the definitive
+cutoff because `git merge origin/release` captures the exact state of the
+release branch at that moment.
+
+**Why GitHub metadata instead of `git log`?** All `git log`-based approaches
+(`master..release`, `--cherry-pick`, `--first-parent` with tags) can return
+stale results due to historical cherry-pick artifacts and because release tags
+live on master's ancestry, not release's first-parent chain. PR merge
+timestamps from GitHub are immune to git ancestry issues.
+
+### 2. Create Release PR (Merge Method)
+
+Merge the release branch into a branch from master. This preserves commit
+ancestry so that `git log master..release` works correctly after the PR merges.
 
 ```bash
 # 1. Create branch from master
-git checkout origin/master
-git checkout -b release-YYYY-MM-DD[-N]
+git checkout -b releases/YYYY.MM.DD[-N] origin/master
 
-# 2. Cherry-pick new commits (only the ones not already on master)
-git cherry-pick <commit-hash>
+# 2. Merge release into it
+git merge origin/release --no-edit
 
 # 3. Bump version in pyproject.toml
 # Format: YYYY.MM.DD for first release, YYYY.MM.DD-N for subsequent releases
@@ -52,10 +93,16 @@ git add pyproject.toml uv.lock
 git commit -m "Version bump to YYYY.MM.DD[-N]"
 
 # 6. Push and create PR
-git push -u origin release-YYYY-MM-DD[-N]
-gh pr create --base master --title "Release: DDth Month YYYY" --body "- PR_URL_1
-- PR_URL_2"
+git push -u origin releases/YYYY.MM.DD[-N]
+gh pr create --base master --title "Release: DDth Month YYYY" --body "..."
 ```
+
+**Why merge instead of cherry-pick?** Cherry-picking creates new commits with
+different SHAs. Even with merge-back, `git log master..release` permanently
+shows the original commits as "pending" because git compares SHAs, not patches.
+Merging preserves the original commit objects so master and release share the
+same ancestry. After the release PR merges to master, `git log master..release`
+correctly shows only genuinely new commits.
 
 ### 3. Version Numbering Convention
 
@@ -81,14 +128,9 @@ gh pr create --base master --title "Release: DDth Month YYYY" --body "- PR_URL_1
 
 ### 5. Resolve Conflicts (If Any)
 
-If cherry-pick fails or conflicts exist:
+If the merge has conflicts:
 
 ```bash
-# Check for conflicts
-git fetch origin master
-git merge origin/master --no-commit
-
-# If conflicts, resolve them:
 # 1. Edit conflicted files to keep correct changes
 # 2. For uv.lock conflicts, regenerate:
 git checkout --theirs uv.lock
@@ -98,7 +140,7 @@ uv lock
 git add <resolved-files>
 
 # 4. Complete merge
-git commit -m "Merge origin/master into release-branch"
+git commit -m "Merge origin/release into releases/YYYY.MM.DD"
 ```
 
 ### 6. Publish GitHub Release
@@ -182,8 +224,9 @@ gh release list --limit 3
 
 ### 7. Merge Master Back Into Release
 
-**This step is mandatory after every release PR merge.** It closes the ancestry
-loop so `git log origin/master..origin/release` only shows genuinely new commits.
+**This step is mandatory after every release PR merge.** It keeps the branches
+in sync so that `git diff --stat origin/master origin/release` is clean and
+future releases start from a consistent baseline.
 
 ```bash
 git fetch origin
@@ -192,13 +235,11 @@ git merge origin/master --no-edit
 git push origin release
 ```
 
-**Why this matters**: Even with merge commits, master and release diverge after
-each release because master gets a merge commit that release doesn't have. The
-merge-back step gives release a pointer to master's latest state, letting git
-correctly identify which commits have been delivered.
-
-If the merge-back is skipped, `master..release` accumulates stale commits and
-the next release PR will list changes that were already shipped.
+**Why this matters**: After a release PR merges into master, master has a merge
+commit and a version-bump commit that release doesn't. Without merge-back,
+`git diff --stat origin/master origin/release` shows the version bump as a
+pending difference, and the next `git merge origin/release` will conflict on
+`pyproject.toml` / `uv.lock`. The merge-back keeps both branches aligned.
 
 ## Pre-Release Checks
 
@@ -258,36 +299,42 @@ When listing releases:
 
 ## Important Rules
 
-1. **Always cherry-pick from master** - Avoids complex merge conflicts
-2. **Never force push** - Release branches should have clean history
-3. **Check date before versioning** - Use current date, not yesterday's
-4. **Run uv lock after version bump** - Lock file must match pyproject.toml
-5. **List all PRs in release body** - Use full GitHub URLs
-6. **Verify PR is merged before publishing release** - Check with `gh pr view`
-7. **Always publish GitHub release after merge** - Every merged release PR needs a corresponding GitHub release
-8. **Tag must match version in pyproject.toml** - e.g., version `2026.01.21-2` = tag `2026.01.21-2`
-9. **Always merge master back into release after publish** - Run `git merge origin/master --no-edit` on release after every release PR merge. This prevents `master..release` from growing unboundedly.
-10. **Never squash-merge release PRs** - Release PRs to master MUST use "Create a merge commit". Squash merging breaks commit ancestry tracking.
+1. **Always merge release into the release PR branch** — Do not cherry-pick. Merging preserves commit ancestry so `git log master..release` works correctly. Cherry-picking creates duplicate commits with different SHAs, causing stale "pending" commits that were already shipped.
+2. **Never force push** — Release branches should have clean history
+3. **Check date before versioning** — Use current date, not yesterday's
+4. **Run uv lock after version bump** — Lock file must match pyproject.toml
+5. **List all PRs in release body** — Use full GitHub URLs
+6. **Verify PR is merged before publishing release** — Check with `gh pr view`
+7. **Always publish GitHub release after merge** — Every merged release PR needs a corresponding GitHub release
+8. **Tag must match version in pyproject.toml** — e.g., version `2026.01.21-2` = tag `2026.01.21-2`
+9. **Always merge master back into release after publish** — Run `git merge origin/master --no-edit` on release after every release PR merge. Without this, the version bump stays only on master, causing `git diff --stat` to show false differences and the next release merge to conflict.
+10. **Never squash-merge release PRs** — Release PRs to master MUST use "Create a merge commit". Squash merging breaks commit ancestry tracking.
 
 ## Full End-to-End Example
 
 Here's a complete example of releasing PR #2607:
 
 ```bash
-# 1. Check what needs releasing
+# 1. Check what needs releasing (diff is the source of truth)
 git fetch origin master release
-git log origin/master..origin/release --oneline
-# Output: dd9112bebf #GH-4420: ... (#2607)
+git diff --stat origin/master origin/release
+# Output shows files changed — confirms there IS something to release
 
-# 2. Check today's date
+# 2. Identify which PRs are included (uses release PR merge date as cutoff)
+LAST_RELEASE_DATE=$(gh pr list --base master --state merged --limit 100 \
+  --json number,title,mergedAt \
+  --jq '[.[] | select(.title | test("^(Release|Hotfix)"))] | sort_by(.mergedAt) | last | .mergedAt // empty' \
+  2>/dev/null || echo "")
+gh pr list --base release --state merged --limit 100 --json number,title,mergedAt \
+  --jq "[.[] | select(.mergedAt > \"${LAST_RELEASE_DATE}\")] | sort_by(.mergedAt) | .[] | \"#\\(.number): \\(.title)\""
+# Output: #2607: #GH-4420: Include alert notifications in Slack App Home
+
+# 3. Check today's date
 date  # Wed Jan 21 2026
 
-# 3. Create clean branch from master
-git checkout origin/master
-git checkout -b release-2026-01-21
-
-# 4. Cherry-pick the new commit
-git cherry-pick dd9112bebf
+# 4. Create branch from master and merge release
+git checkout -b releases/2026.01.21 origin/master
+git merge origin/release --no-edit
 
 # 5. Bump version
 sed -i '' 's/version = ".*"/version = "2026.01.21"/' pyproject.toml
@@ -300,7 +347,7 @@ git add pyproject.toml uv.lock
 git commit -m "Version bump to 2026.01.21"
 
 # 8. Push and create PR
-git push -u origin release-2026-01-21
+git push -u origin releases/2026.01.21
 gh pr create --base master \
   --title "Release: 21st January 2026" \
   --body "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607"
@@ -320,14 +367,22 @@ git push origin release
 
 # 11. Verify release and branch sync
 gh release list --limit 3
-git log origin/master..origin/release --oneline  # Should be empty
+git diff --stat origin/master origin/release  # Should be empty
 ```
 
 ## Quick Reference Commands
 
 ```bash
-# Check what's pending release
-git fetch origin master release && git log origin/master..origin/release --oneline
+# Check what's pending release (source of truth — compares actual file contents)
+git fetch origin master release && git diff --stat origin/master origin/release
+
+# Identify new PRs (uses last release PR's merge date as cutoff)
+LAST_RELEASE_DATE=$(gh pr list --base master --state merged --limit 100 \
+  --json number,title,mergedAt \
+  --jq '[.[] | select(.title | test("^(Release|Hotfix)"))] | sort_by(.mergedAt) | last | .mergedAt // empty' \
+  2>/dev/null || echo "") && \
+  gh pr list --base release --state merged --limit 100 --json number,title,mergedAt \
+    --jq "[.[] | select(.mergedAt > \"${LAST_RELEASE_DATE}\")] | sort_by(.mergedAt) | .[] | \"#\\(.number): \\(.title)\""
 
 # Check current version
 grep '^version' pyproject.toml
@@ -344,12 +399,16 @@ gh release view <TAG> --json body,tagName,name
 
 ## Error Recovery
 
-### Cherry-pick conflict
+### Merge conflict during release branch creation
 ```bash
-git cherry-pick --abort  # Start over
-# Or resolve and continue:
+# For uv.lock conflicts:
+git checkout --theirs uv.lock
+uv lock
+git add uv.lock
+
+# For code conflicts: resolve manually, then:
 git add <resolved-files>
-git cherry-pick --continue
+git commit  # Completes the merge
 ```
 
 ### Wrong version bumped

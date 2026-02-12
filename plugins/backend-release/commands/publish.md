@@ -31,7 +31,7 @@ After a release PR is merged to master, this command:
 - Tag must match version in `pyproject.toml`
 - Release notes contain the list of PR URLs from the release PR body
 - Always verify with `gh release list --limit 3` after publishing
-- **Always merge master back into release** after publishing — this prevents `master..release` from growing unboundedly. The publish step does this automatically:
+- **Always merge master back into release** after publishing — without this, `git diff --stat origin/master origin/release` shows the version bump as a pending difference and the next release merge will conflict on `pyproject.toml` / `uv.lock`. The publish step does this automatically:
   ```bash
   git fetch origin
   git checkout release

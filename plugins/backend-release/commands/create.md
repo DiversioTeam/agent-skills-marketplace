@@ -1,16 +1,21 @@
 ---
-description: Create a release PR against master using the clean cherry-pick method.
+description: Create a release PR against master by merging the release branch.
 ---
 
 Use your `release-manager` Skill in **create** mode.
 
-Creates a release PR using the clean cherry-pick method:
+Creates a release PR by merging release into a branch from master:
 
 1. Creates branch from `origin/master`
-2. Cherry-picks new commits from release branch
+2. Merges `origin/release` into it
 3. Bumps version in `pyproject.toml` (YYYY.MM.DD format)
 4. Runs `uv lock` to update lock file
 5. Pushes and creates PR against `master`
+
+**Why merge (not cherry-pick)?** Cherry-picking creates duplicate commits with
+different SHAs on master vs release. This causes `git log master..release` to
+permanently show already-shipped commits as "pending". Merging preserves the
+original commit objects so ancestry tracking works correctly.
 
 **Version numbering:**
 | Scenario | Format | Example |
