@@ -1,0 +1,8 @@
+{
+  "name": "dependabot-remediation",
+  "version": "0.1.0",
+  "description": "Unified backend/frontend Dependabot remediation workflow with dependabot.yml review/scaffold, alert deduplication, wave planning, execution guardrails, and post-merge closure verification.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

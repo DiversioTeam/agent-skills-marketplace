@@ -60,6 +60,10 @@ Key layout:
     - `.claude-plugin/plugin.json` – plugin manifest for Django4Lyfe release workflow.
     - `skills/release-manager/SKILL.md` – full release workflow management Skill.
     - `commands/*.md` – Commands for check, create, and publish releases.
+  - `dependabot-remediation/`
+    - `.claude-plugin/plugin.json` – plugin manifest for unified Dependabot remediation workflows.
+    - `skills/dependabot-remediation/SKILL.md` – backend/frontend Dependabot remediation Skill.
+    - `commands/*.md` – Commands for config-aware backend/frontend triage, execution, and release closeout.
   - `terraform/`
     - `.claude-plugin/plugin.json` – plugin manifest for Terraform/Terragrunt workflows.
     - `skills/terraform-atomic-commit/SKILL.md` – Terraform atomic commit Skill.
@@ -253,6 +257,18 @@ When working in this repo, Claude Code should:
   /plugin install backend-release@diversiotech
   ```
 
+- Install the Dependabot remediation plugin:
+
+  ```bash
+  /plugin install dependabot-remediation@diversiotech
+  ```
+
+- Install the Terraform workflows plugin:
+
+  ```bash
+  /plugin install terraform@diversiotech
+  ```
+
 - Install the login CTA attribution plugin:
 
   ```bash
@@ -277,6 +293,8 @@ When working in this repo, Claude Code should:
   /plugin uninstall clickup-ticket@diversiotech
   /plugin uninstall repo-docs@diversiotech
   /plugin uninstall backend-release@diversiotech
+  /plugin uninstall dependabot-remediation@diversiotech
+  /plugin uninstall terraform@diversiotech
   /plugin uninstall login-cta-attribution-skill@diversiotech
   ```
 
@@ -322,6 +340,7 @@ marketplace), respond with instructions that avoid hardcoded paths:
          "$CODEX_HOME/skills/clickup-ticket" \
          "$CODEX_HOME/skills/repo-docs-generator" \
          "$CODEX_HOME/skills/release-manager" \
+         "$CODEX_HOME/skills/dependabot-remediation" \
          "$CODEX_HOME/skills/terraform-atomic-commit" \
          "$CODEX_HOME/skills/terraform-pr-workflow" \
          "$CODEX_HOME/skills/login-cta-attribution-skill"
@@ -380,8 +399,13 @@ marketplace), respond with instructions that avoid hardcoded paths:
     (Diversio monolith). Handles release PRs, date-based version bumping
     (YYYY.MM.DD), uv lock updates, and GitHub release publishing. Commands:
     - `/backend-release:check` – Check what commits are pending release
-    - `/backend-release:create` – Create release PR with cherry-pick method
+    - `/backend-release:create` – Create release PR with merge method
     - `/backend-release:publish [PR_NUMBER]` – Publish GitHub release after PR merge
+  - `dependabot-remediation` to plan and execute unified backend/frontend
+    Dependabot remediation workflows, including `.github/dependabot.yml`
+    review/scaffold, clear wave boundaries, and closure verification. Commands:
+    - `/dependabot-remediation:backend [triage|execute-wave <N>|release]` – Backend remediation lane (backend-scoped inventory)
+    - `/dependabot-remediation:frontend [triage|execute|release]` – Frontend remediation lane
   - `terraform-atomic-commit` for Terraform/Terragrunt pre-commit fixes and strict
     atomic commits (fmt/validate/docs drift; no apply; no AI commit signatures). Commands:
     - `/terraform:pre-commit` – Fix and validate changed IaC files
