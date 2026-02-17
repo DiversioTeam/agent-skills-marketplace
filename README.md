@@ -135,6 +135,14 @@ agent-skills-marketplace/
 │   │       ├── check.md
 │   │       ├── create.md
 │   │       └── publish.md
+│   ├── dependabot-remediation/        # Unified backend/frontend Dependabot remediation
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/dependabot-remediation/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── backend.md
+│   │       └── frontend.md
 │   ├── terraform/                     # Terraform/Terragrunt workflows
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/
@@ -173,6 +181,7 @@ agent-skills-marketplace/
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
 | `repo-docs` | Generate and canonicalize repository documentation (AGENTS.md, README.md, CLAUDE.md) with ASCII architecture diagrams and single-source-of-truth pattern |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
+| `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
 
@@ -215,6 +224,7 @@ claude plugin install mixpanel-analytics@diversiotech
 claude plugin install clickup-ticket@diversiotech
 claude plugin install repo-docs@diversiotech
 claude plugin install backend-release@diversiotech
+claude plugin install dependabot-remediation@diversiotech
 claude plugin install terraform@diversiotech
 claude plugin install login-cta-attribution-skill@diversiotech
 ```
@@ -245,6 +255,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
 | Repository docs generator | `claude plugin install repo-docs@diversiotech` |
 | Backend release workflow | `claude plugin install backend-release@diversiotech` |
+| Dependabot remediation (backend/frontend) | `claude plugin install dependabot-remediation@diversiotech` |
 | Terraform workflows | `claude plugin install terraform@diversiotech` |
 | Login CTA attribution | `claude plugin install login-cta-attribution-skill@diversiotech` |
 
@@ -281,8 +292,10 @@ Once plugins are installed:
    /repo-docs:generate                       # Generate new AGENTS.md, README.md, CLAUDE.md
    /repo-docs:canonicalize                   # Audit and fix existing docs (make AGENTS.md canonical)
    /backend-release:check                    # Check what commits are pending release
-   /backend-release:create                   # Create release PR with cherry-pick method
+   /backend-release:create                   # Create release PR with merge method
    /backend-release:publish                  # Publish GitHub release after PR merge
+   /dependabot-remediation:backend           # Backend lane: triage (includes config review/scaffold + backend scope filter) | execute-wave <N> | release
+   /dependabot-remediation:frontend          # Frontend lane: triage (includes config review/scaffold) | execute | release
    /terraform:pre-commit                     # Fix Terraform/Terragrunt repos to meet fmt/validate/docs standards
    /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
    /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
@@ -321,6 +334,7 @@ claude plugin uninstall mixpanel-analytics@diversiotech
 claude plugin uninstall clickup-ticket@diversiotech
 claude plugin uninstall repo-docs@diversiotech
 claude plugin uninstall backend-release@diversiotech
+claude plugin uninstall dependabot-remediation@diversiotech
 claude plugin uninstall terraform@diversiotech
 claude plugin uninstall login-cta-attribution-skill@diversiotech
 ```
@@ -342,6 +356,7 @@ claude plugin uninstall mixpanel-analytics@diversiotech --scope project
 claude plugin uninstall clickup-ticket@diversiotech --scope project
 claude plugin uninstall repo-docs@diversiotech --scope project
 claude plugin uninstall backend-release@diversiotech --scope project
+claude plugin uninstall dependabot-remediation@diversiotech --scope project
 claude plugin uninstall terraform@diversiotech --scope project
 claude plugin uninstall login-cta-attribution-skill@diversiotech --scope project
 ```
@@ -390,6 +405,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/clickup-ticket/skills/clickup-ticket \
     plugins/repo-docs/skills/repo-docs-generator \
     plugins/backend-release/skills/release-manager \
+    plugins/dependabot-remediation/skills/dependabot-remediation \
     plugins/terraform/skills/terraform-atomic-commit \
     plugins/terraform/skills/terraform-pr-workflow \
     plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
@@ -412,6 +428,7 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/clickup-ticket/skills/clickup-ticket \
   path=plugins/repo-docs/skills/repo-docs-generator \
   path=plugins/backend-release/skills/release-manager \
+  path=plugins/dependabot-remediation/skills/dependabot-remediation \
   path=plugins/terraform/skills/terraform-atomic-commit \
   path=plugins/terraform/skills/terraform-pr-workflow \
   path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
@@ -456,6 +473,7 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/clickup-ticket" \
        "$CODEX_HOME/skills/repo-docs-generator" \
        "$CODEX_HOME/skills/release-manager" \
+       "$CODEX_HOME/skills/dependabot-remediation" \
        "$CODEX_HOME/skills/terraform-atomic-commit" \
        "$CODEX_HOME/skills/terraform-pr-workflow" \
        "$CODEX_HOME/skills/login-cta-attribution-skill"

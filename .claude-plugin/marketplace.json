@@ -129,6 +129,17 @@
       "keywords": ["documentation", "agents-md", "readme", "claude-md", "architecture", "ascii-diagrams", "tech-stack", "canonicalize"]
     },
     {
+      "name": "dependabot-remediation",
+      "description": "Unified backend/frontend Dependabot remediation workflow with dependabot.yml review/scaffold, alert deduplication, wave planning, execution guardrails, and post-merge closure verification.",
+      "version": "0.1.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/dependabot-remediation",
+      "category": "process",
+      "keywords": ["dependabot", "security", "dependency-management", "backend", "frontend", "python", "uv", "npm", "yarn", "workflow", "github"]
+    },
+    {
       "name": "backend-release",
       "description": "Manages the full release workflow for Django4Lyfe backend - creating release PRs, version bumping (YYYY.MM.DD), conflict resolution, GitHub releases, and post-release branch sync.",
       "version": "0.3.0",
