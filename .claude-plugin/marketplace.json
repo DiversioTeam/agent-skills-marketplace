@@ -43,7 +43,7 @@
     {
       "name": "backend-atomic-commit",
       "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security/* helpers, and Monty's backend taste without AI commit signatures.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
