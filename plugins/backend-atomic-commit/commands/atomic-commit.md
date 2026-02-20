@@ -16,12 +16,17 @@ Do everything the `/backend-atomic-commit:pre-commit` command would do, plus:
   - Django system checks
   - Relevant pytest subsets
   - Pre-commit hooks
+- Use `./.security/gate_cache.sh` for heavy deterministic checks (type gates,
+  Django checks, and other wrapped hooks) when the repo provides it.
 - Treat the above as a **convergence loop** (not one pass): if any gate fails,
   fix the reported issue, re-run the same gate, and keep going until everything
   is green and hooks stop rewriting files.
 - Budget: up to **3 attempts per failing gate** and **10 total pipeline
   passes**. If a gate is stuck (same error after 3 fix attempts), report it as
   `[BLOCKING]` and continue with other gates.
+- Keep fetch failures fail-closed by default in diff helpers; only use
+  `CHECKS_ALLOW_FETCH_SKIP=1` when the user explicitly accepts a local skip.
+- Use `CHECK_CACHE_BUST=1` only when explicitly requested or debugging.
 - Do **not** use TodoWrite to track gate results — report directly in output.
 - Propose a commit message that:
   - Extracts the ticket ID from the branch name using local `AGENTS.md`

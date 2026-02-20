@@ -124,6 +124,7 @@ When this Skill runs, you should first gather context using `Bash`, `Read`,
     as a minimal stub that sources it).
   - Detect `.pre-commit-config.yaml`.
   - Detect `.security/` scripts, especially:
+    - `./.security/gate_cache.sh`
     - `./.security/ruff_pr_diff.sh`
     - `./.security/local_imports_pr_diff.sh`
   - Detect `manage.py` / Django project layout.
@@ -138,6 +139,28 @@ When this Skill runs, you should first gather context using `Bash`, `Read`,
 
 If the repo clearly isn’t the Diversio backend / Django4Lyfe style, say so and
 adjust expectations (but you can still run generic Python pre-commit checks).
+
+### Gate cache behavior (when available)
+
+If `./.security/gate_cache.sh` exists, treat it as the canonical wrapper for
+heavy deterministic checks. Use it by default for type gates and Django checks.
+
+```bash
+./.security/gate_cache.sh --gate ty-check --scope index -- .bin/ty check .
+./.security/gate_cache.sh --gate django-system-check --scope index -- uv run python manage.py check --fail-level WARNING
+```
+
+Use `scope=index` for commit-focused gating and `scope=working` when results are
+expected to depend on unstaged edits. Do not bypass cache unless explicitly
+requested or debugging:
+
+```bash
+CHECK_CACHE_BUST=1 ./.security/gate_cache.sh --gate ty-check --scope index -- .bin/ty check .
+./.security/gate_cache.sh --clear-this-checkout
+```
+
+For Ruff/local-import diff helpers, call the scripts directly. They already use
+cache-aware execution internally and include local staged/unstaged tracked files.
 
 ## Checks in Both Modes
 
@@ -158,6 +181,8 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
      - Run `./.security/ruff_pr_diff.sh` if present.
      - Run `.bin/ruff check --fix` on changed Python files.
      - Run `.bin/ruff format` on those files.
+     - Keep fetch behavior strict by default (fail closed); only allow
+       `CHECKS_ALLOW_FETCH_SKIP=1` when a local skip is explicitly acceptable.
    - **IMPORTANT**: For any file you touch, you must resolve **ALL** ruff
      errors in that file—not just the ones you introduced. CI runs ruff on
      modified files, so pre-existing errors in touched files will cause CI
@@ -174,6 +199,8 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
    - Run `.security` scripts where present:
      - `./.security/ruff_pr_diff.sh` – Ruff on changed files vs base branch.
      - `./.security/local_imports_pr_diff.sh` – check for local imports.
+   - These helpers now evaluate the union of `origin/<base>..HEAD`, staged,
+     and unstaged tracked Python changes. Treat that behavior as intentional.
    - Treat failures as at least `[SHOULD_FIX]` and usually `[BLOCKING]` for
      `atomic-commit`.
 
@@ -216,7 +243,9 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
      for `atomic-commit` mode or `[SHOULD_FIX]` for `pre-commit` mode.
 
 5. **Django system checks**
-   - Run `.bin/django check` or equivalent:
+   - Run Django checks through cache wrapper when present:
+     - `./.security/gate_cache.sh --gate django-system-check --scope index -- uv run python manage.py check --fail-level WARNING`
+   - If wrapper is missing, run `.bin/django check` or equivalent:
      - `uv run python manage.py check --fail-level WARNING`.
    - For risky changes (models, migrations, core logic), run **targeted**
      `pytest` subsets based on changed apps:
@@ -505,6 +534,8 @@ you must be **very strict**:
      - `.bin/django check` / `manage.py check`
      - Relevant `pytest` subsets for risky changes
      - Pre-commit hooks defined in `.pre-commit-config.yaml`
+   - Where available, heavy gates should run via `./.security/gate_cache.sh`
+     instead of ad-hoc direct invocation.
    - In `--auto` style usage, you may skip conversational confirmation, but
      you **must not** relax these gates.
    - If tests or checks are skipped for any reason, clearly state that and

@@ -17,6 +17,11 @@ Workflow:
    Ruff, active type gate checks (`ty`/`pyright`/`mypy`), Django checks,
    relevant pytest subsets), fixing and re-running until everything is green and
    hooks stop rewriting files.
+   - If `./.security/gate_cache.sh` exists, use it for heavy deterministic
+     checks by default.
+   - Keep diff-helper fetch behavior fail-closed unless the user explicitly
+     accepts a local skip via `CHECKS_ALLOW_FETCH_SKIP=1`.
+   - Use `CHECK_CACHE_BUST=1` only when explicitly requested or debugging.
    - Apply the Skill’s explicit iteration budgets + stuck protocol (3 attempts per
      failing gate, 10 total pipeline passes). If a gate is stuck, stop and report
      it as `[BLOCKING]` with the exact error + what was tried.
