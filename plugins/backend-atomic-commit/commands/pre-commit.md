@@ -11,16 +11,11 @@ Focus on:
 - Eliminating local imports, debug statements, PII-in-logs issues, and obvious
   type-hint problems.
 - Running the following checks in order:
-  1. `./.security/ruff_pr_diff.sh` and `./.security/local_imports_pr_diff.sh`
-     (these include local staged/unstaged tracked files and cache-aware runs).
-  2. `.bin/ruff check --fix` and `.bin/ruff format` on modified Python files.
-  3. Active type gate (`ty` if configured; else `pyright`; else `mypy`) on
-     **modified Python files only** during iteration, then any repo-required
-     wider type gate before final readiness. If available, run heavy checks
-     through `./.security/gate_cache.sh`.
-  4. `python manage.py check --fail-level WARNING` for Django system checks
-     (prefer `./.security/gate_cache.sh --gate django-system-check --scope index -- ...` when available).
-  5. Any pre-commit hooks defined in `.pre-commit-config.yaml`.
+  1. Run pre-commit hooks first on the changed file set.
+  2. If hooks pass, do not rerun equivalent direct commands.
+  3. If specific hooks fail, run targeted direct commands only for those failing gates
+     (for example Ruff/local-import/type/django), then re-run pre-commit.
+  4. Use `./.security/gate_cache.sh` for heavy deterministic checks when direct invocation is needed.
 - Treat the above as a **convergence loop** (not one pass): if a check fails or
   rewrites files, fix/restage, then re-run until all checks pass cleanly.
 - Budget: up to **3 attempts per failing check** and **10 total pipeline

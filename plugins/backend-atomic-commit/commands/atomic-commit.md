@@ -16,6 +16,9 @@ Do everything the `/backend-atomic-commit:pre-commit` command would do, plus:
   - Django system checks
   - Relevant pytest subsets
   - Pre-commit hooks
+- Run pre-commit first for the staged set. A passing hook execution counts as
+  satisfying the matching gate; do not rerun duplicate direct commands unless
+  diagnosing a hook failure.
 - Use `./.security/gate_cache.sh` for heavy deterministic checks (type gates,
   Django checks, and other wrapped hooks) when the repo provides it.
 - Treat the above as a **convergence loop** (not one pass): if any gate fails,
