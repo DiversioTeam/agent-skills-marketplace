@@ -161,14 +161,16 @@ CHECK_CACHE_BUST=1 ./.security/gate_cache.sh --gate ty-check --scope index -- .b
 
 For Ruff/local-import diff helpers, call the scripts directly. They already use
 cache-aware execution internally and include local staged/unstaged tracked files.
+Prefer running them through pre-commit hooks first; call scripts directly only
+for targeted diagnosis or when a matching hook is missing/disabled.
 
 ## Checks in Both Modes
 
 In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
 
 1. **Scope changed files**
-   - Start from files reported by `git status` and `git diff --cached`:
-     - Distinguish staged vs unstaged vs untracked.
+  - Start from files reported by `git status` and `git diff --cached`:
+    - Distinguish staged vs unstaged vs untracked.
    - Categorize by type:
      - Python (src vs tests; `optimo_*`, `dashboardapp`, `survey`, etc.).
      - Templates (Django HTML).
@@ -176,40 +178,47 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
        `requirements*.txt`).
      - Docs/markdown.
 
-2. **Static formatting/linting**
-   - Ruff:
-     - Run `./.security/ruff_pr_diff.sh` if present.
-     - Run `.bin/ruff check --fix` on changed Python files.
-     - Run `.bin/ruff format` on those files.
-     - Keep fetch behavior strict by default (fail closed); only allow
-       `CHECKS_ALLOW_FETCH_SKIP=1` when a local skip is explicitly acceptable.
-   - **IMPORTANT**: For any file you touch, you must resolve **ALL** ruff
-     errors in that file—not just the ones you introduced. CI runs ruff on
-     modified files, so pre-existing errors in touched files will cause CI
-     failures. Do **not** dismiss errors as "pre-existing" if the file is in
-     your diff.
-   - Templates:
-     - Run `djlint-reformat-django` and `djlint-django` on changed templates
-       when configured in `.pre-commit-config.yaml`.
-   - Generic pre-commit hooks:
-     - Respect hook definitions in `.pre-commit-config.yaml`; run
-       `pre-commit run` on relevant files when possible.
+2. **Run pre-commit first (primary execution path)**
+   - If `.pre-commit-config.yaml` exists, run hooks on the intended file set
+     before any direct per-tool commands.
+   - `atomic-commit` mode:
+     - run on staged files only:
+     ```bash
+     pre-commit run --files $(git diff --cached --name-only --diff-filter=ACMR)
+     ```
+   - `pre-commit` mode:
+     - run on modified tracked + untracked files:
+     ```bash
+     CHANGED_FILES="$(
+       {
+         git diff --name-only --diff-filter=ACMR
+         git ls-files --others --exclude-standard
+       } | sed '/^$/d' | sort -u
+     )"
+     pre-commit run --files $CHANGED_FILES
+     ```
+   - If pre-commit already executed a gate successfully, do not rerun the same
+     gate directly in the same pass.
 
-3. **Backend-specific .security gates**
-   - Run `.security` scripts where present:
-     - `./.security/ruff_pr_diff.sh` – Ruff on changed files vs base branch.
-     - `./.security/local_imports_pr_diff.sh` – check for local imports.
-   - These helpers now evaluate the union of `origin/<base>..HEAD`, staged,
-     and unstaged tracked Python changes. Treat that behavior as intentional.
-   - Treat failures as at least `[SHOULD_FIX]` and usually `[BLOCKING]` for
-     `atomic-commit`.
+3. **Direct command fallback (targeted, non-duplicative)**
+   - Run direct commands only when:
+     - a corresponding hook failed and you need focused diagnosis/fix loops, or
+     - the repository does not expose that gate via pre-commit hooks.
+   - Keep fetch behavior strict by default (fail closed); only allow
+     `CHECKS_ALLOW_FETCH_SKIP=1` when a local skip is explicitly acceptable.
+   - For Ruff/local-import helpers, direct invocation is:
+     - `./.security/ruff_pr_diff.sh`
+     - `./.security/local_imports_pr_diff.sh`
+   - These helpers intentionally evaluate the union of `origin/<base>..HEAD`,
+     staged, and unstaged tracked Python changes.
 
 4. **Type checking with active repository gate (ty-first)**
    - Detect the type gate in this order (unless repo docs/CI explicitly differ):
      - `ty` if configured (`[tool.ty]`, `ty.toml`, `.bin/ty`, or CI/pre-commit).
      - Else `pyright` if configured.
      - Else `mypy` if configured.
-   - Run the active checker on **modified Python files only** during iteration:
+   - Run the active checker on **modified Python files only** during iteration
+     when the type hook is not already covered/passing via pre-commit:
      ```bash
      # ty example - staged files (atomic-commit mode):
      .bin/ty check $(git diff --cached --name-only --diff-filter=ACMR | grep '\.py$')
@@ -243,7 +252,8 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
      for `atomic-commit` mode or `[SHOULD_FIX]` for `pre-commit` mode.
 
 5. **Django system checks**
-   - Run Django checks through cache wrapper when present:
+   - If Django check hook already passed via pre-commit, do not rerun directly.
+   - Otherwise run through cache wrapper when present:
      - `./.security/gate_cache.sh --gate django-system-check --scope index -- uv run python manage.py check --fail-level WARNING`
    - If wrapper is missing, run `.bin/django check` or equivalent:
      - `uv run python manage.py check --fail-level WARNING`.
@@ -277,15 +287,8 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
      2. Fix only the reported file(s).
      3. Re-run the same check until it passes.
      4. Only then advance to the next gate.
-   - Prefer scoping pre-commit to changed files for faster iteration; still run
-     repo-required wide gates before final readiness:
-     ```bash
-     # atomic-commit mode: staged files only
-     pre-commit run --files $(git diff --cached --name-only --diff-filter=ACMR)
-
-     # pre-commit mode: all modified files
-     pre-commit run --files $(git diff --name-only --diff-filter=ACMR)
-     ```
+   - Prefer rerunning only failing hooks/checks on the same file scope, then
+     escalate to wider runs only if required by repo policy.
    - If hooks modify files, always re-check `git status` and restage *only* the
      intended files (atomic commits should not accidentally grow).
 
@@ -534,6 +537,8 @@ you must be **very strict**:
      - `.bin/django check` / `manage.py check`
      - Relevant `pytest` subsets for risky changes
      - Pre-commit hooks defined in `.pre-commit-config.yaml`
+   - A passing pre-commit hook execution counts as satisfying the matching gate.
+     Do not require duplicate direct-command reruns unless diagnosing failures.
    - Where available, heavy gates should run via `./.security/gate_cache.sh`
      instead of ad-hoc direct invocation.
    - In `--auto` style usage, you may skip conversational confirmation, but

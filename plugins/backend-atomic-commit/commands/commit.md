@@ -17,6 +17,9 @@ Workflow:
    Ruff, active type gate checks (`ty`/`pyright`/`mypy`), Django checks,
    relevant pytest subsets), fixing and re-running until everything is green and
    hooks stop rewriting files.
+   - Start with pre-commit hook execution on staged files; treat passing hooks
+     as satisfying those gates without duplicate direct reruns.
+   - Use direct commands only for targeted diagnosis of failing hooks or absent hooks.
    - If `./.security/gate_cache.sh` exists, use it for heavy deterministic
      checks by default.
    - Keep diff-helper fetch behavior fail-closed unless the user explicitly
