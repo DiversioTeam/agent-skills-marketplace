@@ -70,6 +70,9 @@ Read key reference files:
 - `optimo_analytics/schemas.py` – existing schema patterns
 - `optimo_analytics/service/AGENTS.md` – service layer patterns
 - `optimo_analytics/tests/AGENTS.md` – test patterns
+- `optimo_core/models/login_attribution.py` – CTA attribution enums (SlackButtonChoices, SlackTabChoices, TeamsButtonChoices) and URL helpers
+- `optimo_analytics/docs/LoginCTA_AttributionTestingGuide.md` – CTA attribution testing scenarios
+- `optimo_analytics/docs/BackendMixpanelTestingGuideV2.md` – Survey lifecycle & MAP event testing scenarios
 
 Type gate policy:
 - Detect Python type checker in this order unless repo docs/CI differ:

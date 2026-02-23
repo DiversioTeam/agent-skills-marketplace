@@ -18,7 +18,8 @@ Focus on:
 - **Choosing the correct layer for button attribution:**
   - **Layer 1:** Use `build_stable_slack_cta_url()` / `build_stable_teams_cta_url()`
     with button params baked in (for single-button CTAs like Home Tab).
-  - **Layer 2:** Use `update_cta_url_with_button_info()` to append button params
+  - **Layer 2:** Use `update_slack_cta_url_with_button_info()` /
+    `update_teams_cta_url_with_button_info()` to append button params
     to a base URL (for multi-button contexts like Digests).
 - Using correct function signatures:
   - `build_login_magic_link_for_user()` takes **enum types** for

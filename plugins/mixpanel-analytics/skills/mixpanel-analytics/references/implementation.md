@@ -342,6 +342,29 @@ properties = MxpNewEventSchema(
 )
 ```
 
+## CTA Attribution Context (Login Events)
+
+Login/session events include CTA attribution fields in `MixpanelSessionContextSchema`:
+
+| Field | Source | Values |
+|---|---|---|
+| `login_source` | `LoginSourceChoices` | `slack`, `teams`, `email`, `direct` |
+| `login_source_detail` | `LoginSourceDetailChoices` | `weekly_digest`, `survey_complete`, etc. |
+| `magic_link_action` | `MagicLinkActionChoices` | `login`, `invite`, `signup`, `verify_email` |
+| `slack_button` | `SlackButtonChoices` | Button label from Slack CTA |
+| `slack_tab` | `SlackTabChoices` | `messages`, `home` |
+| `teams_button` | `TeamsButtonChoices` | Button label from Teams CTA |
+| `cta_parse_failed` | `bool` | `True` if source param parsing failed |
+
+All enums live in `optimo_core/models/login_attribution.py`.
+
+When implementing events that extend `MixpanelSessionContextSchema`, these fields
+are auto-populated from the auth token's session context — no manual wiring needed.
+
+Testing guides:
+- `optimo_analytics/docs/LoginCTA_AttributionTestingGuide.md`
+- `optimo_analytics/docs/BackendMixpanelTestingGuideV2.md`
+
 ## Post-Implementation Validations
 
 ```bash
