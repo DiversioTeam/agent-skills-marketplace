@@ -98,7 +98,7 @@
     {
       "name": "mixpanel-analytics",
       "description": "MixPanel analytics tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "author": {
         "name": "Diversio Devs"
       },
@@ -164,7 +164,7 @@
     {
       "name": "login-cta-attribution-skill",
       "description": "CTA login attribution implementation Skill for Django4Lyfe: guides adding new CTA sources, button/tab attribution, and enum registration.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Diversio Devs"
       },

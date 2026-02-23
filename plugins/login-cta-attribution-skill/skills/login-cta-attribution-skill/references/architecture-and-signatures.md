@@ -19,7 +19,8 @@ Use for one-CTA-per-button contexts (for example, Home tab links):
 Use for multi-button contexts sharing a base link (for example, digest
 formatters):
 
-- `update_cta_url_with_button_info(cta_url, ...)`
+- `update_slack_cta_url_with_button_info(cta_url, ...)` (Slack)
+- `update_teams_cta_url_with_button_info(cta_url, ...)` (Teams)
 
 Applying both layers on the same path can cause double-attribution.
 
@@ -155,9 +156,8 @@ If new attribution keys are introduced, confirm refresh path copies them.
 | Purpose | Path |
 | --- | --- |
 | Core attribution enums/constants/parser | `optimo_core/models/login_attribution.py` |
+| Slack/Teams CTA enums + URL helpers | `optimo_core/models/login_attribution.py` |
 | Metadata TypedDict and builder | `optimo_core/auth/magic_link.py` |
-| Slack choices and helpers | `optimo_integrations/slack/cta_choices.py` |
-| Teams choices and helpers | `optimo_integrations/teams/cta_choices.py` |
 | Stable URL builders | `optimo_integrations/utils/platform_magic_links.py` |
 | Slack CTA view | `optimo_integrations/slack/views.py` |
 | Teams CTA view | `optimo_integrations/teams/views.py` |

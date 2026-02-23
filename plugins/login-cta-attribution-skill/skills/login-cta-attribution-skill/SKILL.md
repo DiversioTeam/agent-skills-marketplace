@@ -58,8 +58,6 @@ Read these files first:
 
 - `optimo_core/models/login_attribution.py`
 - `optimo_core/auth/magic_link.py`
-- `optimo_integrations/slack/cta_choices.py`
-- `optimo_integrations/teams/cta_choices.py`
 - `optimo_integrations/utils/platform_magic_links.py`
 
 Also read local policy docs when present:
@@ -185,7 +183,8 @@ Enum labels must match actual UI button text.
 - Layer 1 (single-button contexts): pass button/tab directly into stable URL
   builders.
 - Layer 2 (multi-button contexts like digests): append button/tab at render
-  time with `update_cta_url_with_button_info()`.
+  time with `update_slack_cta_url_with_button_info()` /
+  `update_teams_cta_url_with_button_info()`.
 
 Never apply both layers on the same CTA path.
 
@@ -198,7 +197,7 @@ Example (Slack, Layer 1):
 
 ```python
 from optimo_core.models.login_attribution import CTA_SOURCE_{PLATFORM}_{ACTION}
-from optimo_integrations.slack.cta_choices import SlackButtonChoices, SlackTabChoices
+from optimo_core.models import SlackButtonChoices, SlackTabChoices
 from optimo_integrations.utils.platform_magic_links import build_stable_slack_cta_url
 
 url = build_stable_slack_cta_url(
@@ -213,7 +212,7 @@ Example (Teams, Layer 1):
 
 ```python
 from optimo_core.models.login_attribution import CTA_SOURCE_{PLATFORM}_{ACTION}
-from optimo_integrations.teams.cta_choices import TeamsButtonChoices
+from optimo_core.models import TeamsButtonChoices
 from optimo_integrations.utils.platform_magic_links import build_stable_teams_cta_url
 
 url = build_stable_teams_cta_url(
@@ -230,7 +229,7 @@ from optimo_core.models.login_attribution import (
     LoginSourceChoices,
     LoginSourceDetailChoices,
 )
-from optimo_integrations.slack.cta_choices import SlackButtonChoices, SlackTabChoices
+from optimo_core.models import SlackButtonChoices, SlackTabChoices
 from optimo_integrations.utils.platform_magic_links import build_login_magic_link_for_user
 
 url = build_login_magic_link_for_user(

@@ -99,6 +99,16 @@ This file is referenced from `SKILL.md` to keep the main Skill short and portabl
 - [ ] New helper classes exported in `service/__init__.py`
 - [ ] Added to `__all__` list
 
+### 11. CTA Attribution Fields (P2)
+
+For events extending `MixpanelSessionContextSchema`:
+
+**MUST VERIFY**:
+- [ ] Attribution fields are NOT manually set (they flow from session context)
+- [ ] `login_source` uses `LoginSourceChoices` enum, not raw strings
+- [ ] `slack_button`/`teams_button` use their respective enum labels
+- [ ] Test scenarios cover attributed and non-attributed login paths
+
 ## Automated Checks
 
 ```bash
