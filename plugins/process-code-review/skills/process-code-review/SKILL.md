@@ -316,3 +316,30 @@ The three-step workflow ensures:
 1. Thorough review generation
 2. Systematic fix application
 3. Pre-commit validation before any commit
+
+## GitHub Review Comment Posting Mode
+
+Use this mode only when the user explicitly asks to post processed findings to GitHub PR comments.
+
+### RULES_MUST
+
+- `MUST_01`: use one authoritative top-level review summary.
+- `MUST_02`: avoid redundant inline comments (one anchor per root-cause cluster).
+- `MUST_03`: run pre/post dedupe audit against both endpoints:
+  - `/pulls/{pr}/comments`
+  - `/issues/{pr}/comments`
+- `MUST_04`: keep diagrams/ascii blocks fenced in markdown.
+- `MUST_05`: if line anchor fails with `422`, fallback to file-level inline comment.
+
+### RULES_SHOULD
+
+- `SHOULD_01`: default inline comment cap is 5 unless user requests more.
+- `SHOULD_02`: prefer editing existing submitted review in place for formatting fixes.
+- `SHOULD_03`: do not post extra PR-level chatter comments.
+
+### STEP_CHECKLIST
+
+1. `STEP_01`: pre-audit existing reviews and comments by current user.
+2. `STEP_02`: map findings to non-overlapping anchor set.
+3. `STEP_03`: post review/comments once.
+4. `STEP_04`: run duplicate detector and delete redundant comments if any.

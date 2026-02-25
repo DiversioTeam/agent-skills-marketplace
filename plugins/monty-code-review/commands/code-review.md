@@ -13,3 +13,6 @@ Focus order:
 4. Tests and regression coverage.
 5. Maintainability and smaller nits.
 
+If asked to post review comments to GitHub, apply the Skill's `GitHub Posting Protocol`
+(`MUST_*`, `SHOULD_*`, and `STEP_*` rules) from
+`skills/monty-code-review/references/github-posting-protocol.md` before posting.

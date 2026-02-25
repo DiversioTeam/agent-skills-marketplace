@@ -106,6 +106,20 @@ When this skill is active and you are asked to review a change or diff, follow t
      “needs tests”).
    - State whether you would “approve after nits”, “request changes”, or “approve as-is”.
 
+## GitHub Posting Protocol (When User Asks To Post Review Comments)
+
+When user intent includes posting comments/reviews to GitHub PRs, load and follow:
+
+- `references/github-posting-protocol.md`
+
+Non-negotiables:
+
+- Keep one authoritative top-level summary review.
+- Keep one inline anchor per root-cause cluster.
+- Run duplicate audits before and after posting.
+- Use slurped pagination (`--paginate --slurp`) for post-audit dedupe commands.
+- Treat pass condition as strict: both post-audit duplicate detector results must be empty.
+
 ## Output Shape, Severity Tags & Markdown File
 
 When producing a full review with this skill, you **must** write the review into a Markdown
