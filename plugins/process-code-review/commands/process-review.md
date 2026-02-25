@@ -17,5 +17,8 @@ Focus order:
 5. Update the review document with status markers.
 6. Summarize what was fixed vs skipped.
 
+If asked to post processed findings to GitHub PR comments, follow the Skill's
+`GitHub Review Comment Posting Mode` (`MUST_*`/`SHOULD_*`/`STEP_*` rules).
+
 If `--dry-run` is provided, show all issues without modifying files.
 If `--auto` is provided, apply all fixes without prompting (use with caution).

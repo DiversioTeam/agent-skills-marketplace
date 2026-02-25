@@ -121,6 +121,13 @@ When working in this repo, Claude Code should:
      wrapper that references the Skill by name). This ensures the plugin
      appears as a `/plugin-name:command` entry in Claude Code's slash command
      palette.
+   - **SKILL.md size and progressive disclosure guardrail (CI-enforced):**
+     - Keep each changed `SKILL.md` at or below 500 lines.
+     - Keep `SKILL.md` focused on activation workflow, priorities, and output shape.
+     - Move long procedures/examples into `references/*.md`.
+     - Move reusable command logic into `scripts/`.
+     - Keep references one level deep where possible.
+     - Run `bash scripts/validate-skills.sh` locally after Skill edits.
 
    - **SKILL.md YAML frontmatter:** Always quote string values in the YAML
      frontmatter that contain special characters (colons, brackets, commas,
@@ -423,6 +430,7 @@ marketplace), respond with instructions that avoid hardcoded paths:
 
 - [Agent Skills Standard](https://agentskills.io/specification)
 - [Agent Skills Best Practices](https://agentskills.io/best-practices)
+- [Claude Agent Skills Best Practices](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices)
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
 - [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
 - [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)

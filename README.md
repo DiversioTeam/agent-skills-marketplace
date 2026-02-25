@@ -29,6 +29,24 @@ To keep Skills portable across both OpenAI Codex and Claude Code:
 - Avoid `anthropic`/`claude` in Skill names and don’t include XML tags in `name`/`description` (Claude).
 - Keep `SKILL.md` reasonably small (≈<500 lines); move deep docs into `references/`.
 
+### SKILL.md Size Guardrail (CI-Enforced)
+
+To keep Skills reliable and LLM-friendly, treat `SKILL.md` as an orchestrator, not a dump:
+- Hard limit: each changed `SKILL.md` in a PR/push must stay at or below 500 lines (CI fails above this).
+- Keep only activation workflow, core priorities, and output contract in `SKILL.md`.
+- Move long procedures/examples into `references/*.md`.
+- Move reusable command logic into `scripts/`.
+- Keep reference depth shallow (one level deep where possible) for progressive disclosure.
+
+Run the guard locally before opening a PR:
+
+```bash
+bash scripts/validate-skills.sh
+```
+
+This default mode validates changed and untracked `SKILL.md` files in your working tree.
+Use `bash scripts/validate-skills.sh --all` for a full-repo audit.
+
 ## Working on Skills (LLM checklist)
 
 - Start with `AGENTS.md` (source of truth); `CLAUDE.md` only includes it.
@@ -492,6 +510,7 @@ echo "Done. Restart Codex and reinstall skills."
 
 - [Agent Skills Standard](https://agentskills.io/specification)
 - [Agent Skills Best Practices](https://agentskills.io/best-practices)
+- [Claude Agent Skills Best Practices](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices)
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
 - [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
 - [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)

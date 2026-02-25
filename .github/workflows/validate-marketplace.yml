@@ -5,12 +5,14 @@ on:
     paths:
       - ".claude-plugin/**"
       - "plugins/**"
+      - "scripts/**"
       - ".github/workflows/validate-marketplace.yml"
   push:
     branches: [main]
     paths:
       - ".claude-plugin/**"
       - "plugins/**"
+      - "scripts/**"
       - ".github/workflows/validate-marketplace.yml"
 
 jobs:
@@ -19,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Validate JSON and plugin consistency
         shell: bash
@@ -90,3 +94,9 @@ jobs:
 
           echo "All marketplace validation checks passed."
 
+      - name: Validate SKILL.md size budgets
+        shell: bash
+        env:
+          GITHUB_BEFORE: ${{ github.event.before }}
+        run: |
+          bash scripts/validate-skills.sh
