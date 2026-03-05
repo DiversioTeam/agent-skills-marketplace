@@ -54,6 +54,9 @@ Use `bash scripts/validate-skills.sh --all` for a full-repo audit.
 - Ensure the skill directory name matches `name` and stays in kebab-case.
 - Add or update a corresponding `plugins/<plugin>/commands/*.md` entrypoint.
 - Keep `SKILL.md` focused; put deep docs in `references/` and helpers in `scripts/`.
+- After substantive edits, do a fresh-eyes self-review of the changed skill,
+  adjacent commands/docs, and version metadata, then fix obvious issues before
+  stopping.
 - If you change a plugin, bump its version in `plugins/<plugin>/.claude-plugin/plugin.json`
   and keep `.claude-plugin/marketplace.json` in sync.
 
@@ -62,6 +65,17 @@ Use `bash scripts/validate-skills.sh --all` for a full-repo audit.
 This repository hosts Diversio-maintained Agent Skills and plugin manifests so
 the same skills can be distributed via the Claude Code marketplace or other
 channels.
+
+## Documentation Philosophy
+
+The `repo-docs` plugin is now explicitly informed by OpenAI's February 11,
+2026 article [Harness engineering: leveraging Codex in an agent-first
+world](https://openai.com/index/harness-engineering/).
+
+The practical takeaway for this repo is:
+- Keep `AGENTS.md` as a short routing map, not a giant handbook.
+- Put durable detail in focused repo-local docs.
+- Treat repeated failures as harness gaps to encode in docs, wrappers, or CI.
 
 ## Repository Structure
 
@@ -140,9 +154,11 @@ agent-skills-marketplace/
 │   │       ├── switch-org.md
 │   │       ├── add-org.md
 │   │       └── refresh-cache.md
-│   ├── repo-docs/                     # Repository documentation generator
+│   ├── repo-docs/                     # Repository harness docs generator
 │   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/repo-docs-generator/SKILL.md
+│   │   ├── skills/repo-docs-generator/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/           # Harness principles, templates, playbooks
 │   │   └── commands/
 │   │       ├── generate.md
 │   │       └── canonicalize.md
@@ -197,7 +213,7 @@ agent-skills-marketplace/
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
-| `repo-docs` | Generate and canonicalize repository documentation (AGENTS.md, README.md, CLAUDE.md) with ASCII architecture diagrams and single-source-of-truth pattern |
+| `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
@@ -307,8 +323,8 @@ Once plugins are installed:
    /clickup-ticket:switch-org                # Switch between organizations
    /clickup-ticket:add-org                   # Add a new organization
    /clickup-ticket:refresh-cache             # Force refresh cached data
-   /repo-docs:generate                       # Generate new AGENTS.md, README.md, CLAUDE.md
-   /repo-docs:canonicalize                   # Audit and fix existing docs (make AGENTS.md canonical)
+   /repo-docs:generate                       # Generate harness docs (AGENTS map + README + CLAUDE + focused docs)
+   /repo-docs:canonicalize                   # Audit and fix existing docs (trim AGENTS, normalize CLAUDE, add topic docs)
    /backend-release:check                    # Check what commits are pending release
    /backend-release:create                   # Create release PR with merge method
    /backend-release:publish                  # Publish GitHub release after PR merge

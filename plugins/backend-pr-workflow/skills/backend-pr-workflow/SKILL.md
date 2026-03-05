@@ -1,6 +1,6 @@
 ---
 name: backend-pr-workflow
-description: "Pedantic backend PR workflow skill enforcing ClickUp-linked branch/PR naming, PR hygiene, safe Django migrations, and downtime-safe schema changes."
+description: "Pedantic backend PR workflow skill enforcing ClickUp-linked branch/PR naming, repo-local workflow docs, safe Django migrations, and downtime-safe schema changes."
 allowed-tools: Read Bash Glob Grep
 ---
 
@@ -17,9 +17,11 @@ Use this Skill whenever you are:
 - Planning a release or hotfix and want to ensure the workflow (branches, tags,
   and migrations) is correct and downtime-safe.
 
-If local `AGENTS.md` / `CLAUDE.md` in the target repo conflict with anything
-here, **treat those files as the source of truth** and use this Skill as the
-default baseline.
+If the target repo has its own harness docs, treat `AGENTS.md` as the
+canonical entrypoint and follow any linked workflow/release/migration docs or
+directory-scoped `AGENTS.md` files for per-topic truth. `CLAUDE.md` should be
+treated as a pointer, not as a unique rule source. This Skill is the default
+baseline when repo-local docs are absent or thin.
 
 ## Example Prompts
 
@@ -66,6 +68,14 @@ Before giving a full review, this Skill should gather:
 
 If any of these are missing or unclear, ask the user to provide them before
 doing a full workflow review.
+
+Before applying the checklist, inspect the repo harness:
+
+- Read `AGENTS.md` first.
+- Load linked workflow/release/runbook docs or relevant directory-scoped
+  `AGENTS.md` files when they exist.
+- If workflow rules are tribal knowledge or only implied by stale docs, emit a
+  `[SHOULD_FIX]` harness finding recommending a `repo-docs` update.
 
 ## Checklist 1 – ClickUp & Branch / PR Naming
 
@@ -176,8 +186,8 @@ If a PR targets the wrong base branch:
 - Emit `[BLOCKING]` and recommend the correct base, explaining whether the
   change belongs in `release` or should be a `master` hotfix.
 
-If the repo’s docs specify a different default (e.g. custom long-lived branches
-documented in `CLAUDE.md`), follow that instead.
+If the repo’s harness docs specify a different default (e.g. custom long-lived
+branches in `AGENTS.md` or a linked workflow doc), follow that instead.
 
 ## Checklist 3 – PR Description & Self-Review
 
@@ -305,7 +315,8 @@ If the PR clearly contains many iterative migrations for one feature, emit:
 When suggesting commands, align with the repo’s tooling:
 
 - For Django4Lyfe / Optimo, prefer:
-  - `uv run` / `.bin/django` wrappers as documented in `AGENTS.md` / `CLAUDE.md`.
+  - `uv run` / `.bin/django` wrappers as documented in `AGENTS.md` or linked
+    repo-local docs.
 
 This Skill should conceptually describe the migration cleanup steps, not hard
 code commands that may become outdated.
@@ -414,6 +425,8 @@ When invoked, this Skill should:
      requirements, not nice-to-haves.
    - Always provide specific, actionable corrections rather than vague
      guidance.
+   - When rules are missing from the repo harness, call that out explicitly as
+     a documentation/tooling problem, not just a one-off nit.
 
 ## Compatibility Notes
 

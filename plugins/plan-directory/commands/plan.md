@@ -4,6 +4,10 @@ description: Create or update a structured plan directory with master index and 
 
 Use your `plan-directory` Skill to create or maintain a structured project plan.
 
+Every create/update run must end with a fresh-eyes self-review of the plan so
+obvious gaps, ordering mistakes, hidden blockers, and weak tests are fixed
+before delivery.
+
 ## Modes
 
 - **Create:** Scaffold a new plan directory with `PLAN.md` and numbered task files.

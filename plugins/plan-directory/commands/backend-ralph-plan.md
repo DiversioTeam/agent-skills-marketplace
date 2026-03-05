@@ -4,6 +4,10 @@ description: Create a structured plan with Ralph Wiggum Loop integration for bac
 
 Use your `backend-ralph-plan` Skill to create a plan directory with Ralph integration.
 
+This includes a required fresh-eyes audit before delivery: re-read the plan and
+RALPH prompt, then fix obvious dependency, blocker, quality-gate, or prompt
+clarity issues before handing it back.
+
 ## What This Creates
 
 1. **PLAN.md** - Task index with quality tracking tables

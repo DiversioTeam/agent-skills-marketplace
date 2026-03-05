@@ -7,7 +7,8 @@ Run your `backend-atomic-commit` Skill in **pre-commit** mode.
 Focus on:
 
 - Actively fixing the files in `git status` so they match backend `AGENTS.md`,
-  `.pre-commit-config.yaml`, `.security/*` helpers, and Monty's backend taste.
+  linked repo-local docs, `.pre-commit-config.yaml`, `.security/*` helpers,
+  and Monty's backend taste.
 - Eliminating local imports, debug statements, PII-in-logs issues, and obvious
   type-hint problems.
 - Running the following checks in order:

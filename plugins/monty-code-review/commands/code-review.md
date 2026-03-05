@@ -11,7 +11,7 @@ Focus order:
 2. API and contract changes (including migrations / schema changes).
 3. Performance in realistic hot paths.
 4. Tests and regression coverage.
-5. Maintainability and smaller nits.
+5. Harness gaps, maintainability, and smaller nits.
 
 If asked to post review comments to GitHub, apply the Skill's `GitHub Posting Protocol`
 (`MUST_*`, `SHOULD_*`, and `STEP_*` rules) from

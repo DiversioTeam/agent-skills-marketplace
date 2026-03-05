@@ -20,8 +20,8 @@
     },
     {
       "name": "monty-code-review",
-      "description": "Hyper-pedantic Django4Lyfe backend code review Skill (Monty's taste).",
-      "version": "1.2.3",
+      "description": "Hyper-pedantic Django4Lyfe backend code review Skill with correctness-first, harness-aware findings (Monty's taste).",
+      "version": "1.2.4",
       "author": {
         "name": "Diversio Devs"
       },
@@ -31,8 +31,8 @@
     },
     {
       "name": "backend-pr-workflow",
-      "description": "Enforces Diversio backend ClickUp-linked PR workflow, branch naming, safe Django migrations, and downtime-safe schema changes.",
-      "version": "0.1.3",
+      "description": "Enforces Diversio backend ClickUp-linked PR workflow, branch naming, repo-local workflow docs, safe Django migrations, and downtime-safe schema changes.",
+      "version": "0.1.4",
       "author": {
         "name": "Diversio Devs"
       },
@@ -42,8 +42,8 @@
     },
     {
       "name": "backend-atomic-commit",
-      "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security/* helpers, and Monty's backend taste without AI commit signatures.",
-      "version": "0.2.3",
+      "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, repo-local docs, pre-commit hooks, .security/* helpers, and Monty's backend taste without AI commit signatures.",
+      "version": "0.2.4",
       "author": {
         "name": "Diversio Devs"
       },
@@ -64,8 +64,8 @@
     },
     {
       "name": "plan-directory",
-      "description": "Create and maintain structured plan directories with a master PLAN.md index and numbered task files (001-*.md) containing checklists, tests, and completion criteria. Includes backend-ralph-plan for RALPH loop execution.",
-      "version": "0.2.2",
+      "description": "Create and maintain structured plan directories with a master PLAN.md index, numbered task files, and required fresh-eyes validation. Includes backend-ralph-plan for RALPH loop execution.",
+      "version": "0.2.3",
       "author": {
         "name": "Diversio Devs"
       },
@@ -119,14 +119,14 @@
     },
     {
       "name": "repo-docs",
-      "description": "Generate and canonicalize repository documentation with quality-gate awareness. Create new docs or audit existing AGENTS.md/CLAUDE.md to enforce single-source-of-truth pattern.",
-      "version": "0.1.3",
+      "description": "Generate and canonicalize repository harness docs: short AGENTS.md maps, repo-local docs, quality-gate guidance, and minimal CLAUDE.md stubs.",
+      "version": "0.1.4",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/repo-docs",
       "category": "documentation",
-      "keywords": ["documentation", "agents-md", "readme", "claude-md", "architecture", "ascii-diagrams", "tech-stack", "canonicalize"]
+      "keywords": ["documentation", "agents-md", "readme", "claude-md", "architecture", "quality-gates", "runbooks", "canonicalize", "harness"]
     },
     {
       "name": "dependabot-remediation",
