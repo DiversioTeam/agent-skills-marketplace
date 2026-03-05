@@ -114,7 +114,20 @@ Each task file must include:
 - **Notes (optional):** Constraints, references, warnings.
 - **Blockers (optional):** Added when work is blocked; removed when unblocked.
 
-### 6. Maintain Progress
+### 6. Fresh-Eyes Review (Required)
+
+Before delivering a new or updated plan, read it again as if you did not write
+it and fix obvious issues immediately. Look for:
+
+- Missing or incorrect dependencies / execution order
+- Checklist items that are vague, oversized, or not verifiable
+- Tests that are missing, generic, or inconsistent with the task scope
+- Hidden blockers, assumptions, or locked decisions that were left implicit
+- Scope leaks where a task bundles unrelated work
+
+Do not wait for the user to ask for this pass. It is part of the skill.
+
+### 7. Maintain Progress
 
 As work completes:
 1. Check items in the task file's Checklist and Tests sections.

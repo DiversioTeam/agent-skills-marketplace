@@ -1,7 +1,7 @@
 {
   "name": "monty-code-review",
-  "version": "1.2.3",
-  "description": "Hyper-pedantic Django4Lyfe backend code review Skill (Monty's taste).",
+  "version": "1.2.4",
+  "description": "Hyper-pedantic Django4Lyfe backend code review Skill with correctness-first, harness-aware findings (Monty's taste).",
   "author": {
     "name": "Diversio Devs"
   }

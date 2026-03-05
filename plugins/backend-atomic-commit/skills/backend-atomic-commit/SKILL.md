@@ -1,6 +1,6 @@
 ---
 name: backend-atomic-commit
-description: "Pedantic backend pre-commit + atomic-commit skill for Django/Optimo repos that enforces local repo rules, pre-commit hooks, and security helpers (no AI signatures in commit messages)."
+description: "Pedantic backend pre-commit + atomic-commit skill for Django/Optimo repos that enforces local AGENTS.md, repo-local docs, pre-commit hooks, and security helpers (no AI signatures in commit messages)."
 allowed-tools: Bash Read Edit Glob Grep
 ---
 
@@ -13,7 +13,7 @@ backend) when you want:
 
 - `/backend-atomic-commit:pre-commit` – to **actively fix** the current code
   (formatting, imports, type hints, logging, etc.) so that it matches:
-  - Local `AGENTS.md` / `CLAUDE.md` rules.
+  - Local `AGENTS.md`, linked repo-local docs, and quality gates.
   - `.pre-commit-config.yaml` expectations.
   - `.security/` diff helpers (ruff and local imports).
   - Monty’s backend taste.
@@ -25,38 +25,11 @@ backend) when you want:
 - `/backend-atomic-commit:commit` – to run `atomic-commit`, then **create the
   commit** once all gates are green (no bypassing commit-msg hooks).
 
-## Example Prompts
-
-- “Run `/backend-atomic-commit:pre-commit` on this repo and actively fix all
-  files in `git status` so they obey backend `AGENTS.md`, `.pre-commit-config.yaml`,
-  `.security/*` helpers, and Monty’s taste (no local imports, strong typing,
-  structured logging). Then summarize what you changed and what’s still
-  `[BLOCKING]`.”
-- “Use `/backend-atomic-commit:atomic-commit` to prepare an atomic commit for
-  the staged changes in `backend/`. Enforce all pre-commit hooks and
-  `.security` scripts, run Ruff, active type gate checks, Django checks, and relevant pytest
-  subsets, then propose a ticket-prefixed commit message with **no AI
-  signature** and clearly mark any `[BLOCKING]` issues.”
-- “Treat my current backend changes as one logical bugfix and run
-  `/backend-atomic-commit:pre-commit` in a strict mode: eliminate local
-  imports, fix type hints (no `Any`, no string-based annotations), clean up
-  debug statements, and ensure Ruff, `.security/local_imports_pr_diff.sh`,
-  active type gate checks, and Django checks are happy."
-- “Before I commit these `optimo_*` changes, run
-  `/backend-atomic-commit:atomic-commit --auto` to:
-  - enforce structured logging with `TypedDict` payloads,
-  - ensure no PII in logs,
-  - verify tests and `.security/*` scripts,
-  and then tell me whether the commit is ready and what the commit message
-  should be.”
-- “Use `/backend-atomic-commit:commit` to run all gates on my staged changes,
-  then create the commit once everything is green. If something fails, keep
-  fixing and re-running until it commits or you have a clear `[BLOCKING]`
-  reason it can’t.”
+Representative prompt shapes live in `references/usage-examples.md`.
 
 If you’re not in a backend repo (no `manage.py`, no backend-style `AGENTS.md`,
-no `.pre-commit-config.yaml`), this Skill should say so explicitly and fall
-back to a lighter “generic Python pre-commit” behavior.
+no `.pre-commit-config.yaml`, no backend quality docs), this Skill should say
+so explicitly and fall back to a lighter “generic Python pre-commit” behavior.
 
 ## Modes
 
@@ -95,8 +68,9 @@ Emulate Monty’s backend engineering and review taste, tuned for pre-commit:
    try/except blocks, hidden PII, or untyped payloads.
 3. **Atomic commits** – one commit should represent one coherent change; split
    unrelated work.
-4. **Local repo rules first** – treat `AGENTS.md` and `CLAUDE.md` as the source
-   of truth when present; this Skill is a default baseline.
+4. **Local harness first** – treat `AGENTS.md` as the canonical entrypoint,
+   follow linked repo-local docs and directory-scoped `AGENTS.md` files for
+   per-topic truth, and do not treat `CLAUDE.md` as a unique rule source.
 5. **Tooling alignment** – use uv wrappers, `.security/*` helpers, and
    `.pre-commit-config.yaml` hooks as documented, not ad-hoc commands.
 6. **Type and structure** – prefer precise type hints, `TypedDict`/dataclasses,
@@ -118,10 +92,15 @@ When this Skill runs, you should first gather context using `Bash`, `Read`,
   - `git diff --cached --name-only`
   - `git log --oneline -10`
 - Repo configuration:
-  - Read `AGENTS.md` and `CLAUDE.md` (if present) for repo-specific rules.
-  - If they’re missing or obviously stale, recommend generating/canonicalizing
-    them so linting/workflow rules are persistent (AGENTS.md canonical, CLAUDE.md
-    as a minimal stub that sources it).
+  - Read `AGENTS.md` first for repo-specific rules and doc routing.
+  - Load any linked repo-local docs relevant to the changed files, especially
+    quality gates, runbooks, architecture docs, and directory-scoped
+    `AGENTS.md` files.
+  - If `CLAUDE.md` exists, treat it as a pointer to `AGENTS.md`, not as a
+    source of unique behavioral rules.
+  - If the harness is missing or obviously stale, recommend generating or
+    canonicalizing docs via the `repo-docs` plugin so rules stop living in
+    tribal knowledge.
   - Detect `.pre-commit-config.yaml`.
   - Detect `.security/` scripts, especially:
     - `./.security/gate_cache.sh`
@@ -327,190 +306,19 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
    results directly in the final output using the existing severity-tagged
    sections (`Checks run`, `Needs changes`, etc.).
 
-## Monty Backend Taste – Auto-Fix Rules
+## Backend Fix Rules
 
-When running in `pre-commit` mode, you are allowed and expected to **actively
-edit code** to align with Monty’s backend taste where it is clearly safe. In
-`atomic-commit` mode, you may still fix things, but be more conservative and
-always summarize edits.
+When you need concrete auto-fix heuristics, load:
 
-### Imports & local imports
+- `references/backend-taste-and-fix-rules.md`
 
-- Enforce **no local imports at any cost**:
-  - Avoid `from myapp.models import MyModel` inside functions or methods just
-    to dodge cyclic imports.
-  - Use `.security/local_imports_pr_diff.sh` as the first line of defense.
-  - Prefer:
-    - Module-level imports.
-    - Refactoring helpers to avoid cycles.
-    - Type-only imports (e.g. `from __future__ import annotations`) when needed.
-  - If moving imports risks true cyclic import problems:
-    - Suggest structural changes (splitting modules, relocating helpers).
-    - Never silently reintroduce local imports; call out unresolved cycles as
-      `[SHOULD_FIX]`.
+Use that reference when actively editing backend code, templates, logging,
+types, tests, migrations, or other recurring lint targets. It contains the
+safe-fix guidance that used to live inline here.
 
-### Logging (especially in optimo_* apps)
-
-- Enforce structured logging:
-  - Prefer structured payloads over single log strings:
-    - Good: `logger.info("optimo_event", extra={"company_uuid": str(company.uuid)})`.
-    - Avoid: `logger.info("Company %s did %s", company.name, something)`.
-  - In `optimo_*` apps, treat unstructured logging as at least `[SHOULD_FIX]`.
-- PII in logs:
-  - Never log PII such as `assignment.employee.email`; this is enforced by
-    pre-commit hooks already, but you should also conceptually check.
-  - Prefer logging UUIDs/IDs instead of emails or names.
-- Log levels:
-  - Avoid `logger.exception` for expected error paths; use `error` or `warning`
-    with explicit messages.
-
-### Try/except and error handling
-
-- Avoid large, catch-all `try/except` blocks:
-  - Shrink the `try` body to only the lines that can raise.
-  - Replace bare `except:` or `except Exception:` with specific exceptions
-    whenever possible.
-- Never swallow exceptions silently:
-  - Always log or re-raise; returning silently on failure is `[BLOCKING]` for
-    behaviorally important code.
-- Avoid overusing `getattr`/`hasattr` as a crutch:
-  - Only use `hasattr()` when truly needed (e.g. cross-version adapters) and
-    document why.
-
-### Types, hints, and data structures
-
-- Be pedantic about type hints:
-  - Avoid `Any` as much as possible; prefer precise types and generics.
-  - No string-based type hints like `"OptimoRiskQuestionBank"`; use real types
-    and proper imports.
-  - Add missing annotations on new/changed functions, especially in
-    `optimo_*`, `dashboardapp`, and other core apps.
-- Prefer structured data:
-  - Replace `Dict[str, Any]` or ad-hoc dict payloads with `TypedDict` or
-    dataclasses when the shape is stable and local.
-  - Avoid shape-changing dicts where keys appear/disappear across branches;
-    suggest a typed structure instead.
-
-### Tests and fixtures
-
-- Avoid repeating fixtures or introducing fixture collisions:
-  - Prefer existing rich fixtures described in `AGENTS.md` (e.g. `responses`
-    in survey tests, company/survey fixtures that respect multi-tenant
-    relationships).
-  - Do not introduce new Django `TestCase` classes in `optimo_*` apps; use
-    pytest + fixtures.
-  - Watch for multi-tenant fixture mismatches (e.g. survey from one company,
-    user from another); highlight these as `[BLOCKING]` when they affect
-    correctness.
-- When touching tests:
-  - Prefer pytest fixtures and helper factories.
-  - Avoid local imports inside tests; use module-level imports.
-
-### ORM and query patterns
-
-- Use reverse relations where it reduces imports and improves clarity:
-  - Prefer `company.surveys.all()` to `Survey.objects.filter(company=company)`
-    when it avoids extra imports and is idiomatic.
-- Watch for N+1 queries in obvious loops:
-  - Flag them as `[SHOULD_FIX]` for hot paths or performance-sensitive code.
-
-### Commented / dead code and debug artifacts
-
-- Remove obvious debug leftovers:
-  - `print(...)`, `pdb.set_trace()`, `ipdb.set_trace()`, `breakpoint()` in
-    non-test code.
-- Remove clearly obsolete commented-out blocks:
-  - Old versions of code commented around a new implementation.
-- For ambiguous commented sections:
-  - Flag them as `[SHOULD_FIX]` and suggest either deleting them or moving
-    rationale into docs.
-- `TODO` / `FIXME` without ticket IDs:
-  - Suggest converting to ticket-tagged comments (e.g. `TODO(GH-123): ...` or
-    `TODO(27pfu0): ...`) or moving the note into ClickUp.
-
-### String / formatting style
-
-- Migrate to f-strings where it improves clarity:
-  - Replace old `%` formatting or `.format()` with f-strings when not blocked
-    by translation/i18n constraints.
-- Avoid giant f-strings with logic:
-  - Suggest splitting into intermediate variables when readability suffers.
-
-### Django templates and djlint
-
-- Treat template lint failures (djlint + template pre-commit hooks) as
-  first-class problems, not “formatting nits”. In `atomic-commit` mode, they
-  are usually `[BLOCKING]`.
-- Common djlint blockers (fix patterns):
-  - **Inline styles** (`style="..."`):
-    - Prefer CSS classes / existing utility frameworks.
-    - If new styling is required, add it via the repo’s normal CSS pipeline
-      (not ad-hoc inline styles).
-  - **Unnamed endblocks**:
-    - If templates use named blocks, always close them with the name:
-      - `{% block content %} ... {% endblock content %}`
-    - Do not leave bare `{% endblock %}` when the repo’s linting expects names.
-- Workflow:
-  - After any template edit, run the relevant template hooks (or `djlint --lint
-    --check <file>` when that’s what the repo uses), fix, and re-run until
-    clean.
-  - If hooks auto-reformat templates, accept the changes and restage the file.
-- Optional acceleration (Claude Code):
-  - Recommend an `afterEdit` hook for `*.html` in `.claude/settings.json` to run
-    djlint on the edited file, using the repo's wrapper (`.bin/djlint`, `uv run
-    djlint`, etc.) when available.
-- Configuration discovery:
-  - Look for `[tool.djlint]` in `pyproject.toml` or a standalone `.djlintrc`
-    file for project-specific settings (profile, indent, max_line_length,
-    custom rules, ignored rules). Respect these when they exist.
-  - If no djlint config is found but djlint hooks are in
-    `.pre-commit-config.yaml`, note this as `[SHOULD_FIX]` — the project
-    should have explicit djlint configuration to avoid ambiguity.
-- Reformat-first protocol:
-  - Always run `djlint --reformat` (or the repo's reformat hook) **before**
-    running `djlint --lint --check`. Reformatting resolves most lint issues
-    automatically.
-  - After reformatting, re-stage the modified templates (`git add <file>`)
-    before running the lint check.
-  - If the lint check still fails after a fresh reformat, the remaining errors
-    are structural (missing attributes, banned patterns) and must be fixed by
-    hand.
-
-### Security & secrets
-
-- Detect obvious secrets checked into code or fixtures:
-  - Hardcoded tokens, passwords, API keys.
-  - Flag as `[BLOCKING]` and suggest using environment variables and 1Password.
-- Avoid staging obvious secret-heavy files:
-  - `.env`, `google_creds.json`, `google_drive_creds.json`, etc.
-  - Recommend un-staging and `.gitignore` updates where appropriate.
-
-### Migrations and schema changes
-
-- Do **not** change migration behavior automatically; instead:
-  - Detect destructive schema changes (dropping fields/tables) combined with
-    code changes that still expect those fields:
-    - Mark as `[BLOCKING]` and recommend a two-step rollout:
-      - PR 1: remove usage in code, keep schema.
-      - PR 2: drop the field/table once code is clean.
-  - Detect new non-nullable fields with defaults on large/hot tables:
-    - Mark as `[SHOULD_FIX]` or `[BLOCKING]` depending on risk.
-    - Suggest the safer pattern:
-      - Add nullable field with no default.
-      - Backfill in batches.
-      - Then add default for new rows only.
-  - Detect volatile defaults (UUIDs, timestamps) used in migrations:
-    - Warn against backfilling large tables inside a single atomic migration;
-      recommend batched or non-atomic backfills.
-
-### Critical backend patterns from AGENTS.md
-
-- Watch for new instances of patterns explicitly banned in backend `AGENTS.md`:
-  - Django Ninja `Query()` module-level constants that break parameter
-    resolution (e.g. `Q_INCLUDE_INACTIVE = Query(False, ...)`).
-  - Legacy survey models like `OptimoEmployeeSurvey` or `employee_survey`.
-  - Any other CRITICAL warnings spelled out in that file.
-- Treat any new usage of these patterns as `[BLOCKING]`.
+If you discover a recurring failure that is hard to infer from the repo
+harness, emit a `[SHOULD_FIX]` follow-up recommending a docs, wrapper, or CI
+improvement instead of letting the rule stay tribal.
 
 ## Atomic-Commit Mode – Extra Strictness
 
@@ -627,6 +435,7 @@ Output shape for both modes:
   - `What’s aligned`
   - `Needs changes`
   - `Checks run`
+  - `Harness follow-ups` (only when docs/tooling should be improved)
   - `Proposed commit` (only in atomic-commit mode)
 
 Be direct, specific, and actionable in each bullet, pointing to file/area and
@@ -635,9 +444,5 @@ phrases when you can be precise.
 
 ## Compatibility Notes
 
-This Skill is designed to work with both Claude Code and OpenAI Codex.
-
-- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/backend-atomic-commit/commands/`).
-- Codex: install the Skill directory and invoke `name: backend-atomic-commit`.
-
-For installation, see this repo's `README.md`.
+Works in both Claude Code and OpenAI Codex. For installation, see this repo's
+`README.md`.

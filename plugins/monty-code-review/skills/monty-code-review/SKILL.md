@@ -1,6 +1,6 @@
 ---
 name: monty-code-review
-description: "Hyper-pedantic Django code review skill emulating Monty's correctness-first, multi-tenant-safe review style."
+description: "Hyper-pedantic Django code review skill emulating Monty's correctness-first, multi-tenant-safe, harness-aware review style."
 allowed-tools: Bash Read Edit Glob Grep
 ---
 
@@ -39,6 +39,8 @@ Emulate Monty's backend engineering and review taste as practiced in this reposi
   if tests pass.
 - Testing as contracts: tests should capture business promises, realistic data,
   edge cases, and regressions.
+- Agent legibility matters: when a non-obvious invariant or workflow only lives
+  in tribal knowledge, weak docs and weak guardrails are part of the defect.
 
 Always prioritize issues in this order:
 
@@ -59,6 +61,8 @@ When this skill is active and you are asked to review a change or diff, follow t
 1. Understand intent and context
    - Read the PR description, ticket, design doc, or docstrings that explain what
      the code is supposed to do.
+   - Read `AGENTS.md` and any linked repo-local docs/specs/runbooks that define
+     architecture, invariants, or quality gates for the changed area.
    - Scan nearby modules/functions to understand existing patterns and helpers that
      this code should align with.
    - Note key constraints: input/output expectations (types, ranges, nullability),
@@ -182,8 +186,12 @@ Use these tags consistently:
     per-row queries).
   - Missing tests for critical branches or regression scenarios.
   - Confusing control flow or naming that obscures invariants or intent.
-- Type-check debt that is not currently breaking merge gates but should be
-  reduced before follow-up work.
+  - Missing or stale repo-local docs for non-obvious invariants, workflows, or
+    architecture boundaries that reviewers/agents need to infer correctly.
+  - Repeated review issues that should become docs, wrappers, lint rules, or
+    CI guardrails.
+  - Type-check debt that is not currently breaking merge gates but should be
+    reduced before follow-up work.
 - `[NIT]`
   - Docstring tone/punctuation, minor style deviations, f-string usage, import order.
   - Non-critical duplication that could be refactored later.
@@ -245,7 +253,14 @@ When scanning a file or function, run through these lenses:
    - **Exception:** Django migration files (`*/migrations/*.py`) do not require tests;
      focus test coverage on the models and business logic they represent instead.
 
-9. Migrations & schema changes
+9. Harness & legibility
+   - Are important repo rules discoverable from `AGENTS.md` and linked docs?
+   - If this code depends on subtle invariants, is there an obvious in-repo
+     place where that knowledge is documented?
+   - Do repeated failure patterns suggest a missing wrapper, lint, CI check, or
+     repo-docs update?
+
+10. Migrations & schema changes
    - Does the PR include Django model or migration changes? If so:
      - Avoid destructive changes (dropping fields/tables) in the same deploy where
        running code still expects those fields; prefer a two-step rollout:
@@ -417,35 +432,9 @@ when calling out violations.
 
 ## Examples
 
-### Example 1 – Full pedantic review
+For concrete prompt variants and output sketches, load:
 
-- **Preferred user prompt (explicit skill)**:  
-  “Use your `monty-code-review` skill to review this Django PR like Monty would, and be fully pedantic with your usual severity tags.”
-- **Also treat as this skill (shorthand prompt)**:  
-  “Review this Django PR like Monty would! ultrathink”
-- When you see either of these (or similar wording clearly asking for a Monty-style backend review), assume the user wants this skill and follow the instructions in this file.
-- **Expected output shape** (sketch):  
-  - Short intro paragraph summarizing the change and what you focused on.  
-  - `What’s great` with 3–7 bullets, e.g.:  
-    - `survey/models.py – nice use of transaction.atomic around export generation.`  
-  - `What could be improved` with bullets like:  
-    - `[BLOCKING] dashboardapp/views/v2/report.py:L120–L145 – queryset is missing organization scoping; this risks cross-tenant leakage. Add an explicit filter on organization and a test covering mixed-tenant data.`  
-    - `[SHOULD_FIX] pulse_iq/tasks.py:L60–L80 – potential N+1 when iterating over responses. Consider prefetching related objects or batching queries.`  
-    - `[NIT] utils/date_helpers.py:L30 – docstring could clarify how “current quarter” is defined; also missing newline at EOF.`  
-  - `Tests` section calling out what’s covered and what’s missing.  
-  - `Verdict` section, e.g. “Request changes due to blocking multi-tenant and test coverage issues.”
-
-### Example 2 – Quick / non-pedantic pass
-
-- **Preferred user prompt (explicit skill)**:  
-  “Use your `monty-code-review` skill to skim this PR and only flag blocking or should-fix issues; skip most nits.”
-- **Also acceptable shorthand**:  
-  “Review this Django PR like Monty would, but only call out blocking or should-fix issues; skip the tiny nits.”
-- **Expected behavior**:
-  - Follow the same workflow and priorities, but:
-    - Only emit `[BLOCKING]` and `[SHOULD_FIX]` items unless a nit is truly important to mention.
-    - In the intro or verdict, state that you intentionally suppressed most `[NIT]` items due to the requested lighter review.
-  - The structure (`What's great`, `What could be improved`, `Tests`, `Verdict`) stays the same; the difference is primarily in strictness and number of nits.
+- `references/review-examples.md`
 
 ## Compatibility Notes
 

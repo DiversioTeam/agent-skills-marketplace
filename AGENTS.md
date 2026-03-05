@@ -12,6 +12,10 @@ Claude Marketplace or other channels.
   so they can be reused across multiple repos without copy‑pasting.
 - Keep plugin manifests, marketplace definitions, and SKILL docs small, clear, and
   versioned.
+- For repository-documentation workflows, follow the harness mindset from
+  OpenAI's February 11, 2026 article "Harness engineering: leveraging Codex in
+  an agent-first world": short `AGENTS.md` maps, repo-local docs, and
+  mechanical guardrails over giant prose dumps.
 
 Key layout:
 
@@ -52,10 +56,11 @@ Key layout:
     - `skills/clickup-ticket/SKILL.md` – ClickUp ticket fetching, filtering, and creation Skill.
     - `commands/*.md` – Commands for reading, filtering, creating tickets, subtasks, multi-org.
   - `repo-docs/`
-    - `.claude-plugin/plugin.json` – plugin manifest for repository documentation generator.
-    - `skills/repo-docs-generator/SKILL.md` – comprehensive AGENTS.md/README.md/CLAUDE.md generator Skill.
-    - `commands/generate.md` – Generate new documentation from scratch.
-    - `commands/canonicalize.md` – Audit and fix existing docs (make AGENTS.md canonical, normalize CLAUDE.md).
+    - `.claude-plugin/plugin.json` – plugin manifest for repository harness docs generator.
+    - `skills/repo-docs-generator/SKILL.md` – repository harness docs generator Skill (short AGENTS.md map + repo-local docs).
+    - `skills/repo-docs-generator/references/*.md` – harness principles, templates, and generate/canonicalize playbooks.
+    - `commands/generate.md` – Generate new harness documentation from scratch.
+    - `commands/canonicalize.md` – Audit and fix existing docs (trim AGENTS.md, move deep detail into topic docs, normalize CLAUDE.md).
   - `backend-release/`
     - `.claude-plugin/plugin.json` – plugin manifest for Django4Lyfe release workflow.
     - `skills/release-manager/SKILL.md` – full release workflow management Skill.
@@ -121,6 +126,9 @@ When working in this repo, Claude Code should:
      wrapper that references the Skill by name). This ensures the plugin
      appears as a `/plugin-name:command` entry in Claude Code's slash command
      palette.
+   - After any substantive change to a Skill, command, or manifest, do a
+     fresh-eyes self-review of the changed files plus adjacent docs/metadata
+     and fix obvious issues before handing off.
    - **SKILL.md size and progressive disclosure guardrail (CI-enforced):**
      - Keep each changed `SKILL.md` at or below 500 lines.
      - Keep `SKILL.md` focused on activation workflow, priorities, and output shape.
@@ -396,12 +404,12 @@ marketplace), respond with instructions that avoid hardcoded paths:
     - `/clickup-ticket:create-subtask` – Add subtask to existing ticket
     - `/clickup-ticket:switch-org` – Switch between organizations
     - `/clickup-ticket:configure` – Set up defaults and cache
-  - `repo-docs` to generate and canonicalize repository documentation. Commands:
-    - `/repo-docs:generate [path]` – Generate new AGENTS.md, README.md, CLAUDE.md
-      from scratch with ASCII architecture diagrams and tech stack analysis.
-    - `/repo-docs:canonicalize [path]` – Audit existing docs across a repo: update
-      AGENTS.md to match current tooling (uv, .bin/*), merge CLAUDE.md content
-      into AGENTS.md, normalize all CLAUDE.md to minimal `@AGENTS.md` stubs.
+  - `repo-docs` to generate and canonicalize repository harness documentation. Commands:
+    - `/repo-docs:generate [path]` – Generate repository harness docs: a short
+      AGENTS.md map, README.md, CLAUDE.md stub, and focused repo-local docs.
+    - `/repo-docs:canonicalize [path]` – Audit existing docs across a repo:
+      trim bloated AGENTS.md files, move deep detail into topic docs, and
+      normalize all CLAUDE.md files to minimal `@AGENTS.md` stubs.
   - `backend-release` to manage the full release workflow for Django4Lyfe backend
     (Diversio monolith). Handles release PRs, date-based version bumping
     (YYYY.MM.DD), uv lock updates, and GitHub release publishing. Commands:
@@ -433,6 +441,7 @@ marketplace), respond with instructions that avoid hardcoded paths:
 - [Claude Agent Skills Best Practices](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices)
 - [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
 - [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
+- [Harness engineering: leveraging Codex in an agent-first world](https://openai.com/index/harness-engineering/)
 - [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
 - [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
 - [Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)

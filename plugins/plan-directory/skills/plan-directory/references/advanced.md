@@ -19,6 +19,8 @@ Before delivering a plan, verify:
 - [ ] No task exceeds ~10 checklist items (split if needed).
 - [ ] Dependency graph has no cycles (task A can't depend on B if B depends on A).
 - [ ] Parallel-executable tasks are identified where applicable.
+- [ ] A fresh-eyes pass was completed: obvious ordering bugs, vague tasks,
+      hidden blockers, and missing tests were fixed before delivery.
 
 ## Parallel Task Execution
 
@@ -253,4 +255,3 @@ spawn a nested sub-plan:
 
 This keeps individual task files focused while allowing complex work to be
 properly structured.
-

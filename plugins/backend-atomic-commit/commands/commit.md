@@ -30,8 +30,8 @@ Workflow:
      it as `[BLOCKING]` with the exact error + what was tried.
    - Do **not** use TodoWrite to track gate results — report directly in output.
 3. Verify atomicity of the staged diff (one coherent change).
-4. Propose a ticket-prefixed commit message (derived from the branch name per local
-   `AGENTS.md` rules) with **no AI signature**.
+4. Propose a ticket-prefixed commit message (derived from the branch name per
+   the local repo harness rules) with **no AI signature**.
 5. Create the commit:
    - `git commit -m "<message>"`
    - If commit-msg hooks fail, fix the cause and retry (do not silently bypass).

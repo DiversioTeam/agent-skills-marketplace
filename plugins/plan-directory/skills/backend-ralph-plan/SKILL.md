@@ -242,6 +242,8 @@ Before delivering:
 - [ ] RALPH-PROMPT.md has NO remaining `{{placeholders}}`
 - [ ] Execution order matches actual dependencies
 - [ ] Completion promise includes task count and slug
+- [ ] Fresh-eyes pass completed: task order, blockers, test gates, and prompt
+      instructions were re-read and obvious problems were fixed
 
 ## Example
 
