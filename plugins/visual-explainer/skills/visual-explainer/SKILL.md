@@ -1,6 +1,7 @@
 ---
 name: visual-explainer
 description: "Generate self-contained, presentation-ready HTML explainers for plans, diffs, docs, architecture, audits, and stakeholder updates. Use when the user wants a visual explainer, diagram, comparison, roadmap, mixed technical/non-technical summary, or an HTML alternative to a complex ASCII table. Gather missing audience/goal/source context interactively, separate confirmed facts from inference, save under ~/.agent/diagrams/, and open in the browser."
+allowed-tools: Bash Read Write Grep Glob
 ---
 
 # Visual Explainer
