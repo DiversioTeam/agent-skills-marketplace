@@ -162,6 +162,13 @@ agent-skills-marketplace/
 │   │   └── commands/
 │   │       ├── generate.md
 │   │       └── canonicalize.md
+│   ├── visual-explainer/              # HTML visual explainers for mixed audiences
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/visual-explainer/
+│   │   │   ├── SKILL.md
+│   │   │   ├── references/           # Stakeholder mode, layout, diagram, and slide guidance
+│   │   │   └── templates/            # Reference HTML templates
+│   │   └── commands/explain.md
 │   ├── backend-release/               # Django4Lyfe release workflow
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/release-manager/SKILL.md
@@ -214,6 +221,7 @@ agent-skills-marketplace/
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
+| `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake and explicit fact-vs-inference separation |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
@@ -240,6 +248,13 @@ Or from within a Claude Code session:
 **Recommended:** Install at user scope (default) for compatibility with git worktrees.
 Project-scope plugins don't persist across worktrees.
 
+If you already use the upstream `visual-explainer` plugin, uninstall it before
+installing this marketplace version:
+
+```bash
+claude plugin uninstall visual-explainer@visual-explainer-marketplace
+```
+
 <details>
 <summary><strong>Install All Plugins (CLI commands)</strong></summary>
 
@@ -257,6 +272,7 @@ claude plugin install process-code-review@diversiotech
 claude plugin install mixpanel-analytics@diversiotech
 claude plugin install clickup-ticket@diversiotech
 claude plugin install repo-docs@diversiotech
+claude plugin install visual-explainer@diversiotech
 claude plugin install backend-release@diversiotech
 claude plugin install dependabot-remediation@diversiotech
 claude plugin install terraform@diversiotech
@@ -288,6 +304,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | MixPanel analytics | `claude plugin install mixpanel-analytics@diversiotech` |
 | ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
 | Repository docs generator | `claude plugin install repo-docs@diversiotech` |
+| Visual explainer | `claude plugin install visual-explainer@diversiotech` |
 | Backend release workflow | `claude plugin install backend-release@diversiotech` |
 | Dependabot remediation (backend/frontend) | `claude plugin install dependabot-remediation@diversiotech` |
 | Terraform workflows | `claude plugin install terraform@diversiotech` |
@@ -325,6 +342,7 @@ Once plugins are installed:
    /clickup-ticket:refresh-cache             # Force refresh cached data
    /repo-docs:generate                       # Generate harness docs (AGENTS map + README + CLAUDE + focused docs)
    /repo-docs:canonicalize                   # Audit and fix existing docs (trim AGENTS, normalize CLAUDE, add topic docs)
+   /visual-explainer:explain                 # Create a presentation-ready HTML explainer with interactive intake
    /backend-release:check                    # Check what commits are pending release
    /backend-release:create                   # Create release PR with merge method
    /backend-release:publish                  # Publish GitHub release after PR merge
@@ -367,6 +385,7 @@ claude plugin uninstall process-code-review@diversiotech
 claude plugin uninstall mixpanel-analytics@diversiotech
 claude plugin uninstall clickup-ticket@diversiotech
 claude plugin uninstall repo-docs@diversiotech
+claude plugin uninstall visual-explainer@diversiotech
 claude plugin uninstall backend-release@diversiotech
 claude plugin uninstall dependabot-remediation@diversiotech
 claude plugin uninstall terraform@diversiotech
@@ -389,6 +408,7 @@ claude plugin uninstall process-code-review@diversiotech --scope project
 claude plugin uninstall mixpanel-analytics@diversiotech --scope project
 claude plugin uninstall clickup-ticket@diversiotech --scope project
 claude plugin uninstall repo-docs@diversiotech --scope project
+claude plugin uninstall visual-explainer@diversiotech --scope project
 claude plugin uninstall backend-release@diversiotech --scope project
 claude plugin uninstall dependabot-remediation@diversiotech --scope project
 claude plugin uninstall terraform@diversiotech --scope project
@@ -438,6 +458,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/mixpanel-analytics/skills/mixpanel-analytics \
     plugins/clickup-ticket/skills/clickup-ticket \
     plugins/repo-docs/skills/repo-docs-generator \
+    plugins/visual-explainer/skills/visual-explainer \
     plugins/backend-release/skills/release-manager \
     plugins/dependabot-remediation/skills/dependabot-remediation \
     plugins/terraform/skills/terraform-atomic-commit \
@@ -461,6 +482,7 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
   path=plugins/clickup-ticket/skills/clickup-ticket \
   path=plugins/repo-docs/skills/repo-docs-generator \
+  path=plugins/visual-explainer/skills/visual-explainer \
   path=plugins/backend-release/skills/release-manager \
   path=plugins/dependabot-remediation/skills/dependabot-remediation \
   path=plugins/terraform/skills/terraform-atomic-commit \
@@ -506,6 +528,7 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/mixpanel-analytics" \
        "$CODEX_HOME/skills/clickup-ticket" \
        "$CODEX_HOME/skills/repo-docs-generator" \
+       "$CODEX_HOME/skills/visual-explainer" \
        "$CODEX_HOME/skills/release-manager" \
        "$CODEX_HOME/skills/dependabot-remediation" \
        "$CODEX_HOME/skills/terraform-atomic-commit" \
@@ -519,6 +542,9 @@ echo "Done. Restart Codex and reinstall skills."
 **Notes:**
 - Add `--ref <branch-or-tag>` to pin a version.
 - The installer does not overwrite existing Skills; delete `$CODEX_HOME/skills/<skill-name>` first to update.
+- If you are replacing the upstream `visual-explainer` skill, delete
+  `$CODEX_HOME/skills/visual-explainer` first, then install this repo's
+  version.
 - Codex installs Skills into `~/.codex/skills` by default.
 - Restart Codex after installing Skills.
 
