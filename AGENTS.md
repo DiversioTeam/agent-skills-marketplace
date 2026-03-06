@@ -61,6 +61,12 @@ Key layout:
     - `skills/repo-docs-generator/references/*.md` – harness principles, templates, and generate/canonicalize playbooks.
     - `commands/generate.md` – Generate new harness documentation from scratch.
     - `commands/canonicalize.md` – Audit and fix existing docs (trim AGENTS.md, move deep detail into topic docs, normalize CLAUDE.md).
+  - `visual-explainer/`
+    - `.claude-plugin/plugin.json` – plugin manifest for HTML visual explainers.
+    - `skills/visual-explainer/SKILL.md` – visual explainer Skill for stakeholder-ready HTML pages.
+    - `skills/visual-explainer/references/*.md` – layout, diagram, slide, and stakeholder explainer guidance.
+    - `skills/visual-explainer/templates/*.html` – reusable reference templates for architecture, Mermaid, tables, and slides.
+    - `commands/explain.md` – Interactive explainer entrypoint.
   - `backend-release/`
     - `.claude-plugin/plugin.json` – plugin manifest for Django4Lyfe release workflow.
     - `skills/release-manager/SKILL.md` – full release workflow management Skill.
@@ -266,6 +272,19 @@ When working in this repo, Claude Code should:
   /plugin install repo-docs@diversiotech
   ```
 
+- Install the visual explainer plugin:
+
+  ```bash
+  /plugin install visual-explainer@diversiotech
+  ```
+
+  If you already installed the upstream plugin, uninstall it first so the
+  marketplace entry is unambiguous:
+
+  ```bash
+  /plugin uninstall visual-explainer@visual-explainer-marketplace
+  ```
+
 - Install the backend release plugin:
 
   ```bash
@@ -307,6 +326,7 @@ When working in this repo, Claude Code should:
   /plugin uninstall mixpanel-analytics@diversiotech
   /plugin uninstall clickup-ticket@diversiotech
   /plugin uninstall repo-docs@diversiotech
+  /plugin uninstall visual-explainer@diversiotech
   /plugin uninstall backend-release@diversiotech
   /plugin uninstall dependabot-remediation@diversiotech
   /plugin uninstall terraform@diversiotech
@@ -336,6 +356,10 @@ marketplace), respond with instructions that avoid hardcoded paths:
 - Avoid hardcoded absolute user paths like `/Users/<name>/...`.
 - If the user wants Codex-console commands, provide `$skill-installer` examples
   that mirror the repo/path usage above.
+- If the user is replacing the upstream `visual-explainer` skill with this
+  repo's version, remind them to remove the existing
+  `$CODEX_HOME/skills/visual-explainer` directory first because the installer
+  does not overwrite existing skills.
 
 - **Uninstall all Diversio skills** (Codex) to reinstall fresh:
 
@@ -354,6 +378,7 @@ marketplace), respond with instructions that avoid hardcoded paths:
          "$CODEX_HOME/skills/mixpanel-analytics" \
          "$CODEX_HOME/skills/clickup-ticket" \
          "$CODEX_HOME/skills/repo-docs-generator" \
+         "$CODEX_HOME/skills/visual-explainer" \
          "$CODEX_HOME/skills/release-manager" \
          "$CODEX_HOME/skills/dependabot-remediation" \
          "$CODEX_HOME/skills/terraform-atomic-commit" \
@@ -410,6 +435,14 @@ marketplace), respond with instructions that avoid hardcoded paths:
     - `/repo-docs:canonicalize [path]` – Audit existing docs across a repo:
       trim bloated AGENTS.md files, move deep detail into topic docs, and
       normalize all CLAUDE.md files to minimal `@AGENTS.md` stubs.
+  - `visual-explainer` to generate presentation-ready HTML explainers for plans,
+    diffs, docs, architecture, audits, and stakeholder updates. It gathers
+    missing audience/goal/source context interactively, separates confirmed
+    facts from inference, and writes a shareable HTML page to
+    `~/.agent/diagrams/`. Command:
+    - `/visual-explainer:explain [topic]` – Create the default visual explainer
+      flow with optional technical mode, Markdown summary, reply draft, or
+      slides.
   - `backend-release` to manage the full release workflow for Django4Lyfe backend
     (Diversio monolith). Handles release PRs, date-based version bumping
     (YYYY.MM.DD), uv lock updates, and GitHub release publishing. Commands:

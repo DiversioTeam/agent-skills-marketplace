@@ -129,6 +129,17 @@
       "keywords": ["documentation", "agents-md", "readme", "claude-md", "architecture", "quality-gates", "runbooks", "canonicalize", "harness"]
     },
     {
+      "name": "visual-explainer",
+      "description": "Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake and explicit fact-vs-inference separation.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/visual-explainer",
+      "category": "documentation",
+      "keywords": ["html", "diagrams", "visualization", "stakeholder", "architecture", "plans", "diffs", "diversio"]
+    },
+    {
       "name": "dependabot-remediation",
       "description": "Unified backend/frontend Dependabot remediation workflow with dependabot.yml review/scaffold, alert deduplication, wave planning, execution guardrails, and post-merge closure verification.",
       "version": "0.1.0",
