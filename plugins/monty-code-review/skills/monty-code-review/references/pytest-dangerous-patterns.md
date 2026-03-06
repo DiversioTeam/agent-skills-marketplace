@@ -16,11 +16,17 @@ review feedback can be concrete and immediately actionable.
 
 ## Quick-Detection Preconditions
 
-Before running any detection command in this file, ensure `PYTEST_FILES` is
-populated with pytest paths in scope. Example contract:
+Before running any detection command in this file, populate `PYTEST_FILES`
+using the canonical selector script:
 
 ```bash
-# Set PYTEST_FILES first; commands below assume this array is non-empty.
+# Build file set — use .bin/pytest-file-selector (single source of truth).
+# Default: changed-files-only.  Use --all for full-repo scan.
+PYTEST_FILES=()
+while IFS= read -r f; do
+  [[ -n "$f" ]] && PYTEST_FILES+=("$f")
+done < <(.bin/pytest-file-selector)
+[[ ${#PYTEST_FILES[@]} -eq 0 ]] && echo "No pytest files in scope" && exit 0
 ```
 
 ## Pattern PTH-001: Defensive Conditionals Around Required Assertions

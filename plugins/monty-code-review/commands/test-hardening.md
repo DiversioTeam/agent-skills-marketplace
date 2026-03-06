@@ -5,10 +5,11 @@ description: Pytest-only hardening lane using monty-code-review (dangerous test 
 Use your `monty-code-review` Skill in **pytest test-hardening lane**.
 
 Scope and execution rules:
-- Review pytest files only (`test_*.py`, `*_test.py`, `tests/**/*.py`).
-- Default to changed-files-only scope (base branch diff + staged/unstaged/untracked).
-- If no pytest files are in scope, return out-of-scope and stop.
-- Run full-repo scan only if explicitly requested (`--all` or `scope all`).
+- Use `.bin/pytest-file-selector` as the single source of truth for file selection.
+  - Default (no args): changed-files-only scope.
+  - `--all`: full-repo scan (opt-in only).
+- If the script outputs zero files, return out-of-scope and stop.
+- Do NOT build your own file list — always delegate to this script.
 
 Review focus:
 - Dangerous silent-pass and false-confidence patterns.

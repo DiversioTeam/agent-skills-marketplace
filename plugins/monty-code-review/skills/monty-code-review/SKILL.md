@@ -116,10 +116,12 @@ Use this lane when changed files include pytest tests (`test_*.py`, `*_test.py`,
 `tests/**/*.py`) or when the user asks for pytest hardening.
 
 Lane contract:
-- Scope to pytest files only.
-- Default to changed-files-only selection (base branch diff + staged/unstaged/untracked).
-- If no pytest files are selected, return out-of-scope and stop.
-- Full-repo scan is opt-in only (`--all` or `scope all`).
+- Use `.bin/pytest-file-selector` to build the file set (single source of truth).
+  - Default (no args): changed-files-only (branch diff + staged + unstaged + untracked).
+  - `--all` flag: full-repo scan (opt-in only).
+  - Override base branch: `BASE_BRANCH=origin/main .bin/pytest-file-selector`.
+- If the script outputs zero files, return out-of-scope and stop.
+- Do NOT build your own file list — always delegate to this script.
 
 Detection and review strategy:
 - Primary detection should be structural (`ast-grep` patterns) where possible.
