@@ -86,8 +86,12 @@ agent-skills-marketplace/
 ├── plugins/
 │   ├── monty-code-review/             # Monty backend code review plugin
 │   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/monty-code-review/SKILL.md
-│   │   └── commands/code-review.md
+│   │   ├── skills/monty-code-review/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── code-review.md
+│   │       └── test-hardening.md
 │   ├── backend-atomic-commit/         # Backend pre-commit & atomic-commit plugin
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/backend-atomic-commit/SKILL.md
@@ -193,12 +197,12 @@ agent-skills-marketplace/
 │   │       ├── pre-commit.md
 │   │       ├── atomic-commit.md
 │   │       └── check-pr.md
-│   └── login-cta-attribution-skill/   # CTA login attribution
-│       ├── .claude-plugin/plugin.json
-│       ├── skills/login-cta-attribution-skill/
-│       │   ├── SKILL.md
-│       │   └── references/
-│       └── commands/implement.md
+│   ├── login-cta-attribution-skill/   # CTA login attribution
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/login-cta-attribution-skill/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/implement.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -210,7 +214,7 @@ agent-skills-marketplace/
 
 | Plugin | Description |
 |--------|-------------|
-| `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill |
+| `monty-code-review` | Hyper-pedantic Django backend code review Skill with a built-in pytest test-hardening lane |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and Monty's backend taste (no AI commit signatures) |
 | `backend-pr-workflow` | Backend PR workflow Skill that enforces ClickUp-linked branch/PR naming, safe migrations, and downtime-safe schema changes |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
@@ -318,6 +322,7 @@ Once plugins are installed:
 
    ```text
    /monty-code-review:code-review            # Hyper-pedantic backend code review
+   /monty-code-review:test-hardening         # Pytest-only dangerous-pattern hardening lane
    /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
    /backend-atomic-commit:atomic-commit      # Strict atomic commit helper (all gates green, no AI signature)
    /backend-atomic-commit:commit             # Run all gates, fix, and create commit (full closure)

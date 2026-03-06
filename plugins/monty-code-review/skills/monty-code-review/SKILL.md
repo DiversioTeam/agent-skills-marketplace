@@ -110,6 +110,39 @@ When this skill is active and you are asked to review a change or diff, follow t
      “needs tests”).
    - State whether you would “approve after nits”, “request changes”, or “approve as-is”.
 
+## Pytest Test-Hardening Lane
+
+Use this lane when changed files include pytest tests (`test_*.py`, `*_test.py`,
+`tests/**/*.py`) or when the user asks for pytest hardening.
+
+Lane contract:
+- Use `.bin/pytest-file-selector` to build the file set (single source of truth).
+  - Default (no args): changed-files-only (branch diff + staged + unstaged + untracked).
+  - `--all` flag: full-repo scan (opt-in only).
+  - Override base branch: `BASE_BRANCH=origin/main .bin/pytest-file-selector`.
+- If the script outputs zero files, return out-of-scope and stop.
+- Do NOT build your own file list — always delegate to this script.
+
+Detection and review strategy:
+- Primary detection should be structural (`ast-grep` patterns) where possible.
+- Use `rg` as fallback/triage heuristics only.
+- Do not emit high-noise heuristic matches as standalone findings without context
+  proof (for example raw `sum(` / `len(` and raw `monkeypatch.setattr(`).
+
+For this lane, focus especially on silent-pass patterns and include wrong/correct
+snippet suggestions in findings.
+
+Required output columns for pytest hardening findings:
+- `Severity` (`[BLOCKING]`, `[SHOULD_FIX]`, `[NIT]`)
+- `Pattern`
+- `File:Line`
+- `Detector`
+- `Risk`
+- `Safe Fix`
+
+For pattern definitions and canonical wrong/correct snippets, load:
+- `references/pytest-dangerous-patterns.md`
+
 ## GitHub Posting Protocol (When User Asks To Post Review Comments)
 
 When user intent includes posting comments/reviews to GitHub PRs, load and follow:
