@@ -1,481 +1,98 @@
-# Claude Code Configuration for `agent-skills-marketplace`
-
-This repository is an **Agent Skills marketplace repo** for Diversio. It hosts
-reusable Skills packaged in the open Agent Skills standard and includes Claude
-Code plugin/marketplace metadata so the same skills can be distributed via
-Claude Marketplace or other channels.
-
-## Repository Purpose
-
-- Provide a **local / GitHub marketplace** of Diversio-maintained Agent Skills.
-- Encapsulate opinionated Skills (for example, the Monty backend code review Skill)
-  so they can be reused across multiple repos without copy‑pasting.
-- Keep plugin manifests, marketplace definitions, and SKILL docs small, clear, and
-  versioned.
-- For repository-documentation workflows, follow the harness mindset from
-  OpenAI's February 11, 2026 article "Harness engineering: leveraging Codex in
-  an agent-first world": short `AGENTS.md` maps, repo-local docs, and
-  mechanical guardrails over giant prose dumps.
-
-Key layout:
-
-- `.claude-plugin/`
-  - `marketplace.json` – Claude Code marketplace definition listing available plugins.
-- `plugins/`
-  - `monty-code-review/`
-    - `.claude-plugin/plugin.json` – plugin manifest for `monty-code-review`.
-    - `skills/monty-code-review/SKILL.md` – the Monty backend code review Skill.
-  - `backend-atomic-commit/`
-    - `.claude-plugin/plugin.json` – plugin manifest for backend pre-commit / atomic commit.
-    - `skills/backend-atomic-commit/SKILL.md` – backend atomic commit Skill.
-    - `commands/*.md` – Commands for pre-commit, atomic-commit, and commit (run→fix→commit).
-  - `backend-pr-workflow/`
-    - `.claude-plugin/plugin.json` – plugin manifest for backend PR workflow checks.
-    - `skills/backend-pr-workflow/SKILL.md` – backend PR workflow Skill.
-  - `bruno-api/`
-    - `.claude-plugin/plugin.json` – plugin manifest for Bruno API docs generator.
-    - `skills/bruno-api/SKILL.md` – Bruno API documentation Skill.
-  - `code-review-digest-writer/`
-    - `.claude-plugin/plugin.json` – plugin manifest for code review digests.
-    - `skills/code-review-digest-writer/SKILL.md` – code review digest writer Skill.
-  - `plan-directory/`
-    - `.claude-plugin/plugin.json` – plugin manifest for structured plan directories.
-    - `skills/plan-directory/SKILL.md` – plan directory creation and maintenance Skill.
-    - `skills/backend-ralph-plan/SKILL.md` – RALPH loop integration for backend Django.
-  - `pr-description-writer/`
-    - `.claude-plugin/plugin.json` – plugin manifest for PR descriptions.
-    - `skills/pr-description-writer/SKILL.md` – PR description generator Skill.
-  - `process-code-review/`
-    - `.claude-plugin/plugin.json` – plugin manifest for code review processor.
-    - `skills/process-code-review/SKILL.md` – process code review findings Skill.
-  - `mixpanel-analytics/`
-    - `.claude-plugin/plugin.json` – plugin manifest for MixPanel analytics.
-    - `skills/mixpanel-analytics/SKILL.md` – MixPanel tracking implementation and review Skill.
-  - `clickup-ticket/`
-    - `.claude-plugin/plugin.json` – plugin manifest for ClickUp ticket management.
-    - `skills/clickup-ticket/SKILL.md` – ClickUp ticket fetching, filtering, and creation Skill.
-    - `commands/*.md` – Commands for reading, filtering, creating tickets, subtasks, multi-org.
-  - `repo-docs/`
-    - `.claude-plugin/plugin.json` – plugin manifest for repository harness docs generator.
-    - `skills/repo-docs-generator/SKILL.md` – repository harness docs generator Skill (short AGENTS.md map + repo-local docs).
-    - `skills/repo-docs-generator/references/*.md` – harness principles, templates, and generate/canonicalize playbooks.
-    - `commands/generate.md` – Generate new harness documentation from scratch.
-    - `commands/canonicalize.md` – Audit and fix existing docs (trim AGENTS.md, move deep detail into topic docs, normalize CLAUDE.md).
-  - `visual-explainer/`
-    - `.claude-plugin/plugin.json` – plugin manifest for HTML visual explainers.
-    - `skills/visual-explainer/SKILL.md` – visual explainer Skill for stakeholder-ready HTML pages.
-    - `skills/visual-explainer/references/*.md` – layout, diagram, slide, and stakeholder explainer guidance.
-    - `skills/visual-explainer/templates/*.html` – reusable reference templates for architecture, Mermaid, tables, and slides.
-    - `commands/explain.md` – Interactive explainer entrypoint.
-  - `backend-release/`
-    - `.claude-plugin/plugin.json` – plugin manifest for Django4Lyfe release workflow.
-    - `skills/release-manager/SKILL.md` – full release workflow management Skill.
-    - `commands/*.md` – Commands for check, create, and publish releases.
-  - `dependabot-remediation/`
-    - `.claude-plugin/plugin.json` – plugin manifest for unified Dependabot remediation workflows.
-    - `skills/dependabot-remediation/SKILL.md` – backend/frontend Dependabot remediation Skill.
-    - `commands/*.md` – Commands for config-aware backend/frontend triage, execution, and release closeout.
-  - `terraform/`
-    - `.claude-plugin/plugin.json` – plugin manifest for Terraform/Terragrunt workflows.
-    - `skills/terraform-atomic-commit/SKILL.md` – Terraform atomic commit Skill.
-    - `skills/terraform-pr-workflow/SKILL.md` – Terraform PR workflow Skill.
-    - `commands/*.md` – Commands for pre-commit, atomic-commit, and PR workflow checks.
-  - `login-cta-attribution-skill/`
-    - `.claude-plugin/plugin.json` – plugin manifest for CTA login attribution.
-    - `skills/login-cta-attribution-skill/SKILL.md` – CTA attribution implementation Skill.
-    - `commands/implement.md` – Implement new CTA sources with attribution.
-
-## How Claude Code Should Behave Here
-
-When working in this repo, Claude Code should:
-
-1. **Treat this as configuration, not application code.**
-   - Do **not** scaffold apps, frameworks, or unrelated code here.
-   - Limit changes to:
-     - `AGENTS.md`, `CLAUDE.md`
-     - `.claude-plugin/*.json` (marketplace + repo metadata)
-     - `plugins/**/.claude-plugin/plugin.json` (per-plugin manifests)
-     - `plugins/**/skills/*/SKILL.md` (Skill docs)
-     - `plugins/**/commands/*.md` (plugin slash-command entrypoints that invoke Skills)
-     - `README.md` / documentation.
-
-2. **Keep JSON valid and minimal.**
-   - Always keep `marketplace.json` and each `plugin.json` valid JSON.
-   - Prefer small, targeted edits over whole‑file rewrites.
-   - If making non‑trivial changes, mentally (or programmatically) validate JSON.
-
-   - **Versioning:** When you add or change a plugin, always bump its version:
-     - Update `plugins/<plugin>/.claude-plugin/plugin.json` with a new version
-       (use simple SemVer-style increments, e.g. `0.1.0` → `0.1.1`).
-     - Ensure the corresponding entry in `.claude-plugin/marketplace.json` uses
-       the **same** version string.
-     - For new plugins, start at `0.1.0` (or similar) and add a matching entry
-       in `marketplace.json`.
-
-   - **CLAUDE.md best practice:** Follow Claude Code's guidance for web-based
-     repos (see
-     `https://docs.claude.com/en/docs/claude-code/claude-code-on-the-web#best-practices`):
-     - Keep requirements and commands defined in a single source of truth
-       (`AGENTS.md` in this repo).
-     - In `CLAUDE.md`, **source** this file using `@AGENTS.md` instead of
-       duplicating content, and only add minimal extra notes if truly needed.
-
-3. **Keep Skills self‑contained and documented.**
-   - Each Skill should live at `plugins/<plugin-name>/skills/<skill-name>/SKILL.md`.
-   - SKILL docs should explain:
-     - When to use the Skill.
-     - Core priorities / taste.
-     - Output shape and severity tags.
-   - Avoid including secrets or customer‑specific confidential details in SKILL docs.
-   - For every Skill, add at least one corresponding **plugin slash command**
-     under `plugins/<plugin>/commands/*.md` that invokes the Skill (thin
-     wrapper that references the Skill by name). This ensures the plugin
-     appears as a `/plugin-name:command` entry in Claude Code's slash command
-     palette.
-   - After any substantive change to a Skill, command, or manifest, do a
-     fresh-eyes self-review of the changed files plus adjacent docs/metadata
-     and fix obvious issues before handing off.
-   - **SKILL.md size and progressive disclosure guardrail (CI-enforced):**
-     - Keep each changed `SKILL.md` at or below 500 lines.
-     - Keep `SKILL.md` focused on activation workflow, priorities, and output shape.
-     - Move long procedures/examples into `references/*.md`.
-     - Move reusable command logic into `scripts/`.
-     - Keep references one level deep where possible.
-     - Run `bash scripts/validate-skills.sh` locally after Skill edits.
-
-   - **SKILL.md YAML frontmatter:** Always quote string values in the YAML
-     frontmatter that contain special characters (colons, brackets, commas,
-     quotes). Unquoted strings with colons can cause YAML parsing errors:
-     ```yaml
-     # CORRECT - strings with special chars are quoted
-     ---
-     name: my-skill
-     description: "Use this when preparing releases, bumping versions, etc."
-     allowed-tools: Bash Read Edit Grep Glob
-     argument-hint: "[action] (e.g., create, publish)"
-     ---
-
-     # WRONG - unquoted strings with colons cause parse errors
-     ---
-     name: my-skill
-     description: Use this when preparing releases, bumping versions, etc.
-     argument-hint: [action] (e.g., "create", "publish")
-     ---
-     ```
-
-4. **Treat Python typing as a strict quality gate in code-touching skills.**
-   - Skills that edit or review Python code must define type-gate detection and
-     enforcement explicitly.
-   - Detection precedence should be:
-     - `ty` first, then `pyright`, then `mypy` (unless target repo docs/CI say
-       otherwise).
-   - If `ty` is configured in the target repo (`[tool.ty]`, `ty.toml`,
-     `.bin/ty`, or CI/pre-commit usage), treat it as mandatory and blocking.
-   - Do not document or encourage "baseline acceptable" behavior for touched
-     files.
-   - Prefer narrow, justified suppressions only when no better typing solution
-     exists; do not default to blanket `# noqa` or broad type-ignore patterns.
-   - Canonical marketplace policy reference:
-     - `docs/python-typing-and-ty-best-practices.md`
-   - In target codebases, also read local policy docs when present (for example
-     `docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`,
-     `AGENTS.md`).
-
-5. **Follow existing naming and structure.**
-   - New plugins should mirror the structure of `monty-code-review`:
-     - `plugins/<plugin>/`
-       - `.claude-plugin/plugin.json`
-       - `skills/<skill-name>/SKILL.md`
-   - Use `kebab-case` for plugin folder names where possible.
-
-6. **Do not modify application behavior here.**
-   - This repo should not contain Django/React/Terraform or other app logic.
-   - If a plugin needs to describe behavior in another repo, document it here but
-     change the actual code in that other repo.
-
-## Requirements & Commands
-
-- Dependencies:
-  - Claude Code installed locally.
-  - This repo (`agent-skills-marketplace`) cloned on your machine.
-
-- Once this repo is hosted at `github.com/DiversioTeam/agent-skills-marketplace`, add the
-  marketplace to Claude Code from any project:
-
-  ```bash
-  /plugin marketplace add DiversioTeam/agent-skills-marketplace
-  ```
-
-- Install the Monty backend code review plugin:
-
-  ```bash
-  /plugin install monty-code-review@diversiotech
-  ```
-
-- Install the backend atomic commit plugin:
-
-  ```bash
-  /plugin install backend-atomic-commit@diversiotech
-  ```
-
-- Install the backend PR workflow plugin:
-
-  ```bash
-  /plugin install backend-pr-workflow@diversiotech
-  ```
-
-- Install the Bruno API docs plugin:
-
-  ```bash
-  /plugin install bruno-api@diversiotech
-  ```
-
-- Install the code review digest writer plugin:
-
-  ```bash
-  /plugin install code-review-digest-writer@diversiotech
-  ```
-
-- Install the plan directory plugin:
-
-  ```bash
-  /plugin install plan-directory@diversiotech
-  ```
-
-- Install the PR description writer plugin:
-
-  ```bash
-  /plugin install pr-description-writer@diversiotech
-  ```
-
-- Install the code review processor plugin:
-
-  ```bash
-  /plugin install process-code-review@diversiotech
-  ```
-
-- Install the MixPanel analytics plugin:
-
-  ```bash
-  /plugin install mixpanel-analytics@diversiotech
-  ```
-
-- Install the ClickUp ticket plugin:
-
-  ```bash
-  /plugin install clickup-ticket@diversiotech
-  ```
-
-- Install the repo docs plugin:
-
-  ```bash
-  /plugin install repo-docs@diversiotech
-  ```
-
-- Install the visual explainer plugin:
-
-  ```bash
-  /plugin install visual-explainer@diversiotech
-  ```
-
-  If you already installed the upstream plugin, uninstall it first so the
-  marketplace entry is unambiguous:
-
-  ```bash
-  /plugin uninstall visual-explainer@visual-explainer-marketplace
-  ```
-
-- Install the backend release plugin:
-
-  ```bash
-  /plugin install backend-release@diversiotech
-  ```
-
-- Install the Dependabot remediation plugin:
-
-  ```bash
-  /plugin install dependabot-remediation@diversiotech
-  ```
-
-- Install the Terraform workflows plugin:
-
-  ```bash
-  /plugin install terraform@diversiotech
-  ```
-
-- Install the login CTA attribution plugin:
-
-  ```bash
-  /plugin install login-cta-attribution-skill@diversiotech
-  ```
-
-- **Uninstall all Diversio plugins** (Claude Code) to reinstall fresh:
-
-  First check what's installed: `/plugin list` (note `Scope:` field).
-
-  ```bash
-  # User scope (default) - run each line
-  /plugin uninstall monty-code-review@diversiotech
-  /plugin uninstall backend-atomic-commit@diversiotech
-  /plugin uninstall backend-pr-workflow@diversiotech
-  /plugin uninstall bruno-api@diversiotech
-  /plugin uninstall code-review-digest-writer@diversiotech
-  /plugin uninstall plan-directory@diversiotech
-  /plugin uninstall pr-description-writer@diversiotech
-  /plugin uninstall process-code-review@diversiotech
-  /plugin uninstall mixpanel-analytics@diversiotech
-  /plugin uninstall clickup-ticket@diversiotech
-  /plugin uninstall repo-docs@diversiotech
-  /plugin uninstall visual-explainer@diversiotech
-  /plugin uninstall backend-release@diversiotech
-  /plugin uninstall dependabot-remediation@diversiotech
-  /plugin uninstall terraform@diversiotech
-  /plugin uninstall login-cta-attribution-skill@diversiotech
-  ```
-
-  For project-scoped plugins, add `--scope project`:
-
-  ```bash
-  /plugin uninstall <plugin>@diversiotech --scope project
-  ```
-
-  **Troubleshooting:** If a plugin shows in list but "not found" on uninstall,
-  try the other scope. For stuck/disabled plugins, enable first then uninstall.
-  For manual cleanup, delete `.claude/` in project root or check `~/.config/claude/`.
-
-## Codex Skill Installer Notes (For LLMs)
-
-When a user asks how to install these Skills into OpenAI Codex (not Claude's
-marketplace), respond with instructions that avoid hardcoded paths:
-
-- Use the Skill Installer script that ships with Codex:
-  - `$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py`
-  - (with `CODEX_HOME` defaulting to `~/.codex`)
-- Prefer `--repo DiversioTeam/agent-skills-marketplace --path plugins/<plugin>/skills/<skill>`.
-- Mention `--ref <branch-or-tag>` for pinning and the need to restart Codex.
-- Avoid hardcoded absolute user paths like `/Users/<name>/...`.
-- If the user wants Codex-console commands, provide `$skill-installer` examples
-  that mirror the repo/path usage above.
-- If the user is replacing the upstream `visual-explainer` skill with this
-  repo's version, remind them to remove the existing
-  `$CODEX_HOME/skills/visual-explainer` directory first because the installer
-  does not overwrite existing skills.
-
-- **Uninstall all Diversio skills** (Codex) to reinstall fresh:
-
-  ```bash
-  # Uninstall all Diversio skills (safe: continues if skill doesn't exist)
-  CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-  rm -rf "$CODEX_HOME/skills/monty-code-review" \
-         "$CODEX_HOME/skills/backend-atomic-commit" \
-         "$CODEX_HOME/skills/backend-pr-workflow" \
-         "$CODEX_HOME/skills/bruno-api" \
-         "$CODEX_HOME/skills/code-review-digest-writer" \
-         "$CODEX_HOME/skills/plan-directory" \
-         "$CODEX_HOME/skills/backend-ralph-plan" \
-         "$CODEX_HOME/skills/pr-description-writer" \
-         "$CODEX_HOME/skills/process-code-review" \
-         "$CODEX_HOME/skills/mixpanel-analytics" \
-         "$CODEX_HOME/skills/clickup-ticket" \
-         "$CODEX_HOME/skills/repo-docs-generator" \
-         "$CODEX_HOME/skills/visual-explainer" \
-         "$CODEX_HOME/skills/release-manager" \
-         "$CODEX_HOME/skills/dependabot-remediation" \
-         "$CODEX_HOME/skills/terraform-atomic-commit" \
-         "$CODEX_HOME/skills/terraform-pr-workflow" \
-         "$CODEX_HOME/skills/login-cta-attribution-skill"
-  ```
-
-  After removing, restart Codex and reinstall using the Skill Installer.
-
-## Usage Notes for Humans
-
-- After installation, you can use:
-  - `monty-code-review` for hyper‑pedantic Django4Lyfe backend reviews.
-  - `backend-atomic-commit` for backend pre-commit fixes and strict atomic
-     commits that obey local `AGENTS.md`, `.pre-commit-config.yaml`,
-     `.security/*` helpers, and Monty's backend taste (no AI commit
-     signatures). Includes `/backend-atomic-commit:commit` for full
-     run→fix→commit closure with convergence budgets and stuck detection.
-  - `backend-pr-workflow` for backend PR workflow checks (ClickUp-linked
-    branch/PR naming, migrations, downtime-safe schema changes).
-  - `bruno-api` to generate API endpoint documentation from Bruno (`.bru`)
-    files by tracing the corresponding Django4Lyfe implementation.
-  - `code-review-digest-writer` to generate weekly code review digests for a
-    repo based on PR review comments.
-  - `plan-directory` to create and maintain structured plan directories with
-    a master PLAN.md index and numbered task files (001-*.md) containing
-    checklists, tests, and completion criteria.
-  - `backend-ralph-plan` to create RALPH loop-integrated plans for backend
-    Django projects with iteration-aware prompts, quality gates, and
-    automated execution via `/plan-directory:run <slug>`.
-  - `pr-description-writer` to generate comprehensive, reviewer-friendly PR
-    descriptions with visual diagrams, summary tables, and structured sections.
-  - `process-code-review` to interactively process code review findings from
-    monty-code-review output - fix or skip issues with status tracking.
-  - `mixpanel-analytics` to implement new MixPanel tracking events and review
-    implementations for PII protection, schema design, and pattern compliance
-    in the Django4Lyfe optimo_analytics module.
-  - `clickup-ticket` to fetch, filter, and create ClickUp tickets directly from
-    Claude Code or Codex. Supports reading tickets by ID, powerful filtering
-    (status, assignee, tags, dates), viewing assigned tickets, multi-org
-    workspaces, subtasks, and intelligent caching of workspace data. Commands:
-    - `/clickup-ticket:get-ticket <id>` – Fetch full ticket details by ID or URL
-    - `/clickup-ticket:list-tickets` – List/filter tickets (status, assignee, tags, dates)
-    - `/clickup-ticket:my-tickets` – View your assigned tickets grouped by urgency
-    - `/clickup-ticket:create-ticket` – Full interactive ticket creation
-    - `/clickup-ticket:quick-ticket` – Fast ticket with defaults
-    - `/clickup-ticket:add-to-backlog` – Ultra-fast backlog addition
-    - `/clickup-ticket:create-subtask` – Add subtask to existing ticket
-    - `/clickup-ticket:switch-org` – Switch between organizations
-    - `/clickup-ticket:configure` – Set up defaults and cache
-  - `repo-docs` to generate and canonicalize repository harness documentation. Commands:
-    - `/repo-docs:generate [path]` – Generate repository harness docs: a short
-      AGENTS.md map, README.md, CLAUDE.md stub, and focused repo-local docs.
-    - `/repo-docs:canonicalize [path]` – Audit existing docs across a repo:
-      trim bloated AGENTS.md files, move deep detail into topic docs, and
-      normalize all CLAUDE.md files to minimal `@AGENTS.md` stubs.
-  - `visual-explainer` to generate presentation-ready HTML explainers for plans,
-    diffs, docs, architecture, audits, and stakeholder updates. It gathers
-    missing audience/goal/source context interactively, separates confirmed
-    facts from inference, and writes a shareable HTML page to
-    `~/.agent/diagrams/`. Command:
-    - `/visual-explainer:explain [topic]` – Create the default visual explainer
-      flow with optional technical mode, Markdown summary, reply draft, or
-      slides.
-  - `backend-release` to manage the full release workflow for Django4Lyfe backend
-    (Diversio monolith). Handles release PRs, date-based version bumping
-    (YYYY.MM.DD), uv lock updates, and GitHub release publishing. Commands:
-    - `/backend-release:check` – Check what commits are pending release
-    - `/backend-release:create` – Create release PR with merge method
-    - `/backend-release:publish [PR_NUMBER]` – Publish GitHub release after PR merge
-  - `dependabot-remediation` to plan and execute unified backend/frontend
-    Dependabot remediation workflows, including `.github/dependabot.yml`
-    review/scaffold, clear wave boundaries, and closure verification. Commands:
-    - `/dependabot-remediation:backend [triage|execute-wave <N>|release]` – Backend remediation lane (backend-scoped inventory)
-    - `/dependabot-remediation:frontend [triage|execute|release]` – Frontend remediation lane
-  - `terraform-atomic-commit` for Terraform/Terragrunt pre-commit fixes and strict
-    atomic commits (fmt/validate/docs drift; no apply; no AI commit signatures). Commands:
-    - `/terraform:pre-commit` – Fix and validate changed IaC files
-    - `/terraform:atomic-commit` – Enforce staged atomicity + propose commit message
-  - `terraform-pr-workflow` for Terraform/Terragrunt PR workflow checks (naming,
-    PR hygiene, read-only CI gates, versioning expectations). Command:
-    - `/terraform:check-pr` – Review PR workflow quality
-  - `login-cta-attribution-skill` to implement new CTA login attribution sources
-    for the Django4Lyfe backend. Guides adding new CTA sources (Slack, Teams,
-    Email) with proper enum registration, allowlist updates, button/tab
-    attribution, URL generation, and tests. Command:
-    - `/login-cta-attribution-skill:implement` – Add a new CTA source with full attribution
-
-## References
-
-- [Agent Skills Standard](https://agentskills.io/specification)
-- [Agent Skills Best Practices](https://agentskills.io/best-practices)
-- [Claude Agent Skills Best Practices](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices)
-- [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
-- [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
-- [Harness engineering: leveraging Codex in an agent-first world](https://openai.com/index/harness-engineering/)
-- [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
-- [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
-- [Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
-- [Agent Skills](https://code.claude.com/docs/en/skills)
+# AGENTS.md
+
+## What This Repo Is
+
+This repo is Diversio's configuration-only marketplace for reusable Agent
+Skills and Claude Code plugins. The source of truth is the marketplace
+metadata, per-plugin manifests, skill docs, slash-command wrappers, and the
+repo-local docs that explain how they fit together.
+
+Do not add application behavior here. Keep changes scoped to docs, manifests,
+skills, commands, and supporting validation scripts.
+
+## How To Navigate This Repo
+
+- Start here for repo-wide rules, verified commands, and doc routing.
+- Read `docs/architecture/overview.md` for the marketplace layout, boundaries,
+  and change flow.
+- Read `docs/quality/gates.md` for CI checks, manifest-sync rules, and the
+  `SKILL.md` size guardrail.
+- Read `docs/runbooks/distribution.md` for Claude Code and Codex install,
+  uninstall, and reinstall workflows.
+- Read `docs/plugins/catalog.md` for the plugin inventory, skill paths, and
+  slash commands.
+- Read `docs/python-typing-and-ty-best-practices.md` when editing a
+  code-touching Python skill.
+- Read `CONTRIBUTING.md` when adding a plugin or reshaping a skill.
+
+## Commands
+
+```bash
+bash scripts/validate-skills.sh
+bash scripts/validate-skills.sh --all
+jq -e . .claude-plugin/marketplace.json >/dev/null
+jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
+git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin plugins
+```
+
+## Non-Negotiable Rules
+
+- Treat this as configuration, not application code.
+- Keep JSON valid and minimal. When a plugin changes, bump the version in both
+  `plugins/<plugin>/.claude-plugin/plugin.json` and the matching entry in
+  `.claude-plugin/marketplace.json`.
+- Every skill must live under `plugins/<plugin>/skills/<skill>/SKILL.md` and
+  have at least one thin wrapper in `plugins/<plugin>/commands/*.md`.
+- Keep each changed `SKILL.md` at or below 500 lines. Move deep guidance to
+  `references/` and reusable logic to `scripts/`.
+- Quote YAML frontmatter strings that contain special characters such as
+  colons, commas, brackets, or quotes.
+- `CLAUDE.md` is a minimal `@AGENTS.md` pointer only. Put durable rules here or
+  in repo-local docs, not in `CLAUDE.md`.
+- `README.md` is still a maintained engineer-facing document. When plugin
+  inventory, install flows, slash-command examples, or the top-level repo shape
+  change, update `README.md` as well as the focused docs.
+- For Python code-touching skills, document type-gate detection in this order:
+  `ty`, then `pyright`, then `mypy`. If `ty` is configured in the target repo,
+  treat it as mandatory and blocking.
+- When documenting Codex installation, use the `$CODEX_HOME`-based installer
+  pattern from `docs/runbooks/distribution.md`; avoid hardcoded user paths and
+  mention `--ref`, restart requirements, and the `visual-explainer`
+  replacement caveat.
+- After substantive skill, command, manifest, or doc changes, do a fresh-eyes
+  pass across adjacent docs and metadata before stopping.
+
+## Repo Shape
+
+- `.claude-plugin/marketplace.json` - top-level marketplace definition
+- `plugins/<plugin>/.claude-plugin/plugin.json` - per-plugin manifest
+- `plugins/<plugin>/skills/<skill>/SKILL.md` - skill definition
+- `plugins/<plugin>/commands/*.md` - slash-command wrappers
+- `scripts/validate-skills.sh` - local and CI `SKILL.md` size budget check
+- `.github/workflows/validate-marketplace.yml` - JSON, version, and structure CI
+- `.github/workflows/notify-plugin-updates.yml` - Slack notification on plugin
+  changes pushed to `main`
+
+## Docs Index
+
+- `README.md` - human-first quickstart and entrypoint
+- `docs/architecture/overview.md` - structure, ownership boundaries, and flows
+- `docs/quality/gates.md` - validation, CI coverage, and recurring failure modes
+- `docs/runbooks/distribution.md` - Claude Code and Codex install workflows
+- `docs/plugins/catalog.md` - plugin inventory, commands, and skill paths
+- `docs/python-typing-and-ty-best-practices.md` - policy for code-touching
+  Python skills
+- `CONTRIBUTING.md` - how to add or update plugins safely
+
+## Keep The Harness Fresh
+
+- If a failure repeats, encode it in docs, scripts, or CI instead of letting it
+  remain tribal knowledge.
+- If install or distribution behavior changes, update
+  `docs/runbooks/distribution.md` and any top-level pointers that reference it.
+- If the plugin inventory or command surface changes, update both
+  `docs/plugins/catalog.md` and `README.md`. Keep the catalog as the structured
+  inventory and keep `README.md` accurate for engineers who use it as the main
+  handbook.
+- Add focused docs under `docs/` instead of turning this file back into a
+  handbook.
