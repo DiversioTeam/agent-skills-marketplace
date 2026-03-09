@@ -22,10 +22,11 @@ using the canonical selector script:
 ```bash
 # Build file set — use .bin/pytest-file-selector (single source of truth).
 # Default: changed-files-only.  Use --all for full-repo scan.
+# Use --base <ref> to override base branch (strict, no fallback).
 PYTEST_FILES=()
 while IFS= read -r f; do
   [[ -n "$f" ]] && PYTEST_FILES+=("$f")
-done < <(.bin/pytest-file-selector)
+done < <(.bin/pytest-file-selector)          # or: --all, --base origin/main
 [[ ${#PYTEST_FILES[@]} -eq 0 ]] && echo "No pytest files in scope" && exit 0
 ```
 
