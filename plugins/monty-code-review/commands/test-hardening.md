@@ -8,8 +8,7 @@ Scope and execution rules:
 - Use `.bin/pytest-file-selector` as the single source of truth for file selection.
   - Default (no args): changed-files-only scope (branch diff + staged + unstaged + untracked).
   - `--all`: full-repo scan (opt-in only).
-  - `--base <ref>`: override base branch for changed-files diff (strict — exits 1 if ref is invalid).
-  - `BASE_BRANCH` env var: fallback base override (tries `origin/HEAD` before failing).
+  - `--base <ref>`: override base branch (strict — exits 1 if ref is invalid).
   - Exit 1 on unresolvable base or branch-diff failure (fail-closed).
 - If the script outputs zero files, return out-of-scope and stop.
 - Do NOT build your own file list — always delegate to this script.
