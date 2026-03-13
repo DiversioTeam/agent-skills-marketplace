@@ -20,14 +20,14 @@
     },
     {
       "name": "monty-code-review",
-      "description": "Hyper-pedantic Django4Lyfe backend code review Skill with correctness-first, harness-aware findings (Monty's taste).",
-      "version": "1.2.4",
+      "description": "Hyper-pedantic Django4Lyfe backend code review Skill with correctness-first, harness-aware findings (Monty's taste), including a pytest test-hardening lane.",
+      "version": "1.2.5",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/monty-code-review",
       "category": "code-analysis",
-      "keywords": ["django", "backend", "code-review", "optimo", "diversio"]
+      "keywords": ["django", "backend", "code-review", "pytest", "tests", "optimo", "diversio"]
     },
     {
       "name": "backend-pr-workflow",

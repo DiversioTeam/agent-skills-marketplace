@@ -6,6 +6,10 @@ Use your `monty-code-review` Skill to perform a full backend Django code review
 of the current change (PR, diff, or working tree), following the workflow,
 severity tags, and checklists defined in its SKILL.md.
 
+If changed files include pytest tests (`test_*.py`, `*_test.py`, `tests/**/*.py`, `conftest.py`),
+also run the Skill's pytest test-hardening lane and apply dangerous-pattern checks
+from `skills/monty-code-review/references/pytest-dangerous-patterns.md`.
+
 Focus order:
 1. Correctness, multi-tenancy, security, and data integrity.
 2. API and contract changes (including migrations / schema changes).

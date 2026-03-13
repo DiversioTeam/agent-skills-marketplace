@@ -10,7 +10,8 @@ when command files change.
   - Purpose: hyper-pedantic Django4Lyfe backend code review.
   - Claude install: `claude plugin install monty-code-review@diversiotech`
   - Skill path: `plugins/monty-code-review/skills/monty-code-review`
-  - Slash commands: `/monty-code-review:code-review`
+  - Slash commands: `/monty-code-review:code-review`,
+    `/monty-code-review:test-hardening`
 - `backend-atomic-commit`
   - Purpose: backend pre-commit fixes and strict atomic commits.
   - Claude install: `claude plugin install backend-atomic-commit@diversiotech`
