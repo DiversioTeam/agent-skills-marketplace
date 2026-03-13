@@ -214,7 +214,7 @@ agent-skills-marketplace/
 
 | Plugin | Description |
 |--------|-------------|
-| `monty-code-review` | Hyper-pedantic Django backend code review Skill with a built-in pytest test-hardening lane |
+| `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and Monty's backend taste (no AI commit signatures) |
 | `backend-pr-workflow` | Backend PR workflow Skill that enforces ClickUp-linked branch/PR naming, safe migrations, and downtime-safe schema changes |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |

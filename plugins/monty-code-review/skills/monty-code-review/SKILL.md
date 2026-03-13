@@ -113,9 +113,12 @@ When this skill is active and you are asked to review a change or diff, follow t
 ## Pytest Test-Hardening Lane
 
 Use this lane when changed files include pytest tests (`test_*.py`, `*_test.py`,
-`tests/**/*.py`) or when the user asks for pytest hardening.
+`tests/**/*.py`, `conftest.py`) or when the user asks for pytest hardening.
 
 Lane contract:
+- First, verify `.bin/pytest-file-selector` exists in the target repo.
+  If it does not, stop and tell the user the repo has not adopted the pytest
+  hardening lane yet.
 - Use `.bin/pytest-file-selector` to build the file set (single source of truth).
   - Default (no args): changed-files-only (branch diff + staged + unstaged + untracked).
   - `--all` flag: full-repo scan (opt-in only).

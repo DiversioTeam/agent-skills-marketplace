@@ -5,6 +5,9 @@ description: Pytest-only hardening lane using monty-code-review (dangerous test 
 Use your `monty-code-review` Skill in **pytest test-hardening lane**.
 
 Scope and execution rules:
+- First, verify `.bin/pytest-file-selector` exists in the target repo.
+  - If it does not, stop and tell the user: "This repository has not adopted the
+    pytest hardening lane (`.bin/pytest-file-selector` not found)."
 - Use `.bin/pytest-file-selector` as the single source of truth for file selection.
   - Default (no args): changed-files-only scope (branch diff + staged + unstaged + untracked).
   - `--all`: full-repo scan (opt-in only).
