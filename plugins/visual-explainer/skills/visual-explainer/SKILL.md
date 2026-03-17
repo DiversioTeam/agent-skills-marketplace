@@ -1,6 +1,6 @@
 ---
 name: visual-explainer
-description: "Generate self-contained, presentation-ready HTML explainers for plans, diffs, docs, architecture, audits, and stakeholder updates. Use when the user wants a visual explainer, diagram, comparison, roadmap, mixed technical/non-technical summary, or an HTML alternative to a complex ASCII table. Gather missing audience/goal/source context interactively, separate confirmed facts from inference, save under ~/.agent/diagrams/, and open in the browser."
+description: "Generate self-contained, presentation-ready HTML explainers for plans, diffs, docs, architecture, audits, and stakeholder updates. Use when the user wants a visual explainer, diagram, comparison, roadmap, mixed technical/non-technical summary, or an HTML alternative to a complex ASCII table. Gather missing audience/goal/source context interactively, separate confirmed facts from inference, save under ~/.agent/diagrams/, and optionally publish a fresh Netlify preview site."
 allowed-tools: Bash Read Write Grep Glob
 ---
 
@@ -19,6 +19,21 @@ This skill is optimized for mixed audiences by default:
 If the user explicitly asks for a deeper technical explainer, include more code
 and implementation detail. Otherwise, keep the page accessible and
 presentation-ready.
+
+## Prerequisites
+
+- Local HTML generation needs no extra setup.
+- Publish mode is opt-in and requires environment variables, not hardcoded
+  secrets.
+- The publish helper reads secrets from the current runtime environment. It does
+  not read `~/.zshrc` or other shell startup files directly.
+- Store only env-var names in `~/.config/visual-explainer/global.json`.
+- Create `~/.agent/diagrams/` and `~/.config/visual-explainer/` if they are
+  missing.
+- When publish mode is requested, read:
+  - `references/netlify-publishing.md`
+  - `references/config-layout.md`
+  - `references/error-handling.md`
 
 ## Core Rules
 
@@ -49,12 +64,34 @@ presentation-ready.
    - Avoid file paths, code references, and test commands in stakeholder mode.
    - Use direct current-state wording only when the evidence supports it.
 
-5. Deliver a shareable artifact
-   - Write the final HTML to `~/.agent/diagrams/` with a descriptive filename.
-   - Attempt to open it in the browser.
-   - Tell the user the file path.
+5. Keep secrets out of repo content
+   - Never store literal Netlify tokens in repo files, prompt files, receipts,
+     or committed JSON.
+   - Resolve real secret values from environment variables at runtime only.
+   - Config files may store env-var names such as
+     `NETLIFY_VISUAL_EXPLAINER_TOKEN`, never the token itself.
+
+6. Deliver a shareable artifact
+   - Always write the final HTML to `~/.agent/diagrams/` with a descriptive
+     filename.
+   - Attempt to open the local HTML in the browser.
+   - Tell the user the local file path.
    - If useful or explicitly requested, also write a Markdown summary to
      `~/Downloads/`.
+   - If publish mode is explicitly requested, publish the local HTML after it is
+     written and return the deploy URL as well.
+
+7. Keep publish mode explicit
+   - Publish only when the user explicitly asks to publish or the wrapper passes
+     `--publish`.
+   - Use a fresh Netlify preview site for every publish. Do not reuse sites.
+   - Verify the required `NETLIFY_VISUAL_EXPLAINER_*` variables are available in
+     the current process before running the publish helper.
+   - If the user just added or changed shell exports, tell them to restart
+     the current tool session or retry from a shell session that actually
+     inherited those exports.
+   - If publishing fails, preserve the local HTML and report the actionable
+     error.
 
 ## Intake Protocol
 
@@ -71,6 +108,8 @@ Follow this order:
    - include Markdown summary
    - include reply draft
    - slide deck instead of scrollable page
+   - publish the explainer
+   - open the deployed URL after publish
 4. If source material is referenced but not yet read, read it before making
    structural decisions.
 
@@ -95,6 +134,11 @@ For layout, styling, and reusable UI patterns, read:
 - `references/css-patterns.md`
 - `references/libraries.md`
 - `references/responsive-nav.md` for pages with 4+ sections
+
+If publish mode is requested, also read:
+- `references/netlify-publishing.md`
+- `references/config-layout.md`
+- `references/error-handling.md`
 
 For reference templates, read only the relevant files:
 - text-heavy architecture overviews:
@@ -137,6 +181,32 @@ Unless the user asks for a different structure, the HTML should usually include:
 
 Use 2-5 concrete examples where they improve clarity.
 
+## Publish Mode
+
+Publish mode is opt-in.
+
+Use it only when:
+- the user explicitly asks for a hosted preview
+- the wrapper includes `--publish`
+
+When publish mode is enabled:
+- always write the local HTML first
+- ensure `~/.config/visual-explainer/` exists
+- bootstrap `global.json` with env-var names only if it does not exist yet
+- verify the required environment variables are visible to the current runtime
+  before invoking the helper script
+- run `scripts/publish_netlify_preview.py` against the generated HTML
+- pass `--open-url` only when the user asked to open the deploy URL
+- return:
+  - local HTML path
+  - deploy URL
+  - publish receipt path
+  - any important unverified points
+
+When publish mode is disabled:
+- local HTML delivery remains the default
+- manual Netlify Drop remains an optional suggestion only
+
 ## Slide Deck Mode
 
 Slides are opt-in only.
@@ -152,14 +222,14 @@ When slide mode is requested:
 
 ## Final Step
 
-After delivering the HTML path, suggest this optional share-out step when it is
-useful:
+After delivery:
 
-- Post the HTML on Netlify Drop for team review.
-- If site access controls are configured in Netlify, share the URL and password
-  with the team.
+- if publish mode was used, report the deploy URL and receipt path
+- if publish mode was not used and sharing would help, you may suggest Netlify
+  Drop as a manual option
 
-Do not imply that Netlify Drop itself is password-protected by default.
+Do not imply that Netlify Drop itself is password-protected by default, and do
+not suggest it as though it replaced automated publish mode.
 
 ## References
 
@@ -173,5 +243,11 @@ Do not imply that Netlify Drop itself is password-protected by default.
   - section navigation for multi-section pages
 - `references/slide-patterns.md`
   - slide-specific layout guidance when slide mode is explicitly requested
+- `references/netlify-publishing.md`
+  - publish contract, env vars, Netlify API flow, and helper-script usage
+- `references/config-layout.md`
+  - local config bootstrap, `global.json`, and publish receipt shape
+- `references/error-handling.md`
+  - actionable publish and auth errors for Netlify mode
 - `references/provenance.md`
   - upstream attribution and MIT notice for copied/adapted assets

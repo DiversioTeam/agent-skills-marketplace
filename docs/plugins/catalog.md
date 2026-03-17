@@ -89,7 +89,7 @@ when command files change.
   - Slash commands: `/repo-docs:generate`, `/repo-docs:canonicalize`
 - `visual-explainer`
   - Purpose: presentation-ready HTML explainers for plans, diffs, diagrams,
-    and stakeholder updates.
+    and stakeholder updates, with optional fresh Netlify preview publishing.
   - Claude install: `claude plugin install visual-explainer@diversiotech`
   - Skill path: `plugins/visual-explainer/skills/visual-explainer`
   - Slash commands: `/visual-explainer:explain`

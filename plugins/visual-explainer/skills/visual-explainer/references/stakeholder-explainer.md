@@ -27,7 +27,14 @@ Use this order:
    - confirmed facts
    - inferred points
    - items needing external verification
-4. Choose the lowest-complexity page shape that still explains the topic well.
+4. Collect optional preferences only when they materially affect delivery:
+   - technical vs mixed-audience depth
+   - Markdown summary
+   - reply draft
+   - slide deck
+   - publish after local generation
+   - open the deploy URL after publish
+5. Choose the lowest-complexity page shape that still explains the topic well.
 
 ## Default Content Shape
 
@@ -139,8 +146,17 @@ Tell the user:
 - the final file path
 - whether a Markdown summary was also written
 - any important unverified points
+- if publish mode was used, the deploy URL and publish receipt path
 
-If appropriate, end with this optional suggestion:
+If publish mode was requested:
+
+- publish only after the local HTML exists
+- use a fresh Netlify preview site for this run
+- keep secrets in env vars only
+- preserve the local HTML even if the publish fails
+
+If publish mode was not requested and sharing would help, you may end with this
+optional suggestion:
 
 - Post it on Netlify Drop and, if site access controls are configured, share the
   link and password with the team.

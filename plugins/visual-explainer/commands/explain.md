@@ -1,6 +1,6 @@
 ---
 description: Create a presentation-ready HTML visual explainer for a plan, diff, doc, architecture, audit, or stakeholder update.
-argument-hint: "[topic] [--audience <type>] [--goal <goal>] [--technical] [--summary] [--reply-draft] [--slides]"
+argument-hint: "[topic] [--audience <type>] [--goal <goal>] [--technical] [--summary] [--reply-draft] [--slides] [--publish] [--open-url]"
 ---
 
 Use your `visual-explainer` Skill in the default stakeholder explainer mode.
@@ -21,7 +21,14 @@ Workflow:
    references and templates.
 5. Save it under `~/.agent/diagrams/` with a clear filename and try to open it
    in the browser.
-6. Tell the user the HTML path and call out any important unverified points.
+6. If `--publish` is present or the user explicitly wants a hosted preview,
+   first verify the required `NETLIFY_VISUAL_EXPLAINER_*` variables are visible
+   to the current runtime. If they were just added to shell startup files, tell
+   the user to restart the current tool session before retrying.
+7. If `--publish` is present or the user explicitly wants a hosted preview,
+   publish the generated HTML with the Netlify helper script and return the
+   deploy URL plus receipt path.
+8. Tell the user the HTML path and call out any important unverified points.
 
 Optional behavior:
 
@@ -31,8 +38,10 @@ Optional behavior:
 - `--reply-draft`: include a reply draft section for customer, IT, security, or
   leadership audiences.
 - `--slides`: use slide mode instead of a scrollable page.
+- `--publish`: create a fresh Netlify preview site for this explainer after the
+  local HTML is written.
+- `--open-url`: open the Netlify deploy URL after publish.
 
-At the end, suggest the optional share-out step:
-- post the HTML on Netlify Drop
-- if site access controls are configured, share the link and password with the
-  team
+At the end:
+- if the explainer was published, return the deploy URL and receipt path
+- if it was not published and sharing would help, you may suggest Netlify Drop
