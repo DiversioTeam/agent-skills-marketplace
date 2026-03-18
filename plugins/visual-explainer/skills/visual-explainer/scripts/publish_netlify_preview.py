@@ -244,20 +244,58 @@ def validate_config_shape(config: Any) -> None:
                 f"`{section_name}` must be a JSON object in {GLOBAL_CONFIG_PATH}.",
             )
 
+    netlify = config.get("netlify", {})
+    for field_name in (
+        "token_env_var",
+        "account_slug_env_var",
+        "site_prefix_env_var",
+        "open_browser_env_var",
+    ):
+        field_value = netlify.get(field_name)
+        if field_value is None:
+            continue
+        if not isinstance(field_value, str) or not field_value.strip():
+            raise PublishError(
+                "The visual-explainer publish config is invalid.\n\n"
+                f"`netlify.{field_name}` must be a non-empty string in {GLOBAL_CONFIG_PATH}.",
+            )
+
+    preferences = config.get("preferences", {})
+    open_after_publish = preferences.get("open_after_publish")
+    if open_after_publish is not None and not isinstance(open_after_publish, bool):
+        raise PublishError(
+            "The visual-explainer publish config is invalid.\n\n"
+            f"`preferences.open_after_publish` must be a JSON boolean in {GLOBAL_CONFIG_PATH}.",
+        )
+
 
 def resolve_runtime_settings(config: dict[str, Any], force_open: bool) -> RuntimeSettings:
     netlify = config.get("netlify", {})
     preferences = config.get("preferences", {})
 
-    token_env_var = str(netlify.get("token_env_var", "NETLIFY_VISUAL_EXPLAINER_TOKEN"))
-    account_slug_env_var = str(
-        netlify.get("account_slug_env_var", "NETLIFY_VISUAL_EXPLAINER_ACCOUNT_SLUG"),
+    token_env_var = get_optional_string(
+        netlify,
+        "token_env_var",
+        default="NETLIFY_VISUAL_EXPLAINER_TOKEN",
+        section_name="netlify",
     )
-    site_prefix_env_var = str(
-        netlify.get("site_prefix_env_var", "NETLIFY_VISUAL_EXPLAINER_SITE_PREFIX"),
+    account_slug_env_var = get_optional_string(
+        netlify,
+        "account_slug_env_var",
+        default="NETLIFY_VISUAL_EXPLAINER_ACCOUNT_SLUG",
+        section_name="netlify",
     )
-    open_browser_env_var = str(
-        netlify.get("open_browser_env_var", "NETLIFY_VISUAL_EXPLAINER_OPEN_BROWSER"),
+    site_prefix_env_var = get_optional_string(
+        netlify,
+        "site_prefix_env_var",
+        default="NETLIFY_VISUAL_EXPLAINER_SITE_PREFIX",
+        section_name="netlify",
+    )
+    open_browser_env_var = get_optional_string(
+        netlify,
+        "open_browser_env_var",
+        default="NETLIFY_VISUAL_EXPLAINER_OPEN_BROWSER",
+        section_name="netlify",
     )
 
     token = os.environ.get(token_env_var, "").strip()
@@ -280,7 +318,12 @@ def resolve_runtime_settings(config: dict[str, Any], force_open: bool) -> Runtim
     if not site_prefix:
         site_prefix = "visual-explainer"
 
-    open_after_publish = bool(preferences.get("open_after_publish", False))
+    open_after_publish = get_optional_bool(
+        preferences,
+        "open_after_publish",
+        default=False,
+        section_name="preferences",
+    )
     if open_browser_env_var in os.environ:
         open_after_publish = parse_bool(os.environ[open_browser_env_var])
     if force_open:
@@ -296,6 +339,42 @@ def resolve_runtime_settings(config: dict[str, Any], force_open: bool) -> Runtim
 
 def parse_bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def get_optional_string(
+    section: dict[str, Any],
+    field_name: str,
+    *,
+    default: str,
+    section_name: str,
+) -> str:
+    field_value = section.get(field_name)
+    if field_value is None:
+        return default
+    if not isinstance(field_value, str) or not field_value.strip():
+        raise PublishError(
+            "The visual-explainer publish config is invalid.\n\n"
+            f"`{section_name}.{field_name}` must be a non-empty string in {GLOBAL_CONFIG_PATH}.",
+        )
+    return field_value.strip()
+
+
+def get_optional_bool(
+    section: dict[str, Any],
+    field_name: str,
+    *,
+    default: bool,
+    section_name: str,
+) -> bool:
+    field_value = section.get(field_name)
+    if field_value is None:
+        return default
+    if not isinstance(field_value, bool):
+        raise PublishError(
+            "The visual-explainer publish config is invalid.\n\n"
+            f"`{section_name}.{field_name}` must be a JSON boolean in {GLOBAL_CONFIG_PATH}.",
+        )
+    return field_value
 
 
 def build_site_name(site_prefix: str) -> str:
