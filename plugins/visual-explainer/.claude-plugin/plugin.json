@@ -1,7 +1,7 @@
 {
   "name": "visual-explainer",
-  "version": "0.1.0",
-  "description": "Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake and explicit fact-vs-inference separation.",
+  "version": "0.2.0",
+  "description": "Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing.",
   "author": {
     "name": "Diversio Devs"
   }

@@ -171,6 +171,7 @@ agent-skills-marketplace/
 │   │   ├── skills/visual-explainer/
 │   │   │   ├── SKILL.md
 │   │   │   ├── references/           # Stakeholder mode, layout, diagram, and slide guidance
+│   │   │   ├── scripts/              # Optional publish helpers for hosted previews
 │   │   │   └── templates/            # Reference HTML templates
 │   │   └── commands/explain.md
 │   ├── backend-release/               # Django4Lyfe release workflow
@@ -225,7 +226,7 @@ agent-skills-marketplace/
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
-| `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake and explicit fact-vs-inference separation |
+| `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
@@ -348,6 +349,7 @@ Once plugins are installed:
    /repo-docs:generate                       # Generate harness docs (AGENTS map + README + CLAUDE + focused docs)
    /repo-docs:canonicalize                   # Audit and fix existing docs (trim AGENTS, normalize CLAUDE, add topic docs)
    /visual-explainer:explain                 # Create a presentation-ready HTML explainer with interactive intake
+   /visual-explainer:explain "Auth rollout" --publish --open-url  # Publish a fresh Netlify preview and open it
    /backend-release:check                    # Check what commits are pending release
    /backend-release:create                   # Create release PR with merge method
    /backend-release:publish                  # Publish GitHub release after PR merge
