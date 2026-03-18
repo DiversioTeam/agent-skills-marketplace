@@ -105,9 +105,10 @@ Authorization: Bearer <token>
 13. Prefer the canonical site alias URL (`site.ssl_url` / `site.url`) over
     deploy-specific permalinks when choosing the final URL, and avoid hostnames
     with DNS labels longer than 63 characters.
-14. Write a publish receipt under
+14. Verify the deployed page is served as `text/html; charset=UTF-8`.
+15. Write a publish receipt under
     `~/.config/visual-explainer/publish-history/`.
-15. Return the deploy URL, local HTML path, and receipt path.
+16. Return the deploy URL, local HTML path, and receipt path.
 
 ## Success Criteria
 
@@ -118,7 +119,7 @@ A publish is successful only when all of these are true:
 - the deploy reaches `ready`
 - a DNS-safe deploy URL is returned
 - the published page is served with `Content-Type: text/html; charset=UTF-8`
-- a publish receipt is written unless local preferences disabled it
+- a publish receipt is written
 
 ## Output Expectations
 

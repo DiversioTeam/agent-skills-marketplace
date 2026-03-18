@@ -43,8 +43,7 @@ Recommended shape:
     "open_browser_env_var": "NETLIFY_VISUAL_EXPLAINER_OPEN_BROWSER"
   },
   "preferences": {
-    "open_after_publish": false,
-    "write_publish_receipt": true
+    "open_after_publish": false
   }
 }
 ```

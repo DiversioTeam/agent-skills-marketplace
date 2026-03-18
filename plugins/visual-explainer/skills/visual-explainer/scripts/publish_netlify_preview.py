@@ -38,7 +38,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "preferences": {
         "open_after_publish": False,
-        "write_publish_receipt": True,
     },
 }
 
@@ -62,7 +61,6 @@ class RuntimeSettings:
     account_slug: str
     site_prefix: str
     open_after_publish: bool
-    write_publish_receipt: bool
 
 
 def parse_args() -> argparse.Namespace:
@@ -146,6 +144,7 @@ def main() -> int:
             poll_interval_seconds=args.poll_interval_seconds,
         )
         deploy_url = select_deploy_url(site_name=site_name, site=site, deploy=final_deploy)
+        verify_deploy_content_type(deploy_url)
         state = final_deploy.get("state", "ready")
         if state != "ready":
             raise PublishError(
@@ -157,9 +156,8 @@ def main() -> int:
         receipt["deploy_url"] = deploy_url
         receipt["state"] = state
 
-        if settings.write_publish_receipt:
-            receipt_path = write_receipt(receipt, receipt_stamp)
-            receipt["receipt_path"] = str(receipt_path)
+        receipt_path = write_receipt(receipt, receipt_stamp)
+        receipt["receipt_path"] = str(receipt_path)
 
         if settings.open_after_publish and deploy_url:
             open_in_browser(deploy_url)
@@ -169,9 +167,8 @@ def main() -> int:
     except PublishError as error:
         receipt["state"] = "error"
         receipt["error_message"] = str(error)
-        if should_write_failure_receipt():
-            receipt_path = write_receipt(receipt, receipt_stamp)
-            receipt["receipt_path"] = str(receipt_path)
+        receipt_path = write_receipt(receipt, receipt_stamp)
+        receipt["receipt_path"] = str(receipt_path)
         emit_failure(receipt, error, json_output=args.json)
         return 1
 
@@ -211,6 +208,7 @@ def load_or_bootstrap_config() -> dict[str, Any]:
             f"Fix or remove {GLOBAL_CONFIG_PATH} and retry publish mode.",
         ) from error
     merged = merge_defaults(loaded, DEFAULT_CONFIG)
+    validate_config_shape(merged)
     if merged != loaded:
         write_json(GLOBAL_CONFIG_PATH, merged)
     return merged
@@ -229,6 +227,22 @@ def merge_defaults(loaded: Any, defaults: Any) -> Any:
                 merged[key] = value
         return merged
     return loaded
+
+
+def validate_config_shape(config: Any) -> None:
+    if not isinstance(config, dict):
+        raise PublishError(
+            "The visual-explainer publish config is invalid.\n\n"
+            f"{GLOBAL_CONFIG_PATH} must contain a top-level JSON object.",
+        )
+
+    for section_name in ("netlify", "preferences"):
+        section = config.get(section_name, {})
+        if not isinstance(section, dict):
+            raise PublishError(
+                "The visual-explainer publish config is invalid.\n\n"
+                f"`{section_name}` must be a JSON object in {GLOBAL_CONFIG_PATH}.",
+            )
 
 
 def resolve_runtime_settings(config: dict[str, Any], force_open: bool) -> RuntimeSettings:
@@ -277,7 +291,6 @@ def resolve_runtime_settings(config: dict[str, Any], force_open: bool) -> Runtim
         account_slug=account_slug,
         site_prefix=site_prefix,
         open_after_publish=open_after_publish,
-        write_publish_receipt=bool(preferences.get("write_publish_receipt", True)),
     )
 
 
@@ -470,6 +483,7 @@ def select_deploy_url(site_name: str, site: dict[str, Any], deploy: dict[str, An
 def write_receipt(receipt: dict[str, Any], receipt_stamp: str) -> Path:
     PUBLISH_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
     receipt_path = PUBLISH_HISTORY_DIR / f"{receipt_stamp}.json"
+    receipt["receipt_path"] = str(receipt_path)
     write_json(receipt_path, receipt)
     return receipt_path
 
@@ -479,16 +493,6 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
         json.dumps(payload, indent=2, sort_keys=False) + "\n",
         encoding="utf-8",
     )
-
-
-def should_write_failure_receipt() -> bool:
-    if not GLOBAL_CONFIG_PATH.exists():
-        return True
-    try:
-        config = json.loads(GLOBAL_CONFIG_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return True
-    return bool(config.get("preferences", {}).get("write_publish_receipt", True))
 
 
 def require_string(payload: dict[str, Any], key: str, operation: str) -> str:
@@ -506,6 +510,44 @@ def open_in_browser(url: str) -> None:
         webbrowser.open(url)
     except Exception:
         return
+
+
+def verify_deploy_content_type(url: str) -> None:
+    content_type = fetch_content_type(url, method="HEAD")
+    if content_type is None:
+        content_type = fetch_content_type(url, method="GET")
+    if content_type is None or not content_type.lower().startswith("text/html"):
+        raise PublishError(
+            "Netlify published the site, but the deployed page is not being served "
+            "as text/html.\n\n"
+            "Check the uploaded artifact and Netlify header rules, then retry publish.",
+        )
+
+
+def fetch_content_type(url: str, method: str) -> str | None:
+    request = urllib.request.Request(
+        url=url,
+        headers={
+            "User-Agent": "visual-explainer-netlify-publisher",
+            "Accept": "text/html,*/*;q=0.8",
+        },
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.headers.get("Content-Type")
+    except urllib.error.HTTPError as error:
+        if method == "HEAD" and error.code in {403, 405}:
+            return None
+        raise PublishError(
+            "Could not verify the deployed page content type.\n\n"
+            "Check the published URL in Netlify and retry publish if needed.",
+        ) from error
+    except urllib.error.URLError as error:
+        raise PublishError(
+            "Could not verify the deployed page content type.\n\n"
+            "Check your network connection and the published URL, then retry.",
+        ) from error
 
 
 def emit_success(receipt: dict[str, Any], json_output: bool) -> None:
