@@ -144,6 +144,7 @@ def main() -> int:
             poll_interval_seconds=args.poll_interval_seconds,
         )
         deploy_url = select_deploy_url(site_name=site_name, site=site, deploy=final_deploy)
+        receipt["deploy_url"] = deploy_url
         verify_deploy_content_type(deploy_url)
         state = final_deploy.get("state", "ready")
         if state != "ready":
@@ -153,7 +154,6 @@ def main() -> int:
                 "and retry after fixing the issue.",
             )
 
-        receipt["deploy_url"] = deploy_url
         receipt["state"] = state
 
         receipt_path = write_receipt(receipt, receipt_stamp)
@@ -592,15 +592,27 @@ def open_in_browser(url: str) -> None:
 
 
 def verify_deploy_content_type(url: str) -> None:
-    content_type = fetch_content_type(url, method="HEAD")
-    if content_type is None:
-        content_type = fetch_content_type(url, method="GET")
-    if content_type is None or not content_type.lower().startswith("text/html"):
-        raise PublishError(
-            "Netlify published the site, but the deployed page is not being served "
-            "as text/html.\n\n"
-            "Check the uploaded artifact and Netlify header rules, then retry publish.",
-        )
+    last_content_type: str | None = None
+    for _ in range(3):
+        content_type = fetch_content_type(url, method="HEAD")
+        if content_type is None:
+            content_type = fetch_content_type(url, method="GET")
+        if content_type is not None and content_type.lower().startswith("text/html"):
+            return
+        last_content_type = content_type
+        time.sleep(2)
+
+    details = (
+        f"Received Content-Type: {last_content_type}.\n\n"
+        if last_content_type is not None
+        else ""
+    )
+    raise PublishError(
+        "Netlify published the site, but the deployed page is not being served "
+        "as text/html.\n\n"
+        f"{details}"
+        "Check the uploaded artifact and Netlify header rules, then retry publish.",
+    )
 
 
 def fetch_content_type(url: str, method: str) -> str | None:
