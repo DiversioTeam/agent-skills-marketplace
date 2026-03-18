@@ -182,6 +182,17 @@
       "source": "./plugins/login-cta-attribution-skill",
       "category": "code-analysis",
       "keywords": ["django", "cta", "attribution", "login", "tracking", "slack", "teams", "email", "optimo", "diversio"]
+    },
+    {
+      "name": "backend-skills",
+      "description": "Backend workflow skills for Django4Lyfe: interactive PR review fix, commit-and-reply with SHA links, and codebase reuse finder with product boundary awareness.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/backend-skills",
+      "category": "process",
+      "keywords": ["django", "backend", "pr-review", "commit", "reuse", "constants", "optimo", "diversio"]
     }
   ]
 }

@@ -1,0 +1,8 @@
+{
+  "name": "backend-skills",
+  "version": "0.1.0",
+  "description": "Backend workflow skills for Django4Lyfe: PR review fix, commit-and-reply, and codebase reuse finder.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}
