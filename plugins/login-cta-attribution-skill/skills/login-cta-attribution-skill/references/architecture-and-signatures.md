@@ -135,20 +135,35 @@ CTA views should handle parse failures with resilient defaults per platform.
 
 ## Mixpanel Integration Notes
 
-Attribution fields flow through a 6-point chain. When adding a new attribution
+Attribution fields flow through a 9-point chain. When adding a new attribution
 dimension (e.g., `teams_tab`), ALL points must be updated or the field is
 silently dropped:
 
-1. **URL builder** (`platform_magic_links.py`) — adds query param to CTA URL
-2. **CTA view** (`teams/views.py` or `slack/views.py`) — reads query param from request
-3. **Magic link builder** (`platform_magic_links.py: build_login_magic_link_for_user`) — accepts and passes param
-4. **Attribution metadata builder** (`source_attribution.py: build_source_attribution_metadata`) — converts to enum, stores in TypedDict
-5. **Analytics schema** (`optimo_analytics/schemas.py: MixpanelSessionContextSchema`) — Pydantic field
-6. **Analytics service** (`optimo_analytics/service/core.py: get_session_contexts_batch`) — reads from parsed attribution into schema
+1. **URL builder** (`platform_magic_links.py: build_stable_teams_cta_url`) — adds query param to CTA URL
+2. **CTA view** (`teams/views.py` or `slack/views.py`) — reads query param from `request.GET`
+3. **Magic link builder** (`platform_magic_links.py: build_login_magic_link_for_user`) — accepts param and passes to metadata builder
+4. **Attribution metadata builder** (`source_attribution.py: build_source_attribution_metadata`) — converts raw string to enum via `from_raw_to_enum()`, stores in `SourceAttributionMetadataTD`
+5. **Attribution metadata serializer** (`source_attribution.py: serialize_source_attribution_metadata`) — converts enum back to string for JSON storage. Must extract and serialize the new field or it is dropped during DB persistence
+6. **Model parser — magic link** (`optimo_core/models/magic_link.py: parsed_source_attribution_metadata`) — reads field from stored JSON via `raw.get("field_name")` and passes to builder
+7. **Model parser — auth token** (`optimo_core/models/auth.py: parsed_source_attribution_metadata`) — same as above for auth tokens
+8. **Analytics service** (`optimo_analytics/service/core.py: get_session_contexts_batch`) — reads from `parsed_attribution["field_name"]` into `MixpanelSessionContextSchema`
+9. **Event flattening** (`optimo_analytics/schemas.py`) — the field must be listed in the `include_from_session` default set on **both** `MixpanelLoginEventPropertiesSchema.from_session_context()` and `MixpanelLogoutEventPropertiesSchema.from_session_context()`, otherwise it is stored on the session context but excluded from the actual Mixpanel event payload
 
 **Parity rule**: Slack and Teams must have matching attribution chains. If Slack
-has `slack_tab`, Teams must have `teams_tab` at all 6 points. Missing any point
+has `slack_tab`, Teams must have `teams_tab` at all 9 points. Missing any point
 causes silent data loss in Mixpanel events.
+
+**Current attribution fields** that must be in all `include_from_session` sets:
+
+```python
+"login_source",
+"login_source_detail",
+"slack_button",
+"slack_tab",
+"teams_button",
+"teams_tab",
+"cta_parse_failed",
+```
 
 ## Token Refresh Notes
 
@@ -166,11 +181,16 @@ If new attribution keys are introduced, confirm refresh path copies them.
 | --- | --- |
 | Core attribution enums/constants/parser | `optimo_core/models/login_attribution.py` |
 | Slack/Teams CTA enums + URL helpers | `optimo_core/models/login_attribution.py` |
-| Metadata TypedDict and builder | `optimo_core/utils/source_attribution.py` |
-| Stable URL builders | `optimo_integrations/utils/platform_magic_links.py` |
+| Metadata TypedDict, builder, and serializer | `optimo_core/utils/source_attribution.py` |
+| Stable URL builders + magic link builder | `optimo_integrations/utils/platform_magic_links.py` |
 | Slack CTA view | `optimo_integrations/slack/views.py` |
 | Teams CTA view | `optimo_integrations/teams/views.py` |
 | Email CTA view | `optimo_core/dashboard_cta_views.py` |
+| Magic link model (parsed attribution) | `optimo_core/models/magic_link.py` |
+| Auth token model (parsed attribution) | `optimo_core/models/auth.py` |
+| Analytics session context schema | `optimo_analytics/schemas.py` |
+| Analytics session context builder | `optimo_analytics/service/core.py` |
+| Login/logout event flattening | `optimo_analytics/schemas.py` (include_from_session sets) |
 | Digest base links | `optimo_surveys/digest/deep_links.py` |
 | Digest Slack formatter | `optimo_surveys/digest/slack_formatter.py` |
 | Digest Teams formatter | `optimo_surveys/digest/teams_formatter.py` |
