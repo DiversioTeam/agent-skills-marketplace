@@ -12,7 +12,7 @@ Use one layer per CTA path.
 Use for one-CTA-per-button contexts (for example, Home tab links):
 
 - `build_stable_slack_cta_url(..., slack_tab=..., slack_button=...)`
-- `build_stable_teams_cta_url(..., teams_button=...)`
+- `build_stable_teams_cta_url(..., teams_button=..., teams_tab=...)`
 
 ### Layer 2: Render Time
 
@@ -72,9 +72,8 @@ def build_stable_teams_cta_url(
     source: str = CTA_SOURCE_TEAMS_SURVEY_COMPLETE,
     session_uuid: str | None = None,
     redirect_path: str | None = None,
-    slack_tab: SlackTabChoices | None = None,       # may be ignored
-    slack_button: SlackButtonChoices | None = None, # may be ignored
     teams_button: TeamsButtonChoices | None = None,
+    teams_tab: TeamsTabChoices | None = None,
 ) -> str | None: ...
 ```
 
@@ -90,9 +89,11 @@ def build_login_magic_link_for_user(
     expires_minutes: int = 15,
     ip_address: str | None = None,
     redirect_path: str | None = None,
-    slack_button: str | None = None,
-    slack_tab: str | None = None,
-    teams_button: str | None = None,
+    slack_button: SlackButtonChoices | None = None,
+    slack_tab: SlackTabChoices | None = None,
+    teams_button: TeamsButtonChoices | None = None,
+    teams_tab: TeamsTabChoices | None = None,
+    cta_parse_failed: bool | None = None,
 ) -> str | None: ...
 ```
 
@@ -111,6 +112,7 @@ Typical fields include:
 - `slack_button`
 - `slack_tab`
 - `teams_button`
+- `teams_tab`
 
 Builder helper:
 
@@ -133,13 +135,20 @@ CTA views should handle parse failures with resilient defaults per platform.
 
 ## Mixpanel Integration Notes
 
-Attribution fields often flow through:
+Attribution fields flow through a 6-point chain. When adding a new attribution
+dimension (e.g., `teams_tab`), ALL points must be updated or the field is
+silently dropped:
 
-- `optimo_analytics/schemas.py`
-- `optimo_analytics/service.py`
+1. **URL builder** (`platform_magic_links.py`) — adds query param to CTA URL
+2. **CTA view** (`teams/views.py` or `slack/views.py`) — reads query param from request
+3. **Magic link builder** (`platform_magic_links.py: build_login_magic_link_for_user`) — accepts and passes param
+4. **Attribution metadata builder** (`source_attribution.py: build_source_attribution_metadata`) — converts to enum, stores in TypedDict
+5. **Analytics schema** (`optimo_analytics/schemas.py: MixpanelSessionContextSchema`) — Pydantic field
+6. **Analytics service** (`optimo_analytics/service/core.py: get_session_contexts_batch`) — reads from parsed attribution into schema
 
-If adding new attribution dimensions, verify schema and event flattening paths
-are updated accordingly.
+**Parity rule**: Slack and Teams must have matching attribution chains. If Slack
+has `slack_tab`, Teams must have `teams_tab` at all 6 points. Missing any point
+causes silent data loss in Mixpanel events.
 
 ## Token Refresh Notes
 
@@ -157,7 +166,7 @@ If new attribution keys are introduced, confirm refresh path copies them.
 | --- | --- |
 | Core attribution enums/constants/parser | `optimo_core/models/login_attribution.py` |
 | Slack/Teams CTA enums + URL helpers | `optimo_core/models/login_attribution.py` |
-| Metadata TypedDict and builder | `optimo_core/auth/magic_link.py` |
+| Metadata TypedDict and builder | `optimo_core/utils/source_attribution.py` |
 | Stable URL builders | `optimo_integrations/utils/platform_magic_links.py` |
 | Slack CTA view | `optimo_integrations/slack/views.py` |
 | Teams CTA view | `optimo_integrations/teams/views.py` |
