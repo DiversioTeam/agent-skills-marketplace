@@ -7,7 +7,7 @@ Representative user prompts for this skill:
   `.pre-commit-config.yaml`, `.security/*` helpers, and Monty’s taste.”
 - “Use `/backend-atomic-commit:atomic-commit` to prepare an atomic commit for
   the staged changes in `backend/`. Enforce all hooks and checks, then propose
-  a ticket-prefixed commit message with no AI signature.”
+  a repo-appropriate commit message with no AI signature.”
 - “Treat my current backend changes as one logical bugfix and run
   `/backend-atomic-commit:pre-commit` in a strict mode: eliminate local
   imports, fix type hints, clean up debug statements, and ensure the active

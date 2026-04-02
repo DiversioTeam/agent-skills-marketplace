@@ -1,0 +1,8 @@
+{
+  "name": "github-ticket",
+  "version": "0.1.0",
+  "description": "Create, route, and inspect GitHub issues from Claude Code or Codex with gh CLI-backed defaults for DiversioTeam/monolith and repo-local execution repos.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

@@ -158,6 +158,21 @@ agent-skills-marketplace/
 │   │       ├── switch-org.md
 │   │       ├── add-org.md
 │   │       └── refresh-cache.md
+│   ├── github-ticket/                 # GitHub issue management
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/github-ticket/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── configure.md
+│   │       ├── get-issue.md
+│   │       ├── list-issues.md
+│   │       ├── my-issues.md
+│   │       ├── create-issue.md
+│   │       ├── quick-issue.md
+│   │       ├── add-to-backlog.md
+│   │       ├── create-linked-issue.md
+│   │       └── route.md
 │   ├── repo-docs/                     # Repository harness docs generator
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/repo-docs-generator/
@@ -216,15 +231,16 @@ agent-skills-marketplace/
 | Plugin | Description |
 |--------|-------------|
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane |
-| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and Monty's backend taste (no AI commit signatures) |
-| `backend-pr-workflow` | Backend PR workflow Skill that enforces ClickUp-linked branch/PR naming, safe migrations, and downtime-safe schema changes |
+| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
+| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
 | `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
-| `clickup-ticket` | Create and manage ClickUp tickets directly from Claude Code or Codex with multi-org support, interactive ticket creation, subtasks, and backlog management |
+| `clickup-ticket` | Legacy ClickUp ticket management during the GitHub work-management migration |
+| `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, and repo-local execution routing |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
 | `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
@@ -276,6 +292,7 @@ claude plugin install pr-description-writer@diversiotech
 claude plugin install process-code-review@diversiotech
 claude plugin install mixpanel-analytics@diversiotech
 claude plugin install clickup-ticket@diversiotech
+claude plugin install github-ticket@diversiotech
 claude plugin install repo-docs@diversiotech
 claude plugin install visual-explainer@diversiotech
 claude plugin install backend-release@diversiotech
@@ -308,6 +325,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Code review processor | `claude plugin install process-code-review@diversiotech` |
 | MixPanel analytics | `claude plugin install mixpanel-analytics@diversiotech` |
 | ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
+| GitHub issue management | `claude plugin install github-ticket@diversiotech` |
 | Repository docs generator | `claude plugin install repo-docs@diversiotech` |
 | Visual explainer | `claude plugin install visual-explainer@diversiotech` |
 | Backend release workflow | `claude plugin install backend-release@diversiotech` |
@@ -346,6 +364,15 @@ Once plugins are installed:
    /clickup-ticket:switch-org                # Switch between organizations
    /clickup-ticket:add-org                   # Add a new organization
    /clickup-ticket:refresh-cache             # Force refresh cached data
+   /github-ticket:configure                  # Configure planning repo, execution repos, and default labels
+   /github-ticket:get-issue                  # Fetch one GitHub issue in detail
+   /github-ticket:list-issues                # List/search issues across one repo or a small repo set
+   /github-ticket:my-issues                  # Show assigned work across configured repos
+   /github-ticket:create-issue               # Create a full issue with canonical sections
+   /github-ticket:quick-issue                # Create a minimal issue quickly
+   /github-ticket:add-to-backlog             # Capture backlog work in monolith with default labels
+   /github-ticket:create-linked-issue        # Create a linked follow-up or execution issue
+   /github-ticket:route                      # Route planning work into the right execution repo
    /repo-docs:generate                       # Generate harness docs (AGENTS map + README + CLAUDE + focused docs)
    /repo-docs:canonicalize                   # Audit and fix existing docs (trim AGENTS, normalize CLAUDE, add topic docs)
    /visual-explainer:explain                 # Create a presentation-ready HTML explainer with interactive intake
@@ -391,6 +418,7 @@ claude plugin uninstall pr-description-writer@diversiotech
 claude plugin uninstall process-code-review@diversiotech
 claude plugin uninstall mixpanel-analytics@diversiotech
 claude plugin uninstall clickup-ticket@diversiotech
+claude plugin uninstall github-ticket@diversiotech
 claude plugin uninstall repo-docs@diversiotech
 claude plugin uninstall visual-explainer@diversiotech
 claude plugin uninstall backend-release@diversiotech
@@ -414,6 +442,7 @@ claude plugin uninstall pr-description-writer@diversiotech --scope project
 claude plugin uninstall process-code-review@diversiotech --scope project
 claude plugin uninstall mixpanel-analytics@diversiotech --scope project
 claude plugin uninstall clickup-ticket@diversiotech --scope project
+claude plugin uninstall github-ticket@diversiotech --scope project
 claude plugin uninstall repo-docs@diversiotech --scope project
 claude plugin uninstall visual-explainer@diversiotech --scope project
 claude plugin uninstall backend-release@diversiotech --scope project
@@ -464,6 +493,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/process-code-review/skills/process-code-review \
     plugins/mixpanel-analytics/skills/mixpanel-analytics \
     plugins/clickup-ticket/skills/clickup-ticket \
+    plugins/github-ticket/skills/github-ticket \
     plugins/repo-docs/skills/repo-docs-generator \
     plugins/visual-explainer/skills/visual-explainer \
     plugins/backend-release/skills/release-manager \
@@ -488,6 +518,7 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/process-code-review/skills/process-code-review \
   path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
   path=plugins/clickup-ticket/skills/clickup-ticket \
+  path=plugins/github-ticket/skills/github-ticket \
   path=plugins/repo-docs/skills/repo-docs-generator \
   path=plugins/visual-explainer/skills/visual-explainer \
   path=plugins/backend-release/skills/release-manager \
@@ -534,6 +565,7 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/process-code-review" \
        "$CODEX_HOME/skills/mixpanel-analytics" \
        "$CODEX_HOME/skills/clickup-ticket" \
+       "$CODEX_HOME/skills/github-ticket" \
        "$CODEX_HOME/skills/repo-docs-generator" \
        "$CODEX_HOME/skills/visual-explainer" \
        "$CODEX_HOME/skills/release-manager" \
