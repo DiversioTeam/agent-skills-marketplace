@@ -236,7 +236,7 @@ agent-skills-marketplace/
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
-| `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with visual diagrams, summary tables, and structured sections |
+| `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with diagrams, structured sections, and repo-local workflow context |
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Legacy ClickUp ticket management during the GitHub work-management migration |

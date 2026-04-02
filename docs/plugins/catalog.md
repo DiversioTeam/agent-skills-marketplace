@@ -75,8 +75,8 @@ when command files change.
   - Slash commands: `/plan-directory:plan`,
     `/plan-directory:backend-ralph-plan`, `/plan-directory:run`
 - `pr-description-writer`
-  - Purpose: reviewer-friendly pull request descriptions with diagrams and
-    tables.
+  - Purpose: reviewer-friendly pull request descriptions with diagrams, tables,
+    and repo-local workflow context.
   - Claude install:
     `claude plugin install pr-description-writer@diversiotech`
   - Skill path:
