@@ -119,8 +119,8 @@
     },
     {
       "name": "github-ticket",
-      "description": "Create, route, and inspect GitHub issues with gh CLI-backed defaults for DiversioTeam/monolith and repo-local execution repos.",
-      "version": "0.1.0",
+      "description": "Create, route, and inspect GitHub issues with gh CLI-backed defaults for DiversioTeam/monolith, repo-local execution repos, and project-board hydration.",
+      "version": "0.1.1",
       "author": {
         "name": "Diversio Devs"
       },

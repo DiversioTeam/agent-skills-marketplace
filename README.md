@@ -240,7 +240,7 @@ agent-skills-marketplace/
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
 | `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
 | `clickup-ticket` | Legacy ClickUp ticket management during the GitHub work-management migration |
-| `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, and repo-local execution routing |
+| `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, repo-local execution routing, and project-board hydration |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
 | `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
@@ -364,7 +364,7 @@ Once plugins are installed:
    /clickup-ticket:switch-org                # Switch between organizations
    /clickup-ticket:add-org                   # Add a new organization
    /clickup-ticket:refresh-cache             # Force refresh cached data
-   /github-ticket:configure                  # Configure planning repo, execution repos, and default labels
+   /github-ticket:configure                  # Configure planning repo, execution repos, project defaults, and labels
    /github-ticket:get-issue                  # Fetch one GitHub issue in detail
    /github-ticket:list-issues                # List/search issues across one repo or a small repo set
    /github-ticket:my-issues                  # Show assigned work across configured repos
