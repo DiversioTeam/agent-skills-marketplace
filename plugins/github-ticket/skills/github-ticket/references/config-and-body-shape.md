@@ -9,13 +9,13 @@
     "DiversioTeam/Django4Lyfe",
     "DiversioTeam/Optimo-Frontend"
   ],
-  "backlog_labels": ["triage", "needs: enrichment"],
-  "quick_issue_labels": ["triage"],
+  "backlog_labels": ["needs: enrichment"],
+  "quick_issue_labels": [],
   "project_owner": "DiversioTeam",
   "project_number": 2,
   "path_repo_map": {
-    "/Users/monty/work/diversio/monolith-clickup-to-gh/backend": "DiversioTeam/Django4Lyfe",
-    "/Users/monty/work/diversio/monolith-clickup-to-gh/optimo-frontend": "DiversioTeam/Optimo-Frontend"
+    "/path/to/monolith/backend": "DiversioTeam/Django4Lyfe",
+    "/path/to/monolith/optimo-frontend": "DiversioTeam/Optimo-Frontend"
   }
 }
 ```
@@ -55,3 +55,5 @@ Prefer:
 - `triage` on newly created issues
 - `type:*` when the work type is known
 - `needs: enrichment` only when the issue is intentionally rough
+- keep `backlog_labels` and `quick_issue_labels` focused on add-on labels rather
+  than defaults that the skill already applies separately

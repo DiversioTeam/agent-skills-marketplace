@@ -116,7 +116,7 @@ Workflow:
 
 1. Run `gh auth status`.
 2. Detect the current checkout path and repo if possible.
-3. Create `~/.config/github-ticket/config.json` if missing.
+3. Create `${XDG_CONFIG_HOME:-$HOME/.config}/github-ticket/config.json` if missing.
 4. Gather only the missing defaults:
    - planning repo
    - preferred execution repos

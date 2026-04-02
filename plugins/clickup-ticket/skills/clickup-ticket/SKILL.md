@@ -59,7 +59,8 @@ source ~/.bashrc  # or restart your terminal
 ```
 
 **Note:** If you have multiple ClickUp accounts, you can set up additional
-tokens. See `references/usage-workflows.md` for the multi-org flow.
+tokens. See [Usage workflows](references/usage-workflows.md) for the multi-org
+flow.
 
 ## Quick Start
 
