@@ -2,9 +2,39 @@
 
 This file is referenced from `SKILL.md` and contains the command-heavy workflow for:
 - detecting an existing PR,
+- checking repo-local workflow conventions,
 - determining the base branch,
 - gathering the full set of changes (committed + uncommitted),
 - and updating/creating the PR via `gh`.
+
+## Step 0: Gather Repo-Local Workflow Context
+
+Before deciding how to present or create a PR, inspect the repo-local harness:
+
+```bash
+# Canonical repo-local entrypoint
+sed -n '1,220p' AGENTS.md 2>/dev/null
+
+# Common linked docs to inspect when present
+paths=()
+[ -f AGENTS.md ] && paths+=(AGENTS.md)
+[ -f README.md ] && paths+=(README.md)
+[ -d docs ] && paths+=(docs)
+[ ${#paths[@]} -gt 0 ] && rg -n "branch|pull request|PR|draft|Ready for review|issue" "${paths[@]}" -g '*.md' || true
+
+# Current branch for comparison against the documented convention
+git branch --show-current
+```
+
+Use this to answer:
+
+- does the repo expect issue-linked branches
+- does the repo expect a specific base branch
+- should PRs default to non-draft ("Ready for review") or draft
+- should issue linkage appear in the title, body, or branch name
+
+If the repo-local docs and the current branch/PR state disagree, call that out
+explicitly in the output before creating or updating the PR.
 
 ## Workflow: Gathering Context
 
@@ -95,6 +125,25 @@ detect_base_branch() {
 BASE_BRANCH=$(detect_base_branch)
 echo "Using base branch: $BASE_BRANCH"
 ```
+
+### Step 2.5: Capture Current PR Readiness State
+
+If a PR already exists, capture whether it is draft:
+
+```bash
+if pr_json=$(gh pr view --json isDraft,state,number,title,url 2>/dev/null); then
+  printf '%s\n' "$pr_json"
+else
+  echo "No PR yet"
+fi
+```
+
+Interpretation:
+
+- existing draft PR: preserve draft unless the user explicitly wants to change it
+- existing ready PR: do not silently convert it back to draft
+- no PR yet: use repo-local docs + user request to decide whether create should
+  be draft or non-draft ("Ready for review")
 
 ### Step 3: Gather ALL Changes
 
@@ -188,6 +237,18 @@ gh pr create --title "Title" --body "$(cat <<'EOF'
 EOF
 )" --base release
 ```
+
+Draft-vs-non-draft rule:
+
+- default to a non-draft PR when the user asks to create/open a PR and the
+  repo-local docs do not say otherwise
+- use `--draft` only when:
+  - the user explicitly asks for a draft, or
+  - the repo-local workflow docs say drafts are the default for this phase of work
+
+If the current branch does not appear to follow the repo-local branch naming
+convention and the user asked to create a PR, flag that mismatch before
+creating the PR instead of silently proceeding as though the branch were fine.
 
 ---
 

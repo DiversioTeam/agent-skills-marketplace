@@ -1,6 +1,6 @@
 ---
 name: pr-description-writer
-description: "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, summary tables, collapsible sections, and structured test plans."
+description: "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, structured test plans, and repo-local workflow context."
 allowed-tools: Bash Read Glob Grep
 ---
 
@@ -15,6 +15,8 @@ Use this Skill when:
 - You want a description that helps reviewers understand the "why" and "what"
   quickly while having access to detailed context.
 - You're preparing a PR for review and want it to be self-documenting.
+- The repo has local branch, issue-linkage, or PR-readiness conventions that
+  should shape the PR body or creation flow.
 
 This Skill is designed to work with any repository but is especially tuned for
 Django/Python backends, React frontends, and infrastructure changes.
@@ -30,7 +32,7 @@ Django/Python backends, React frontends, and infrastructure changes.
 
 ## Workflow (High Level)
 
-1. Gather PR and branch context (see [references/gh-cli.md](references/gh-cli.md) for exact commands).
+1. Gather PR, branch, and repo-local workflow context (see [references/gh-cli.md](references/gh-cli.md) for exact commands).
 2. Identify the base branch and enumerate **all** changes (committed + uncommitted).
 3. Write a layered, reviewer-centric PR description using the structure below.
 4. If the user wants, update/create the PR using `gh` (see [references/gh-cli.md](references/gh-cli.md)).
@@ -75,6 +77,21 @@ Every section should answer a reviewer's question:
 - All commits in the branch (from base to HEAD)
 - Any uncommitted changes the user plans to include
 - The cumulative effect of all changes together
+
+### 5. Repo-Local Workflow First
+
+Before writing or updating a PR, inspect the repo-local harness for workflow
+conventions that should shape the branch/PR presentation:
+
+- branch naming expectations
+- issue-linkage expectations
+- base-branch expectations
+- whether PRs should default to draft or non-draft ("Ready for review")
+
+If a repo-local convention exists, it should win over generic defaults.
+If the current branch or PR state appears inconsistent with repo-local
+conventions, call that out clearly instead of silently normalizing it in the
+description text.
 
 ---
 
