@@ -108,7 +108,7 @@ when command files change.
     `/clickup-ticket:add-org`, `/clickup-ticket:list-spaces`,
     `/clickup-ticket:refresh-cache`
 - `github-ticket`
-  - Purpose: GitHub-native issue management with planning-hub and execution-repo routing defaults.
+  - Purpose: GitHub-native issue management with planning-hub routing, repo-local execution issues, and project-board defaults.
   - Claude install: `claude plugin install github-ticket@diversiotech`
   - Skill path: `plugins/github-ticket/skills/github-ticket`
   - Slash commands: `/github-ticket:configure`,

@@ -1,6 +1,6 @@
 ---
 name: github-ticket
-description: "Create, route, and inspect GitHub issues from Claude Code or Codex with gh CLI-backed defaults for DiversioTeam/monolith and repo-local execution repos."
+description: "Create, route, and inspect GitHub issues from Claude Code or Codex with gh CLI-backed defaults for DiversioTeam/monolith, repo-local execution repos, and project-board hydration."
 allowed-tools: Bash Read Edit Write Glob Grep
 ---
 
@@ -15,6 +15,7 @@ Use this Skill when you want to:
 - fetch or list issues across `monolith` and a small repo set
 - view your assigned work
 - route planning work into repo-local execution issues
+- add created issues to `Diversio Work` with the right board fields
 - keep GitHub issue creation skill-driven instead of form-driven
 
 This Skill is the GitHub-native replacement for the old `clickup-ticket`
@@ -27,12 +28,18 @@ Before doing anything else:
 
 1. Run `gh auth status`.
 2. Confirm `gh` is authenticated for the right GitHub account.
-3. Fail fast if `gh` is missing or unauthenticated.
+3. Confirm the token has the scopes needed for the requested action:
+   - `repo` for issue read/write
+   - `read:org` for org visibility
+   - `project` when project add or field hydration is expected
+4. Fail fast if `gh` is missing or unauthenticated.
 
 Preferred auth model:
 
 - normal `gh` login
 - no plugin-specific token in the common case
+- if project hydration is part of the workflow and `project` scope is missing,
+  prefer `gh auth refresh -s project`
 
 ## Default Operating Model
 
@@ -50,6 +57,8 @@ them:
   - `DiversioTeam/diversio-serverless`
   - `DiversioTeam/launchpad`
   - `DiversioTeam/skiddie`
+  - `DiversioTeam/terraform-modules`
+  - `DiversioTeam/agent-skills-marketplace`
 - canonical IDs: native GitHub issue numbers
 - legacy ClickUp `GH-xxxx` IDs: metadata only when applicable
 
@@ -58,11 +67,14 @@ Routing rules:
 - If you are in the monolith root and no repo is specified, prefer
   `DiversioTeam/monolith`.
 - If you are inside a repo checkout and no repo is specified, prefer that repo
-  as the execution repo.
+  as the execution repo after normalizing the git remote into `owner/repo`.
 - If the work clearly spans repos or still needs planning, create the issue in
   `DiversioTeam/monolith`.
 - If the user asks for implementation work in a specific repo, create the
   issue in that repo when issues are enabled there.
+- If repo detection yields a GitHub repo outside the default execution list,
+  it is still valid to use that repo; do not reject it only because it is not
+  prelisted in config.
 
 ## Local Config
 
@@ -81,9 +93,18 @@ Use a small JSON file with fields like:
 - `quick_issue_labels`
 - `project_owner`
 - `project_number`
-- `path_repo_map`
+- `project_field_defaults`
+- optional `path_repo_map`
 
 See `references/config-and-body-shape.md` for a sample config and issue body.
+
+For the current Diversio baseline, prefer organization project `#2`
+(`Diversio Work`) unless the user overrides project placement.
+Treat `project_field_defaults` as a display-name keyed map for stable defaults
+like `Status` and `Priority`, not as a place to hard-code field or option IDs.
+Prefer runtime repo detection from the current git checkout before falling back
+to `path_repo_map`. In worktree-heavy setups, avoid hard-coded absolute path
+maps unless there is a real non-git edge case.
 
 ## Repo Alias Map
 
@@ -99,6 +120,9 @@ Allow these shorthand values when the user names a repo informally:
 - `diversio-serverless` -> `DiversioTeam/diversio-serverless`
 - `launchpad` -> `DiversioTeam/launchpad`
 - `skiddie` -> `DiversioTeam/skiddie`
+- `terraform-modules` -> `DiversioTeam/terraform-modules`
+- `agent-skills-marketplace` -> `DiversioTeam/agent-skills-marketplace`
+- `skills-marketplace` -> `DiversioTeam/agent-skills-marketplace`
 
 If a repo alias is ambiguous, ask one short clarifying question.
 
@@ -115,16 +139,23 @@ Goal:
 Workflow:
 
 1. Run `gh auth status`.
-2. Detect the current checkout path and repo if possible.
+2. Detect the current checkout path and repo if possible:
+   - prefer `git rev-parse --show-toplevel`
+   - then `git remote get-url origin`
+   - normalize SSH or HTTPS GitHub remotes into `owner/repo`
 3. Create `${XDG_CONFIG_HOME:-$HOME/.config}/github-ticket/config.json` if missing.
 4. Gather only the missing defaults:
    - planning repo
    - preferred execution repos
    - backlog labels
    - quick-issue labels
-   - optional project owner/number
+   - project owner/number
+   - optional project field defaults such as `Status` and `Priority`
+   - only add `path_repo_map` when repo detection via git is insufficient
 
 Use `jq` to write or update the config rather than inventing a custom format.
+If project config is present but `gh auth status` shows no `project` scope,
+surface that clearly instead of pretending project hydration will work.
 
 ### `get-issue`
 
@@ -196,8 +227,24 @@ Then:
    - always include `triage` unless the user says otherwise
    - map work type to `type:*` labels when available
 4. Create the issue with `gh issue create`.
-5. Best-effort add it to a project only if project config is present and auth
-   allows it. Never block issue creation on project assignment.
+5. If project config exists, or the current Diversio baseline applies, add the
+   issue to the project with `gh project item-add`.
+6. If the project add succeeds, hydrate the common project fields immediately:
+   - `Status`
+   - `Target Repo`
+   - optional `Priority`
+7. For `Status`, prefer:
+   - `Ready` for scoped, actionable work
+   - `Blocked` when the issue depends on incomplete upstream work
+   - `Inbox` only for intentionally rough capture
+8. For `Target Repo`, map the destination repository to the matching project
+   option when that field exists. If there is no exact option for that repo,
+   use `other` instead of leaving the field blank.
+9. Never block issue creation on project assignment or field hydration, but do
+   report the failure clearly so the user is not left with invisible board
+   items.
+10. If project hydration fails because of missing `project` scope, say that
+    explicitly and point at `gh auth refresh -s project`.
 
 ### `quick-issue`
 
@@ -212,7 +259,10 @@ Preferred flow:
 1. Infer repo from current directory or config.
 2. Use default quick-issue labels.
 3. Create a minimal but useful body.
-4. Return the created issue URL.
+4. If the result is still intentionally rough, prefer `Status: Inbox` when
+   adding it to a project. Only upgrade to `Ready` when the issue is already
+   actionable from the captured context.
+5. Return the created issue URL.
 
 ### `add-to-backlog`
 
@@ -223,6 +273,7 @@ Default behavior:
 - repo: `DiversioTeam/monolith`
 - labels: `triage` plus configured backlog labels
 - minimal body with problem/request plus optional links
+- when added to `Diversio Work`, prefer `Status: Inbox`
 
 Do not over-prompt. If the user only gives a title, create the issue.
 
@@ -236,6 +287,8 @@ Safe default:
 2. Create the new issue in the target repo.
 3. Mention the source issue in the new body.
 4. Add reciprocal comments with `gh issue comment` on both issues.
+5. If the new issue is added to a project, prefer `Ready` unless its own
+   dependency chain means it should start in `Blocked`.
 
 Do not rely on child-issue-only GitHub features for MVP behavior.
 
@@ -250,6 +303,51 @@ Behavior:
 2. Decide the target repo or confirm it with one short question.
 3. Call the same creation logic as `create-linked-issue`.
 4. Leave the planning issue open unless the user explicitly wants it closed.
+
+## Project Hygiene
+
+When the issue lands in `Diversio Work`, treat project visibility as part of
+the ticket workflow instead of optional cleanup.
+
+- If a work item should show up in active board views, do not leave `Status`
+  blank.
+- `Inbox` is appropriate for rough backlog capture; it is not appropriate for
+  already-scoped execution work.
+- `quick-issue` and `add-to-backlog` may legitimately choose `Inbox` even when
+  a global config default says `Ready`, because the capture mode is part of the
+  semantics.
+- `Ready` is the default for issue-sized, actionable work that can be picked
+  up now.
+- `Blocked` is the default when dependency text like `requires`, `depends on`,
+  or `blocked by` means the issue should exist on the board but not enter the
+  active queue yet.
+- When the project has a `Target Repo` field, set it to the repo that will own
+  execution so grouped board views stay useful. If the project does not have a
+  dedicated option for that repo, use `other`.
+- After creation, verify the issue is attached to the expected project and is
+  not hidden by a blank `Status`.
+
+## Project Commands
+
+Use the GitHub CLI's project commands directly instead of inventing ad hoc
+GraphQL:
+
+1. Resolve the project metadata:
+   - `gh project view <number> --owner <owner> --format json`
+2. Resolve field ids and single-select option ids:
+   - `gh project field-list <number> --owner <owner> --format json`
+3. Add the issue to the project:
+   - `gh project item-add <number> --owner <owner> --url <issue-url>`
+4. Resolve the project item id by matching the created issue:
+   - `gh project item-list <number> --owner <owner> --format json`
+5. Update one field per call with `gh project item-edit`:
+   - `--single-select-option-id` for fields like `Status`, `Target Repo`, and
+     `Priority`
+   - `--project-id` is required for non-draft issue field edits
+
+Do not assume field ids or option ids are stable across projects. Read them
+from the active project each time unless a higher-level cache is explicitly in
+scope.
 
 ## Canonical Issue Body
 
@@ -275,6 +373,11 @@ Prefer this command set:
 - `gh issue list`
 - `gh search issues`
 - `gh issue comment`
+- `gh project view`
+- `gh project field-list`
+- `gh project item-add`
+- `gh project item-list`
+- `gh project item-edit`
 - `gh api`
 
 Use `gh api` only when a simpler `gh issue ...` subcommand does not cover the
@@ -290,6 +393,7 @@ When this Skill completes a write action, always return:
 - URL
 - labels applied
 - whether project add succeeded or was skipped
+- which project fields were applied, skipped, or failed
 
 When it completes a read or list action, keep the response scan-friendly and
 show enough context that the user does not need to open GitHub immediately.
