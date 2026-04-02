@@ -1,6 +1,6 @@
 ---
 name: backend-atomic-commit
-description: "Pedantic backend pre-commit + atomic-commit skill for Django/Optimo repos that enforces local AGENTS.md, repo-local docs, pre-commit hooks, and security helpers (no AI signatures in commit messages)."
+description: "Pedantic backend pre-commit + atomic-commit skill for Django/Optimo repos that enforces local AGENTS.md, repo-local docs, pre-commit hooks, and repo-local commit hygiene without AI signatures."
 allowed-tools: Bash Read Edit Glob Grep
 ---
 
@@ -20,10 +20,8 @@ backend) when you want:
 - `/backend-atomic-commit:atomic-commit` – to run the same checks plus:
   - Enforce that the **staged changes are atomic** (one coherent change).
   - Ensure all quality gates are green (no shortcuts).
-  - Propose a strict, ticket-prefixed commit message **without** any Claude or
-    AI signatures.
-- `/backend-atomic-commit:commit` – to run `atomic-commit`, then **create the
-  commit** once all gates are green (no bypassing commit-msg hooks).
+  - Propose a commit message that follows the repo-local harness **without** any Claude or AI signatures.
+- `/backend-atomic-commit:commit` – to run `atomic-commit`, then **create the commit** once all gates are green (no bypassing commit-msg hooks).
 
 Representative prompt shapes live in `references/usage-examples.md`.
 
@@ -44,8 +42,7 @@ This Skill behaves differently based on how it is invoked:
   - Runs everything from `pre-commit` mode.
   - Enforces atomicity of staged changes.
   - Requires all gates to be green.
-  - Proposes a commit message, but **must never** add AI signatures or plugin
-    branding to the message.
+  - Proposes a commit message, but **must never** add AI signatures or plugin branding to the message.
 - `commit` mode – invoked via `/backend-atomic-commit:commit`:
   - Runs everything from `atomic-commit` mode.
   - Creates the commit once all gates are green.
@@ -356,14 +353,17 @@ you must be **very strict**:
 
 3. **Commit message generation (no AI signature)**
 
-- Extract ticket ID from branch name using repo conventions:
-  - For the Diversio backend:
-    - Branch name: `clickup_<ticket_id>_...`
-    - Commit format per `AGENTS.md`: `<ticket_id>: Description`.
-  - If commit message hooks like `commit_msg_hook.py` exist:
-    - Avoid double-prefixing ticket IDs.
-    - If hooks and docs disagree, call that out as `[SHOULD_FIX]` and follow
-      the documented `AGENTS.md` convention for suggestions.
+- Read the local repo harness first:
+  - `AGENTS.md`
+  - linked workflow docs
+  - any commit-msg hooks that actually enforce a pattern
+- Follow the documented repo-local convention instead of inventing a global
+  ticket-prefix rule.
+- If the repo only asks for a clear summary, propose a clear summary.
+- If the repo uses issue references for traceability, include them only when
+  the repo docs or active hooks expect them.
+- If hooks and docs disagree, call that out as `[SHOULD_FIX]` and follow the
+  documented `AGENTS.md` convention for suggestions.
 - Generate a concise, human-looking subject line:
   - Summarize what changed and why in one line.
   - Do **not** mention Claude, AI, this Skill, or plugin names.

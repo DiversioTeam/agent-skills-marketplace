@@ -13,13 +13,13 @@ when command files change.
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
 - `backend-atomic-commit`
-  - Purpose: backend pre-commit fixes and strict atomic commits.
+  - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene.
   - Claude install: `claude plugin install backend-atomic-commit@diversiotech`
   - Skill path: `plugins/backend-atomic-commit/skills/backend-atomic-commit`
   - Slash commands: `/backend-atomic-commit:pre-commit`,
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
-  - Purpose: backend PR workflow, naming, and migration safety checks.
+  - Purpose: backend PR workflow, GitHub issue linkage, and migration safety checks.
   - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
   - Slash commands: `/backend-pr-workflow:check-pr`
@@ -97,7 +97,7 @@ when command files change.
 ## Operations And Implementation
 
 - `clickup-ticket`
-  - Purpose: read, filter, and create ClickUp tickets with multi-org support.
+  - Purpose: legacy ClickUp ticket management during the GitHub migration.
   - Claude install: `claude plugin install clickup-ticket@diversiotech`
   - Skill path: `plugins/clickup-ticket/skills/clickup-ticket`
   - Slash commands: `/clickup-ticket:get-ticket`,
@@ -107,6 +107,15 @@ when command files change.
     `/clickup-ticket:configure`, `/clickup-ticket:switch-org`,
     `/clickup-ticket:add-org`, `/clickup-ticket:list-spaces`,
     `/clickup-ticket:refresh-cache`
+- `github-ticket`
+  - Purpose: GitHub-native issue management with planning-hub and execution-repo routing defaults.
+  - Claude install: `claude plugin install github-ticket@diversiotech`
+  - Skill path: `plugins/github-ticket/skills/github-ticket`
+  - Slash commands: `/github-ticket:configure`,
+    `/github-ticket:get-issue`, `/github-ticket:list-issues`,
+    `/github-ticket:my-issues`, `/github-ticket:create-issue`,
+    `/github-ticket:quick-issue`, `/github-ticket:add-to-backlog`,
+    `/github-ticket:create-linked-issue`, `/github-ticket:route`
 - `mixpanel-analytics`
   - Purpose: implement and review MixPanel tracking for the Django
     `optimo_analytics` module.

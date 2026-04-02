@@ -31,19 +31,19 @@
     },
     {
       "name": "backend-pr-workflow",
-      "description": "Enforces Diversio backend ClickUp-linked PR workflow, branch naming, repo-local workflow docs, safe Django migrations, and downtime-safe schema changes.",
-      "version": "0.1.4",
+      "description": "Diversio backend PR workflow plugin that follows repo-local PR docs, GitHub issue linkage, safe migrations, and downtime-safe schema changes.",
+      "version": "0.1.5",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/backend-pr-workflow",
       "category": "process",
-      "keywords": ["django", "backend", "workflow", "clickup", "migrations", "diversio"]
+      "keywords": ["django", "backend", "workflow", "github", "migrations", "diversio"]
     },
     {
       "name": "backend-atomic-commit",
-      "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, repo-local docs, pre-commit hooks, .security/* helpers, and Monty's backend taste without AI commit signatures.",
-      "version": "0.2.4",
+      "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, repo-local docs, pre-commit hooks, .security/* helpers, and repo-local commit hygiene without AI signatures.",
+      "version": "0.2.5",
       "author": {
         "name": "Diversio Devs"
       },
@@ -116,6 +116,17 @@
       "source": "./plugins/clickup-ticket",
       "category": "project-management",
       "keywords": ["clickup", "tickets", "project-management", "tasks", "backlog", "sprints", "multi-org", "filter", "search"]
+    },
+    {
+      "name": "github-ticket",
+      "description": "Create, route, and inspect GitHub issues with gh CLI-backed defaults for DiversioTeam/monolith and repo-local execution repos.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/github-ticket",
+      "category": "project-management",
+      "keywords": ["github", "issues", "project-management", "planning", "backlog", "routing", "monolith", "gh-cli"]
     },
     {
       "name": "repo-docs",
