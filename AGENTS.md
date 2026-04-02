@@ -15,8 +15,8 @@ skills, commands, and supporting validation scripts.
 - Prefer issue-linked branches such as `gh-45-workflow-skill-branch-pr-conventions`
   for tracked marketplace work.
 - Default PR target: `main`.
-- Default PR state: ready-for-review. Use draft only for explicit WIP or when
-  the workflow docs for a specific change say draft-first.
+- Default PR state: non-draft ("Ready for review" in GitHub UI). Use draft
+  only for explicit WIP or when the workflow docs for a specific change say draft-first.
 - Prefer issue links in the PR body such as `Closes #45`.
 
 ## How To Navigate This Repo

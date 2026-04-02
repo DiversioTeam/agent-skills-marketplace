@@ -86,7 +86,7 @@ conventions that should shape the branch/PR presentation:
 - branch naming expectations
 - issue-linkage expectations
 - base-branch expectations
-- whether PRs should default to draft or ready for review
+- whether PRs should default to draft or non-draft ("Ready for review")
 
 If a repo-local convention exists, it should win over generic defaults.
 If the current branch or PR state appears inconsistent with repo-local

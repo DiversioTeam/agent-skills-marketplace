@@ -90,14 +90,10 @@ When this Skill runs, you should first gather context using `Bash`, `Read`,
   - `git log --oneline -10`
 - Repo configuration:
   - Read `AGENTS.md` first for repo-specific rules and doc routing.
-  - Load any linked repo-local docs relevant to the changed files, especially
-    quality gates, runbooks, architecture docs, and directory-scoped
-    `AGENTS.md` files.
-  - When repo-local docs include GitHub-first workflow conventions, load the
-    parts that cover:
-    - branch naming
-    - issue linkage
-    - PR readiness (draft vs ready-for-review)
+  - Load linked repo-local docs relevant to the changed files, especially
+    quality gates, runbooks, architecture docs, directory-scoped `AGENTS.md`
+    files, and any GitHub-first workflow sections covering branch naming,
+    issue linkage, or PR readiness.
   - If `CLAUDE.md` exists, treat it as a pointer to `AGENTS.md`, not as a
     source of unique behavioral rules.
   - If the harness is missing or obviously stale, recommend generating or
@@ -386,23 +382,14 @@ Your `atomic-commit` output should include:
 - `What’s aligned` – strengths and good patterns in the staged changes.
 - `Needs changes` – bullets with `[BLOCKING]`, `[SHOULD_FIX]`, `[NIT]`.
 - `Proposed commit` – suggested commit message and list of files.
-- `Workflow notes` – only when the current branch appears inconsistent with
-  repo-local branch or PR conventions.
-- An explicit verdict:
-  - “✅ Commit ready” only if there are **no `[BLOCKING]` items**.
-  - Otherwise:
-    - “❌ Not ready to commit” with concrete next steps.
+- `Workflow notes` – only when the current branch appears inconsistent with repo-local branch or PR conventions.
+- An explicit verdict: “✅ Commit ready” only if there are **no `[BLOCKING]` items**; otherwise “❌ Not ready to commit” with concrete next steps.
 
 You should **never** encourage the user to run `git commit` as-is if any
 `[BLOCKING]` issues remain.
 
-Branch/PR boundary rule:
-
-- This skill does **not** own branch creation or PR state by itself.
-- But if the current branch clearly violates repo-local conventions discovered
-  from `AGENTS.md` or linked workflow docs, surface that as at least
-  `[SHOULD_FIX]` instead of ignoring it.
-- Repo-local conventions should win over any generic feature-branch assumption.
+Workflow boundary: this skill does **not** own branch creation or PR state by
+itself. See `references/workflow-boundary.md`.
 
 ## Pre-Commit Mode – Fixing Without Committing
 

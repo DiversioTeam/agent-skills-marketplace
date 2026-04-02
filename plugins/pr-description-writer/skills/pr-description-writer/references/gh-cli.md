@@ -16,7 +16,11 @@ Before deciding how to present or create a PR, inspect the repo-local harness:
 sed -n '1,220p' AGENTS.md 2>/dev/null
 
 # Common linked docs to inspect when present
-rg -n "branch|pull request|PR|draft|ready for review|issue" AGENTS.md README.md docs -g '*.md'
+paths=()
+[ -f AGENTS.md ] && paths+=(AGENTS.md)
+[ -f README.md ] && paths+=(README.md)
+[ -d docs ] && paths+=(docs)
+[ ${#paths[@]} -gt 0 ] && rg -n "branch|pull request|PR|draft|Ready for review|issue" "${paths[@]}" -g '*.md' || true
 
 # Current branch for comparison against the documented convention
 git branch --show-current
@@ -26,7 +30,7 @@ Use this to answer:
 
 - does the repo expect issue-linked branches
 - does the repo expect a specific base branch
-- should PRs default to ready-for-review or draft
+- should PRs default to non-draft ("Ready for review") or draft
 - should issue linkage appear in the title, body, or branch name
 
 If the repo-local docs and the current branch/PR state disagree, call that out
@@ -127,7 +131,11 @@ echo "Using base branch: $BASE_BRANCH"
 If a PR already exists, capture whether it is draft:
 
 ```bash
-gh pr view --json isDraft,state,number,title,url 2>/dev/null
+if gh pr view --json isDraft,state,number,title,url 2>/dev/null; then
+  :
+else
+  echo "No PR yet"
+fi
 ```
 
 Interpretation:
@@ -135,7 +143,7 @@ Interpretation:
 - existing draft PR: preserve draft unless the user explicitly wants to change it
 - existing ready PR: do not silently convert it back to draft
 - no PR yet: use repo-local docs + user request to decide whether create should
-  be draft or ready-for-review
+  be draft or non-draft ("Ready for review")
 
 ### Step 3: Gather ALL Changes
 
@@ -230,9 +238,9 @@ EOF
 )" --base release
 ```
 
-Draft-vs-ready rule:
+Draft-vs-non-draft rule:
 
-- default to ready-for-review when the user asks to create/open a PR and the
+- default to a non-draft PR when the user asks to create/open a PR and the
   repo-local docs do not say otherwise
 - use `--draft` only when:
   - the user explicitly asks for a draft, or
