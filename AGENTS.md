@@ -10,6 +10,15 @@ repo-local docs that explain how they fit together.
 Do not add application behavior here. Keep changes scoped to docs, manifests,
 skills, commands, and supporting validation scripts.
 
+## Branch And PR Hygiene
+
+- Prefer issue-linked branches such as `gh-45-workflow-skill-branch-pr-conventions`
+  for tracked marketplace work.
+- Default PR target: `main`.
+- Default PR state: ready-for-review. Use draft only for explicit WIP or when
+  the workflow docs for a specific change say draft-first.
+- Prefer issue links in the PR body such as `Closes #45`.
+
 ## How To Navigate This Repo
 
 - Start here for repo-wide rules, verified commands, and doc routing.
