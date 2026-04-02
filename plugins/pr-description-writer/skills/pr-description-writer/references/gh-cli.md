@@ -131,8 +131,8 @@ echo "Using base branch: $BASE_BRANCH"
 If a PR already exists, capture whether it is draft:
 
 ```bash
-if gh pr view --json isDraft,state,number,title,url 2>/dev/null; then
-  :
+if pr_json=$(gh pr view --json isDraft,state,number,title,url 2>/dev/null); then
+  printf '%s\n' "$pr_json"
 else
   echo "No PR yet"
 fi
