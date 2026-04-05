@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -208,14 +209,14 @@ def storage_root() -> Path:
 
     custom = os.environ.get("MONTY_REVIEW_MEMORY_HOME")
     if custom:
-        return Path(custom).expanduser()
+        return Path(custom).expanduser().resolve()
     xdg_state = os.environ.get("XDG_STATE_HOME")
     if xdg_state:
-        return Path(xdg_state).expanduser() / "monty-code-review"
+        return Path(xdg_state).expanduser().resolve() / "monty-code-review"
     xdg_cache = os.environ.get("XDG_CACHE_HOME")
     if xdg_cache:
-        return Path(xdg_cache).expanduser() / "monty-code-review"
-    return Path.home() / ".cache" / "monty-code-review"
+        return Path(xdg_cache).expanduser().resolve() / "monty-code-review"
+    return Path.home().resolve() / ".cache" / "monty-code-review"
 
 
 def ensure_dir(path: Path) -> None:
@@ -433,6 +434,24 @@ def validate_git_scope_component(value: str, label: str) -> str:
     if cleaned_value == "":
         raise ValueError(f"{label} must not be empty")
     return cleaned_value
+
+
+def validate_git_base_branch(value: str) -> str:
+    """Require a canonical base branch name, not a remote-qualified ref."""
+
+    cleaned_value = validate_git_scope_component(value, "base_branch")
+    if cleaned_value.startswith("origin/"):
+        raise ValueError("base_branch must not include a remote alias such as origin/")
+    return cleaned_value
+
+
+def validate_git_merge_base_sha(value: str) -> str:
+    """Require a hex merge-base SHA, not an arbitrary ref-like string."""
+
+    cleaned_value = value.strip()
+    if not re.fullmatch(r"[0-9a-fA-F]{7,40}", cleaned_value):
+        raise ValueError("merge_base_sha must be a hex git SHA")
+    return cleaned_value.lower()
 
 
 def normalize_branch_context(value: object) -> BranchContext | None:
@@ -670,7 +689,14 @@ def canonical_scope_id(
         raise ValueError(
             "git scopes require exactly one of --base-branch or --merge-base-sha"
         )
-    base_value = base_branch if base_branch is not None else merge_base_sha
+    normalized_base_branch = None
+    normalized_merge_base_sha = None
+    if base_branch is not None:
+        normalized_base_branch = validate_git_base_branch(base_branch)
+        base_value = normalized_base_branch
+    else:
+        normalized_merge_base_sha = validate_git_merge_base_sha(merge_base_sha or "")
+        base_value = normalized_merge_base_sha
     scope_id = f"git/{normalized_repo_key}/branch/{normalized_branch_name}@{base_value}"
     scope_slug = slugify(
         f"{Path(normalized_repo_key).name}-branch-{normalized_branch_name}"
@@ -680,8 +706,8 @@ def canonical_scope_id(
         scope_slug,
         {
             "branch_name": normalized_branch_name,
-            "base_branch": base_branch,
-            "merge_base_sha": merge_base_sha,
+            "base_branch": normalized_base_branch,
+            "merge_base_sha": normalized_merge_base_sha,
         },
     )
 
