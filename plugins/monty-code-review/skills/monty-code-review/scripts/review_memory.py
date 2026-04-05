@@ -436,6 +436,17 @@ def validate_git_scope_component(value: str, label: str) -> str:
     return cleaned_value
 
 
+def validate_github_scope_component(value: str, label: str) -> str:
+    """Reject malformed GitHub identity components before building scope IDs."""
+
+    cleaned_value = value.strip().lower()
+    if cleaned_value == "":
+        raise ValueError(f"{label} must not be empty")
+    if "/" in cleaned_value:
+        raise ValueError(f"{label} must not contain '/'")
+    return cleaned_value
+
+
 def validate_git_base_branch(value: str) -> str:
     """Require a canonical base branch name, not a remote-qualified ref."""
 
@@ -445,13 +456,19 @@ def validate_git_base_branch(value: str) -> str:
     return cleaned_value
 
 
-def validate_git_merge_base_sha(value: str) -> str:
-    """Require a hex merge-base SHA, not an arbitrary ref-like string."""
+def validate_git_sha(value: str, label: str) -> str:
+    """Require a hex git SHA, not an arbitrary ref-like string."""
 
     cleaned_value = value.strip()
     if not re.fullmatch(r"[0-9a-fA-F]{7,40}", cleaned_value):
-        raise ValueError("merge_base_sha must be a hex git SHA")
+        raise ValueError(f"{label} must be a hex git SHA")
     return cleaned_value.lower()
+
+
+def validate_git_merge_base_sha(value: str) -> str:
+    """Require a hex merge-base SHA, not an arbitrary ref-like string."""
+
+    return validate_git_sha(value, "merge_base_sha")
 
 
 def normalize_branch_context(value: object) -> BranchContext | None:
@@ -672,9 +689,9 @@ def canonical_scope_id(
     if provider == "github":
         if owner is None or repo is None or pull_number is None:
             raise ValueError("github scopes require --owner, --repo, and --pull-number")
-        normalized_host = host.lower()
-        normalized_owner = owner.lower()
-        normalized_repo = repo.lower()
+        normalized_host = validate_github_scope_component(host, "host")
+        normalized_owner = validate_github_scope_component(owner, "owner")
+        normalized_repo = validate_github_scope_component(repo, "repo")
         scope_id = (
             f"{normalized_host}/{normalized_owner}/{normalized_repo}/pull/{pull_number}"
         )
@@ -992,7 +1009,7 @@ def command_record_review(*, scope_dir: Path) -> int:
     resolved_scope_dir = scope_dir.expanduser().resolve()
     raw_payload = object_dict(read_stdin_json(), "record-review payload")
     findings = normalize_review_groups(raw_payload.get("findings"))
-    head_sha = require_string(raw_payload, "head_sha")
+    head_sha = validate_git_sha(require_string(raw_payload, "head_sha"), "head_sha")
     history_status = normalize_history_status(
         require_string(raw_payload, "history_status")
     )
@@ -1000,7 +1017,12 @@ def command_record_review(*, scope_dir: Path) -> int:
         require_string(raw_payload, "repo_review_file")
     )
     recommendation = require_string(raw_payload, "recommendation")
-    merge_base_sha = optional_string(raw_payload, "merge_base_sha")
+    merge_base_sha_raw = optional_string(raw_payload, "merge_base_sha")
+    merge_base_sha = (
+        validate_git_sha(merge_base_sha_raw, "merge_base_sha")
+        if merge_base_sha_raw is not None
+        else None
+    )
     review_basis = optional_string(raw_payload, "review_basis")
     summary_points = string_list(raw_payload.get("summary_points"), "summary_points")
     commits = normalize_commit_list(raw_payload.get("commits"), "commits")
@@ -1088,7 +1110,7 @@ def run_click_command(command: Callable[[], int]) -> None:
     """Convert expected operational failures into concise CLI errors."""
 
     try:
-        command()
+        return_code = command()
     except (
         FileNotFoundError,
         ValueError,
@@ -1097,6 +1119,8 @@ def run_click_command(command: Callable[[], int]) -> None:
         OSError,
     ) as error:
         raise click.ClickException(str(error)) from error
+    if return_code != 0:
+        raise SystemExit(return_code)
 
 
 @click.group(
