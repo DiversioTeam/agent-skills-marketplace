@@ -34,7 +34,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from tempfile import NamedTemporaryFile
 from typing import Literal, NotRequired, TypedDict
 
@@ -389,6 +389,20 @@ def string_list(value: object, label: str) -> list[str]:
             raise ValueError(f"expected string items for '{label}'")
         items.append(item)
     return items
+
+
+def validate_repo_review_file(value: str) -> str:
+    """Require a repo-local relative review path, not a machine-specific path."""
+
+    posix_path = PurePosixPath(value)
+    windows_path = PureWindowsPath(value)
+    if posix_path.is_absolute() or windows_path.is_absolute():
+        raise ValueError("repo_review_file must be a relative in-repo path")
+    if any(part == ".." for part in posix_path.parts):
+        raise ValueError("repo_review_file must not contain parent-directory segments")
+    if value.strip() == "":
+        raise ValueError("repo_review_file must not be empty")
+    return value
 
 
 def normalize_branch_context(value: object) -> BranchContext | None:
@@ -824,15 +838,15 @@ def command_resolve_scope(
     scope_dir = targets_root / f"{scope_slug}--{scope_hash}"
 
     with scope_lock(scope_dir):
-        raw_state = read_json_object(scope_dir / "state.json", default={})
-        if raw_state:
+        current_state_path = state_path(scope_dir)
+        if current_state_path.exists():
             state = require_state(scope_dir)
         else:
             state = default_state(scope_id, scope_slug, branch_context)
         state["updated_at_utc"] = utc_now()
         if branch_context is not None:
             state["branch_context"] = branch_context
-        atomic_write_json(state_path(scope_dir), state)
+        atomic_write_json(current_state_path, state)
         ensure_reviews_file(scope_dir)
 
     response: JsonObject = {
@@ -911,7 +925,9 @@ def command_record_review(*, scope_dir: Path) -> int:
     history_status = normalize_history_status(
         require_string(raw_payload, "history_status")
     )
-    repo_review_file = require_string(raw_payload, "repo_review_file")
+    repo_review_file = validate_repo_review_file(
+        require_string(raw_payload, "repo_review_file")
+    )
     recommendation = require_string(raw_payload, "recommendation")
     merge_base_sha = optional_string(raw_payload, "merge_base_sha")
     review_basis = optional_string(raw_payload, "review_basis")
@@ -1090,7 +1106,7 @@ def resolve_scope_cli(
 )
 @click.option(
     "--finding-limit",
-    type=int,
+    type=click.IntRange(min=1),
     default=10,
     show_default=True,
     help="Maximum number of open or recently resolved findings to include.",

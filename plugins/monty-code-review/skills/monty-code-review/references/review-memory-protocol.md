@@ -351,7 +351,7 @@ A valid implementation must be able to:
 
 1. resolve a deterministic scope directory
 2. load compact prior context without reading all raw history
-3. detect linear vs rewritten history
+3. determine history status (linear vs rewritten) and pass it to the helper
 4. append one completed review record
 5. keep unresolved findings open until they are explicitly resolved
 6. keep UTC persistence and local-time presentation separate
