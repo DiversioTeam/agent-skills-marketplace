@@ -7,9 +7,13 @@ when command files change.
 ## Review And Workflow
 
 - `monty-code-review`
-  - Purpose: hyper-pedantic Django4Lyfe backend code review.
+  - Purpose: hyper-pedantic Django4Lyfe backend code review with persistent JSON-first review memory.
   - Claude install: `claude plugin install monty-code-review@diversiotech`
   - Skill path: `plugins/monty-code-review/skills/monty-code-review`
+  - Memory helper:
+    `plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py`
+  - Memory protocol:
+    `plugins/monty-code-review/skills/monty-code-review/references/review-memory-protocol.md`
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
 - `backend-atomic-commit`

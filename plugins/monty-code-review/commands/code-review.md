@@ -6,6 +6,18 @@ Use your `monty-code-review` Skill to perform a full backend Django code review
 of the current change (PR, diff, or working tree), following the workflow,
 severity tags, and checklists defined in its SKILL.md.
 
+Before reviewing, automatically resolve and load persistent review memory using
+the Skill's JSON-first memory protocol and the `uv`-managed `click` helper at
+`skills/monty-code-review/scripts/review_memory.py`.
+
+Why: follow-up reviews should focus on new commits and unresolved findings
+instead of re-reading every old markdown review from scratch.
+
+Keep the repo-local `*_review.md` as the review artifact, but treat the
+structured memory store as the canonical persistent history. Ask one short
+clarifying question instead of assuming whenever ambiguity would change memory
+identity or dedupe behavior.
+
 If changed files include pytest tests (`test_*.py`, `*_test.py`, `tests/**/*.py`, `conftest.py`),
 also run the Skill's pytest test-hardening lane and apply dangerous-pattern checks
 from `skills/monty-code-review/references/pytest-dangerous-patterns.md`.

@@ -230,7 +230,7 @@ agent-skills-marketplace/
 
 | Plugin | Description |
 |--------|-------------|
-| `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane |
+| `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
@@ -387,6 +387,63 @@ Once plugins are installed:
    /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
    /login-cta-attribution-skill:implement   # Add new CTA login attribution source
    ```
+
+## Monty Review Memory
+
+`monty-code-review` now includes persistent JSON-first review memory.
+
+Why this exists:
+
+- PR review is iterative, so the reviewer often comes back after new commits.
+- Re-reading every old markdown review wastes tokens and repeats old findings.
+- Structured memory lets the skill load only the small amount of prior context
+  it actually needs.
+
+Mental model:
+
+```text
+resolve target -> load compact memory summary -> run new review
+               -> write repo-local *_review.md for humans
+               -> persist structured memory for the next pass
+```
+
+Important rule:
+
+- Structured JSON/JSONL files are the canonical memory store.
+- The repo-local `*_review.md` is still the human-facing artifact and the
+  current compatibility input for `process-code-review`.
+- The small v1 persistence model is just `state.json` plus `reviews.jsonl`
+  inside one deterministic scope directory.
+
+The helper lives at:
+
+- `plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py`
+
+Useful commands:
+
+```bash
+uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py --help
+
+uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
+  resolve-scope \
+  --provider github \
+  --host github.com \
+  --owner DiversioTeam \
+  --repo monolith \
+  --pull-number 1842
+
+uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
+  summarize-context \
+  --scope-dir "<resolved-scope-dir>"
+
+uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
+  record-review \
+  --scope-dir "<resolved-scope-dir>"
+```
+
+For the full protocol, schema, and maintenance rules, read:
+
+- `plugins/monty-code-review/skills/monty-code-review/references/review-memory-protocol.md`
 
 ### Uninstall Plugins (Claude Code)
 
