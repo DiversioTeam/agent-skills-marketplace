@@ -436,9 +436,21 @@ uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/revie
   summarize-context \
   --scope-dir "<resolved-scope-dir>"
 
-uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
+cat <<'EOF' | uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
   record-review \
   --scope-dir "<resolved-scope-dir>"
+{
+  "head_sha": "abc123",
+  "history_status": "linear",
+  "repo_review_file": "docs/code_reviews/pr_1842_review.md",
+  "recommendation": "request_changes",
+  "findings": {
+    "new": [],
+    "carried_forward": [],
+    "resolved": []
+  }
+}
+EOF
 ```
 
 For the full protocol, schema, and maintenance rules, read:

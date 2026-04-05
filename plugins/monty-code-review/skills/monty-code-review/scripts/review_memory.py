@@ -44,6 +44,7 @@ import click
 SCHEMA_VERSION = 1
 LOCK_TIMEOUT_SECONDS = 10.0
 LOCK_POLL_INTERVAL_SECONDS = 0.1
+LOCK_STALE_SECONDS = 300
 
 JsonObject = dict[str, object]
 
@@ -254,8 +255,7 @@ def append_jsonl(path: Path, rows: Sequence[object]) -> None:
     ensure_dir(path.parent)
     with path.open("a", encoding="utf-8") as handle:
         for row in rows:
-            handle.write(json.dumps(row, sort_keys=True))
-            handle.write("\n")
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
     try:
@@ -282,15 +282,26 @@ def read_jsonl_tail(path: Path, limit: int) -> list[JsonObject]:
 
     if not path.exists() or limit <= 0:
         return []
+    chunk_size = 8192
+    buffer = b""
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        while position > 0 and buffer.count(b"\n") <= limit:
+            read_size = min(chunk_size, position)
+            position -= read_size
+            handle.seek(position)
+            buffer = handle.read(read_size) + buffer
+
     rows: list[JsonObject] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in buffer.splitlines()[-limit:]:
         if not line.strip():
             continue
-        loaded = json.loads(line)
+        loaded = json.loads(line.decode("utf-8"))
         if not isinstance(loaded, dict):
             raise ValueError(f"expected JSON object lines in {path}")
         rows.append(dict(loaded))
-    return rows[-limit:]
+    return rows
 
 
 def require_string(payload: Mapping[str, object], key: str) -> str:
@@ -534,6 +545,8 @@ def scope_lock(scope_dir: Path) -> Iterator[None]:
             os.close(descriptor)
             break
         except FileExistsError:
+            if stale_lock_recovered(lock_path):
+                continue
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"timed out waiting for lock: {lock_path}")
             time.sleep(LOCK_POLL_INTERVAL_SECONDS)
@@ -562,9 +575,7 @@ def canonical_scope_id(
 
     if provider == "github":
         if owner is None or repo is None or pull_number is None:
-            raise ValueError(
-                "github scopes require --host, --owner, --repo, and --pull-number"
-            )
+            raise ValueError("github scopes require --owner, --repo, and --pull-number")
         normalized_host = host.lower()
         normalized_owner = owner.lower()
         normalized_repo = repo.lower()
@@ -625,6 +636,51 @@ def ensure_reviews_file(scope_dir: Path) -> None:
     if not path.exists():
         ensure_dir(path.parent)
         path.touch(mode=0o600)
+
+
+def process_is_alive(pid: int) -> bool:
+    """Return whether a recorded PID still appears to be alive."""
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def stale_lock_recovered(lock_path: Path) -> bool:
+    """Remove a stale lock when the owner is gone or the lock is too old."""
+
+    try:
+        age_seconds = time.time() - lock_path.stat().st_mtime
+    except FileNotFoundError:
+        return True
+
+    pid: int | None = None
+    try:
+        raw = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raw = None
+
+    if isinstance(raw, dict):
+        raw_pid = raw.get("pid")
+        if isinstance(raw_pid, bool):
+            pid = None
+        elif isinstance(raw_pid, int):
+            pid = raw_pid
+
+    pid_is_stale = pid is not None and not process_is_alive(pid)
+    age_is_stale = age_seconds > LOCK_STALE_SECONDS
+    if not pid_is_stale and not age_is_stale:
+        return False
+
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        return True
+    return True
 
 
 def add_local_display_fields(
@@ -766,17 +822,18 @@ def command_summarize_context(*, scope_dir: Path, finding_limit: int) -> int:
     """Return a compact summary so the skill can avoid loading raw history files."""
 
     resolved_scope_dir = scope_dir.expanduser().resolve()
-    state = require_state(resolved_scope_dir)
-    latest_review = None
-    recent_resolved_findings: list[ReviewFinding] = []
-    review_rows = read_jsonl_tail(reviews_path(resolved_scope_dir), 1)
-    if review_rows:
-        latest_review = add_local_display_fields(
-            review_rows[-1],
-            ["created_at_utc"],
-        )
-        latest_findings = normalize_review_groups(review_rows[-1].get("findings"))
-        recent_resolved_findings = latest_findings["resolved"][:finding_limit]
+    with scope_lock(resolved_scope_dir):
+        state = require_state(resolved_scope_dir)
+        latest_review = None
+        recent_resolved_findings: list[ReviewFinding] = []
+        review_rows = read_jsonl_tail(reviews_path(resolved_scope_dir), 1)
+        if review_rows:
+            latest_review = add_local_display_fields(
+                review_rows[-1],
+                ["created_at_utc"],
+            )
+            latest_findings = normalize_review_groups(review_rows[-1].get("findings"))
+            recent_resolved_findings = latest_findings["resolved"][:finding_limit]
 
     last_synced_at_utc = state["last_synced_at_utc"]
     response: JsonObject = {
@@ -868,8 +925,8 @@ def command_record_review(*, scope_dir: Path) -> int:
             "touched_paths": touched_paths,
             "findings": findings,
         }
-        append_jsonl(reviews_path(resolved_scope_dir), [review_record])
-
+        reviews_file = reviews_path(resolved_scope_dir)
+        previous_size = reviews_file.stat().st_size if reviews_file.exists() else 0
         state["updated_at_utc"] = recorded_at
         state["last_synced_at_utc"] = recorded_at
         state["last_reviewed_head_sha"] = head_sha
@@ -880,7 +937,15 @@ def command_record_review(*, scope_dir: Path) -> int:
             current_open.values(),
             key=lambda item: item["finding_id"],
         )
-        atomic_write_json(state_path(resolved_scope_dir), state)
+        append_jsonl(reviews_file, [review_record])
+        try:
+            atomic_write_json(state_path(resolved_scope_dir), state)
+        except OSError:
+            with reviews_file.open("r+", encoding="utf-8") as handle:
+                handle.truncate(previous_size)
+                handle.flush()
+                os.fsync(handle.fileno())
+            raise
 
     response: JsonObject = {
         "schema_version": SCHEMA_VERSION,

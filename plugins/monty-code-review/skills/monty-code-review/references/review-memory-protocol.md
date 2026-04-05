@@ -290,8 +290,17 @@ If the match is uncertain, ask before suppressing it as already known.
 
 ## Helper Script Contract
 
-Use `uv run --script scripts/review_memory.py ...` so the helper's inline
-`click` dependency resolves deterministically.
+Use `uv run --script ...` so the helper's inline `click` dependency resolves
+deterministically.
+
+From the repository root, run:
+
+`uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py ...`
+
+From `plugins/monty-code-review/skills/monty-code-review/`, you can instead
+run:
+
+`uv run --script scripts/review_memory.py ...`
 
 Useful commands:
 
@@ -300,6 +309,34 @@ resolve-scope     Create or refresh one deterministic memory scope.
 summarize-context Return the compact context the model should read.
 record-review     Persist one completed review pass from stdin JSON.
 ```
+
+Minimal `record-review` example:
+
+```bash
+cat <<'EOF' | uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
+  record-review \
+  --scope-dir "$SCOPE_DIR"
+{
+  "head_sha": "abc123",
+  "history_status": "linear",
+  "repo_review_file": "docs/code_reviews/pr_1842_review.md",
+  "recommendation": "request_changes",
+  "findings": {
+    "new": [],
+    "carried_forward": [],
+    "resolved": []
+  }
+}
+EOF
+```
+
+Minimum required keys:
+
+- `head_sha`
+- `history_status`
+- `repo_review_file`
+- `recommendation`
+- `findings`
 
 If you change the helper:
 
