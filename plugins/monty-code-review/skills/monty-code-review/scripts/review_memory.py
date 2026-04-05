@@ -45,6 +45,7 @@ SCHEMA_VERSION = 1
 LOCK_TIMEOUT_SECONDS = 10.0
 LOCK_POLL_INTERVAL_SECONDS = 0.1
 LOCK_STALE_SECONDS = 300
+HISTORY_STATUS_VALUES = {"linear", "rewritten", "uncertain"}
 
 JsonObject = dict[str, object]
 
@@ -337,6 +338,23 @@ def optional_int(payload: Mapping[str, object], key: str) -> int | None:
     raise ValueError(f"expected optional integer field '{key}'")
 
 
+def require_schema_version(payload: Mapping[str, object], path: Path) -> int:
+    """Require a valid schema version for persisted state metadata."""
+
+    schema_version = payload.get("schema_version")
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int):
+        raise ValueError(
+            f"state metadata at {path} is missing a valid integer schema_version; "
+            "an explicit migration or regeneration step is required",
+        )
+    if schema_version != SCHEMA_VERSION:
+        raise ValueError(
+            f"state metadata at {path} has schema_version={schema_version}, "
+            f"expected {SCHEMA_VERSION}; an explicit migration step is required",
+        )
+    return schema_version
+
+
 def object_dict(value: object, label: str) -> JsonObject:
     """Require one JSON object from an unknown value."""
 
@@ -496,6 +514,18 @@ def normalize_state(
     return state
 
 
+def normalize_history_status(value: str) -> str:
+    """Validate and normalize one persisted history status value."""
+
+    normalized = value.strip().lower()
+    if normalized not in HISTORY_STATUS_VALUES:
+        valid_values = ", ".join(sorted(HISTORY_STATUS_VALUES))
+        raise ValueError(
+            f"invalid history_status '{value}'; expected one of: {valid_values}",
+        )
+    return normalized
+
+
 def default_state(
     scope_id: str, scope_slug: str, branch_context: BranchContext | None
 ) -> StateRecord:
@@ -624,6 +654,7 @@ def require_state(scope_dir: Path) -> StateRecord:
             f"state metadata not found at {path}; run resolve-scope first",
         )
     raw = read_json_object(path)
+    require_schema_version(raw, path)
     scope_id = require_string(raw, "scope_id")
     scope_slug = require_string(raw, "scope_slug")
     return normalize_state(raw, scope_id, scope_slug)
@@ -795,7 +826,7 @@ def command_resolve_scope(
     with scope_lock(scope_dir):
         raw_state = read_json_object(scope_dir / "state.json", default={})
         if raw_state:
-            state = normalize_state(raw_state, scope_id, scope_slug)
+            state = require_state(scope_dir)
         else:
             state = default_state(scope_id, scope_slug, branch_context)
         state["updated_at_utc"] = utc_now()
@@ -877,7 +908,9 @@ def command_record_review(*, scope_dir: Path) -> int:
     raw_payload = object_dict(read_stdin_json(), "record-review payload")
     findings = normalize_review_groups(raw_payload.get("findings"))
     head_sha = require_string(raw_payload, "head_sha")
-    history_status = require_string(raw_payload, "history_status")
+    history_status = normalize_history_status(
+        require_string(raw_payload, "history_status")
+    )
     repo_review_file = require_string(raw_payload, "repo_review_file")
     recommendation = require_string(raw_payload, "recommendation")
     merge_base_sha = optional_string(raw_payload, "merge_base_sha")
