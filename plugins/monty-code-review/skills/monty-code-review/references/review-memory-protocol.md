@@ -77,13 +77,15 @@ resolved automatically:
 ```bash
 uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py --help
 
-uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
-  resolve-scope \
-  --provider github \
-  --host github.com \
-  --owner DiversioTeam \
-  --repo monolith \
-  --pull-number 1842
+SCOPE_DIR="$(
+  uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
+    resolve-scope \
+    --provider github \
+    --host github.com \
+    --owner DiversioTeam \
+    --repo monolith \
+    --pull-number 1842 | jq -r '.scope_dir'
+)"
 
 uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
   summarize-context \

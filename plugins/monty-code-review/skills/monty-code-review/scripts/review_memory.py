@@ -398,7 +398,9 @@ def validate_repo_review_file(value: str) -> str:
     windows_path = PureWindowsPath(value)
     if posix_path.is_absolute() or windows_path.is_absolute():
         raise ValueError("repo_review_file must be a relative in-repo path")
-    if any(part == ".." for part in posix_path.parts):
+    if any(part == ".." for part in posix_path.parts) or any(
+        part == ".." for part in windows_path.parts
+    ):
         raise ValueError("repo_review_file must not contain parent-directory segments")
     if value.strip() == "":
         raise ValueError("repo_review_file must not be empty")
@@ -631,9 +633,11 @@ def canonical_scope_id(
 
     if repo_key is None or branch_name is None:
         raise ValueError("git scopes require --repo-key and --branch-name")
+    if (base_branch is None) == (merge_base_sha is None):
+        raise ValueError(
+            "git scopes require exactly one of --base-branch or --merge-base-sha"
+        )
     base_value = base_branch if base_branch is not None else merge_base_sha
-    if base_value is None:
-        raise ValueError("git scopes require one of --base-branch or --merge-base-sha")
     scope_id = f"git/{repo_key}/branch/{branch_name}@{base_value}"
     scope_slug = slugify(f"{Path(repo_key).name}-branch-{branch_name}")
     return (
@@ -716,9 +720,14 @@ def stale_lock_recovered(lock_path: Path) -> bool:
         elif isinstance(raw_pid, int):
             pid = raw_pid
 
-    pid_is_stale = pid is not None and not process_is_alive(pid)
-    age_is_stale = age_seconds > LOCK_STALE_SECONDS
-    if not pid_is_stale and not age_is_stale:
+    if pid is not None:
+        if process_is_alive(pid):
+            return False
+        stale = True
+    else:
+        stale = age_seconds > LOCK_STALE_SECONDS
+
+    if not stale:
         return False
 
     try:
