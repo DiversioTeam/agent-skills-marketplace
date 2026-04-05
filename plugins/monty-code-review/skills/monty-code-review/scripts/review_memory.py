@@ -396,7 +396,12 @@ def validate_repo_review_file(value: str) -> str:
 
     posix_path = PurePosixPath(value)
     windows_path = PureWindowsPath(value)
-    if posix_path.is_absolute() or windows_path.is_absolute():
+    if (
+        posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive != ""
+        or windows_path.anchor != ""
+    ):
         raise ValueError("repo_review_file must be a relative in-repo path")
     if any(part == ".." for part in posix_path.parts) or any(
         part == ".." for part in windows_path.parts
@@ -568,11 +573,14 @@ def default_state(
 
 
 @contextmanager
-def scope_lock(scope_dir: Path) -> Iterator[None]:
-    """Serialize writes per scope so concurrent worktrees do not clobber state."""
+def scope_lock(scope_dir: Path, *, create: bool = True) -> Iterator[None]:
+    """Serialize per-scope access without always creating missing scope dirs."""
 
     lock_path = scope_dir / ".lock"
-    ensure_dir(scope_dir)
+    if create:
+        ensure_dir(scope_dir)
+    elif not scope_dir.is_dir():
+        raise FileNotFoundError(f"scope directory does not exist: {scope_dir}")
     deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
     while True:
         try:
@@ -876,7 +884,8 @@ def command_summarize_context(*, scope_dir: Path, finding_limit: int) -> int:
     """Return a compact summary so the skill can avoid loading raw history files."""
 
     resolved_scope_dir = scope_dir.expanduser().resolve()
-    with scope_lock(resolved_scope_dir):
+    require_state(resolved_scope_dir)
+    with scope_lock(resolved_scope_dir, create=False):
         state = require_state(resolved_scope_dir)
         latest_review = None
         recent_resolved_findings: list[ReviewFinding] = []
@@ -944,7 +953,8 @@ def command_record_review(*, scope_dir: Path) -> int:
     commits = normalize_commit_list(raw_payload.get("commits"), "commits")
     touched_paths = string_list(raw_payload.get("touched_paths"), "touched_paths")
 
-    with scope_lock(resolved_scope_dir):
+    require_state(resolved_scope_dir)
+    with scope_lock(resolved_scope_dir, create=False):
         state = require_state(resolved_scope_dir)
         review_number = state["next_review_number"]
         recorded_at = utc_now()
