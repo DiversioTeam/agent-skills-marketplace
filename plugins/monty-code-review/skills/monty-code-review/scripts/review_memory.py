@@ -394,8 +394,9 @@ def string_list(value: object, label: str) -> list[str]:
 def validate_repo_review_file(value: str) -> str:
     """Require a repo-local relative review path, not a machine-specific path."""
 
-    posix_path = PurePosixPath(value)
-    windows_path = PureWindowsPath(value)
+    cleaned_value = value.strip()
+    posix_path = PurePosixPath(cleaned_value)
+    windows_path = PureWindowsPath(cleaned_value)
     if (
         posix_path.is_absolute()
         or windows_path.is_absolute()
@@ -407,9 +408,31 @@ def validate_repo_review_file(value: str) -> str:
         part == ".." for part in windows_path.parts
     ):
         raise ValueError("repo_review_file must not contain parent-directory segments")
-    if value.strip() == "":
+    if cleaned_value == "":
         raise ValueError("repo_review_file must not be empty")
-    return value
+    return cleaned_value
+
+
+def validate_git_scope_component(value: str, label: str) -> str:
+    """Reject machine-specific or path-traversing git scope identifiers."""
+
+    cleaned_value = value.strip()
+    posix_path = PurePosixPath(cleaned_value)
+    windows_path = PureWindowsPath(cleaned_value)
+    if (
+        posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive != ""
+        or windows_path.anchor != ""
+    ):
+        raise ValueError(f"{label} must not be an absolute or drive-anchored path")
+    if any(part == ".." for part in posix_path.parts) or any(
+        part == ".." for part in windows_path.parts
+    ):
+        raise ValueError(f"{label} must not contain parent-directory segments")
+    if cleaned_value == "":
+        raise ValueError(f"{label} must not be empty")
+    return cleaned_value
 
 
 def normalize_branch_context(value: object) -> BranchContext | None:
@@ -641,18 +664,22 @@ def canonical_scope_id(
 
     if repo_key is None or branch_name is None:
         raise ValueError("git scopes require --repo-key and --branch-name")
+    normalized_repo_key = validate_git_scope_component(repo_key, "repo_key")
+    normalized_branch_name = validate_git_scope_component(branch_name, "branch_name")
     if (base_branch is None) == (merge_base_sha is None):
         raise ValueError(
             "git scopes require exactly one of --base-branch or --merge-base-sha"
         )
     base_value = base_branch if base_branch is not None else merge_base_sha
-    scope_id = f"git/{repo_key}/branch/{branch_name}@{base_value}"
-    scope_slug = slugify(f"{Path(repo_key).name}-branch-{branch_name}")
+    scope_id = f"git/{normalized_repo_key}/branch/{normalized_branch_name}@{base_value}"
+    scope_slug = slugify(
+        f"{Path(normalized_repo_key).name}-branch-{normalized_branch_name}"
+    )
     return (
         scope_id,
         scope_slug,
         {
-            "branch_name": branch_name,
+            "branch_name": normalized_branch_name,
             "base_branch": base_branch,
             "merge_base_sha": merge_base_sha,
         },
