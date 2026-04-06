@@ -31,8 +31,14 @@ from urllib.parse import urlparse
 import click
 
 
+MONOLITH_ROOT_MARKERS: tuple[str, ...] = (
+    ".gitmodules",
+    ".submodule-branches",
+    "scripts/create_worktree.py",
+    "scripts/update_submodules.py",
+    "docs/github-first-branch-and-pr-conventions.md",
+)
 REPO_MAP: dict[str, tuple[str, str]] = {
-    "monolith": ("mono", "monolith"),
     "Django4Lyfe": ("bk", "backend"),
     "Diversio-Frontend": ("fe", "frontend"),
     "Optimo-Frontend": ("of", "optimo-frontend"),
@@ -66,18 +72,26 @@ class ReviewBatchPayload(TypedDict):
     prs: list[PullRequestTarget]
 
 
+def validate_monolith_root(root: Path) -> Path:
+    missing_markers = [
+        marker for marker in MONOLITH_ROOT_MARKERS if not (root / marker).exists()
+    ]
+    if missing_markers:
+        required_markers = ", ".join(MONOLITH_ROOT_MARKERS)
+        raise click.ClickException(
+            "Could not validate monolith root "
+            f"`{root}`. Expected to find all required markers: {required_markers}. "
+            f"Missing markers: {', '.join(sorted(missing_markers))}."
+        )
+    return root
+
+
 def discover_monolith_root(start: Path) -> Path:
     current = start.expanduser().resolve()
-    markers = (
-        ".gitmodules",
-        ".submodule-branches",
-        "scripts/create_worktree.py",
-        "docs/github-first-branch-and-pr-conventions.md",
-    )
     for candidate in (current, *current.parents):
-        if all((candidate / marker).exists() for marker in markers):
+        if all((candidate / marker).exists() for marker in MONOLITH_ROOT_MARKERS):
             return candidate
-    required_markers = ", ".join(markers)
+    required_markers = ", ".join(MONOLITH_ROOT_MARKERS)
     raise click.ClickException(
         "Could not discover monolith root from "
         f"`{current}`. Expected to find all required markers in that directory "
@@ -139,7 +153,7 @@ def main(monolith_root: Path, pr_urls: tuple[str, ...]) -> None:
     if monolith_root is None:
         root = discover_monolith_root(Path.cwd())
     else:
-        root = monolith_root.expanduser().resolve()
+        root = validate_monolith_root(monolith_root.expanduser().resolve())
     items = [parse_pr_url(pr_url) for pr_url in pr_urls]
     seen_identities: set[tuple[str, int]] = set()
     for item in items:

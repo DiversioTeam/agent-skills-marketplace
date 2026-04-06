@@ -98,6 +98,24 @@ def read_json(path: Path) -> ReviewStateRecord:
         data = json.load(handle)
     if not isinstance(data, dict):
         raise click.ClickException(f"{path} does not contain a JSON object.")
+    raw_schema_version = data.get("schema_version")
+    if raw_schema_version is None:
+        raise click.ClickException(
+            "State file is missing required `schema_version`. "
+            f"Remove or regenerate {path} and rerun the command."
+        )
+    if not isinstance(raw_schema_version, int) or isinstance(raw_schema_version, bool):
+        raise click.ClickException(
+            "State file has invalid `schema_version`; expected an integer. "
+            f"Update, migrate, or remove {path} and rerun the command."
+        )
+    if raw_schema_version != SCHEMA_VERSION:
+        raise click.ClickException(
+            "State file schema version mismatch: "
+            f"found {raw_schema_version}, expected {SCHEMA_VERSION}. "
+            f"Upgrade/migrate the state file or remove {path} and rerun the command."
+        )
+    parse_prs_from_state(data)
     return data
 
 
@@ -136,7 +154,9 @@ def parse_prs_from_state(payload: ReviewStateRecord) -> set[tuple[str, int]]:
             raise click.ClickException("State file has a non-object PR entry.")
         repo = item.get("repo")
         pr_number = item.get("pr_number")
-        if not isinstance(repo, str) or not isinstance(pr_number, int):
+        if not isinstance(repo, str) or not (
+            isinstance(pr_number, int) and not isinstance(pr_number, bool)
+        ):
             raise click.ClickException("State file has an invalid PR identity entry.")
         parsed.add((repo, pr_number))
     return parsed
@@ -246,6 +266,10 @@ def parse_review_target(raw: str) -> ReviewPassEntry:
         raise click.ClickException(
             f"Invalid --review-target value `{raw}`. PR number must be an integer."
         ) from exc
+    if isinstance(pr_number, bool):
+        raise click.ClickException(
+            f"Invalid --review-target value `{raw}`. PR number must be a non-boolean integer."
+        )
     return {
         "repo": repo,
         "pr_number": pr_number,
