@@ -335,6 +335,10 @@ uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/sk
 
 Expected shape:
 
+This is a partial excerpt of the JSON you should expect. The actual command
+also includes keys such as `monolith_root`, `review_dir`,
+`reassess_artifact_path`, and `prs`.
+
 ```json
 {
   "batch_key": "bk2779-of389",

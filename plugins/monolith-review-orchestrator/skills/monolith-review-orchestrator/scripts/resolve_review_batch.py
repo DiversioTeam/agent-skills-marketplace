@@ -130,8 +130,10 @@ def parse_pr_url(pr_url: str) -> PullRequestTarget:
     }
 
 
-def reviews_root(monolith_root: Path) -> Path:
-    return monolith_root / "reviews"
+def reviews_root(worktree_root: Path) -> Path:
+    """Return the review-artifact directory for one resolved worktree root."""
+
+    return worktree_root / "reviews"
 
 
 @click.command()
