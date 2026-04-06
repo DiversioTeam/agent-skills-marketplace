@@ -41,13 +41,17 @@ class ReviewBatchIdentity(TypedDict):
 class ReviewPassRecord(TypedDict):
     review_pass_number: int
     recorded_at_utc: str
+    artifact_path: str
+    posting_status: str
+    entries: list["ReviewPassEntry"]
+
+
+class ReviewPassEntry(TypedDict):
     repo: str
     pr_number: int
     base_branch: str
     head_sha: str
     merge_base: str
-    artifact_path: str
-    posting_status: str
 
 
 class ReviewStateRecord(TypedDict, total=False):
@@ -195,24 +199,51 @@ def show_state(state_path: Path) -> None:
     )
 
 
+def parse_review_target(raw: str) -> ReviewPassEntry:
+    """Parse one batch-scoped review target entry.
+
+    Shape:
+        repo:pr_number:base_branch:head_sha:merge_base
+    """
+
+    parts = raw.split(":", 4)
+    if len(parts) != 5:
+        raise click.ClickException(
+            f"Invalid --review-target value `{raw}`. "
+            "Use repo:pr_number:base_branch:head_sha:merge_base."
+        )
+    repo, pr_number_text, base_branch, head_sha, merge_base = parts
+    try:
+        pr_number = int(pr_number_text)
+    except ValueError as exc:
+        raise click.ClickException(
+            f"Invalid --review-target value `{raw}`. PR number must be an integer."
+        ) from exc
+    return {
+        "repo": repo,
+        "pr_number": pr_number,
+        "base_branch": base_branch,
+        "head_sha": head_sha,
+        "merge_base": merge_base,
+    }
+
+
 @cli.command("record-pass")
 @click.option(
     "--state-path", type=click.Path(path_type=Path, exists=True), required=True
 )
-@click.option("--repo", required=True)
-@click.option("--pr-number", type=int, required=True)
-@click.option("--base-branch", required=True)
-@click.option("--head-sha", required=True)
-@click.option("--merge-base", required=True)
+@click.option(
+    "--review-target",
+    "review_targets",
+    multiple=True,
+    required=True,
+    help="Repeat as repo:pr_number:base_branch:head_sha:merge_base.",
+)
 @click.option("--artifact-path", type=click.Path(path_type=Path), required=True)
 @click.option("--posting-status", default="not_posted", show_default=True)
 def record_pass(
     state_path: Path,
-    repo: str,
-    pr_number: int,
-    base_branch: str,
-    head_sha: str,
-    merge_base: str,
+    review_targets: tuple[str, ...],
     artifact_path: Path,
     posting_status: str,
 ) -> None:
@@ -226,23 +257,30 @@ def record_pass(
     path = state_path.expanduser().resolve()
     payload = read_json(path)
     known_prs = parse_prs_from_state(payload)
-    if (repo, pr_number) not in known_prs:
-        raise click.ClickException(
-            f"{repo}:{pr_number} is not part of this review batch."
-        )
+    entries: list[ReviewPassEntry] = []
+    seen_targets: set[tuple[str, int]] = set()
+    for raw in review_targets:
+        entry = parse_review_target(raw)
+        identity = (entry["repo"], entry["pr_number"])
+        if identity not in known_prs:
+            raise click.ClickException(
+                f"{entry['repo']}:{entry['pr_number']} is not part of this review batch."
+            )
+        if identity in seen_targets:
+            raise click.ClickException(
+                f"Duplicate --review-target entry: {entry['repo']}:{entry['pr_number']}"
+            )
+        seen_targets.add(identity)
+        entries.append(entry)
     review_pass_number = int(payload.get("review_pass_number", 0)) + 1
     now = utc_now()
 
     pass_record: ReviewPassRecord = {
         "review_pass_number": review_pass_number,
         "recorded_at_utc": now,
-        "repo": repo,
-        "pr_number": pr_number,
-        "base_branch": base_branch,
-        "head_sha": head_sha,
-        "merge_base": merge_base,
         "artifact_path": str(Path(artifact_path).expanduser().resolve()),
         "posting_status": posting_status,
+        "entries": entries,
     }
 
     passes = payload.setdefault("passes", [])

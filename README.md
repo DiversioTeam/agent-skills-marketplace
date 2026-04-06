@@ -265,7 +265,7 @@ This plugin exists because deep PR review in the Diversio monolith has a few
 failure-prone steps that should not be re-derived from scratch every run:
 
 - deciding whether the machine is even in a valid monolith environment
-- turning one PR or one linked PR pair into one stable review identity
+- turning one PR or one linked cross-repo PR pair into one stable review identity
 - creating or reusing the right detached review worktree
 - remembering reassessment state across multiple passes
 
@@ -311,7 +311,8 @@ Why:
 - avoid discovering missing tools after worktree or review state steps
 
 ```bash
-cd /Users/monty/work/diversio/monolith
+export MONOLITH_ROOT="/path/to/monolith"
+cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
 ```
@@ -319,11 +320,11 @@ uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/sk
 #### 2. Resolve one stable review batch identity
 
 Why:
-- one PR or one linked PR pair should always map to the same batch key,
+- one PR or one linked cross-repo PR pair should always map to the same batch key,
   worktree path, markdown artifact path, and state path
 
 ```bash
-cd /Users/monty/work/diversio/monolith
+cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
   --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
@@ -332,11 +333,13 @@ uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/sk
 
 Expected shape:
 
-```text
-batch_key: bk2779-of389
-worktree_path: /Users/monty/work/diversio/monolith-review-bk2779-of389
-artifact_path: /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md
-state_path: /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json
+```json
+{
+  "batch_key": "bk2779-of389",
+  "worktree_path": "/path/to/monolith-review-bk2779-of389",
+  "artifact_path": "/path/to/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
+  "state_path": "/path/to/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+}
 ```
 
 #### 3. Create or reuse the detached review worktree
@@ -347,11 +350,13 @@ Why:
 - initialize only this worktree instead of broad monolith mutation
 
 ```bash
-cd /Users/monty/work/diversio/monolith
+cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
-  --monolith-root /Users/monty/work/diversio/monolith \
-  --worktree-path /Users/monty/work/diversio/monolith-review-bk2779-of389 \
+  --monolith-root "$MONOLITH_ROOT" \
+  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
+  --submodule-path backend \
+  --submodule-path optimo-frontend \
   --start-ref HEAD
 ```
 
@@ -367,13 +372,13 @@ Why:
 - follow-up passes should update the same batch state, not invent a new one
 
 ```bash
-cd /Users/monty/work/diversio/monolith
+cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py init \
-  --state-path /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
   --batch-key bk2779-of389 \
-  --worktree-path /Users/monty/work/diversio/monolith-review-bk2779-of389 \
-  --artifact-path /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md \
+  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
+  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
   --pr Django4Lyfe:2779 \
   --pr Optimo-Frontend:389
 ```
@@ -386,25 +391,22 @@ Why:
   markdown file alone
 
 ```bash
-cd /Users/monty/work/diversio/monolith
+cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py show \
-  --state-path /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
 ```
 
 Then record the new pass after reviewing:
 
 ```bash
-cd /Users/monty/work/diversio/monolith
+cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py record-pass \
-  --state-path /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json \
-  --repo Django4Lyfe \
-  --pr-number 2779 \
-  --base-branch main \
-  --head-sha <head-sha> \
-  --merge-base <merge-base-sha> \
-  --artifact-path /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
+  --review-target "Django4Lyfe:2779:main:<backend-head-sha>:<backend-merge-base-sha>" \
+  --review-target "Optimo-Frontend:389:main:<optimo-head-sha>:<optimo-merge-base-sha>" \
+  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
   --posting-status not_posted
 ```
 
@@ -523,8 +525,8 @@ claude plugin install monty-code-review@diversiotech --scope project
 Once plugins are installed:
 
    ```text
-   /monolith-review-orchestrator:review-prs    # Monolith-local v1 review harness for one PR or one linked PR pair
-   /monolith-review-orchestrator:reassess-prs  # Reload structured state and reassess after the author pushes updates
+   /monolith-review-orchestrator:review-prs    # Monolith-local v1 review harness for one PR or one linked cross-repo PR pair
+   /monolith-review-orchestrator:reassess-prs  # Reload structured state and reassess after a PR or linked cross-repo PR pair changes
    /monolith-review-orchestrator:post-review   # Narrow v1 posting path; backend-safe path should reuse Monty machinery
    /monty-code-review:code-review            # Hyper-pedantic backend code review
    /monty-code-review:test-hardening         # Pytest-only dangerous-pattern hardening lane

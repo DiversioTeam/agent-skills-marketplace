@@ -77,7 +77,13 @@ def discover_monolith_root(start: Path) -> Path:
     for candidate in (current, *current.parents):
         if all((candidate / marker).exists() for marker in markers):
             return candidate
-    return current
+    required_markers = ", ".join(markers)
+    raise click.ClickException(
+        "Could not discover monolith root from "
+        f"`{current}`. Expected to find all required markers in that directory "
+        f"or one of its parents: {required_markers}. Run this command from "
+        "within a monolith checkout or provide an explicit monolith root."
+    )
 
 
 def parse_pr_url(pr_url: str) -> PullRequestTarget:
@@ -145,7 +151,7 @@ def main(monolith_root: Path, pr_urls: tuple[str, ...]) -> None:
 
     if len(items) > 2:
         raise click.ClickException(
-            "V1 only supports one PR or one explicitly linked PR pair."
+            "V1 only supports one PR or one explicitly linked cross-repo PR pair."
         )
     if len(items) == 2 and str(items[0]["repo"]) == str(items[1]["repo"]):
         raise click.ClickException(

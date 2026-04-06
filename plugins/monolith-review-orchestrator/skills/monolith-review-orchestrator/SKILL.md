@@ -12,7 +12,7 @@ Treat this as a narrow v1 harness workflow, not a universal review brain.
 
 Supported v1 scope:
 
-- single PR, or one explicitly linked PR pair
+- single PR, or one explicitly linked cross-repo PR pair
 - monolith-local execution only
 - read-only `status`, `review`, and `reassess`
 - deterministic worktree reuse/bootstrap
@@ -103,7 +103,7 @@ question block short and grouped in one message when possible.
 
 Gather this data:
 
-- PR set: one or more PR URLs.
+- PR set: one PR URL, or one explicitly linked cross-repo PR pair.
 - Local execution context for each PR:
   - monolith path or existing worktree path
   - submodule path

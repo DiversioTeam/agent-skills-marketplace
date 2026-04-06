@@ -83,6 +83,7 @@ Why it exists:
 - Batch keys, worktree names, and artifact paths should not be re-invented by
   the model every time.
 - Linked PR pairs need one stable name.
+- In v1, linked PR pairs are intentionally cross-repo only.
 - V1 needs explicit scope limits.
 
 What it does:
@@ -120,7 +121,8 @@ Why it exists:
 What it does:
 
 - creates one detached worktree, or reuses an existing registered one
-- initializes submodules in that worktree
+- initializes only the explicitly listed review-batch submodules in that
+  worktree
 - blocks dirty reuse unless explicitly allowed
 
 Important non-goal:
@@ -136,8 +138,10 @@ Example:
 
 ```bash
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
-  --monolith-root /Users/monty/work/diversio/monolith \
-  --worktree-path /Users/monty/work/diversio/monolith-review-bk2779-of389 \
+  --monolith-root "$MONOLITH_ROOT" \
+  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
+  --submodule-path backend \
+  --submodule-path optimo-frontend \
   --start-ref HEAD
 ```
 
@@ -159,7 +163,7 @@ Why it exists:
 What it does:
 
 - initializes one structured state file for a batch
-- records completed review passes
+- records one completed batch-scoped review pass
 - rejects review-pass records for PRs outside the batch
 - keeps markdown as the human artifact and JSON as the machine identity
 
@@ -167,12 +171,23 @@ Example:
 
 ```bash
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py init \
-  --state-path /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
   --batch-key bk2779-of389 \
-  --worktree-path /Users/monty/work/diversio/monolith-review-bk2779-of389 \
-  --artifact-path /Users/monty/work/diversio/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md \
+  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
+  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
   --pr Django4Lyfe:2779 \
   --pr Optimo-Frontend:389
+```
+
+Batch-scoped pass recording example:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py record-pass \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
+  --review-target "Django4Lyfe:2779:main:<backend-head-sha>:<backend-merge-base-sha>" \
+  --review-target "Optimo-Frontend:389:main:<optimo-head-sha>:<optimo-merge-base-sha>" \
+  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
+  --posting-status not_posted
 ```
 
 ## What These Helpers Do Not Solve Yet
@@ -193,7 +208,7 @@ For a normal review run:
 ```bash
 uv run --script .../preflight_review_env.py
 uv run --script .../resolve_review_batch.py --pr-url ...
-uv run --script .../prepare_review_worktree.py --monolith-root ... --worktree-path ...
+uv run --script .../prepare_review_worktree.py --monolith-root ... --worktree-path ... --submodule-path ...
 uv run --script .../review_state.py init ...
 ```
 

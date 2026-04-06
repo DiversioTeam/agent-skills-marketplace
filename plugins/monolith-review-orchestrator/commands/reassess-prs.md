@@ -1,5 +1,5 @@
 ---
-description: Re-run an existing monolith review after the author has updated one or more PRs, preserving prior findings and focusing on deltas plus still-open concerns.
+description: Re-run an existing monolith review after the author has updated a PR or linked cross-repo PR pair, preserving prior findings and focusing on deltas plus still-open concerns.
 ---
 
 Use the `monolith-review-orchestrator` skill.

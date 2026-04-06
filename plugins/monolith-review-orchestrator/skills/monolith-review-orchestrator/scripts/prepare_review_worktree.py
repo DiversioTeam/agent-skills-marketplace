@@ -66,12 +66,19 @@ def worktree_is_dirty(worktree_path: Path) -> bool:
 )
 @click.option("--start-ref", default="HEAD", show_default=True)
 @click.option(
+    "--submodule-path",
+    "submodule_paths",
+    multiple=True,
+    help="Repeat for each review-batch submodule path to initialize.",
+)
+@click.option(
     "--allow-dirty-reuse/--no-allow-dirty-reuse", default=False, show_default=True
 )
 def main(
     monolith_root: Path,
     worktree_path: Path,
     start_ref: str,
+    submodule_paths: tuple[str, ...],
     allow_dirty_reuse: bool,
 ) -> None:
     """Create or reuse one deterministic monolith review worktree."""
@@ -79,6 +86,7 @@ def main(
     root = monolith_root.expanduser().resolve()
     target = worktree_path.expanduser().resolve()
     registered_worktrees = list_worktrees(root)
+    unique_submodule_paths = tuple(dict.fromkeys(submodule_paths))
 
     action: str
     if target.exists():
@@ -106,14 +114,16 @@ def main(
         action = "created"
         dirty = False
 
-    submodule_result = run_command(
-        ["git", "submodule", "update", "--init", "--recursive"],
-        cwd=target,
-    )
-    if submodule_result.returncode != 0:
-        raise click.ClickException(
-            submodule_result.stderr.strip() or "Failed to initialize submodules."
+    if unique_submodule_paths:
+        submodule_result = run_command(
+            ["git", "submodule", "update", "--init", "--", *unique_submodule_paths],
+            cwd=target,
         )
+        if submodule_result.returncode != 0:
+            raise click.ClickException(
+                submodule_result.stderr.strip()
+                or "Failed to initialize review-batch submodules."
+            )
 
     # Report final dirtiness after submodule init too. A clean create should
     # usually stay clean, but surfacing the real post-init state makes the
@@ -125,6 +135,7 @@ def main(
         "worktree_path": str(target),
         "dirty": dirty,
         "start_ref": start_ref,
+        "submodule_paths": list(unique_submodule_paths),
     }
     click.echo(json.dumps(payload, indent=2, sort_keys=True))
 

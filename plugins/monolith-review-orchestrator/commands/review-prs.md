@@ -1,5 +1,5 @@
 ---
-description: Orchestrate one or more monolith PR reviews end-to-end with deterministic worktree management, deep context gathering, and optional GitHub posting.
+description: Orchestrate a monolith PR review or one explicitly linked cross-repo PR pair end-to-end with deterministic worktree management, deep context gathering, and optional GitHub posting.
 ---
 
 Use the `monolith-review-orchestrator` skill.
@@ -11,5 +11,5 @@ If the prompt includes backend/Django4Lyfe work, invoke `monty-code-review` for
 the backend slice instead of inventing a parallel backend rubric.
 
 If the prompt includes multiple PRs or multiple repos, keep v1 narrow:
-coordinate a single PR or one explicitly linked PR pair unless the user clearly
-accepts experimental behavior.
+coordinate a single PR or one explicitly linked cross-repo PR pair unless the
+user clearly accepts experimental behavior.

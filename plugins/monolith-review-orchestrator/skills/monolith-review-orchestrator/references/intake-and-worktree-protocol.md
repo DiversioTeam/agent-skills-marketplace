@@ -66,6 +66,8 @@ Examples:
 - backend PR 2779 -> `bk2779`
 - backend PR 2779 + optimo-frontend PR 389 -> `bk2779-of389`
 
+In v1, a linked PR pair is intentionally cross-repo only.
+
 Use `scripts/resolve_review_batch.py` so the model does not re-implement this
 logic inconsistently.
 
@@ -111,7 +113,7 @@ Preferred bootstrap sequence:
 
 ```bash
 git worktree add --detach ../monolith-review-<batch-key> <monolith-start-ref>
-git submodule update --init --recursive
+git submodule update --init -- <review-batch-submodule>...
 ```
 
 Choose `<monolith-start-ref>` conservatively:
@@ -134,7 +136,7 @@ Inside the chosen worktree:
 
 ```bash
 git fetch --all --prune
-git submodule update --init --recursive
+git submodule update --init -- <review-batch-submodule>...
 ```
 
 Then, for each relevant submodule:
