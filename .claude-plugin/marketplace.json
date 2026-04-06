@@ -19,6 +19,17 @@
       "keywords": ["django", "docs", "code-review", "digest", "diversio"]
     },
     {
+      "name": "monolith-review-orchestrator",
+      "description": "Monolith-local PR review harness for the Diversio monolith: structured intake, deterministic worktree reuse/bootstrap, stateful reassessment, backend monty-review handoff, and narrow v1 posting boundaries.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/monolith-review-orchestrator",
+      "category": "process",
+      "keywords": ["monolith", "worktree", "code-review", "github", "submodules", "backend", "reassessment", "harness", "diversio"]
+    },
+    {
       "name": "monty-code-review",
       "description": "Hyper-pedantic Django4Lyfe backend code review Skill with correctness-first, harness-aware findings (Monty's taste), a pytest test-hardening lane, and persistent JSON-first review memory across review passes.",
       "version": "1.3.0",

@@ -6,6 +6,25 @@ when command files change.
 
 ## Review And Workflow
 
+- `monolith-review-orchestrator`
+  - Purpose: monolith-local PR review harness with structured intake,
+    deterministic worktree reuse/bootstrap, structured reassessment state, and
+    narrow v1 posting boundaries.
+  - Claude install:
+    `claude plugin install monolith-review-orchestrator@diversiotech`
+  - Skill path:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator`
+  - Worktree/intake reference:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
+  - Helper explainer:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/workflow-helpers.md`
+  - Helper scripts:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/`
+  - Scope note: requires a Diversio monolith checkout and is not a generic
+    repo-agnostic review plugin.
+  - Slash commands: `/monolith-review-orchestrator:review-prs`,
+    `/monolith-review-orchestrator:reassess-prs`,
+    `/monolith-review-orchestrator:post-review`
 - `monty-code-review`
   - Purpose: hyper-pedantic Django4Lyfe backend code review with persistent JSON-first review memory.
   - Claude install: `claude plugin install monty-code-review@diversiotech`
