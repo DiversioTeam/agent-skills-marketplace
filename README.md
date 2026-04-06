@@ -92,6 +92,16 @@ agent-skills-marketplace/
 │   │   └── commands/
 │   │       ├── code-review.md
 │   │       └── test-hardening.md
+│   ├── monolith-review-orchestrator/  # Monolith PR review orchestration plugin
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/monolith-review-orchestrator/
+│   │   │   ├── SKILL.md
+│   │   │   ├── references/
+│   │   │   └── scripts/
+│   │   └── commands/
+│   │       ├── review-prs.md
+│   │       ├── reassess-prs.md
+│   │       └── post-review.md
 │   ├── backend-atomic-commit/         # Backend pre-commit & atomic-commit plugin
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/backend-atomic-commit/SKILL.md
@@ -230,6 +240,7 @@ agent-skills-marketplace/
 
 | Plugin | Description |
 |--------|-------------|
+| `monolith-review-orchestrator` | Monolith-local PR review harness for structured intake, deterministic worktree reuse/bootstrap, stateful reassessment, and narrow v1 posting boundaries |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
@@ -247,6 +258,175 @@ agent-skills-marketplace/
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
+
+## Monolith Review Orchestrator
+
+This plugin exists because deep PR review in the Diversio monolith has a few
+failure-prone steps that should not be re-derived from scratch every run:
+
+- deciding whether the machine is even in a valid monolith environment
+- turning one PR or one linked cross-repo PR pair into one stable review identity
+- creating or reusing the right detached review worktree
+- remembering reassessment state across multiple passes
+
+The basic shape is:
+
+```text
+preflight -> resolve batch -> prepare worktree -> persist review state -> write review artifact
+```
+
+Why we added helper scripts:
+
+- prose is good for policy, but bad for deterministic naming and state
+- reassessment needs structured identity, not just markdown files
+- review prep should stay narrow and avoid monolith-wide mutation helpers
+
+Where to read more:
+
+- skill: `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/SKILL.md`
+- worktree protocol:
+  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
+- helper explainer:
+  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/workflow-helpers.md`
+
+Example helper usage:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
+
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
+  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
+  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
+```
+
+### Copy-Paste Workflow
+
+Use this when you want the deterministic local workflow without re-reading the
+full skill docs.
+
+#### 1. Preflight the machine and checkout
+
+Why:
+- fail early if this is not a real monolith checkout
+- avoid discovering missing tools after worktree or review state steps
+- allow an explicit `--monolith-root` override when you are invoking the helper
+  from outside the monolith checkout
+
+```bash
+export MONOLITH_ROOT="/path/to/monolith"
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
+```
+
+#### 2. Resolve one stable review batch identity
+
+Why:
+- one PR or one linked cross-repo PR pair should always map to the same batch key,
+  worktree path, markdown artifact path, and state path
+
+```bash
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
+  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
+  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
+```
+
+Expected shape:
+
+This is a partial excerpt of the JSON you should expect. The actual command
+also includes keys such as `monolith_root`, `review_dir`,
+`reassess_artifact_path`, and `prs`.
+
+```json
+{
+  "batch_key": "bk2779-of389",
+  "worktree_path": "/path/to/monolith-review-bk2779-of389",
+  "artifact_path": "/path/to/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
+  "state_path": "/path/to/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+}
+```
+
+#### 3. Create or reuse the detached review worktree
+
+Why:
+- keep the review run isolated
+- avoid attached-branch worktree lock pain
+- initialize only this worktree instead of broad monolith mutation
+
+```bash
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
+  --monolith-root "$MONOLITH_ROOT" \
+  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
+  --submodule-path backend \
+  --submodule-path optimo-frontend \
+  --start-ref HEAD
+```
+
+Important:
+- this helper intentionally does **not** run `scripts/update_submodules.py`
+- review prep should stay narrow and not normalize unrelated submodules
+
+#### 4. Initialize structured review state
+
+Why:
+- markdown is for humans
+- JSON state is for reassessment identity
+- follow-up passes should update the same batch state, not invent a new one
+
+```bash
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py init \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
+  --batch-key bk2779-of389 \
+  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
+  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
+  --pr Django4Lyfe:2779 \
+  --pr Optimo-Frontend:389
+```
+
+If the state file already exists and you intentionally want to replace it, add
+`--force`. The default behavior is to refuse overwrite so reassessment history
+is not destroyed accidentally.
+
+#### 5. Reassessment pass
+
+Why:
+- load the durable local identity first
+- compare deltas against stored state instead of guessing from the latest
+  markdown file alone
+
+```bash
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py show \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+```
+
+Then record the new pass after reviewing:
+
+```bash
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py record-pass \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
+  --review-target "Django4Lyfe:2779:main:<backend-head-sha>:<backend-merge-base-sha>" \
+  --review-target "Optimo-Frontend:389:main:<optimo-head-sha>:<optimo-merge-base-sha>" \
+  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
+  --posting-status not_posted
+```
+
+#### Visual summary
+
+There is also a presentation-style explainer at:
+
+```text
+~/.agent/diagrams/monolith-review-orchestrator-visual-explainer.html
+```
 
 ## Installation
 
@@ -269,6 +449,19 @@ Or from within a Claude Code session:
 **Recommended:** Install at user scope (default) for compatibility with git worktrees.
 Project-scope plugins don't persist across worktrees.
 
+### Monolith-Only Prerequisites
+
+`monolith-review-orchestrator` is not a generic marketplace-style review plugin.
+It assumes:
+
+- a Diversio monolith checkout or sibling monolith review worktree
+- the monolith `scripts/` helpers and docs are present
+- `uv`, `git`, and `git worktree` are installed
+- GitHub auth is available if PR metadata or posting is required
+- local permission to create sibling worktrees
+
+Treat it as a harness-local workflow plugin.
+
 If you already use the upstream `visual-explainer` plugin, uninstall it before
 installing this marketplace version:
 
@@ -282,6 +475,7 @@ claude plugin uninstall visual-explainer@visual-explainer-marketplace
 Copy-paste these commands in your terminal:
 
 ```bash
+claude plugin install monolith-review-orchestrator@diversiotech
 claude plugin install monty-code-review@diversiotech
 claude plugin install backend-atomic-commit@diversiotech
 claude plugin install backend-pr-workflow@diversiotech
@@ -315,6 +509,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 
 | Plugin | CLI Command |
 |--------|-------------|
+| Monolith PR review orchestrator | `claude plugin install monolith-review-orchestrator@diversiotech` |
 | Monty backend code review | `claude plugin install monty-code-review@diversiotech` |
 | Backend pre-commit / atomic commit | `claude plugin install backend-atomic-commit@diversiotech` |
 | Backend PR workflow | `claude plugin install backend-pr-workflow@diversiotech` |
@@ -340,6 +535,9 @@ claude plugin install monty-code-review@diversiotech --scope project
 Once plugins are installed:
 
    ```text
+   /monolith-review-orchestrator:review-prs    # Monolith-local v1 review harness for one PR or one linked cross-repo PR pair
+   /monolith-review-orchestrator:reassess-prs  # Reload structured state and reassess after a PR or linked cross-repo PR pair changes
+   /monolith-review-orchestrator:post-review   # Narrow v1 posting path; backend-safe path should reuse Monty machinery
    /monty-code-review:code-review            # Hyper-pedantic backend code review
    /monty-code-review:test-hardening         # Pytest-only dangerous-pattern hardening lane
    /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
@@ -477,6 +675,7 @@ Look for plugins with `@diversiotech` - note the `Scope:` field (user or project
 Copy-paste these commands in your terminal:
 
 ```bash
+claude plugin uninstall monolith-review-orchestrator@diversiotech
 claude plugin uninstall monty-code-review@diversiotech
 claude plugin uninstall backend-atomic-commit@diversiotech
 claude plugin uninstall backend-pr-workflow@diversiotech
@@ -501,6 +700,7 @@ claude plugin uninstall login-cta-attribution-skill@diversiotech
 If `claude plugin list` shows plugins at `Scope: project`:
 
 ```bash
+claude plugin uninstall monolith-review-orchestrator@diversiotech --scope project
 claude plugin uninstall monty-code-review@diversiotech --scope project
 claude plugin uninstall backend-atomic-commit@diversiotech --scope project
 claude plugin uninstall backend-pr-workflow@diversiotech --scope project
@@ -552,6 +752,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
   --ref main \
   --path \
     plugins/monty-code-review/skills/monty-code-review \
+    plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
     plugins/backend-atomic-commit/skills/backend-atomic-commit \
     plugins/backend-pr-workflow/skills/backend-pr-workflow \
     plugins/bruno-api/skills/bruno-api \
@@ -577,6 +778,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
 ```text
 $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace \
   path=plugins/monty-code-review/skills/monty-code-review \
+  path=plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
   path=plugins/backend-atomic-commit/skills/backend-atomic-commit \
   path=plugins/backend-pr-workflow/skills/backend-pr-workflow \
   path=plugins/bruno-api/skills/bruno-api \
@@ -624,6 +826,7 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 rm -rf "$CODEX_HOME/skills/monty-code-review" \
+       "$CODEX_HOME/skills/monolith-review-orchestrator" \
        "$CODEX_HOME/skills/backend-atomic-commit" \
        "$CODEX_HOME/skills/backend-pr-workflow" \
        "$CODEX_HOME/skills/bruno-api" \
