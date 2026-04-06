@@ -94,6 +94,7 @@ What it does:
 - derives the worktree path, review artifact path, reassessment path, and state
   file path
 - rejects duplicate PR inputs and same-repo linked pairs in v1
+- fails clearly when it cannot discover a real monolith root
 
 Example:
 
@@ -166,6 +167,7 @@ What it does:
 - records one completed batch-scoped review pass
 - rejects review-pass records for PRs outside the batch
 - keeps markdown as the human artifact and JSON as the machine identity
+- refuses to overwrite existing state unless `--force` is explicit
 
 Example:
 
@@ -177,6 +179,12 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
   --pr Django4Lyfe:2779 \
   --pr Optimo-Frontend:389
+```
+
+If the state file already exists and you intentionally want to replace it:
+
+```bash
+uv run --script .../review_state.py init --force ...
 ```
 
 Batch-scoped pass recording example:

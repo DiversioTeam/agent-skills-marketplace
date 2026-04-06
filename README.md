@@ -309,6 +309,8 @@ full skill docs.
 Why:
 - fail early if this is not a real monolith checkout
 - avoid discovering missing tools after worktree or review state steps
+- allow an explicit `--monolith-root` override when you are invoking the helper
+  from outside the monolith checkout
 
 ```bash
 export MONOLITH_ROOT="/path/to/monolith"
@@ -382,6 +384,10 @@ uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/sk
   --pr Django4Lyfe:2779 \
   --pr Optimo-Frontend:389
 ```
+
+If the state file already exists and you intentionally want to replace it, add
+`--force`. The default behavior is to refuse overwrite so reassessment history
+is not destroyed accidentally.
 
 #### 5. Reassessment pass
 

@@ -101,6 +101,24 @@ def read_json(path: Path) -> ReviewStateRecord:
     return data
 
 
+def next_review_pass_number(payload: ReviewStateRecord, path: Path) -> int:
+    """Return the next batch-scoped review pass number.
+
+    This validates the persisted field before incrementing it so corrupted or
+    hand-edited state fails with a clear message instead of a raw traceback.
+    """
+
+    raw_review_pass_number = payload.get("review_pass_number", 0)
+    if not isinstance(raw_review_pass_number, int) or isinstance(
+        raw_review_pass_number, bool
+    ):
+        raise click.ClickException(
+            "Existing state has invalid `review_pass_number`; expected an integer. "
+            f"Update or remove the field in {path} and rerun the command."
+        )
+    return raw_review_pass_number + 1
+
+
 def parse_prs_from_state(payload: ReviewStateRecord) -> set[tuple[str, int]]:
     """Extract the batch PR identities from persisted state.
 
@@ -134,6 +152,7 @@ def cli() -> None:
 @click.option("--batch-key", required=True)
 @click.option("--worktree-path", type=click.Path(path_type=Path), required=True)
 @click.option("--artifact-path", type=click.Path(path_type=Path), required=True)
+@click.option("--force/--no-force", default=False, show_default=True)
 @click.option(
     "--pr", "prs", multiple=True, required=True, help="Repeat as repo:number."
 )
@@ -142,6 +161,7 @@ def init_state(
     batch_key: str,
     worktree_path: Path,
     artifact_path: Path,
+    force: bool,
     prs: tuple[str, ...],
 ) -> None:
     """Initialize one structured review-state file.
@@ -169,6 +189,13 @@ def init_state(
         seen.add(identity)
         entries.append({"repo": repo, "pr_number": pr_number})
 
+    resolved_state_path = Path(state_path).expanduser().resolve()
+    if resolved_state_path.exists() and not force:
+        raise click.ClickException(
+            f"{resolved_state_path} already exists. Re-run with --force only if "
+            "you intentionally want to overwrite the existing reassessment state."
+        )
+
     now = utc_now()
     payload: ReviewStateRecord = {
         "schema_version": SCHEMA_VERSION,
@@ -181,7 +208,7 @@ def init_state(
         "posting_status": "not_posted",
         "prs": entries,
     }
-    atomic_write_json(Path(state_path).expanduser().resolve(), payload)
+    atomic_write_json(resolved_state_path, payload)
     click.echo(json.dumps(payload, indent=2, sort_keys=True))
 
 
@@ -272,7 +299,7 @@ def record_pass(
             )
         seen_targets.add(identity)
         entries.append(entry)
-    review_pass_number = int(payload.get("review_pass_number", 0)) + 1
+    review_pass_number = next_review_pass_number(payload, path)
     now = utc_now()
 
     pass_record: ReviewPassRecord = {

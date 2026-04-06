@@ -124,8 +124,7 @@ def reviews_root(monolith_root: Path) -> Path:
 @click.option(
     "--monolith-root",
     type=click.Path(path_type=Path, file_okay=False),
-    default=discover_monolith_root(Path.cwd()),
-    show_default=True,
+    default=None,
 )
 @click.option(
     "--pr-url",
@@ -137,7 +136,10 @@ def reviews_root(monolith_root: Path) -> Path:
 def main(monolith_root: Path, pr_urls: tuple[str, ...]) -> None:
     """Resolve one deterministic review batch and print JSON."""
 
-    root = monolith_root.expanduser().resolve()
+    if monolith_root is None:
+        root = discover_monolith_root(Path.cwd())
+    else:
+        root = monolith_root.expanduser().resolve()
     items = [parse_pr_url(pr_url) for pr_url in pr_urls]
     seen_identities: set[tuple[str, int]] = set()
     for item in items:
