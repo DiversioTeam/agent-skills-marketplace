@@ -13,6 +13,8 @@ when command files change.
     boundaries.
   - Claude install:
     `claude plugin install monolith-review-orchestrator@diversiotech`
+  - Plugin README:
+    `plugins/monolith-review-orchestrator/README.md`
   - Skill path:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator`
   - Worktree/intake reference:

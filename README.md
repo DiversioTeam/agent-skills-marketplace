@@ -289,6 +289,7 @@ Why we added helper scripts:
 
 Where to read more:
 
+- plugin README: `plugins/monolith-review-orchestrator/README.md`
 - skill: `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/SKILL.md`
 - worktree protocol:
   `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
