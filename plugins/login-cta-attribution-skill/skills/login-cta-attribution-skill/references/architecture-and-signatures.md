@@ -145,11 +145,11 @@ Attribution fields flow through a 9-point chain. When adding a new attribution
 dimension (e.g., `teams_tab`), ALL points must be updated or the field is
 silently dropped:
 
-1. **URL builder** (`platform_magic_links.py: build_stable_teams_cta_url`) — adds query param to CTA URL
-2. **CTA view** (`teams/views.py` or `slack/views.py`) — reads query param from `request.GET`
-3. **Magic link builder** (`platform_magic_links.py: build_login_magic_link_for_user`) — accepts param and passes to metadata builder
-4. **Attribution metadata builder** (`source_attribution.py: build_source_attribution_metadata`) — converts raw string to enum via `from_raw_to_enum()`, stores in `SourceAttributionMetadataTD`
-5. **Attribution metadata serializer** (`source_attribution.py: serialize_source_attribution_metadata`) — converts enum back to string for JSON storage. Must extract and serialize the new field or it is dropped during DB persistence
+1. **URL builder** (`optimo_integrations/utils/platform_magic_links.py: build_stable_teams_cta_url`) — adds query param to CTA URL
+2. **CTA view** (`optimo_integrations/teams/views.py` or `optimo_integrations/slack/views.py`) — reads query param from `request.GET`
+3. **Magic link builder** (`optimo_integrations/utils/platform_magic_links.py: build_login_magic_link_for_user`) — accepts param and passes to metadata builder
+4. **Attribution metadata builder** (`optimo_core/utils/source_attribution.py: build_source_attribution_metadata`) — converts raw string to enum via `from_raw_to_enum()`, stores in `SourceAttributionMetadataTD`
+5. **Attribution metadata serializer** (`optimo_core/utils/source_attribution.py: serialize_source_attribution_metadata`) — converts enum back to string for JSON storage. Must extract and serialize the new field or it is dropped during DB persistence
 6. **Model parser — magic link** (`optimo_core/models/magic_link.py: parsed_source_attribution_metadata`) — reads field from stored JSON via `raw.get("field_name")` and passes to builder
 7. **Model parser — auth token** (`optimo_core/models/auth.py: parsed_source_attribution_metadata`) — same as above for auth tokens
 8. **Analytics service** (`optimo_analytics/service/core.py: get_session_contexts_batch`) — reads from `parsed_attribution["field_name"]` into `MixpanelSessionContextSchema`
