@@ -161,6 +161,24 @@ Non-negotiables:
 - Use slurped pagination (`--paginate --slurp`) for post-audit dedupe commands.
 - Treat pass condition as strict: both post-audit duplicate detector results must be empty.
 
+## Review Memory
+
+Persistent review memory is default-on for this skill.
+
+- Resolve a deterministic memory target before reviewing, then load/update JSON-first
+  memory via the `click`-based `scripts/review_memory.py` helper using
+  `uv run --script`.
+- Keep the repo-local `*_review.md` as the human/process artifact, but treat the
+  structured memory store as the canonical persistent history.
+- Store canonical timestamps in UTC and present times to the engineer in local time.
+- Ask one short clarifying question instead of assuming whenever ambiguity would change
+  memory identity or dedupe behavior.
+- Do not ask for ordinary review judgment calls.
+
+For the full protocol and on-disk schema, load:
+
+- `references/review-memory-protocol.md`
+
 ## Output Shape, Severity Tags & Markdown File
 
 When producing a full review with this skill, you **must** write the review into a Markdown
@@ -443,41 +461,16 @@ When commenting on code, pay particular attention to:
 
 ## SOLID Principles
 
-When reviewing code, check for SOLID principle violations. If you identify any of the
-following patterns, load `SOLID_principles.md` from this skill directory for detailed
-guidance, code examples, and anti-patterns.
-
-Flag these during review:
-- **Dependency Inversion (DIP):** Tasks or services that directly instantiate concrete
-  clients/services instead of accepting injectable factories. Look for tight coupling
-  that makes testing require deep `@patch` calls.
-- **Single Responsibility (SRP):** Functions or classes with multiple "reasons to change"
-  — e.g., a single function that queries, formats, sends emails, and persists. Boundaries
-  should be thin; services should be focused.
-- **Open/Closed (OCP):** Repeated `if platform == "slack" / elif platform == "teams"`
-  branching across multiple files. Suggest registry + Protocol patterns to make code
-  extensible without modification.
-- **Liskov Substitution (LSP):** Mocks that return richer shapes than prod, subclasses
-  that raise different exceptions, or implementations that don't conform to the same
-  contract. Flag mock/prod divergence that causes "tests pass, prod breaks".
-- **Interface Segregation (ISP):** Consumers depending on large interfaces but only
-  using 1–2 methods. If a test fake requires implementing many unused methods, the
-  interface is too wide.
-
-Use `SOLID_principles.md` to cite specific patterns, anti-patterns, and review checklists
-when calling out violations.
+When reviewing code, check for SOLID violations. If you spot concrete-client
+instantiation, kitchen-sink services, repeated platform branching, mock/prod contract
+drift, or overly wide interfaces, load `SOLID_principles.md` for the detailed
+checklists and examples.
 
 ## Examples
 
-For concrete prompt variants and output sketches, load:
-
-- `references/review-examples.md`
+Load `references/review-examples.md` for concrete prompt variants and output sketches.
 
 ## Compatibility Notes
 
-This Skill is designed to work with both Claude Code and OpenAI Codex.
-
-- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/monty-code-review/commands/`).
-- Codex: install the Skill directory and invoke `name: monty-code-review`.
-
-For installation, see this repo's `README.md`.
+Works with Claude Code via the plugin slash commands and with Codex via
+`name: monty-code-review`. For installation, see this repo's `README.md`.

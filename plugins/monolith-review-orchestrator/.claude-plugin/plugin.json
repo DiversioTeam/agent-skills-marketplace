@@ -1,0 +1,8 @@
+{
+  "name": "monolith-review-orchestrator",
+  "version": "0.1.0",
+  "description": "Monolith-local PR review harness for the Diversio monolith: structured intake, deterministic worktree reuse/bootstrap, stateful reassessment, backend monty-review handoff, and narrow v1 posting boundaries.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

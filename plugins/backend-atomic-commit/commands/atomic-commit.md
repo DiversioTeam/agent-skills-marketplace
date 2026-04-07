@@ -32,9 +32,8 @@ Do everything the `/backend-atomic-commit:pre-commit` command would do, plus:
 - Use `CHECK_CACHE_BUST=1` only when explicitly requested or debugging.
 - Do **not** use TodoWrite to track gate results — report directly in output.
 - Propose a commit message that:
-  - Extracts the ticket ID from the branch name using the local repo harness
-    (`AGENTS.md` and linked workflow docs) conventions
-    (e.g. `clickup_<ticket_id>_...` → `<ticket_id>: Description`).
+  - Follows the local repo harness (`AGENTS.md` and linked workflow docs)
+    instead of assuming a global ticket-prefix rule.
   - Contains **no** Claude/AI/plugin signature or footer.
 
 Your output should clearly state whether the commit is ready:

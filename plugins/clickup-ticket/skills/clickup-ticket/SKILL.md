@@ -29,7 +29,7 @@ Use this skill when you want to:
 - **Manage multiple ClickUp organizations** (work, personal, clients)
 - **Discover your workspace structure** (spaces, lists, tags, members)
 
-This skill is designed to feel **personalized** - it learns your workspace
+This skill is designed to feel **personalized**: it learns your workspace
 structure, remembers your defaults, and asks simple questions when it needs
 information.
 
@@ -58,8 +58,9 @@ Then reload your shell:
 source ~/.bashrc  # or restart your terminal
 ```
 
-**Note:** If you have multiple ClickUp accounts (e.g., for different clients),
-you can set up additional tokens. See [Multi-Org Setup](#multi-org-setup).
+**Note:** If you have multiple ClickUp accounts, you can set up additional
+tokens. See [Usage workflows](references/usage-workflows.md) for the multi-org
+flow.
 
 ## Quick Start
 
@@ -98,7 +99,7 @@ you can set up additional tokens. See [Multi-Org Setup](#multi-org-setup).
 
 ### ClickUp Hierarchy
 
-```
+```text
 Workspace (Organization)
   └── Space (e.g., "Engineering", "Product")
        ├── Folder (optional grouping)
@@ -111,6 +112,7 @@ Workspace (Organization)
 ```
 
 **Key points:**
+
 - Every task belongs to a **List**
 - Lists can be inside **Folders** or directly in a **Space**
 - **Spaces** belong to a **Workspace** (organization)
@@ -125,6 +127,7 @@ This skill supports multiple ClickUp organizations:
 - **Clients** - Client workspaces you have access to
 
 Each organization has its own:
+
 - Cached workspace data (spaces, lists, tags, members)
 - Default settings (list, assignee, priority)
 - Optional separate API token
@@ -143,6 +146,7 @@ The skill caches your workspace data locally for fast access:
 **Cache location:** `~/.config/clickup-ticket/` (shared by Claude Code and Codex)
 
 **Cache refresh:**
+
 - Auto-refreshes after 24 hours
 - Manual refresh: `/clickup-ticket:refresh-cache`
 - Refreshes automatically if an entity is not found
@@ -155,55 +159,24 @@ The skill caches your workspace data locally for fast access:
 
 Fetch complete details for any ticket you have access to.
 
-**Input formats accepted:**
+Accepted inputs:
+
 - Task ID: `abc123` or `#abc123`
 - Task URL: `https://app.clickup.com/t/abc123`
-- Custom ID: `DEV-123` (requires `--org` flag for workspace context)
-
-**Example:**
-```
-/clickup-ticket:get-ticket abc123
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#abc123 - Fix N+1 query in dashboard API
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Status:     🔵 In Progress
-Priority:   🔴 High
-List:       Engineering > Bugs
-Assignees:  @you, @teammate
-Tags:       bug, backend, performance
-
-Due:        Fri, Jan 31 (in 4 days)
-Created:    Mon, Jan 20 by @creator
-
-📝 Description:
-   The dashboard API has N+1 queries when loading widgets.
-   Need to optimize with select_related and prefetch_related.
-
-📋 Checklist (2/5):
-   ✓ Identify problematic queries
-   ✓ Add select_related
-   ○ Add prefetch_related
-   ○ Write tests
-   ○ Verify with django-debug-toolbar
-
-🔗 https://app.clickup.com/t/abc123
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+- Custom ID: `DEV-123` (requires `--org` when workspace context is needed)
 
 **Flags:**
+
 - `--subtasks` - Include full subtask details
 - `--comments` - Include recent comments (last 10)
 - `--markdown` - Return description with markdown formatting
-- `--org=<slug>` - Specify organization (required for custom IDs)
+- `--org=<slug>` - Specify organization for custom IDs
 
 ### List and Filter Tickets
 
 `/clickup-ticket:list-tickets [filters]`
 
 Powerful workspace-wide filtering using the Get Filtered Team Tasks API.
-
-**Available Filters:**
 
 | Filter | Description | Example |
 |--------|-------------|---------|
@@ -213,7 +186,7 @@ Powerful workspace-wide filtering using the Get Filtered Team Tasks API.
 | `--status=<status>` | Filter by status | `--status="in progress"` |
 | `--assignee=<email\|me>` | Filter by assignee | `--assignee=me` |
 | `--tag=<tags>` | Filter by tags | `--tag=bug,urgent` |
-| `--priority=<1-4>` | Filter by priority | `--priority=1` (urgent) |
+| `--priority=<1-4>` | Filter by priority | `--priority=1` |
 | `--due-before=<date>` | Due before date | `--due-before=2024-02-01` |
 | `--due-after=<date>` | Due after date | `--due-after=tomorrow` |
 | `--created-after=<date>` | Created after | `--created-after="last week"` |
@@ -224,29 +197,11 @@ Powerful workspace-wide filtering using the Get Filtered Team Tasks API.
 | `--sort=<field>` | Sort by field | `--sort=due_date` |
 | `--reverse` | Reverse sort | (flag) |
 
-**Date formats supported:**
+Supported date formats:
+
 - ISO: `2024-01-31`
 - Relative: `today`, `tomorrow`, `yesterday`
 - Natural: `next week`, `last monday`, `in 3 days`
-
-**Example:**
-```
-/clickup-ticket:list-tickets --space=Engineering --tag=bug --priority=2
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Tickets (5 found) - Engineering bugs, High priority
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-ID       Status        Title                          Due        Assignee
-──────── ──────────── ────────────────────────────── ────────── ─────────
-#abc123  🔵 Progress   Fix N+1 query in dashboard     Jan 31     @you
-#def456  🟡 Review     Race condition in auth         Feb 2      @teammate
-#ghi789  ⚪ To Do      Memory leak in worker          Feb 5      —
-#jkl012  ⚪ To Do      Timeout handling in API        —          @you
-#mno345  🔵 Progress   Broken pagination              Feb 1      @other
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
 
 ### My Tickets
 
@@ -254,37 +209,14 @@ ID       Status        Title                          Due        Assignee
 
 Quick view of tickets assigned to you, grouped by urgency.
 
-**Default behavior:**
+Default behavior:
+
 - Shows open tickets only
 - Grouped: Overdue → Due This Week → No Due Date
 - Sorted by due date within groups
 
-**Example:**
-```
-/clickup-ticket:my-tickets
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-My Tickets (8 open) - Diversio
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔴 OVERDUE (2)
-   #abc123  Fix N+1 query           Bugs        Due: Jan 25 (2 days ago)
-   #def456  Update auth flow        Sprint 47   Due: Jan 26 (yesterday)
-
-📅 DUE THIS WEEK (3)
-   #ghi789  Add rate limiting       Backlog     Due: Jan 28 (tomorrow)
-   #jkl012  Review PR #456          Sprint 47   Due: Jan 30 (Thu)
-   #mno345  Deploy staging          Sprint 47   Due: Jan 31 (Fri)
-
-📋 NO DUE DATE (3)
-   #pqr678  Tech debt: cleanup      Backlog
-   #stu901  Investigate memory      Backlog
-   #vwx234  Add logging             Tech Debt
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
 **Flags:**
+
 - `--overdue` - Show only overdue tickets
 - `--due-today` - Show tickets due today
 - `--due-this-week` - Show tickets due this week
@@ -293,16 +225,16 @@ My Tickets (8 open) - Diversio
 
 ### API Limitations
 
-**Important:** The ClickUp API does **not** support text search by task name
-or description. This is a [highly requested feature](https://feedback.clickup.com/public-api/p/using-api-get-tasks-to-search-by-title)
-that has been pending since 2020.
+The ClickUp API does **not** support text search by task name or description.
 
-**Workarounds:**
-1. Use filters (`--tag`, `--list`, `--status`, `--assignee`) to narrow results
-2. If you know the ticket ID, use `get-ticket` directly
-3. Use `list-spaces` to find the right list, then filter by list
+Workarounds:
 
-**Response limits:**
+1. Use filters (`--tag`, `--list`, `--status`, `--assignee`) to narrow results.
+2. If you know the ticket ID, use `get-ticket` directly.
+3. Use `list-spaces` to find the right list, then filter by list.
+
+Response limits:
+
 - API returns max 100 tasks per request
 - Use `--page` for pagination
 - Use filters to reduce result set
@@ -311,65 +243,12 @@ that has been pending since 2020.
 
 ### First-Time Setup
 
-When you run `/clickup-ticket:configure` for the first time:
+`/clickup-ticket:configure` should:
 
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ClickUp Ticket Skill - First Time Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Checking for CLICKUP_TICKET_SKILL_TOKEN...
-✓ Token found
-
-Fetching your workspaces...
-✓ Found 2 workspaces
-
-Select your primary workspace:
-
-   [1] Diversio (id: 12345)
-   [2] Personal (id: 67890)
-
-> 1
-
-Fetching workspace data for "Diversio"...
-✓ 3 spaces, 12 lists, 24 members, 18 tags
-
-Select default space for new tickets:
-
-   [1] Engineering
-   [2] Product
-   [3] Design
-
-> 1
-
-Select default list:
-
-   [1] Backlog
-   [2] Sprint 47
-   [3] Tech Debt
-   [4] Bugs
-
-> 1
-
-Default assignee:
-
-   [1] Me (you@yourcompany.com)
-   [2] Unassigned
-   [3] Ask each time
-
-> 1
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Configuration complete!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Organization: Diversio
-Default list: Backlog
-Assignee:     you@yourcompany.com
-
-Try: /clickup-ticket:quick-ticket "My first ticket"
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+1. Validate the token.
+2. Discover accessible workspaces.
+3. Cache workspace structure.
+4. Set default org, list, assignee, and backlog behavior.
 
 ### Multi-Org Setup
 
@@ -379,15 +258,8 @@ To add additional organizations:
 /clickup-ticket:add-org
 ```
 
-Or if you need a separate token for a client workspace:
-
-```bash
-# Add to shell profile
-export CLICKUP_ACME_CLIENT_TOKEN="pk_99999_YYYYYYYYYY"
-
-# Then run
-/clickup-ticket:add-org --token-env=CLICKUP_ACME_CLIENT_TOKEN
-```
+If a client workspace uses a separate token, point the command at a dedicated
+environment variable. See `references/usage-workflows.md` for the full example.
 
 ## Ticket Creation Workflows
 
@@ -395,7 +267,7 @@ export CLICKUP_ACME_CLIENT_TOKEN="pk_99999_YYYYYYYYYY"
 
 `/clickup-ticket:create-ticket`
 
-Walks you through all options:
+Walks you through:
 
 1. **Title** (required)
 2. **List** - Shows your lists, defaults to configured default
@@ -403,40 +275,18 @@ Walks you through all options:
 4. **Assignee** - Shows team members from cache
 5. **Tags** - Shows available tags, multi-select
 6. **Description** - Optional markdown description
-7. **Due date** - Optional, with quick picks (today, tomorrow, next week)
-
-**Output:**
-```
-✅ Ticket Created!
-
-   Title:    Fix N+1 query in dashboard API
-   ID:       #abc123
-   List:     Bugs
-   Priority: High
-   Assignee: you@yourcompany.com
-   Tags:     bug, backend, performance
-   Due:      Fri, Jan 17
-
-   🔗 https://app.clickup.com/t/abc123
-```
+7. **Due date** - Optional, with quick picks
 
 ### Quick Ticket
 
 `/clickup-ticket:quick-ticket "Title here"`
 
-Creates a ticket instantly with defaults:
-
-```
-/clickup-ticket:quick-ticket "Add rate limiting to auth endpoints"
-
-✅ [Diversio] Add rate limiting to auth endpoints
-   List: Backlog | Priority: Normal | Assignee: me
-   🔗 https://app.clickup.com/t/xyz789
-```
+Creates a ticket instantly with defaults.
 
 **Flags:**
+
 - `--priority=high` or `-p high` - Override priority
-- `--list=bugs` - Override list (by name)
+- `--list=bugs` - Override list
 - `--org=personal` - Create in different org
 - `--tag=backend,urgent` - Add tags
 
@@ -444,28 +294,14 @@ Creates a ticket instantly with defaults:
 
 `/clickup-ticket:add-to-backlog "Title"`
 
-Ultra-fast backlog addition. Always uses your configured backlog list:
-
-```
-/clickup-ticket:add-to-backlog "Investigate memory leak in worker"
-
-✅ Added to Backlog: "Investigate memory leak in worker"
-   🔗 https://app.clickup.com/t/mem123
-```
+Ultra-fast backlog addition. Always uses your configured backlog list.
 
 ### Create Subtask
 
 `/clickup-ticket:create-subtask <parent_id> "Title"`
 
-```
-/clickup-ticket:create-subtask abc123 "Write unit tests"
-
-✅ Subtask created under #abc123
-   #sub456 - Write unit tests
-   🔗 https://app.clickup.com/t/sub456
-```
-
 The parent can be:
+
 - Task ID: `abc123`
 - Task URL: `https://app.clickup.com/t/abc123`
 - Custom ID (if enabled): `DEV-123`
@@ -476,37 +312,10 @@ The parent can be:
 
 `/clickup-ticket:list-spaces`
 
-Shows your workspace structure:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Workspace: Diversio (active)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📂 Engineering
-   │
-   ├── 📋 Backlog (list_id: 901234567) ⭐ default
-   │      Statuses: to do → in progress → review → done
-   │      Tags: bug, feature, tech-debt, urgent, backend, frontend
-   │
-   ├── 📋 Sprint 47 (list_id: 901234568)
-   ├── 📋 Tech Debt (list_id: 901234569)
-   │
-   └── 📁 Projects/
-       ├── 📋 Auth Refactor (list_id: 901234570)
-       └── 📋 API v3 (list_id: 901234571)
-
-📂 Product
-   ├── 📋 Feature Requests (list_id: 901234600)
-   └── 📋 User Research (list_id: 901234601)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Team Members: 24 cached | Tags: 18 cached
-Last sync: 2 hours ago
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+Shows your workspace structure, cached members, and available tags.
 
 **Flags:**
+
 - `--org=personal` - Show different org
 - `--members` - Also list team members
 - `--tags` - Also list all tags
@@ -516,24 +325,6 @@ Last sync: 2 hours ago
 ### Switch Organization
 
 `/clickup-ticket:switch-org`
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Switch Organization
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Current: Diversio
-
-   [1] Diversio ✓
-   [2] Personal
-   [3] Client: Acme Corp
-
-> 2
-
-Switched to: Personal
-Default list: Personal Tasks
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
 
 Or switch directly: `/clickup-ticket:switch-org personal`
 
@@ -550,6 +341,7 @@ For detailed technical documentation, see the `references/` directory:
 - **[api-endpoints.md](references/api-endpoints.md)** - ClickUp API v2 endpoints used
 - **[cache-format.md](references/cache-format.md)** - Cache directory structure and file formats
 - **[error-handling.md](references/error-handling.md)** - Error messages and handling
+- **[usage-workflows.md](references/usage-workflows.md)** - Examples, prompts, installation, and troubleshooting
 
 ### Quick Reference
 
@@ -559,97 +351,12 @@ For detailed technical documentation, see the `references/` directory:
 
 **Cache TTL:** 24 hours (configurable). Use `/clickup-ticket:refresh-cache` to force refresh.
 
-## Interactive Prompts
+Use **[usage-workflows.md](references/usage-workflows.md)** for:
 
-When the skill needs information, it asks with numbered choices:
-
-```
-Priority?  [1] Urgent [2] High [3] Normal [4] Low
-Assignee?  [1] Me [2] Unassigned [3] Other...
-Tags?      [1] bug [2] feature... (comma-separated: 1,3)
-List?      [1] Backlog ⭐ [2] Sprint 47 [3] Other...
-```
-
-Press Enter to accept defaults (marked with ⭐).
-
-## Examples
-
-**Quick bug report:**
-```
-User: Create a ticket for the login bug
-→ ✅ Login bug | List: Bugs | 🔗 https://app.clickup.com/t/bug123
-```
-
-**Subtask from context:**
-```
-User: Add a subtask to abc123 for writing tests
-→ ✅ Write tests (under #abc123) | 🔗 https://app.clickup.com/t/sub789
-```
-
-**Different org:**
-```
-/clickup-ticket:quick-ticket "Buy groceries" --org=personal
-→ ✅ [Personal] Buy groceries | 🔗 https://app.clickup.com/t/xyz
-```
-
-## Advanced Features
-
-- **Custom fields:** `--field="Story Points=3"`
-- **Templates:** `--template=bug` (pre-fills tags, priority)
-- **Branch detection:** Auto-detects `clickup_<id>_` branches
-- **Batch creation:** Accepts markdown lists of tasks
-
-## Integration
-
-Works with other skills in this marketplace:
-- **monty-code-review:** Create tickets from BLOCKING issues
-- **backend-pr-workflow:** Links to ClickUp branch naming conventions
-
-## Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| Cache stale | `/clickup-ticket:refresh-cache` |
-| Reset everything | `/clickup-ticket:configure --reset` |
-| Token not working | `echo $CLICKUP_TICKET_SKILL_TOKEN` to verify |
-| Find list IDs | `/clickup-ticket:list-spaces` or check ClickUp URL |
-
-## Installation
-
-**Claude Code:**
-```bash
-/plugin install clickup-ticket@diversiotech
-```
-
-**Codex:**
-```bash
-$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py \
-  --repo DiversioTeam/agent-skills-marketplace \
-  --path plugins/clickup-ticket/skills/clickup-ticket
-```
-
-## Security Considerations
-
-- **Tokens are never stored in files** - Always use environment variables
-- **Cache contains workspace metadata only** - No sensitive task content
-- **Tokens are scoped to your account** - They inherit your ClickUp permissions
-- **Local cache files** - Store only in user's home directory, not in repos
-
-## Changelog
-
-### v0.2.0
-
-- **New:** `get-ticket` - Fetch full ticket details by ID or URL
-- **New:** `list-tickets` - Powerful filtering (status, assignee, tags, dates)
-- **New:** `my-tickets` - View assigned tickets grouped by urgency
-- **Updated:** API reference with correct query parameters
-- **Note:** Text search by task name not available (ClickUp API limitation)
-
-### v0.1.0
-
-- Initial release
-- Multi-org support with cached workspace data
-- Interactive ticket creation with priority, assignees, tags
-- Quick ticket and backlog commands
-- Subtask creation
-- Space/list discovery
+- worked examples and sample outputs
+- interactive prompt shapes
+- advanced features and integrations
+- troubleshooting
+- installation snippets
+- security notes
+- changelog history

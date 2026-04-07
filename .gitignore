@@ -1,2 +1,3 @@
 # VS Code workspace config
 *.code-workspace
+__pycache__/

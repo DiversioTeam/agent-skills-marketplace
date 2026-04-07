@@ -53,6 +53,7 @@ PLUGINS=(
   process-code-review
   mixpanel-analytics
   clickup-ticket
+  github-ticket
   repo-docs
   visual-explainer
   backend-release
@@ -91,6 +92,7 @@ PLUGINS=(
   process-code-review
   mixpanel-analytics
   clickup-ticket
+  github-ticket
   repo-docs
   visual-explainer
   backend-release
@@ -191,6 +193,7 @@ SKILLS=(
   process-code-review
   mixpanel-analytics
   clickup-ticket
+  github-ticket
   repo-docs-generator
   visual-explainer
   release-manager

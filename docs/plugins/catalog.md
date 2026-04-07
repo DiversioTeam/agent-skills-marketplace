@@ -6,20 +6,43 @@ when command files change.
 
 ## Review And Workflow
 
+- `monolith-review-orchestrator`
+  - Purpose: monolith-local PR review harness with structured intake,
+    deterministic worktree reuse/bootstrap, structured reassessment state, and
+    narrow v1 posting boundaries.
+  - Claude install:
+    `claude plugin install monolith-review-orchestrator@diversiotech`
+  - Skill path:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator`
+  - Worktree/intake reference:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
+  - Helper explainer:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/workflow-helpers.md`
+  - Helper scripts:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/`
+  - Scope note: requires a Diversio monolith checkout and is not a generic
+    repo-agnostic review plugin.
+  - Slash commands: `/monolith-review-orchestrator:review-prs`,
+    `/monolith-review-orchestrator:reassess-prs`,
+    `/monolith-review-orchestrator:post-review`
 - `monty-code-review`
-  - Purpose: hyper-pedantic Django4Lyfe backend code review.
+  - Purpose: hyper-pedantic Django4Lyfe backend code review with persistent JSON-first review memory.
   - Claude install: `claude plugin install monty-code-review@diversiotech`
   - Skill path: `plugins/monty-code-review/skills/monty-code-review`
+  - Memory helper:
+    `plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py`
+  - Memory protocol:
+    `plugins/monty-code-review/skills/monty-code-review/references/review-memory-protocol.md`
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
 - `backend-atomic-commit`
-  - Purpose: backend pre-commit fixes and strict atomic commits.
+  - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene.
   - Claude install: `claude plugin install backend-atomic-commit@diversiotech`
   - Skill path: `plugins/backend-atomic-commit/skills/backend-atomic-commit`
   - Slash commands: `/backend-atomic-commit:pre-commit`,
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
-  - Purpose: backend PR workflow, naming, and migration safety checks.
+  - Purpose: backend PR workflow, GitHub issue linkage, and migration safety checks.
   - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
   - Slash commands: `/backend-pr-workflow:check-pr`
@@ -75,8 +98,8 @@ when command files change.
   - Slash commands: `/plan-directory:plan`,
     `/plan-directory:backend-ralph-plan`, `/plan-directory:run`
 - `pr-description-writer`
-  - Purpose: reviewer-friendly pull request descriptions with diagrams and
-    tables.
+  - Purpose: reviewer-friendly pull request descriptions with diagrams, tables,
+    and repo-local workflow context.
   - Claude install:
     `claude plugin install pr-description-writer@diversiotech`
   - Skill path:
@@ -97,7 +120,7 @@ when command files change.
 ## Operations And Implementation
 
 - `clickup-ticket`
-  - Purpose: read, filter, and create ClickUp tickets with multi-org support.
+  - Purpose: legacy ClickUp ticket management during the GitHub migration.
   - Claude install: `claude plugin install clickup-ticket@diversiotech`
   - Skill path: `plugins/clickup-ticket/skills/clickup-ticket`
   - Slash commands: `/clickup-ticket:get-ticket`,
@@ -107,6 +130,15 @@ when command files change.
     `/clickup-ticket:configure`, `/clickup-ticket:switch-org`,
     `/clickup-ticket:add-org`, `/clickup-ticket:list-spaces`,
     `/clickup-ticket:refresh-cache`
+- `github-ticket`
+  - Purpose: GitHub-native issue management with planning-hub routing, repo-local execution issues, and project-board defaults.
+  - Claude install: `claude plugin install github-ticket@diversiotech`
+  - Skill path: `plugins/github-ticket/skills/github-ticket`
+  - Slash commands: `/github-ticket:configure`,
+    `/github-ticket:get-issue`, `/github-ticket:list-issues`,
+    `/github-ticket:my-issues`, `/github-ticket:create-issue`,
+    `/github-ticket:quick-issue`, `/github-ticket:add-to-backlog`,
+    `/github-ticket:create-linked-issue`, `/github-ticket:route`
 - `mixpanel-analytics`
   - Purpose: implement and review MixPanel tracking for the Django
     `optimo_analytics` module.

@@ -1,6 +1,6 @@
 ---
 name: backend-pr-workflow
-description: "Pedantic backend PR workflow skill enforcing ClickUp-linked branch/PR naming, repo-local workflow docs, safe Django migrations, and downtime-safe schema changes."
+description: "Pedantic backend PR workflow skill that follows repo-local workflow docs, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes."
 allowed-tools: Read Bash Glob Grep
 ---
 
@@ -13,7 +13,7 @@ Use this Skill whenever you are:
 - Creating or reviewing a backend PR that touches Django models, migrations, or
   production data.
 - Preparing a PR for Django4Lyfe / Workforce backend or a similar repo that
-  uses ClickUp as the primary ticket system.
+  uses GitHub as the active workflow system.
 - Planning a release or hotfix and want to ensure the workflow (branches, tags,
   and migrations) is correct and downtime-safe.
 
@@ -25,7 +25,7 @@ baseline when repo-local docs are absent or thin.
 
 ## Example Prompts
 
-- “Use the `backend-pr-workflow` skill to review this Django4Lyfe PR’s branch name, ClickUp linkage, migrations, and downtime-safety. Here are the branch name, base branch, and PR title: …”
+- “Use the `backend-pr-workflow` skill to review this Django4Lyfe PR’s branch name, linked issues, migrations, and downtime-safety. Here are the branch name, base branch, and PR title: …”
 - “Before I open this backend PR, run `backend-pr-workflow` on my planned title, description, and migration summary and tell me all `[BLOCKING]` and `[SHOULD_FIX]` issues.”
 - “For this hotfix PR on Django4Lyfe, use `backend-pr-workflow` to check that my base branch, title, and release plan follow our backend workflow.”
 - “I’ve added a new nullable field and a backfill migration. Use `backend-pr-workflow` to verify that my migrations and rollout plan are downtime-safe.”
@@ -51,7 +51,7 @@ Each bullet in `Needs changes` should:
 
 Example bullet:
 
-- `[BLOCKING] Branch name 'feature/my-thing' does not follow the required 'clickup_<ticket_id>' convention, and CI may not run. Rename to something like 'clickup_GH-1234_my-thing'.`
+- `[SHOULD_FIX] Branch name 'misc/work' does not match the repo's documented feature-branch convention. Rename it to something clearer like 'feature/1234-user-auth' or 'feature/user-auth'.`
 
 ## Inputs This Skill Expects
 
@@ -77,65 +77,64 @@ Before applying the checklist, inspect the repo harness:
 - If workflow rules are tribal knowledge or only implied by stale docs, emit a
   `[SHOULD_FIX]` harness finding recommending a `repo-docs` update.
 
-## Checklist 1 – ClickUp & Branch / PR Naming
+## Checklist 1 – Repo-Local Branch / PR Conventions
 
-This Skill treats **ClickUp linkage as non-negotiable**.
+This Skill treats the target repo's current `AGENTS.md`, runbooks, and PR
+template as the source of truth.
 
 ### 1.1 Branch name
 
 Check the branch name:
 
-- It **must** start with `clickup_<custom_ticket_id>`:
-  - Examples:
-    - `clickup_GH-785`
-    - `clickup_GH-785_world_domination`
-- The ticket ID **must** be the ClickUp **custom ticket ID** (e.g. `GH-785`),
-  not the numeric internal ID.
-- Rationale:
-  - CI (e.g. CircleCI) is configured to run only for branches starting with
-    `clickup_`.
-  - ClickUp uses the custom ticket ID to automatically link branches, PRs, and
-    commits to tickets.
+- First, inspect the target repo's documented convention.
+- For Django4Lyfe today, the backend docs now prefer neutral repo-local names
+  such as:
+  - `feature/employee-import`
+  - `bugfix/1234-employee-import`
+  - `chore/ci-cleanup`
+- If the repo includes an issue number in branch names, treat it as helpful
+  traceability, not a universal requirement unless the repo docs explicitly say
+  otherwise.
 
 If the branch does not follow this pattern, emit:
 
-- `[BLOCKING]` – with a suggested corrected branch name.
+- `[SHOULD_FIX]` – with a suggested corrected branch name that matches the repo
+  docs.
+- Upgrade to `[BLOCKING]` only if current CI or automation still explicitly
+  depends on a pattern and would fail without it.
 
 ### 1.2 Multi-repo work and sub-tickets
 
-When a feature spans multiple repositories, enforce:
+When a feature spans multiple repositories, prefer:
 
-- Do **not** reuse the same ClickUp ID across multiple repos.
-- Instead, require:
-  - One **parent** ClickUp ticket for the overall feature.
-  - Separate **sub-tickets** per repo:
-    - Backend: `GH-2961`
-    - Frontend: `GH-2962`
-    - Data Science: `GH-2963`
-    - Infra: `GH-2964`
-- Each sub-ticket gets its own branch, PR, and commit series, following the
-  same naming rules.
+- one planning issue in `DiversioTeam/monolith` when the work is cross-repo
+- repo-local execution issues when ownership or tooling lives in one code repo
+- clear links between the planning issue and the execution PR
 
-Explain risks of reusing the same ID across repos:
+Explain the risk of collapsing unrelated repo work into one opaque thread:
 
-- Automation may update status prematurely or incorrectly.
-- PRs from different repos can be linked to the wrong task.
-- Ownership and progress become ambiguous.
+- ownership becomes unclear
+- review history is harder to follow
+- repo-local execution tooling cannot attach cleanly
 
-If the user appears to be reusing the same ID across repos, emit:
+If the user appears to be shoving cross-repo work into one PR or one unclear
+issue reference, emit:
 
-- `[SHOULD_FIX]` – recommending sub-tickets and distinct branch/PR naming.
+- `[SHOULD_FIX]` – recommending a `monolith` planning issue and separate
+  repo-local execution work where appropriate.
 
 ### 1.3 Commit messages
 
 Check or remind the user that:
 
-- **All commits** for the PR should start with the ticket ID:
-  - `GH-785: Find another meaning of life`
-- This is often enforced by `commit_msg_hook.py` and pre-commit hooks, but the
-  Skill should still call out obvious violations.
+- Commit messages should follow the repo-local harness.
+- For Django4Lyfe today, the backend docs prefer a clear summary and allow an
+  issue reference when it improves traceability.
+- If commit-msg hooks or repo docs enforce something stricter, follow that
+  repository-local rule instead of inventing a global one.
 
-If commit messages clearly lack ticket IDs (based on user input), emit:
+If commit messages are vague, misleading, or clearly violate a documented
+repo-local rule, emit:
 
 - `[SHOULD_FIX]` – asking the author to fix future commits and, where
   practical, to rewrite recent history before merge.
@@ -144,17 +143,16 @@ If commit messages clearly lack ticket IDs (based on user input), emit:
 
 The PR title must:
 
-- Begin with `[<clickup_ticket_id>]`.
-  - Example: `[GH-785] Found meaning of life`
+- Follow the repo-local PR guidance.
+- For Django4Lyfe today, that means a clear summary title; issue linkage should
+  live in the PR body using GitHub-native references such as:
+  - `Closes #1234`
+  - `Refs DiversioTeam/monolith#1234`
 
 If not, emit:
 
-- `[BLOCKING]` – and propose a corrected title that includes the ticket ID.
-
-Remind the user that:
-
-- Correct titles allow ClickUp to auto-link the PR and expose PR status,
-  reviewers, and activity directly in the ticket.
+- `[SHOULD_FIX]` – and propose a corrected title or PR-body linkage that
+  matches the repo docs.
 
 ## Checklist 2 – WIP Signalling & Base Branch
 
@@ -410,7 +408,7 @@ When invoked, this Skill should:
 1. Gather the inputs listed above (branch, PR title/description, base branch,
    migration/schema summary).
 2. Apply each checklist in order:
-   - ClickUp & naming.
+   - Repo-local branch and PR conventions.
    - WIP & base branch.
    - PR description & self-review.
    - Release/hotfix flow.
