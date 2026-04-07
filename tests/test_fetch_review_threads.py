@@ -335,13 +335,6 @@ class FetchReviewThreadsTests(unittest.TestCase):
             main_response,
             self.make_thread_comments_response(
                 thread_id="T1",
-                comment_ids=["TC1"],
-                start_database_id=101,
-                has_next_page=True,
-                end_cursor="thread-page-2",
-            ),
-            self.make_thread_comments_response(
-                thread_id="T1",
                 comment_ids=["TC2"],
                 start_database_id=102,
                 has_next_page=False,
@@ -361,7 +354,7 @@ class FetchReviewThreadsTests(unittest.TestCase):
             FETCH_REVIEW_THREADS,
             "call_graphql",
             side_effect=responses,
-        ):
+        ) as mocked_call_graphql:
             result = FETCH_REVIEW_THREADS.fetch_pull_request_context(pr_ref)
 
         thread = result["review_threads"][0]
@@ -370,6 +363,7 @@ class FetchReviewThreadsTests(unittest.TestCase):
             [comment["node_id"] for comment in thread["comments"]], ["TC1", "TC2"]
         )
         self.assertEqual(thread["comment_ids"], [101, 102])
+        self.assertEqual(mocked_call_graphql.call_count, 2)
 
 
 if __name__ == "__main__":

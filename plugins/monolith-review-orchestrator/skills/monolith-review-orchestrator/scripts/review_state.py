@@ -242,12 +242,12 @@ def read_json(path: Path) -> ReviewStateRecord:
             f"found {raw_schema_version}, supported versions are {supported_versions}. "
             f"Upgrade/migrate the state file or remove {path} and rerun the command."
         )
-    normalized = normalize_state_record(data, schema_version=raw_schema_version)
+    normalized = normalize_state_record(data)
     parse_prs_from_state(normalized)
     return normalized
 
 
-def normalize_state_record(payload: object, schema_version: int) -> ReviewStateRecord:
+def normalize_state_record(payload: object) -> ReviewStateRecord:
     if not isinstance(payload, dict):
         raise click.ClickException("State file does not contain a JSON object.")
 
@@ -1320,6 +1320,9 @@ def summarize_context(
         item for item in raw_passes if isinstance(item, dict)
     ]
     recent_passes = passes if max_pass_history <= 0 else passes[-max_pass_history:]
+    open_findings_limit: int | None = (
+        None if max_open_findings <= 0 else max_open_findings
+    )
     open_findings: dict[str, ReviewFinding] = {}
     open_finding_order: list[str] = []
     for pass_record in passes:
@@ -1390,26 +1393,26 @@ def summarize_context(
         if value:
             latest_context[key] = value
     merged_author_claims = merge_author_claim_history(
-        recent_passes, max_items=max_open_findings
+        recent_passes, max_items=open_findings_limit
     )
     if merged_author_claims:
         latest_context["author_claims_checked"] = merged_author_claims
     merged_comment_context = merge_comment_context_history(
         recent_passes,
-        max_threads=max_open_findings,
-        max_items_per_bucket=max_open_findings,
+        max_threads=open_findings_limit,
+        max_items_per_bucket=open_findings_limit,
     )
     if merged_comment_context is not None:
         latest_context["comment_context"] = merged_comment_context
     merged_teaching_points = merge_teaching_points_history(
-        recent_passes, max_items=max_open_findings
+        recent_passes, max_items=open_findings_limit
     )
     if merged_teaching_points:
         latest_context["teaching_points"] = merged_teaching_points
     merged_inline_targets = [
         target
         for target in merge_inline_targets_history(
-            recent_passes, max_items=max_open_findings
+            recent_passes, max_items=open_findings_limit
         )
         if scoped_identity_key(
             target["repo"], target["pr_number"], target["finding_id"]
@@ -1419,10 +1422,13 @@ def summarize_context(
     if merged_inline_targets:
         latest_context["inline_comment_targets"] = merged_inline_targets
 
+    selected_open_finding_keys = (
+        open_finding_order
+        if open_findings_limit is None
+        else open_finding_order[-open_findings_limit:]
+    )
     recent_open_findings = [
-        open_findings[key]
-        for key in open_finding_order[-max_open_findings:]
-        if key in open_findings
+        open_findings[key] for key in selected_open_finding_keys if key in open_findings
     ]
 
     summary: ReviewContextSummary = {
@@ -1436,8 +1442,16 @@ def summarize_context(
         "latest_context": latest_context,
         "open_finding_count": len(open_findings),
         "open_findings": recent_open_findings,
-        "latest_resolved_findings": latest_resolved[:max_open_findings],
-        "latest_moot_findings": latest_moot[:max_open_findings],
+        "latest_resolved_findings": (
+            latest_resolved
+            if open_findings_limit is None
+            else latest_resolved[:open_findings_limit]
+        ),
+        "latest_moot_findings": (
+            latest_moot
+            if open_findings_limit is None
+            else latest_moot[:open_findings_limit]
+        ),
     }
     click.echo(json.dumps(summary, indent=2, sort_keys=True))
 

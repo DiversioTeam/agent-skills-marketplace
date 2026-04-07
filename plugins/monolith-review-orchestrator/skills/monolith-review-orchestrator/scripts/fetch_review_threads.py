@@ -599,14 +599,21 @@ def parse_thread_comment_connection(
     return nodes, page_info, total_count
 
 
-def fetch_all_thread_comments(thread_id: str) -> tuple[list[ThreadComment], int]:
-    comments: list[ThreadComment] = []
-    cursor: str | None = None
-    total_count = 0
+def fetch_all_thread_comments(
+    thread_id: str,
+    initial_comments: list[ThreadComment] | None = None,
+    next_cursor: str | None = None,
+    total_count: int = 0,
+) -> tuple[list[ThreadComment], int]:
+    comments: list[ThreadComment] = list(initial_comments or [])
+    cursor = next_cursor
     while True:
+        if cursor is None:
+            raise click.ClickException(
+                f"Thread `{thread_id}` reported another page without an end cursor."
+            )
         fields = {"threadId": thread_id}
-        if cursor is not None:
-            fields["commentsCursor"] = cursor
+        fields["commentsCursor"] = cursor
         response = call_graphql(THREAD_COMMENTS_QUERY, fields)
         data = require_dict(response.get("data"), "graphql_response.data")
         node = require_dict(data.get("node"), "graphql_response.data.node")
@@ -616,11 +623,7 @@ def fetch_all_thread_comments(thread_id: str) -> tuple[list[ThreadComment], int]
         comments.extend(thread_comments)
         if not page_info["hasNextPage"]:
             break
-        cursor = page_info["endCursor"]
-        if cursor is None:
-            raise click.ClickException(
-                f"Thread `{thread_id}` reported another page without an end cursor."
-            )
+        cursor = next_page_cursor(page_info, f"thread `{thread_id}` comments.pageInfo")
     return comments, total_count
 
 
@@ -665,7 +668,12 @@ def parse_review_thread(
         data.get("comments"), f"{field_name}.comments"
     )
     if page_info["hasNextPage"]:
-        comments, total_count = fetch_all_thread_comments(thread_id)
+        comments, total_count = fetch_all_thread_comments(
+            thread_id,
+            initial_comments=comments,
+            next_cursor=next_page_cursor(page_info, f"{field_name}.comments.pageInfo"),
+            total_count=total_count,
+        )
     comment_ids = [
         comment["database_id"]
         for comment in comments
