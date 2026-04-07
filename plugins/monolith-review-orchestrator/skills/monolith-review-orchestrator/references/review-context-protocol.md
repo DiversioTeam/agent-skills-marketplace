@@ -46,6 +46,19 @@ Use that helper whenever GitHub auth is available. Fall back to flat comments
 only when the helper cannot be used, and mark thread state provisional in that
 case.
 
+Mental model:
+
+```text
+acquisition answers:
+  "what happened in GitHub?"
+
+persistence answers:
+  "what should we remember for the next pass?"
+```
+
+The two jobs are separate on purpose. Keeping them separate makes both the
+read path and the memory model easier to reason about.
+
 ## Persistent Review Context
 
 Use `scripts/review_state.py` as the local cache for the review's durable

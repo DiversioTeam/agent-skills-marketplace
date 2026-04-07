@@ -174,6 +174,21 @@ What it does:
   first page of comments
 - emits normalized thread-aware JSON keyed by repo and PR number
 
+Why the helper owns this instead of leaving it to prompts:
+
+```text
+GitHub review data is not one flat list.
+
+conversation comments
+review submissions
+inline review threads
+thread comments
+```
+
+Those surfaces paginate independently and carry different kinds of meaning. The
+helper exists so the model does not have to rediscover those details every time
+it wants a trustworthy picture of the PR discussion.
+
 Example:
 
 ```bash

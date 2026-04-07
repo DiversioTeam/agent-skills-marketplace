@@ -11,6 +11,28 @@ Use this plugin when the goal is not just to skim a diff, but to:
 - reassess incrementally after new commits
 - post clearer, more instructive GitHub reviews and inline comments
 
+## What It Figures Out For You
+
+The normal path should not require the user to think about worktree names,
+cursor pagination, or local repo layout.
+
+```text
+you provide:
+  - PR URL(s)
+  - review intent
+  - whether posting is allowed
+
+the plugin figures out:
+  - review batch identity
+  - worktree reuse or preparation
+  - thread-aware GitHub review history
+  - durable local review context
+  - what changed since the last pass
+```
+
+That is why the example prompts below focus on the review ask, not the setup
+mechanics.
+
 ## Best Inputs
 
 The workflow is strongest when your prompt includes:
@@ -98,6 +120,23 @@ follows.
   and batch state across passes.
 - This plugin is still intentionally narrow on generic non-backend posting and
   broad multi-PR automation.
+
+## Why These Pieces Exist
+
+```text
+fetch_review_threads.py
+  reads the real review discussion, including resolved/outdated threads
+
+review_state.py
+  keeps the reusable memory of what we learned
+
+SKILL.md + references/
+  explain when to use the workflow and how to interpret its output
+```
+
+Without the fetch helper, the review cache would be downstream of an incomplete
+read path. Without the review-state helper, every reassessment would have to
+reconstruct prior context from scratch.
 
 ## Related Files
 

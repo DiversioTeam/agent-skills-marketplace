@@ -390,6 +390,15 @@ class PullRequestRef:
 
 
 def next_page_cursor(page_info: PageInfo, field_name: str) -> str | None:
+    """Return the next cursor or fail closed.
+
+    First principle:
+    `hasNextPage=true` means GitHub says more data exists. If we continue
+    without an `endCursor`, we would quietly truncate acquisition and later
+    review passes would reason over incomplete thread history. A loud failure is
+    safer than silently missing part of the discussion.
+    """
+
     if not page_info["hasNextPage"]:
         return None
     end_cursor = page_info["endCursor"]
@@ -605,6 +614,13 @@ def fetch_all_thread_comments(
     next_cursor: str | None = None,
     total_count: int = 0,
 ) -> tuple[list[ThreadComment], int]:
+    """Continue a thread's comment connection from the next cursor.
+
+    The main PR query already gave us the first page. We keep those comments and
+    continue from the follow-up cursor so we do not re-fetch page 1, duplicate
+    comments, or spend extra GraphQL budget.
+    """
+
     comments: list[ThreadComment] = list(initial_comments or [])
     cursor = next_cursor
     while True:
@@ -710,6 +726,19 @@ def parse_review_thread(
 
 
 def fetch_pull_request_context(pr_ref: PullRequestRef) -> PullRequestReviewContext:
+    """Fetch one PR's full thread-aware review context.
+
+    Why the loop is defensive:
+    - comments, reviews, and reviewThreads paginate independently
+    - we fetch them together so one helper call returns the full review picture
+    - a later page for one connection can still repeat page-1 data for the
+      others
+
+    So this function keeps a per-connection seen-set and dedupes by node id
+    before appending. That keeps counts stable on large PRs where only one
+    connection crosses the pagination boundary.
+    """
+
     conversation_comments: list[ConversationComment] = []
     reviews: list[ReviewSubmission] = []
     review_threads: list[ReviewThread] = []
@@ -782,6 +811,9 @@ def fetch_pull_request_context(pr_ref: PullRequestRef) -> PullRequestReviewConte
             pull_request.get("reviewThreads"), "pull_request.reviewThreads"
         )
 
+        # Each connection paginates independently. A later page for comments can
+        # still return page-1 reviews or threads, so we dedupe each collection
+        # before appending.
         for index, node in enumerate(
             require_list(comment_nodes.get("nodes"), "pull_request.comments.nodes")
         ):
@@ -839,6 +871,8 @@ def fetch_pull_request_context(pr_ref: PullRequestRef) -> PullRequestReviewConte
             thread_nodes.get("pageInfo"), "pull_request.reviewThreads.pageInfo"
         )
 
+        # Advance each connection independently and fail closed if GitHub
+        # advertises another page without the cursor needed to reach it.
         comments_cursor = next_page_cursor(
             comment_page_info, "pull_request.comments.pageInfo"
         )

@@ -248,6 +248,16 @@ def read_json(path: Path) -> ReviewStateRecord:
 
 
 def normalize_state_record(payload: object) -> ReviewStateRecord:
+    """Normalize older on-disk state into the current in-memory shape.
+
+    First principle:
+    the orchestrator's long-term value is reassessment continuity. Old state
+    should not be accepted blindly, but it also should not be thrown away when
+    the newer schema can still make sense of it. This function validates the
+    durable identity fields we rely on now and upgrades older payloads into the
+    current schema shape before later code touches them.
+    """
+
     if not isinstance(payload, dict):
         raise click.ClickException("State file does not contain a JSON object.")
 
@@ -1105,6 +1115,15 @@ def merge_comment_context_history(
     max_threads: int | None = None,
     max_items_per_bucket: int | None = None,
 ) -> CommentContext | None:
+    """Merge durable discussion context across recent passes.
+
+    We intentionally merge here instead of taking only the latest pass because
+    reviewers often learn something important in an earlier pass that the author
+    did not restate later. At the same time, `summarize-context` must stay
+    compact, so the caller can cap thread and prose history to the most recent
+    useful slice.
+    """
+
     merged: CommentContext = {}
     merged_threads: dict[str, ReviewThreadContext] = {}
     thread_order: list[str] = []
@@ -1319,10 +1338,16 @@ def summarize_context(
     passes: list[ReviewPassRecord] = [
         item for item in raw_passes if isinstance(item, dict)
     ]
+    # `<= 0` means "do not trim" rather than "return nothing". That keeps the
+    # command useful for intentional deep dives while still defaulting to a
+    # small recent slice for normal reassessment/posting runs.
     recent_passes = passes if max_pass_history <= 0 else passes[-max_pass_history:]
     open_findings_limit: int | None = (
         None if max_open_findings <= 0 else max_open_findings
     )
+    # We keep a dict for the current active finding set and a separate recency
+    # list so the compact output can prefer the most recently re-confirmed open
+    # issues instead of whichever issue happened to appear first in history.
     open_findings: dict[str, ReviewFinding] = {}
     open_finding_order: list[str] = []
     for pass_record in passes:
