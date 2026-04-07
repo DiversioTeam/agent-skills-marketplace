@@ -24,7 +24,10 @@ formatters):
 
 Applying both layers on the same path can cause double-attribution.
 
-## Token Propagation Flow
+## Token Propagation Flow (Simplified)
+
+High-level summary; see the 9-point chain under Mixpanel Integration Notes
+for the authoritative step-by-step path.
 
 ```text
 CTA URL click ->
@@ -127,16 +130,14 @@ handled in the model parsers.
 
 ## Parser Behavior
 
-Two parser modes often exist:
+`parse_cta_source(cta_source, expected_source)` is the sole CTA parser:
 
-- `parse_cta_source()`:
-  - lenient
-  - returns `None` on invalid input
-- `validate_strict_attribution()`:
-  - strict
-  - raises `ValueError` on invalid input
+- Returns `PlatformAttributionNT` on valid input, `None` on invalid input.
+- Validates against `ALLOWED_CTA_SOURCES` allowlist.
+- Enforces channel consistency: the parsed source must match
+  `expected_source` (e.g., a Slack endpoint cannot persist Teams attribution).
 
-CTA views should handle parse failures with resilient defaults per platform.
+CTA views should handle `None` returns with resilient defaults per platform.
 
 ## Mixpanel Integration Notes
 
