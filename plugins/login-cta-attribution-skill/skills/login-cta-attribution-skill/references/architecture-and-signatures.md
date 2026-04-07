@@ -99,26 +99,31 @@ def build_login_magic_link_for_user(
 
 ## Source Attribution Metadata
 
-Primary metadata structure lives in:
+The `SourceAttributionMetadataTD` TypedDict, builder
+(`build_source_attribution_metadata`), and serializer
+(`serialize_source_attribution_metadata`) live in:
 
-- `optimo_core/auth/magic_link.py`
+- `optimo_core/utils/source_attribution.py`
 
-Typical fields include:
+Builder-layer fields (used during CTA → magic-link construction):
 
-- `login_cta_source`
-- `login_cta_source_detail`
+- `login_cta_source` — enum-typed platform source
+- `login_cta_source_detail` — enum-typed action detail
 - `redirect_path`
 - `magic_link_action`
 - `slack_button`
 - `slack_tab`
 - `teams_button`
 - `teams_tab`
+- `cta_parse_failed`
 
-Builder helper:
-
-- `build_source_attribution_metadata(...)`
-
-Use helper-based parsing/conversion conventions from the target codebase.
+**Field rename at analytics boundary**: the builder stores
+`login_cta_source` / `login_cta_source_detail`, but model parsers
+(`magic_link.py`, `auth.py`) and `MixpanelSessionContextSchema` expose these
+as `login_source` / `login_source_detail`. This rename happens in the model
+parser layer (chain points 6-7). If you add a new attribution field whose
+builder-layer name differs from its analytics-layer name, both names must be
+handled in the model parsers.
 
 ## Parser Behavior
 
@@ -200,13 +205,13 @@ If new attribution keys are introduced, confirm refresh path copies them.
 
 ## Common Enum Values (Typical)
 
-Platform source values:
+Platform source values (`LoginSourceChoices`):
 
 - `slack`
 - `teams`
 - `email`
 
-Common detail values:
+Common detail values (`LoginSourceDetailChoices`):
 
 - `weekly_digest`
 - `survey_complete`
@@ -214,14 +219,19 @@ Common detail values:
 - `team_health_alerts`
 - `team_health_profile`
 
-Magic-link action values may include:
+Magic-link action values (`MagicLinkActionChoices`):
 
 - `login`
 - `invite`
 - `signup`
 - `verify_email`
 
-Slack tab values:
+Slack tab values (`SlackTabChoices`):
 
 - `messages`
 - `home`
+
+Teams tab values (`TeamsTabChoices`):
+
+- `optimo_pulse`
+- `how_it_works`

@@ -348,13 +348,13 @@ Login/session events include CTA attribution fields in `MixpanelSessionContextSc
 
 | Field | Source | Values |
 |---|---|---|
-| `login_source` | `LoginSourceChoices` | `slack`, `teams`, `email`, `direct` |
+| `login_source` | `LoginSourceChoices` | `slack`, `teams`, `email` |
 | `login_source_detail` | `LoginSourceDetailChoices` | `weekly_digest`, `survey_complete`, etc. |
 | `magic_link_action` | `MagicLinkActionChoices` | `login`, `invite`, `signup`, `verify_email` |
-| `slack_button` | `SlackButtonChoices` | Button label from Slack CTA |
+| `slack_button` | `SlackButtonChoices` | Analytics identifier (static buttons match UI text; dynamic links use generic ID) |
 | `slack_tab` | `SlackTabChoices` | `messages`, `home` |
-| `teams_button` | `TeamsButtonChoices` | Button label from Teams CTA |
-| `teams_tab` | `TeamsTabChoices` | `my_pulse`, `chat_guide`, `how_it_works` |
+| `teams_button` | `TeamsButtonChoices` | Analytics identifier (static buttons match UI text; dynamic links use generic ID) |
+| `teams_tab` | `TeamsTabChoices` | `optimo_pulse`, `how_it_works` |
 | `cta_parse_failed` | `bool` | `True` if source param parsing failed |
 
 All enums live in `optimo_core/models/login_attribution.py`.

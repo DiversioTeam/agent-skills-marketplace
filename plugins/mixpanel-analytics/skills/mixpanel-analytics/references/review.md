@@ -99,14 +99,25 @@ This file is referenced from `SKILL.md` to keep the main Skill short and portabl
 - [ ] New helper classes exported in `service/__init__.py`
 - [ ] Added to `__all__` list
 
-### 11. CTA Attribution Fields (P2)
+### 11. CTA Attribution Fields (P1)
 
 For events extending `MixpanelSessionContextSchema`:
 
 **MUST VERIFY**:
 - [ ] Attribution fields are NOT manually set (they flow from session context)
 - [ ] `login_source` uses `LoginSourceChoices` enum, not raw strings
-- [ ] `slack_button`/`teams_button` use their respective enum labels
+- [ ] `slack_button`/`teams_button` use their respective enum types (static
+      buttons match UI text; dynamic links use generic identifiers)
+- [ ] `slack_tab`/`teams_tab` use their respective enum types
+- [ ] Slack/Teams attribution parity: if one platform has a field (e.g.,
+      `slack_tab`), the other must have the equivalent (`teams_tab`)
+- [ ] New attribution fields are declared on **both** the session context schema
+      AND the event schemas (`MixpanelLoginEventPropertiesSchema`,
+      `MixpanelLogoutEventPropertiesSchema`) with `default=None`
+- [ ] New attribution fields are listed in the `include_from_session` default
+      set in `from_session_context()` on each event schema — otherwise the
+      field is stored on the session context but silently excluded from the
+      Mixpanel event payload
 - [ ] Test scenarios cover attributed and non-attributed login paths
 
 ## Automated Checks

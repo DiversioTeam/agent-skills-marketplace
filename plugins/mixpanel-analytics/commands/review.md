@@ -14,6 +14,9 @@ Focus on:
 
 - **PII Protection (P0)**: No names, emails, phone numbers in schemas.
 - **Event Registration (P1)**: Constants, schemas, and registry entries aligned.
+- **CTA Attribution (P1)**: All attribution fields (`slack_button`, `slack_tab`,
+  `teams_button`, `teams_tab`) present on session context schema, event schemas
+  (with `default=None`), and `include_from_session` sets.
 - **Schema Design (P1)**: UUIDs as strings, proper Field descriptions, correct
   model configs.
 - **Service Patterns (P1)**: Keyword-only args, try-except wrappers, structured
