@@ -27,7 +27,9 @@ Focus on:
   - `build_stable_slack_cta_url()` takes `SlackTabChoices` and `SlackButtonChoices`
     enum types directly.
 - Ensuring `build_source_attribution_metadata()` is called in magic link creation.
-- Ensuring button `.label` matches actual UI button text.
+- Ensuring button `.label` is used for static button text (both platforms).
+    Dynamic links (e.g., employee profile) use generic identifiers — the UI
+    renders context-specific text.
 - Writing tests that use enum values, never magic strings.
 - Updating platform AGENTS.md files with new CTA rules.
 - Applying type-gate detection precedence (unless repo docs/CI override):

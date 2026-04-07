@@ -57,7 +57,7 @@ git status --porcelain
 Read these files first:
 
 - `optimo_core/models/login_attribution.py`
-- `optimo_core/auth/magic_link.py`
+- `optimo_core/utils/source_attribution.py`
 - `optimo_integrations/utils/platform_magic_links.py`
 
 Also read local policy docs when present:
@@ -170,13 +170,16 @@ Register in both:
 
 Missing either commonly causes `parse_cta_source()` fallbacks.
 
-### Step 5: Add Platform-Specific Button Choices (if applicable)
+### Step 5: Add Platform-Specific Button/Tab Choices (if applicable)
 
-- Slack/Teams: add or reuse platform button enum choices.
+- Slack: add or reuse `SlackButtonChoices` and `SlackTabChoices`.
+- Teams: add or reuse `TeamsButtonChoices` and `TeamsTabChoices`.
 - Email: no button/tab attribution enums.
-- Teams: no tab concept.
 
-Enum labels must match actual UI button text.
+Enum values are analytics identifiers. For static buttons (e.g., "Go to
+Dashboard") the label typically matches UI text. For dynamic links (e.g.,
+employee profile) the identifier is generic — the UI renders context-specific
+text.
 
 ### Step 6: Choose Attribution Layer Correctly
 
@@ -212,13 +215,14 @@ Example (Teams, Layer 1):
 
 ```python
 from optimo_core.models.login_attribution import CTA_SOURCE_{PLATFORM}_{ACTION}
-from optimo_core.models import TeamsButtonChoices
+from optimo_core.models import TeamsButtonChoices, TeamsTabChoices
 from optimo_integrations.utils.platform_magic_links import build_stable_teams_cta_url
 
 url = build_stable_teams_cta_url(
     teams_user_uuid=user_uuid,
     source=CTA_SOURCE_{PLATFORM}_{ACTION},
     teams_button=TeamsButtonChoices.GO_TO_DASHBOARD,
+    teams_tab=TeamsTabChoices.OPTIMO_PULSE,
 )
 ```
 
@@ -236,8 +240,8 @@ url = build_login_magic_link_for_user(
     user=user,
     login_cta_source=LoginSourceChoices.SLACK,
     login_cta_source_detail=LoginSourceDetailChoices.WEEKLY_DIGEST,
-    slack_button=str(SlackButtonChoices.OPEN_IN_OPTIMO.value),
-    slack_tab=str(SlackTabChoices.HOME.value),
+    slack_button=SlackButtonChoices.OPEN_IN_OPTIMO,
+    slack_tab=SlackTabChoices.HOME,
 )
 ```
 
@@ -259,8 +263,10 @@ introduced.
 
 - No hardcoded source strings where constants/enums exist.
 - Always register new sources in both allowlist and valid-details mapping.
-- Keep Slack and Teams button enums isolated by platform.
-- Do not add tab semantics to Teams or Email.
+- Keep Slack and Teams button/tab enums isolated by platform.
+- Do not add button/tab semantics to Email.
+- Maintain Slack/Teams attribution parity (if Slack has `slack_tab`, Teams must
+  have `teams_tab` through all 9 chain points).
 - Respect the selected attribution layer (Layer 1 or Layer 2, not both).
 - Touched files must pass the active type gate.
 

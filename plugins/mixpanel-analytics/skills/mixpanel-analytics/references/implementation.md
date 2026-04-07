@@ -348,18 +348,40 @@ Login/session events include CTA attribution fields in `MixpanelSessionContextSc
 
 | Field | Source | Values |
 |---|---|---|
-| `login_source` | `LoginSourceChoices` | `slack`, `teams`, `email`, `direct` |
+| `login_source` | `LoginSourceChoices` | `slack`, `teams`, `email` |
 | `login_source_detail` | `LoginSourceDetailChoices` | `weekly_digest`, `survey_complete`, etc. |
 | `magic_link_action` | `MagicLinkActionChoices` | `login`, `invite`, `signup`, `verify_email` |
-| `slack_button` | `SlackButtonChoices` | Button label from Slack CTA |
+| `slack_button` | `SlackButtonChoices` | Analytics identifier (static buttons match UI text; dynamic links use generic ID) |
 | `slack_tab` | `SlackTabChoices` | `messages`, `home` |
-| `teams_button` | `TeamsButtonChoices` | Button label from Teams CTA |
-| `cta_parse_failed` | `bool` | `True` if source param parsing failed |
+| `teams_button` | `TeamsButtonChoices` | Analytics identifier (static buttons match UI text; dynamic links use generic ID) |
+| `teams_tab` | `TeamsTabChoices` | `optimo_pulse`, `how_it_works` |
+| `cta_parse_failed` | `bool \| None` | `True` if source param parsing failed; defaults to `None` when CTA parsing is not applicable or the value is unknown |
 
 All enums live in `optimo_core/models/login_attribution.py`.
 
-When implementing events that extend `MixpanelSessionContextSchema`, these fields
-are auto-populated from the auth token's session context — no manual wiring needed.
+### Session-to-Event Flattening (include_from_session)
+
+Attribution fields live on `MixpanelSessionContextSchema` but are NOT
+automatically included in event payloads. Events use `from_session_context()`
+with an `include_from_session` set that controls which session fields are
+extracted into the event. If a field is on the session context but NOT in
+`include_from_session`, it is silently excluded from the Mixpanel event.
+
+For attribution to reach Mixpanel, three things must be true:
+
+1. The **session context schema** has the field (e.g., `teams_tab: TeamsTabChoices | None`)
+2. The **event schema** declares the field with a default of `None` (since most sessions won't have CTA attribution)
+3. The **`include_from_session`** default set in `from_session_context()` lists the field name
+
+Event schemas that use session-based attribution (`extra="forbid"` rejects
+unknown fields, so omitting the field declaration causes a silent Pydantic
+validation error that the non-blocking analytics layer swallows):
+
+- `MixpanelLoginEventPropertiesSchema` — login events
+- `MixpanelLogoutEventPropertiesSchema` — logout events
+
+When adding new attribution fields, update all three: session context schema,
+event schema field declarations, and `include_from_session` sets.
 
 Testing guides:
 - `optimo_analytics/docs/LoginCTA_AttributionTestingGuide.md`
