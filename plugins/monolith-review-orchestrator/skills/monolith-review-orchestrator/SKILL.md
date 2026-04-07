@@ -1,6 +1,6 @@
 ---
 name: monolith-review-orchestrator
-description: "Monolith-local Diversio PR review harness for structured intake, deterministic worktree reuse/bootstrap, cautious comment/status analysis, stateful reassessment, backend monty-review handoff, and narrow v1 posting boundaries."
+description: "Monolith-local Diversio PR review harness for deep PR understanding, deterministic worktree reuse/bootstrap, persistent review context across passes, resolved-comment-aware reassessment, backend monty-review handoff, and author-guiding review output."
 allowed-tools: Bash Read Edit Glob Grep TodoWrite
 ---
 
@@ -16,7 +16,7 @@ Supported v1 scope:
 - monolith-local execution only
 - read-only `status`, `review`, and `reassess`
 - deterministic worktree reuse/bootstrap
-- structured local review state plus markdown artifacts
+- persistent JSON-first review context plus markdown artifacts
 - backend GitHub posting only when reusing `monty-code-review` memory/posting
   machinery
 
@@ -69,14 +69,16 @@ Deterministic helpers for this skill now live under `scripts/`:
 - `scripts/preflight_review_env.py`
 - `scripts/resolve_review_batch.py`
 - `scripts/prepare_review_worktree.py`
+- `scripts/fetch_review_threads.py`
 - `scripts/review_state.py`
 
 For the simple "what is each helper for?" explanation, load:
-
 - `references/workflow-helpers.md`
 
-## Modes
+For the deep-understanding, comment-history, and author-guidance protocol, load:
+- `references/review-context-protocol.md`
 
+## Modes
 Choose one mode early and state it explicitly to the user:
 
 1. `status`
@@ -95,6 +97,19 @@ Choose one mode early and state it explicitly to the user:
 If the prompt implies more than one mode, use this order:
 
 `status/review -> reassess if needed -> post`
+
+## Deep Understanding First
+
+This skill is not allowed to jump straight from diff reading to verdict writing.
+
+Before you synthesize status, findings, or posting copy:
+
+- read the PR description, changed files, and material author claims
+- read all review comments and replies, including resolved ones when available
+- prefer thread-aware GitHub reads when resolution/outdated state matters
+- treat resolved threads as context, not noise, and separate thread state from
+  legitimacy
+- validate what prior reviewers and the author claimed against the current code
 
 ## Intake Rules
 
@@ -214,16 +229,21 @@ State clearly what you updated and what you intentionally left untouched.
 For each PR:
 
 - read the PR metadata, description, and changed files
-- read all review comments and replies
+- read all review comments, replies, and resolved threads when available
+- use `scripts/fetch_review_threads.py` as the default thread-aware acquisition
+  path when GitHub auth is available
 - identify unresolved threads only when you have a reliable thread-resolution
   source
 - cross-check whether each still-open claim is actually legitimate against the
   current code
 - note author claims that must be validated against the implementation
 
+Resolved comments are not blockers by default, but they remain part of the
+review history and often explain why the current code looks the way it does.
+Do not discard that context during review or reassessment.
+
 Do not claim reliable unresolved-thread state from flat comment lists alone.
-Without a dedicated helper that exposes thread resolution/outdated state, call
-the result provisional.
+If `fetch_review_threads.py` cannot be used, call the result provisional.
 
 When the user asked for "final status", explicitly separate:
 
@@ -240,6 +260,8 @@ For each PR, inspect:
 - reuse of existing utilities/helpers/patterns
 - tests and regression coverage
 - docs or harness gaps that make the change harder to reason about
+- what prior reviewers already identified, what changed since then, and whether
+  the fix actually addressed the root cause
 
 Backend rule:
 
@@ -289,7 +311,7 @@ Persist structured state first, then render markdown artifacts.
 The structured state is the canonical local reassessment identity for this
 skill. Markdown is the human-facing artifact.
 
-Minimum state fields:
+Minimum identity fields:
 
 - review batch key
 - repo
@@ -302,8 +324,18 @@ Minimum state fields:
 - review pass number
 - posting status
 
-Use `scripts/review_state.py` for state initialization, lookup, and pass
-recording instead of hand-rolling JSON updates in chat.
+Minimum cached context fields for substantive passes:
+
+- latest mode, recommendation, scope summary, repo-scoped stable finding IDs,
+  claim checks, structured thread/comment context, teaching points, and inline
+  comment targets
+
+Use `scripts/review_state.py` for:
+
+- `init` once per batch
+- `summarize-context` before reassessment or posting
+- `record-review` after each substantive status/review/reassess/post pass
+- `record-pass` only as a compatibility fallback
 
 Create or update deterministic markdown artifacts under a `reviews/` directory
 at the monolith root of the chosen worktree unless the user specified another
@@ -325,6 +357,9 @@ Each combined artifact should include:
 - open findings grouped by repo
 - unresolved prior-review comments that still look legitimate
 - prior-review comments that no longer look legitimate
+- resolved prior-review comments that still matter for context
+- what we learned from earlier review rounds and how the current code supports
+  or contradicts that history
 - explicit next step: `reassess`, `post`, `approve`, or `request changes`
 
 If `monty-code-review` produced a backend-specific artifact, link or reference
@@ -347,6 +382,11 @@ Posting rules:
 - inline comments only for distinct root-cause findings
 - avoid duplicate comments against already-open reviewer threads
 - explain why a prior unresolved comment is still valid, or why it is now moot
+- explain when a resolved comment shaped the current assessment or fix
+- top-level review should teach, not just label, by explaining the issue, why
+  it matters, and the concrete next step
+- inline comments should anchor one root-cause cluster each and include risk and
+  actionable guidance
 - approve only when there are no legitimate blocking issues remaining
 - if not approving, provide clear options and next steps
 
@@ -371,6 +411,7 @@ Final response should include:
 - PRs reviewed
 - final status per PR
 - remaining legitimate unresolved comments
+- how resolved-comment history affected the current verdict when it mattered
 - whether a GitHub review was posted, and if so whether it was approval or
   changes requested
 
@@ -380,11 +421,14 @@ When the user says the author pushed changes and wants another pass:
 
 - reuse the existing review worktree if possible
 - fetch latest refs and verify the tracked review refs are current
-- load the structured review state first
+- load the structured review state first with `summarize-context`
 - compare against the prior structured state and linked artifact
 - identify commits since the prior review
 - re-check every previously material finding
 - do not assume a comment is resolved just because code moved
+- do not drop prior open findings unless you explicitly record them as resolved
+  or moot
+- keep resolved-thread context in view when it explains the author’s fix
 - do not repeat already-resolved nits unless the regression reappeared
 
 The reassessment summary must distinguish:
@@ -401,4 +445,9 @@ The reassessment summary must distinguish:
 - Never treat an unresolved thread as valid without checking the current code.
 - Never treat a resolved thread as safe without checking whether the underlying
   issue was actually fixed.
+- Never ignore resolved review threads when they explain current code or prior fixes.
+- Never drop a prior open finding from memory unless you mark it resolved or moot.
+- Never post vague review comments that fail to explain risk and the next step.
+- Never let one PR's finding or inline target overwrite another PR's context in a
+  linked cross-repo batch.
 - Never use `uv run scripts/update_submodules.py` as a default review refresh.

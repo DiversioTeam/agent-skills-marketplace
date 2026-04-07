@@ -1,15 +1,18 @@
 ---
-description: Post a polished monolith review to GitHub, including inline comments when justified and an approval only when the final verdict is clean.
+description: Post a polished, teaching-oriented monolith review to GitHub, including inline comments when justified and an approval only when the final verdict is clean.
 ---
 
 Use the `monolith-review-orchestrator` skill.
 
 Operate in posting mode:
 - load the latest local review artifacts and PR context
-- treat thread-resolution status as reliable only when a dedicated helper exists
+- load the latest compact review context before drafting the final review
+- treat thread-resolution status as reliable when it came from the orchestrator's
+  thread-aware `fetch_review_threads.py` helper
 - dedupe against existing comments conservatively
 - keep one authoritative top-level review per PR
 - add inline comments only for distinct root-cause findings
+- explain risk and concrete next step in every serious comment
 - approve only when no legitimate blocking issues remain
 - in v1, prefer backend posting paths that can reuse Monty posting/memory
   machinery

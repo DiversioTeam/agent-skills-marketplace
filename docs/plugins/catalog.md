@@ -8,18 +8,23 @@ when command files change.
 
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
-    deterministic worktree reuse/bootstrap, structured reassessment state, and
-    narrow v1 posting boundaries.
+    deterministic worktree reuse/bootstrap, persistent review context across
+    passes, resolved-comment-aware reassessment, and narrow v1 posting
+    boundaries.
   - Claude install:
     `claude plugin install monolith-review-orchestrator@diversiotech`
   - Skill path:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator`
   - Worktree/intake reference:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
+  - Review-context reference:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/review-context-protocol.md`
   - Helper explainer:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/workflow-helpers.md`
   - Helper scripts:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/`
+  - GitHub thread helper:
+    `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/fetch_review_threads.py`
   - Scope note: requires a Diversio monolith checkout and is not a generic
     repo-agnostic review plugin.
   - Slash commands: `/monolith-review-orchestrator:review-prs`,

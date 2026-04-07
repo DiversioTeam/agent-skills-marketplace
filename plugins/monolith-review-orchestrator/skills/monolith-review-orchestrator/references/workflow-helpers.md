@@ -32,6 +32,9 @@ resolve review batch
 prepare or reuse worktree
    |
    v
+fetch thread-aware review history
+   |
+   v
 initialize / update structured state
    |
    v
@@ -40,7 +43,7 @@ write markdown review artifact
 
 Each step answers one focused question.
 
-## The Four Helpers
+## The Helpers
 
 ### 1. `preflight_review_env.py`
 
@@ -146,7 +149,40 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   --start-ref HEAD
 ```
 
-### 4. `review_state.py`
+### 4. `fetch_review_threads.py`
+
+Question it answers:
+
+```text
+"What exactly happened in GitHub review threads, including resolved and outdated ones?"
+```
+
+Why it exists:
+
+- Flat PR comment surfaces do not preserve thread resolution state.
+- Deep reassessment depends on reading resolved and outdated inline threads, not
+  just top-level comments.
+- The orchestrator needs a deterministic acquisition path for thread-aware
+  review data instead of ad hoc `gh api graphql` commands in chat.
+
+What it does:
+
+- fetches PR metadata, conversation comments, review submissions, and
+  `reviewThreads` through `gh api graphql`
+- paginates PR comments, review submissions, and review threads
+- follows up for extra thread-comment pages when a thread has more than the
+  first page of comments
+- emits normalized thread-aware JSON keyed by repo and PR number
+
+Example:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/fetch_review_threads.py \
+  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
+  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
+```
+
+### 5. `review_state.py`
 
 Question it answers:
 
@@ -160,11 +196,15 @@ Why it exists:
 - Reassessment needs stable fields such as repo, PR number, base branch, head
   SHA, and merge base.
 - The model should not hand-edit review-state JSON in chat.
+- High-quality follow-up review also needs compact cached context about prior
+  findings, comment legitimacy, structured thread records, and teaching points.
 
 What it does:
 
 - initializes one structured state file for a batch
+- summarizes the latest reusable review context for reassessment/posting
 - records one completed batch-scoped review pass
+- records one completed review pass plus compact review context from stdin JSON
 - rejects review-pass records for PRs outside the batch
 - keeps markdown as the human artifact and JSON as the machine identity
 - refuses to overwrite existing state unless `--force` is explicit
@@ -198,14 +238,73 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   --posting-status not_posted
 ```
 
+Compact context read example:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  summarize-context \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+```
+
+Rich review-context write example:
+
+```bash
+cat <<EOF | uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  record-review \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+{
+  "mode": "review",
+  "artifact_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
+  "posting_status": "not_posted",
+  "recommendation": "request_changes",
+  "scope_summary": "Completed an initial deep review of the linked backend and Optimo frontend PRs.",
+  "entries": [
+    {
+      "repo": "Django4Lyfe",
+      "pr_number": 2779,
+      "base_branch": "main",
+      "head_sha": "<backend-head-sha>",
+      "merge_base": "<backend-merge-base>"
+    },
+    {
+      "repo": "Optimo-Frontend",
+      "pr_number": 389,
+      "base_branch": "main",
+      "head_sha": "<optimo-head-sha>",
+      "merge_base": "<optimo-merge-base>"
+    }
+  ],
+  "findings": {
+    "new": [],
+    "carried_forward": [],
+    "resolved": [],
+    "moot": []
+  }
+}
+EOF
+```
+
+Guardrails:
+
+- `entries` must cover the full batch, not just one side of a linked PR pair
+- `inline_comment_targets[].finding_id` must point at an active `new` or
+  `carried_forward` finding ID
+- `summarize-context` merges durable context across recent passes instead of
+  exposing only the latest pass's thread notes and teaching points
+- incomplete persisted linked-batch passes should fail normalization instead of
+  being silently upgraded
+
 ## What These Helpers Do Not Solve Yet
 
 The current helpers intentionally do **not** solve:
 
-- GitHub review-thread resolution state
 - comment dedupe across flat review-comment APIs
 - generic non-backend posting workflows
 - monolith-wide branch normalization
+
+They now do fetch thread-aware GitHub review state, but they still do **not**
+solve the downstream problems of generic dedupe/posting or non-backend review
+automation.
 
 That is deliberate. Those areas need dedicated helpers, not more prose.
 
@@ -217,13 +316,14 @@ For a normal review run:
 uv run --script .../preflight_review_env.py
 uv run --script .../resolve_review_batch.py --pr-url ...
 uv run --script .../prepare_review_worktree.py --monolith-root ... --worktree-path ... --submodule-path ...
+uv run --script .../fetch_review_threads.py --pr-url ...
 uv run --script .../review_state.py init ...
 ```
 
 For reassessment:
 
 ```bash
-uv run --script .../review_state.py show --state-path ...
+uv run --script .../review_state.py summarize-context --state-path ...
 ```
 
 Then load the stored identity before comparing new commits or writing a new
