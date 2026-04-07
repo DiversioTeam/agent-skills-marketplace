@@ -7,7 +7,9 @@ Use the `monolith-review-orchestrator` skill.
 Operate in reassessment mode:
 - reuse the deterministic worktree if it exists
 - refresh local state safely
-- load structured local review state first
+- refresh thread-aware GitHub review history when GitHub access is available
+- load compact structured review context first
 - inspect new commits and comment deltas since the prior pass
 - verify whether previously raised concerns are actually resolved
+- keep resolved comments in context when they explain the author's changes
 - produce an updated verdict and only post to GitHub if the user asked

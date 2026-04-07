@@ -8,6 +8,7 @@ Prefer these helpers over ad-hoc reconstruction:
 - `scripts/preflight_review_env.py`
 - `scripts/resolve_review_batch.py`
 - `scripts/prepare_review_worktree.py`
+- `scripts/fetch_review_threads.py`
 - `scripts/review_state.py`
 
 If you need the "why" behind those helpers, also read:
@@ -162,6 +163,11 @@ Only adjust refs that belong to the review batch.
 
 Do not rely on markdown artifacts alone for reassessment identity.
 
+Do not treat resolved review threads as disposable either. Persist the compact
+context that explains what prior comments said, which ones are still
+legitimate, which became moot, and which resolved comments still matter for
+understanding the current code.
+
 Persist a structured local state file keyed by the batch key. Minimum fields:
 
 - repo
@@ -174,9 +180,20 @@ Persist a structured local state file keyed by the batch key. Minimum fields:
 - review pass number
 - posting status
 
+For substantive passes, also persist:
+
+- stable finding IDs with `new`, `carried_forward`, and `resolved` buckets
+- author claims checked
+- comment-context buckets:
+  - still legitimate
+  - moot / no longer applicable
+  - resolved but still useful context
+- teaching points and inline comment targets
+
 Reassessment should load this state before comparing deltas.
 
-Use `scripts/review_state.py` for initialization and pass recording.
+Use `scripts/review_state.py` for initialization, compact context lookup, and
+review recording.
 
 ## Combined Review Artifact Path
 

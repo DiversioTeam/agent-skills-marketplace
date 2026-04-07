@@ -240,7 +240,7 @@ agent-skills-marketplace/
 
 | Plugin | Description |
 |--------|-------------|
-| `monolith-review-orchestrator` | Monolith-local PR review harness for structured intake, deterministic worktree reuse/bootstrap, stateful reassessment, and narrow v1 posting boundaries |
+| `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worktree reuse/bootstrap, persistent review context, and author-guiding review output |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
@@ -267,25 +267,34 @@ failure-prone steps that should not be re-derived from scratch every run:
 - deciding whether the machine is even in a valid monolith environment
 - turning one PR or one linked cross-repo PR pair into one stable review identity
 - creating or reusing the right detached review worktree
-- remembering reassessment state across multiple passes
+- fetching thread-aware review history, including resolved and outdated threads
+- remembering durable review context across multiple passes, including prior
+  findings and resolved-comment history
 
 The basic shape is:
 
 ```text
-preflight -> resolve batch -> prepare worktree -> persist review state -> write review artifact
+preflight -> resolve batch -> prepare worktree -> fetch review threads -> persist review context -> write review artifact
 ```
 
 Why we added helper scripts:
 
 - prose is good for policy, but bad for deterministic naming and state
 - reassessment needs structured identity, not just markdown files
+- thread-aware GitHub review history should come from one deterministic helper,
+  not ad hoc GraphQL commands
+- resolved comments and prior findings need a compact local memory, not a fresh
+  reconstruction every pass
 - review prep should stay narrow and avoid monolith-wide mutation helpers
 
 Where to read more:
 
+- plugin README: `plugins/monolith-review-orchestrator/README.md`
 - skill: `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/SKILL.md`
 - worktree protocol:
   `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
+- review context protocol:
+  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/review-context-protocol.md`
 - helper explainer:
   `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/workflow-helpers.md`
 
@@ -370,11 +379,26 @@ Important:
 - this helper intentionally does **not** run `scripts/update_submodules.py`
 - review prep should stay narrow and not normalize unrelated submodules
 
-#### 4. Initialize structured review state
+#### 4. Fetch thread-aware GitHub review history
+
+Why:
+- resolved and outdated threads carry important review context
+- the orchestrator now owns a first-class GraphQL acquisition path for thread
+  state and thread comments
+
+```bash
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/fetch_review_threads.py \
+  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
+  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
+```
+
+#### 5. Initialize structured review state
 
 Why:
 - markdown is for humans
-- JSON state is for reassessment identity
+- JSON state is for reassessment identity and compact review context
 - follow-up passes should update the same batch state, not invent a new one
 
 ```bash
@@ -393,17 +417,23 @@ If the state file already exists and you intentionally want to replace it, add
 `--force`. The default behavior is to refuse overwrite so reassessment history
 is not destroyed accidentally.
 
-#### 5. Reassessment pass
+#### 6. Reassessment and context reuse
 
 Why:
 - load the durable local identity first
+- reuse prior findings, comment-history notes, and teaching points before
+  comparing deltas
+- preserve repo-scoped findings and thread context across passes instead of
+  replacing them with the latest pass only
+- prefer recent active findings in the compact summary instead of surfacing the
+  oldest still-open issues first
 - compare deltas against stored state instead of guessing from the latest
   markdown file alone
 
 ```bash
 cd "$MONOLITH_ROOT"
 
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py show \
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py summarize-context \
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
 ```
 
@@ -412,13 +442,51 @@ Then record the new pass after reviewing:
 ```bash
 cd "$MONOLITH_ROOT"
 
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py record-pass \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
-  --review-target "Django4Lyfe:2779:main:<backend-head-sha>:<backend-merge-base-sha>" \
-  --review-target "Optimo-Frontend:389:main:<optimo-head-sha>:<optimo-merge-base-sha>" \
-  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
-  --posting-status not_posted
+cat <<EOF | uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  record-review \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+{
+  "mode": "reassess",
+  "artifact_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
+  "posting_status": "not_posted",
+  "recommendation": "request_changes",
+  "scope_summary": "Reassessed the linked backend and Optimo frontend PRs after follow-up commits.",
+  "entries": [
+    {
+      "repo": "Django4Lyfe",
+      "pr_number": 2779,
+      "base_branch": "main",
+      "head_sha": "<backend-head-sha>",
+      "merge_base": "<backend-merge-base-sha>"
+    },
+    {
+      "repo": "Optimo-Frontend",
+      "pr_number": 389,
+      "base_branch": "main",
+      "head_sha": "<optimo-head-sha>",
+      "merge_base": "<optimo-merge-base-sha>"
+    }
+  ],
+  "comment_context": {
+    "thread_source": "gh_graphql",
+    "summary": "Read existing review threads, including resolved ones, before reassessing."
+  },
+  "findings": {
+    "new": [],
+    "carried_forward": [],
+    "resolved": [],
+    "moot": []
+  }
+}
+EOF
 ```
+
+Important:
+- `entries` must include every PR in the batch
+- findings and inline targets should stay repo-scoped inside linked PR batches
+- inline comment targets should reference active findings, not free-form IDs
+- `summarize-context` is intentionally compact and should prioritize recent-pass
+  context instead of replaying every historical note forever
 
 #### Visual summary
 
