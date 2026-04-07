@@ -16,10 +16,13 @@ Use this plugin when the goal is not just to skim a diff, but to:
 The workflow is strongest when your prompt includes:
 
 - the PR URL
-- the local monolith or worktree path if it is already checked out
-- the submodule path if relevant
+- linked PR URLs when the change spans repos
 - whether this is `status`, `review`, `reassess`, or `post`
 - whether GitHub posting is allowed in this run
+
+Only mention a local worktree or submodule path when you explicitly want the
+plugin to reuse a specific local setup instead of resolving or preparing one
+itself.
 
 ## Example Prompts
 
@@ -27,10 +30,6 @@ The workflow is strongest when your prompt includes:
 
 ```text
 Please deeply understand https://github.com/DiversioTeam/Django4Lyfe/pull/2779.
-
-/Users/me/work/diversio/monolith-review-bk2779/backend
-
-It's already checked out.
 
 Read the PR thoroughly, including all review comments and replies. Treat resolved comments as context too. Tell me the real current status: what is fixed, what is still legitimate, and what earlier feedback is now moot.
 ```
@@ -42,9 +41,6 @@ Please deeply understand these linked PRs and review them together:
 
 https://github.com/DiversioTeam/Django4Lyfe/pull/2779
 https://github.com/DiversioTeam/Optimo-Frontend/pull/389
-
-The local worktree is /Users/me/work/diversio/monolith-review-bk2779-of389
-Backend is in backend/ and frontend is in optimo-frontend/.
 
 Read all comments and resolved threads, verify the author's claims against the current code, and review the end-to-end behavior with no compromises.
 ```
@@ -91,7 +87,7 @@ If you prefer slash commands:
 /monolith-review-orchestrator:post-review
 ```
 
-Then provide the same concrete PR URLs and local context in the prompt that
+Then provide the same concrete PR URLs and review intent in the prompt that
 follows.
 
 ## Notes
