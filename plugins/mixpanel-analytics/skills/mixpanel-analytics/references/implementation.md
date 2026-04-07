@@ -355,7 +355,7 @@ Login/session events include CTA attribution fields in `MixpanelSessionContextSc
 | `slack_tab` | `SlackTabChoices` | `messages`, `home` |
 | `teams_button` | `TeamsButtonChoices` | Analytics identifier (static buttons match UI text; dynamic links use generic ID) |
 | `teams_tab` | `TeamsTabChoices` | `optimo_pulse`, `how_it_works` |
-| `cta_parse_failed` | `bool` | `True` if source param parsing failed |
+| `cta_parse_failed` | `bool \| None` | `True` if source param parsing failed; defaults to `None` when CTA parsing is not applicable or the value is unknown |
 
 All enums live in `optimo_core/models/login_attribution.py`.
 

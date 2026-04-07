@@ -162,13 +162,15 @@ causes silent data loss in Mixpanel events.
 **Current attribution fields** that must be in all `include_from_session` sets:
 
 ```python
-"login_source",
-"login_source_detail",
-"slack_button",
-"slack_tab",
-"teams_button",
-"teams_tab",
-"cta_parse_failed",
+{
+    "login_source",
+    "login_source_detail",
+    "slack_button",
+    "slack_tab",
+    "teams_button",
+    "teams_tab",
+    "cta_parse_failed",
+}
 ```
 
 ## Token Refresh Notes
