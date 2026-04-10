@@ -1,0 +1,109 @@
+#
+# yamllint disable rule:truthy
+#
+# Workflow Security
+# -----------------
+# This workflow exists to make GitHub Actions security checks part of the
+# normal fast/required CI path instead of an occasional manual audit.
+#
+# First principles:
+# - Workflow files are executable infrastructure.
+# - If a workflow drifts, it can quietly reintroduce mutable actions,
+#   over-broad permissions, or unsafe patterns.
+# - The cheapest place to catch that drift is in CI, right next to the change.
+#
+# What runs here:
+# 1. pinact
+#    Verifies that GitHub Actions and reusable workflows are pinned to reviewed
+#    immutable SHAs. If a workflow uses a floating ref like @v4 or @main,
+#    this step fails.
+# 2. zizmor
+#    Audits workflow and composite-action files for common security problems:
+#    broad permissions, unsafe secret exposure, cache poisoning, template
+#    injection, and similar workflow-specific risks.
+#
+# Why the job is sequential instead of parallel:
+# - We want the workflow to fail as soon as the first hard problem is found.
+# - pinact is the fastest structural check, so it runs first.
+# - zizmor only runs after pinact passes.
+#
+# Local equivalents (assuming the tools are on PATH):
+#   GITHUB_TOKEN="$(gh auth token)" pinact run --check --verify --diff
+#   zizmor --persona regular .github/workflows .github/actions
+#
+# If your machine installs them elsewhere, use the repo-local or user-local
+# path that already works in your environment.
+#
+# How to extend this workflow:
+# - If this repo adds composite actions, keep `.github/actions` in the zizmor
+#   input list.
+# - If this repo changes its primary integration branches, update the `push`
+#   branch allowlist below so the check stays visible where releases happen.
+# - Keep this workflow read-only. It should never auto-fix, push, or rewrite
+#   workflow files from CI.
+#
+name: Workflow Security
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: workflow-security-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  workflow-security:
+    name: Workflow Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Verify action pinning
+        uses: suzuki-shunsuke/pinact-action@28aeb220eb3252ad0d4422dd5d9368e925acbd8d  # v1.3.0
+        with:
+          github_token: ${{ github.token }}
+          skip_push: "true"
+          verify: "true"
+
+      - name: Collect zizmor inputs
+        id: collect-inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          inputs=".github/workflows"
+          if [[ -d ".github/actions" ]]; then
+            inputs="${inputs}"$'\n'".github/actions"
+          fi
+          echo "inputs<<EOF" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$inputs" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@71321a20a9ded102f6e9ce5718a2fcec2c4f70d8  # v0.5.2
+        with:
+          advanced-security: false
+          annotations: true
+          fail-on-no-inputs: false
+          inputs: ${{ steps.collect-inputs.outputs.inputs }}
+          persona: regular
