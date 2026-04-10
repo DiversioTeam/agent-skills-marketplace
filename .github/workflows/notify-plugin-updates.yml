@@ -6,14 +6,19 @@ on:
     paths:
       - 'plugins/**'
 
+permissions:
+  contents: read
+
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
+    environment: notifications
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 2  # Need previous commit to diff
+          persist-credentials: false
 
       - name: Detect updated plugins and build notification
         id: detect
@@ -100,15 +105,18 @@ jobs:
       - name: Post to Slack
         if: steps.detect.outputs.has_updates == 'true'
         env:
+          AUTHOR: ${{ github.actor }}
+          PLUGIN_COUNT: ${{ steps.detect.outputs.plugin_count }}
+          SLACK_MESSAGE: ${{ steps.detect.outputs.message }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_PLUGIN_UPDATES_WEBHOOK }}
         run: |
+          set -euo pipefail
+
           # Build the payload
           COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
           COMMIT_MSG=$(git log -1 --pretty=%s)
-          AUTHOR="${{ github.actor }}"
 
           # Determine header based on plugin count
-          PLUGIN_COUNT="${{ steps.detect.outputs.plugin_count }}"
           if [ "$PLUGIN_COUNT" -eq 1 ]; then
             HEADER=":package: Plugin Updated"
           else
@@ -119,7 +127,7 @@ jobs:
           # Using legacy webhook - can specify channel in payload
           PAYLOAD=$(jq -n \
             --arg header "$HEADER" \
-            --arg message "${{ steps.detect.outputs.message }}" \
+            --arg message "$SLACK_MESSAGE" \
             --arg commit_url "$COMMIT_URL" \
             --arg commit_msg "$COMMIT_MSG" \
             --arg author "$AUTHOR" \
@@ -159,7 +167,7 @@ jobs:
             }')
 
           # Post to Slack
-          curl -X POST \
+          curl --fail-with-body -X POST \
             -H 'Content-type: application/json' \
             --data "$PAYLOAD" \
             "$SLACK_WEBHOOK_URL"
