@@ -28,6 +28,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Configure authenticated git fetches for validation scripts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          AUTH_HEADER="$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+          git config --local "http.${GITHUB_SERVER_URL}/.extraheader" "AUTHORIZATION: basic ${AUTH_HEADER}"
+
       - name: Validate JSON and plugin consistency
         shell: bash
         run: |

@@ -167,7 +167,7 @@ jobs:
             }')
 
           # Post to Slack
-          curl -X POST \
+          curl --fail-with-body -X POST \
             -H 'Content-type: application/json' \
             --data "$PAYLOAD" \
             "$SLACK_WEBHOOK_URL"
