@@ -1,4 +1,6 @@
 #
+# yamllint disable rule:truthy
+#
 # Workflow Security
 # -----------------
 # This workflow exists to make GitHub Actions security checks part of the
@@ -25,9 +27,12 @@
 # - pinact is the fastest structural check, so it runs first.
 # - zizmor only runs after pinact passes.
 #
-# Local equivalents:
-#   GITHUB_TOKEN="$(gh auth token)" $HOME/go/bin/pinact run --check --verify --diff
-#   /opt/homebrew/bin/zizmor --persona regular .github/workflows .github/actions
+# Local equivalents (assuming the tools are on PATH):
+#   GITHUB_TOKEN="$(gh auth token)" pinact run --check --verify --diff
+#   zizmor --persona regular .github/workflows .github/actions
+#
+# If your machine installs them elsewhere, use the repo-local or user-local
+# path that already works in your environment.
 #
 # How to extend this workflow:
 # - If this repo adds composite actions, keep `.github/actions` in the zizmor
@@ -39,30 +44,38 @@
 #
 name: Workflow Security
 
-'on':
+on:
   pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
   push:
     branches:
       - main
-      - master
-      - dev
-      - release
-      - development
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
   workflow_dispatch:
 
 permissions: {}
 
+concurrency:
+  group: workflow-security-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   workflow-security:
     name: Workflow Security
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       actions: read
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           persist-credentials: false
 
@@ -77,6 +90,7 @@ jobs:
         id: collect-inputs
         shell: bash
         run: |
+          set -euo pipefail
           inputs=".github/workflows"
           if [[ -d ".github/actions" ]]; then
             inputs="${inputs}"$'\n'".github/actions"
