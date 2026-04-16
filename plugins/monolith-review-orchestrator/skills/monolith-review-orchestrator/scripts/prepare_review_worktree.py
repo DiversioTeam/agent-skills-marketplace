@@ -20,6 +20,7 @@ Mental model:
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -43,6 +44,42 @@ def list_worktrees(monolith_root: Path) -> set[Path]:
         if line.startswith("worktree "):
             paths.add(Path(line.removeprefix("worktree ").strip()).resolve())
     return paths
+
+
+def create_worktree(monolith_root: Path, target: Path, start_ref: str) -> None:
+    """Create one detached worktree at the target path."""
+
+    create_result = run_command(
+        ["git", "worktree", "add", "--detach", str(target), start_ref],
+        cwd=monolith_root,
+    )
+    if create_result.returncode != 0:
+        raise click.ClickException(
+            create_result.stderr.strip() or f"Failed to create {target}"
+        )
+
+
+def remove_worktree(monolith_root: Path, target: Path) -> None:
+    """Force-remove one registered worktree and clean up leftover files.
+
+    Why this exists:
+    deterministic worker-owned review worktrees may become dirty if a previous
+    automation run crashes or is interrupted mid-flight. In that case the safest
+    recovery is to throw away the worker-owned checkout and recreate it from the
+    authoritative monolith state, while keeping review artifacts outside the
+    worktree.
+    """
+
+    remove_result = run_command(
+        ["git", "worktree", "remove", "--force", str(target)],
+        cwd=monolith_root,
+    )
+    if remove_result.returncode != 0:
+        raise click.ClickException(
+            remove_result.stderr.strip() or f"Failed to remove dirty worktree {target}"
+        )
+    if target.exists():
+        shutil.rmtree(target)
 
 
 def worktree_is_dirty(worktree_path: Path) -> bool:
@@ -74,12 +111,16 @@ def worktree_is_dirty(worktree_path: Path) -> bool:
 @click.option(
     "--allow-dirty-reuse/--no-allow-dirty-reuse", default=False, show_default=True
 )
+@click.option(
+    "--repair-dirty-reuse/--no-repair-dirty-reuse", default=False, show_default=True
+)
 def main(
     monolith_root: Path,
     worktree_path: Path,
     start_ref: str,
     submodule_paths: tuple[str, ...],
     allow_dirty_reuse: bool,
+    repair_dirty_reuse: bool,
 ) -> None:
     """Create or reuse one deterministic monolith review worktree."""
 
@@ -98,21 +139,31 @@ def main(
         # running any submodule command that could mutate local state.
         dirty = worktree_is_dirty(target)
         if dirty and not allow_dirty_reuse:
-            raise click.ClickException(
-                f"{target} has local changes and dirty reuse was not allowed."
-            )
-        action = "reused"
+            if repair_dirty_reuse:
+                remove_worktree(root, target)
+                create_worktree(root, target, start_ref)
+                action = "recreated_dirty"
+                dirty = False
+            else:
+                raise click.ClickException(
+                    f"{target} has local changes and dirty reuse was not allowed."
+                )
+        else:
+            action = "reused"
     else:
-        create_result = run_command(
-            ["git", "worktree", "add", "--detach", str(target), start_ref],
-            cwd=root,
-        )
-        if create_result.returncode != 0:
-            raise click.ClickException(
-                create_result.stderr.strip() or f"Failed to create {target}"
-            )
+        create_worktree(root, target, start_ref)
         action = "created"
         dirty = False
+
+    if target.exists() and action == "recreated_dirty":
+        # The helper removed and recreated the worker-owned worktree above.
+        # Refresh the registered worktree set only if future logic starts using
+        # it again inside this command.
+        registered_worktrees = list_worktrees(root)
+        if target not in registered_worktrees:
+            raise click.ClickException(
+                f"{target} was recreated but is not registered as a git worktree."
+            )
 
     if unique_submodule_paths:
         submodule_result = run_command(

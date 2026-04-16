@@ -38,7 +38,8 @@ MONOLITH_ROOT_MARKERS: tuple[str, ...] = (
     "scripts/update_submodules.py",
     "docs/github-first-branch-and-pr-conventions.md",
 )
-REPO_MAP: dict[str, tuple[str, str]] = {
+REPO_MAP: dict[str, tuple[str, str | None]] = {
+    "monolith": ("mono", None),
     "Django4Lyfe": ("bk", "backend"),
     "Diversio-Frontend": ("fe", "frontend"),
     "Optimo-Frontend": ("of", "optimo-frontend"),
@@ -56,7 +57,7 @@ class PullRequestTarget(TypedDict):
     repo: str
     pr_number: int
     alias: str
-    submodule_path: str
+    submodule_path: str | None
     pr_url: str
     entry_key: str
 
@@ -149,7 +150,30 @@ def reviews_root(worktree_root: Path) -> Path:
     required=True,
     help="One or more GitHub PR URLs.",
 )
-def main(monolith_root: Path, pr_urls: tuple[str, ...]) -> None:
+@click.option(
+    "--review-root",
+    type=click.Path(path_type=Path, file_okay=False),
+    default=None,
+    help=(
+        "Optional base directory for review artifacts/state. When omitted, "
+        "artifacts live under <worktree>/reviews."
+    ),
+)
+@click.option(
+    "--worktree-root",
+    type=click.Path(path_type=Path, file_okay=False),
+    default=None,
+    help=(
+        "Optional base directory for deterministic review worktrees. When omitted, "
+        "worktrees live as siblings to the monolith root."
+    ),
+)
+def main(
+    monolith_root: Path,
+    pr_urls: tuple[str, ...],
+    review_root: Path | None,
+    worktree_root: Path | None,
+) -> None:
     """Resolve one deterministic review batch and print JSON."""
 
     if monolith_root is None:
@@ -177,8 +201,12 @@ def main(monolith_root: Path, pr_urls: tuple[str, ...]) -> None:
         )
 
     batch_key = "-".join(str(item["entry_key"]) for item in items)
-    worktree_path = root.parent / f"monolith-review-{batch_key}"
-    review_dir = reviews_root(worktree_path)
+    resolved_worktree_root = root.parent if worktree_root is None else worktree_root.expanduser().resolve()
+    worktree_path = resolved_worktree_root / f"monolith-review-{batch_key}"
+    if review_root is None:
+        review_dir = reviews_root(worktree_path)
+    else:
+        review_dir = review_root.expanduser().resolve() / batch_key
     artifact_path = review_dir / f"review-{batch_key}.md"
     reassess_artifact_path = review_dir / f"review-{batch_key}-reassess.md"
     state_dir = review_dir / ".state"
