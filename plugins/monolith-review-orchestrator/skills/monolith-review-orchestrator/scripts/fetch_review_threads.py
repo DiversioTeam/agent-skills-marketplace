@@ -34,7 +34,8 @@ import click
 
 PR_PATH_PARTS = 4
 THREAD_STATUS = {True: "resolved", False: "open"}
-KNOWN_REPOS: dict[str, tuple[str, str]] = {
+KNOWN_REPOS: dict[str, tuple[str, str | None]] = {
+    "monolith": ("mono", None),
     "Django4Lyfe": ("bk", "backend"),
     "Diversio-Frontend": ("fe", "frontend"),
     "Optimo-Frontend": ("of", "optimo-frontend"),
