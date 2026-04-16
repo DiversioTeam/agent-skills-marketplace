@@ -55,6 +55,7 @@ Build a stable batch key from the sorted PR set:
 
 Suggested aliases:
 
+- `monolith` -> `mono`
 - `backend` -> `bk`
 - `frontend` -> `fe`
 - `optimo-frontend` -> `of`
@@ -65,6 +66,7 @@ Suggested aliases:
 
 Examples:
 
+- monolith PR 123 -> `mono123`
 - backend PR 2779 -> `bk2779`
 - backend PR 2779 + optimo-frontend PR 389 -> `bk2779-of389`
 

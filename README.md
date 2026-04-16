@@ -240,7 +240,7 @@ agent-skills-marketplace/
 
 | Plugin | Description |
 |--------|-------------|
-| `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worktree reuse/bootstrap, persistent review context, and author-guiding review output |
+| `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worker-owned review worktrees, persistent review context, and author-guiding review output |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
@@ -276,6 +276,14 @@ The basic shape is:
 ```text
 preflight -> resolve batch -> fetch live PR context -> prepare exact-head worktree -> persist review context -> write review artifact
 ```
+
+Recent helper-layer additions:
+
+- monolith PRs can resolve without a submodule path
+- batch resolution can place review artifacts and deterministic worktrees under
+  external roots
+- worker-owned dirty deterministic worktrees can be repaired by recreate-and-reuse
+  instead of wedging the automation loop
 
 Why we added helper scripts:
 

@@ -34,7 +34,8 @@ import click
 
 PR_PATH_PARTS = 4
 THREAD_STATUS = {True: "resolved", False: "open"}
-KNOWN_REPOS: dict[tuple[str, str], tuple[str, str]] = {
+KNOWN_REPOS: dict[tuple[str, str], tuple[str, str | None]] = {
+    ("DiversioTeam", "monolith"): ("mono", None),
     ("DiversioTeam", "Django4Lyfe"): ("bk", "backend"),
     ("DiversioTeam", "Diversio-Frontend"): ("fe", "frontend"),
     ("DiversioTeam", "Optimo-Frontend"): ("of", "optimo-frontend"),
@@ -504,7 +505,7 @@ def parse_pr_url(pr_url: str) -> PullRequestRef:
         )
         raise click.ClickException(
             f"Unknown monolith review target `{owner}/{repo}` in {pr_url}. "
-            f"Known repo owners: {known}"
+            f"Known targets: {known}"
         )
     alias, submodule_path = KNOWN_REPOS[repo_key]
 

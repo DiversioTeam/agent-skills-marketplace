@@ -39,7 +39,8 @@ MONOLITH_ROOT_MARKERS: tuple[str, ...] = (
     "docs/github-first-branch-and-pr-conventions.md",
 )
 ALLOWED_MODES: set[str] = {"status", "review", "reassess", "post"}
-REPO_MAP: dict[tuple[str, str], tuple[str, str]] = {
+REPO_MAP: dict[tuple[str, str], tuple[str, str | None]] = {
+    ("DiversioTeam", "monolith"): ("mono", None),
     ("DiversioTeam", "Django4Lyfe"): ("bk", "backend"),
     ("DiversioTeam", "Diversio-Frontend"): ("fe", "frontend"),
     ("DiversioTeam", "Optimo-Frontend"): ("of", "optimo-frontend"),
@@ -57,7 +58,7 @@ class PullRequestTarget(TypedDict):
     repo: str
     pr_number: int
     alias: str
-    submodule_path: str
+    submodule_path: str | None
     pr_url: str
     entry_key: str
 
@@ -161,7 +162,7 @@ def parse_pr_url(pr_url: str) -> PullRequestTarget:
         known = ", ".join(f"{known_owner}/{repo}" for known_owner, repo in sorted(REPO_MAP))
         raise click.ClickException(
             f"Unknown monolith review target `{owner}/{repo_name}` in {pr_url}. "
-            f"Known repo owners: {known}"
+            f"Known targets: {known}"
         )
 
     alias, submodule_path = REPO_MAP[repo_key]
@@ -251,6 +252,24 @@ def reviews_root(worktree_root: Path) -> Path:
     default=None,
     help="Required for linked pairs; use repo:number or one of the batch PR URLs.",
 )
+@click.option(
+    "--review-root",
+    type=click.Path(path_type=Path, file_okay=False),
+    default=None,
+    help=(
+        "Optional base directory for review artifacts/state. When omitted, "
+        "artifacts live under <worktree>/reviews."
+    ),
+)
+@click.option(
+    "--worktree-root",
+    type=click.Path(path_type=Path, file_okay=False),
+    default=None,
+    help=(
+        "Optional base directory for deterministic review worktrees. When omitted, "
+        "worktrees live as siblings to the monolith root."
+    ),
+)
 def main(
     monolith_root: Path,
     pr_urls: tuple[str, ...],
@@ -258,6 +277,8 @@ def main(
     linked_pair_reason: str | None,
     cross_repo_dependency_summary: str | None,
     authoritative_pr: str | None,
+    review_root: Path | None,
+    worktree_root: Path | None,
 ) -> None:
     """Resolve one deterministic review batch and print JSON."""
 
@@ -320,8 +341,12 @@ def main(
         )
 
     batch_key = "-".join(str(item["entry_key"]) for item in items)
-    worktree_path = root.parent / f"monolith-review-{batch_key}"
-    review_dir = reviews_root(worktree_path)
+    resolved_worktree_root = root.parent if worktree_root is None else worktree_root.expanduser().resolve()
+    worktree_path = resolved_worktree_root / f"monolith-review-{batch_key}"
+    if review_root is None:
+        review_dir = reviews_root(worktree_path)
+    else:
+        review_dir = review_root.expanduser().resolve() / batch_key
     artifact_path = review_dir / f"review-{batch_key}.md"
     reassess_artifact_path = review_dir / f"review-{batch_key}-reassess.md"
     state_dir = review_dir / ".state"

@@ -94,11 +94,19 @@ Why it exists:
 What it does:
 
 - parses GitHub PR URLs
-- maps `(owner, repo)` pairs to monolith submodule paths
+- maps `(owner, repo)` pairs to the relevant monolith execution location
+  - most repos map to a submodule path
+  - `DiversioTeam/monolith` maps to the monolith root itself and therefore has no
+    submodule path
 - carries the selected mode into the resolved batch payload
 - derives a deterministic batch key such as `bk2779-of389`
 - derives the worktree path, review artifact path, reassessment path, and state
   file path
+- optionally relocates review artifacts/state under an explicit external review
+  root instead of the worktree-local `reviews/` directory
+- optionally relocates deterministic review worktrees under an explicit
+  external worktree root instead of creating them as siblings to the monolith
+  checkout
 - rejects duplicate PR inputs and same-repo linked pairs in v1
 - requires linked-pair metadata for linked cross-repo review batches
 - fails clearly when it cannot discover a real monolith root
@@ -108,11 +116,28 @@ Example:
 ```bash
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
   --mode review \
+  --review-root "$HOME/.local/state/diversio-monolith/auto-reviewer/reviews" \
+  --worktree-root "$HOME/.local/state/diversio-monolith/auto-reviewer/worktrees" \
   --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
   --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389 \
   --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
   --authoritative-pr Django4Lyfe:2779
 ```
+
+Why `--review-root` exists:
+
+- unattended review workers should not make deterministic review worktrees dirty
+  just because they persisted markdown artifacts or JSON review state
+- external review storage lets automation reuse a clean worktree while still
+  keeping durable local review memory
+
+Why `--worktree-root` exists:
+
+- local review operators often already have sibling `../monolith-review-*`
+  worktrees from manual review sessions
+- an unattended worker should not accidentally collide with those human-owned
+  paths
+- a dedicated worker-owned worktree root makes cleanup and debugging easier
 
 This helper now mirrors preflight's sibling-worktree root discovery instead of
 requiring the caller to stand in the monolith root specifically.
