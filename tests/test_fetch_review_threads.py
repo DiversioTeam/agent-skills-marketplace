@@ -218,6 +218,20 @@ class FetchReviewThreadsTests(unittest.TestCase):
             }
         }
 
+    def test_parse_pr_url_preserves_marketplace_mapping(self) -> None:
+        payload = FETCH_REVIEW_THREADS.parse_pr_url(
+            "https://github.com/DiversioTeam/agent-skills-marketplace/pull/50"
+        )
+        self.assertEqual(payload.alias, "asm")
+        self.assertEqual(payload.submodule_path, "agent-skills-marketplace")
+
+    def test_parse_pr_url_preserves_terraform_modules_mapping(self) -> None:
+        payload = FETCH_REVIEW_THREADS.parse_pr_url(
+            "https://github.com/DiversioTeam/terraform-modules/pull/42"
+        )
+        self.assertEqual(payload.alias, "tfm")
+        self.assertEqual(payload.submodule_path, "terraform-modules")
+
     def test_fetch_pull_request_context_dedupes_non_paginated_connections(self) -> None:
         responses = [
             self.make_response(
