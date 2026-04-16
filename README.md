@@ -274,7 +274,7 @@ failure-prone steps that should not be re-derived from scratch every run:
 The basic shape is:
 
 ```text
-preflight -> resolve batch -> prepare worktree -> fetch review threads -> persist review context -> write review artifact
+preflight -> resolve batch -> fetch live PR context -> prepare exact-head worktree -> persist review context -> write review artifact
 ```
 
 Why we added helper scripts:
@@ -301,11 +301,16 @@ Where to read more:
 Example helper usage:
 
 ```bash
-uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py \
+  --mode review \
+  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779
 
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
+  --mode review \
   --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
+  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389 \
+  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
+  --authoritative-pr Django4Lyfe:2779
 ```
 
 ### Copy-Paste Workflow
@@ -325,7 +330,9 @@ Why:
 export MONOLITH_ROOT="/path/to/monolith"
 cd "$MONOLITH_ROOT"
 
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py \
+  --mode review \
+  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779
 ```
 
 #### 2. Resolve one stable review batch identity
@@ -338,8 +345,11 @@ Why:
 cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
+  --mode review \
   --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
+  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389 \
+  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
+  --authoritative-pr Django4Lyfe:2779
 ```
 
 Expected shape:
@@ -357,34 +367,12 @@ also includes keys such as `monolith_root`, `review_dir`,
 }
 ```
 
-#### 3. Create or reuse the detached review worktree
-
-Why:
-- keep the review run isolated
-- avoid attached-branch worktree lock pain
-- initialize only this worktree instead of broad monolith mutation
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
-  --monolith-root "$MONOLITH_ROOT" \
-  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
-  --submodule-path backend \
-  --submodule-path optimo-frontend \
-  --start-ref HEAD
-```
-
-Important:
-- this helper intentionally does **not** run `scripts/update_submodules.py`
-- review prep should stay narrow and not normalize unrelated submodules
-
-#### 4. Fetch thread-aware GitHub review history
+#### 3. Fetch thread-aware GitHub review history
 
 Why:
 - resolved and outdated threads carry important review context
-- the orchestrator now owns a first-class GraphQL acquisition path for thread
-  state and thread comments
+- the fetch helper also gives you the live PR head SHAs you need for exact local
+  checkout
 
 ```bash
 cd "$MONOLITH_ROOT"
@@ -393,6 +381,31 @@ uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/sk
   --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
   --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
 ```
+
+#### 4. Create or reuse the detached review worktree
+
+Why:
+- keep the review run isolated
+- avoid attached-branch worktree lock pain
+- initialize only this worktree instead of broad monolith mutation
+- fail closed unless each review submodule lands on the exact PR head SHA being
+  reviewed
+
+```bash
+cd "$MONOLITH_ROOT"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
+  --monolith-root "$MONOLITH_ROOT" \
+  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
+  --review-target "backend:2779:<backend-head-sha>:<backend-head-ref-name>" \
+  --review-target "optimo-frontend:389:<optimo-head-sha>:<optimo-head-ref-name>" \
+  --start-ref HEAD
+```
+
+Important:
+- this helper intentionally does **not** run `scripts/update_submodules.py`
+- review prep should stay narrow and not normalize unrelated submodules
+- do not continue unless every reported review target is `status=matched`
 
 #### 5. Initialize structured review state
 
@@ -410,7 +423,10 @@ uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/sk
   --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
   --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
   --pr Django4Lyfe:2779 \
-  --pr Optimo-Frontend:389
+  --pr Optimo-Frontend:389 \
+  --link-type explicit_cross_repo_pair \
+  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
+  --authoritative-pr Django4Lyfe:2779
 ```
 
 If the state file already exists and you intentionally want to replace it, add
@@ -435,6 +451,10 @@ cd "$MONOLITH_ROOT"
 
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py summarize-context \
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py validate-live-state \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
+  --pr-context-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/pr-context-bk2779-of389.json"
 ```
 
 Then record the new pass after reviewing:
@@ -457,16 +477,31 @@ cat <<EOF | uv run --script agent-skills-marketplace/plugins/monolith-review-orc
       "pr_number": 2779,
       "base_branch": "main",
       "head_sha": "<backend-head-sha>",
-      "merge_base": "<backend-merge-base-sha>"
+      "merge_base": "<backend-merge-base-sha>",
+      "pr_state": "OPEN",
+      "is_draft": false
     },
     {
       "repo": "Optimo-Frontend",
       "pr_number": 389,
       "base_branch": "main",
       "head_sha": "<optimo-head-sha>",
-      "merge_base": "<optimo-merge-base-sha>"
+      "merge_base": "<optimo-merge-base-sha>",
+      "pr_state": "OPEN",
+      "is_draft": false
     }
   ],
+  "backend_handoff": {
+    "repo": "Django4Lyfe",
+    "pr_number": 2779,
+    "worktree_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389",
+    "pr_url": "https://github.com/DiversioTeam/Django4Lyfe/pull/2779",
+    "head_sha": "<backend-head-sha>",
+    "prior_open_finding_ids": [],
+    "thread_context_summary": "Fetched full GitHub thread history before invoking monty."
+  },
+  "no_author_claims": true,
+  "no_findings_after_full_review": true,
   "comment_context": {
     "thread_source": "gh_graphql",
     "summary": "Read existing review threads, including resolved ones, before reassessing."
@@ -485,8 +520,8 @@ Important:
 - `entries` must include every PR in the batch
 - findings and inline targets should stay repo-scoped inside linked PR batches
 - inline comment targets should reference active findings, not free-form IDs
-- `summarize-context` is intentionally compact and should prioritize recent-pass
-  context instead of replaying every historical note forever
+- `summarize-context` is intentionally compact and trims at the item level while
+  still merging durable context across all passes
 
 #### Visual summary
 

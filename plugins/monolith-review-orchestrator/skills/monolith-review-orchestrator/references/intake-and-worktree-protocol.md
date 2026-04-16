@@ -26,7 +26,8 @@ Collect only what is missing:
 - whether the run is read-only or local mutation is allowed
 - whether an existing dirty worktree may be reused
 - whether tests/builds should run or this is code-reading only
-- which PR is authoritative if linked PR verdicts diverge
+- for linked PRs: why they are linked, and which PR is authoritative if the
+  verdicts diverge
 - whether GitHub posting is allowed now
 - if posting is allowed, whether this run is `COMMENT`, `REQUEST_CHANGES`, or
   `APPROVE` eligible
@@ -67,10 +68,12 @@ Examples:
 - backend PR 2779 -> `bk2779`
 - backend PR 2779 + optimo-frontend PR 389 -> `bk2779-of389`
 
-In v1, a linked PR pair is intentionally cross-repo only.
+In v1, a linked PR pair is intentionally cross-repo only and must carry
+machine-readable link metadata.
 
 Use `scripts/resolve_review_batch.py` so the model does not re-implement this
-logic inconsistently.
+logic inconsistently. Pass `--mode` on every run. For linked pairs, also pass
+`--linked-pair-reason` and `--authoritative-pr`.
 
 ## Deterministic Worktree Name
 
@@ -133,7 +136,13 @@ Use `scripts/prepare_review_worktree.py` to encapsulate this flow.
 
 ## Safe Refresh Pattern
 
-Inside the chosen worktree:
+Before local checkout, fetch live PR metadata and thread-aware review context:
+
+```bash
+uv run --script .../fetch_review_threads.py --pr-url <github-pr-url> [...]
+```
+
+Then, inside the chosen worktree:
 
 ```bash
 git fetch --all --prune
@@ -149,9 +158,16 @@ git status --short
 
 For the actual review ref:
 
-- prefer `git switch --detach <remote-ref-or-sha>` over attaching a local branch
+- use `scripts/prepare_review_worktree.py --review-target ...` so each relevant
+  submodule is fetched and detached at the exact PR head SHA
+- prefer the PR pull ref or an exact matching remote ref over attaching a local
+  branch
+- when a pull-ref fallback is needed, let the helper infer the correct remote
+  from the preferred ref or configured remotes instead of assuming `origin`
 - use an attached local branch only when the user explicitly asked for that
   behavior or the local path is already intentionally configured that way
+- do not continue until every reported row is `status=matched` and
+  `actual_head_sha == expected_head_sha`
 
 Do not use `uv run scripts/update_submodules.py` as routine refresh here. It is
 a mutating branch-policy updater for the monolith, not a safe read-only review
@@ -179,6 +195,7 @@ Persist a structured local state file keyed by the batch key. Minimum fields:
 - artifact path
 - review pass number
 - posting status
+- linked-batch metadata when two PRs are reviewed together
 
 For substantive passes, also persist:
 
@@ -189,11 +206,12 @@ For substantive passes, also persist:
   - moot / no longer applicable
   - resolved but still useful context
 - teaching points and inline comment targets
+- `backend_handoff` for Django4Lyfe-backed review batches
 
 Reassessment should load this state before comparing deltas.
 
-Use `scripts/review_state.py` for initialization, compact context lookup, and
-review recording.
+Use `scripts/review_state.py` for initialization, compact context lookup,
+live-state validation, and review recording.
 
 ## Combined Review Artifact Path
 

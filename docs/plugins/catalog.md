@@ -8,9 +8,8 @@ when command files change.
 
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
-    deterministic worktree reuse/bootstrap, persistent review context across
-    passes, resolved-comment-aware reassessment, and narrow v1 posting
-    boundaries.
+    deterministic exact-head worktree reuse/bootstrap, persistent review context
+    across passes, validated reassessment, and narrow v1 posting boundaries.
   - Claude install:
     `claude plugin install monolith-review-orchestrator@diversiotech`
   - Plugin README:

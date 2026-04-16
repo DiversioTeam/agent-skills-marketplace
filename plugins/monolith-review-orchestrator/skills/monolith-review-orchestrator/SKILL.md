@@ -44,8 +44,8 @@ Explicitly out of scope for v1:
 This skill is an orchestrator. It does not replace repo-specific review taste.
 
 - For Django4Lyfe/backend slices, invoke `monty-code-review`.
-- For GitHub issue/PR metadata and comments, prefer the GitHub plugin/app when
-  available; fall back to `gh` only when needed.
+- For thread-aware GitHub acquisition, use this plugin's deterministic
+  `fetch_review_threads.py` helper, which currently uses `gh`.
 - For frontend or other non-backend slices, keep v1 narrower: do deep repo
   reading and synthesis, but do not pretend there is a stable repo-specific
   review adapter unless one actually exists.
@@ -82,21 +82,26 @@ For the deep-understanding, comment-history, and author-guidance protocol, load:
 Choose one mode early and state it explicitly to the user:
 
 1. `status`
-   - Understand the PRs, read discussion history, audit unresolved comments,
-     and report current status without doing a fresh full review.
+   - Report current state from the current code plus full review history.
+   - Use this only when the user explicitly wants state reporting without a new
+     correctness pass.
 2. `review`
-   - Do a full deep review, create/update local review artifacts, and stop
-     before posting unless the user asked to post.
+   - Default here whenever the user asks for a new correctness judgment.
 3. `reassess`
    - Re-review after new commits, focusing on deltas, prior findings, and still
      open concerns.
 4. `post`
-   - Publish the latest validated review to GitHub, including inline comments
-     when warranted and approval only if clean.
+   - Publish the latest validated review to GitHub.
+   - This is illegal as an entry mode unless a current-head prior pass already
+     exists and `validate-live-state` still matches the live PR heads.
 
-If the prompt implies more than one mode, use this order:
+If the prompt mixes intents, use this routing rule:
 
-`status/review -> reassess if needed -> post`
+- default to `review` for any new code judgment
+- use `status` only for explicit state-only asks
+- use `reassess` only when there is prior state and new commits
+- run `post` only after the review or reassessment is validated and the user
+  explicitly asked to post
 
 ## Deep Understanding First
 
@@ -127,7 +132,8 @@ Gather this data:
 - whether the run is read-only or local mutation is allowed
 - whether an existing dirty worktree may be reused
 - whether tests/builds should run or this is code-reading only
-- which PR is authoritative if linked PR verdicts diverge
+- for linked PRs: why the pair is linked, and which PR is authoritative if the
+  verdicts diverge
 - whether parallel sub-agents are allowed
 - whether GitHub posting is allowed in this run
 - if posting is allowed, whether this run is eligible for `COMMENT`,
@@ -186,6 +192,7 @@ result in your notes:
 - target branch / checked-out branch
 - mode
 - review artifact path
+- linked-pair metadata when the batch contains two PRs
 
 Map common Diversio repos to monolith paths:
 
@@ -198,40 +205,50 @@ Map common Diversio repos to monolith paths:
 
 If a repo cannot be mapped confidently, ask once.
 
-### 2. Prepare Or Reuse Local State
+Pass `--mode` to the helper. For linked PR pairs, also pass
+`--linked-pair-reason` and `--authoritative-pr`.
 
-Run preflight first with `scripts/preflight_review_env.py`.
+### 2. Preflight And Gather Live PR Context
+
+Run preflight first with `scripts/preflight_review_env.py`, passing the mode and
+PR URLs so GitHub auth is treated as mandatory by default.
+
+Then fetch live PR metadata and thread-aware review history with
+`scripts/fetch_review_threads.py` before local checkout so you know the exact
+`head_sha`, base branch, draft state, and review-thread history you are about
+to validate.
+
+Do not fall back to flat comment reads when the workflow needs reliable thread
+state. Stop instead of pretending the context is complete.
+
+### 3. Prepare Or Reuse Local State
 
 In the selected monolith root or review worktree:
 
 - confirm current path and git status
 - if the worktree is dirty and reuse was not explicitly allowed, stop and ask
-- fetch remotes needed for the monolith and relevant submodules
-- initialize submodules if needed
-- for each relevant submodule:
-  - verify the requested branch/ref exists locally or fetch it
-  - prefer detached checkout of the remote ref or exact commit under review
-    rather than attaching a local branch
-  - only attach a local branch if the user explicitly asked for that behavior
-  - avoid adjusting repos outside the review batch
+- initialize only the review-batch submodules
+- for each relevant submodule, use the live PR metadata to fetch and detach the
+  exact PR head SHA under review
+- do not proceed until the helper reports `status=matched` for every review
+  target and every `actual_head_sha` matches the expected SHA
 
 Do not use `uv run scripts/update_submodules.py` as routine review prep. That
 script enforces monolith branch policy and can mutate unrelated submodules.
 Refreshing utility repos is opt-in only.
 
 Use `scripts/prepare_review_worktree.py` for deterministic worktree
-create/reuse and safe submodule initialization.
+create/reuse, safe submodule initialization, and exact PR-head checkout.
 
 State clearly what you updated and what you intentionally left untouched.
 
-### 3. Gather PR And Comment Context
+### 4. Review Code Deeply
 
 For each PR:
 
 - read the PR metadata, description, and changed files
-- read all review comments, replies, and resolved threads when available
-- use `scripts/fetch_review_threads.py` as the default thread-aware acquisition
-  path when GitHub auth is available
+- read all review comments, replies, and resolved threads from the fetched
+  thread-aware context
 - identify unresolved threads only when you have a reliable thread-resolution
   source
 - cross-check whether each still-open claim is actually legitimate against the
@@ -243,7 +260,10 @@ review history and often explain why the current code looks the way it does.
 Do not discard that context during review or reassessment.
 
 Do not claim reliable unresolved-thread state from flat comment lists alone.
-If `fetch_review_threads.py` cannot be used, call the result provisional.
+If `fetch_review_threads.py` cannot be used and thread-resolution fidelity
+materially affects the result, stop and report that the run is blocked. Use flat
+comments only for explicitly provisional context where thread state is not
+decision-critical.
 
 When the user asked for "final status", explicitly separate:
 
@@ -251,9 +271,7 @@ When the user asked for "final status", explicitly separate:
 - what is still unresolved
 - what looks misunderstood or no longer applicable
 
-### 4. Review Code Deeply
-
-For each PR, inspect:
+Inspect the code for:
 
 - business logic and product behavior
 - correctness and data/contract invariants
@@ -275,6 +293,11 @@ Non-backend rule:
 - Keep v1 to code reading, repo-local pattern checks, and synthesis.
 - Do not manufacture Monty-specific Django findings for frontend-only work.
 - If a stable repo-specific review adapter does not exist, say so explicitly.
+
+Before invoking `monty-code-review` for backend work, persist a
+`backend_handoff` object that includes the worktree path, PR URL, head SHA,
+prior open finding IDs, and thread-context summary. The handoff must match the
+backend batch entry exactly.
 
 ### 5. Use Parallel Agents Carefully
 
@@ -334,8 +357,20 @@ Use `scripts/review_state.py` for:
 
 - `init` once per batch
 - `summarize-context` before reassessment or posting
+- `validate-live-state` before reassessment or posting
 - `record-review` after each substantive status/review/reassess/post pass
-- `record-pass` only as a compatibility fallback
+- `record-pass` only for explicit migration/recovery with
+  `--compatibility-only --justification`
+
+Hard gates:
+
+- `record-review` requires the markdown artifact to already exist
+- `status` requires non-empty `comment_context` plus explicit status buckets
+- `review` and `reassess` require comment-context evidence, author-claim
+  checks or `no_author_claims=true`, and either findings or
+  `no_findings_after_full_review=true`
+- backend batches require `backend_handoff` on `review`, `reassess`, and `post`
+- `approve` and `posted_approved` are forbidden while active findings remain
 
 Create or update deterministic markdown artifacts under a `reviews/` directory
 at the monolith root of the chosen worktree unless the user specified another
@@ -375,6 +410,13 @@ V1 posting boundary:
   machinery
 - generic multi-PR or non-backend posting should be treated as not yet
   productized unless dedicated helpers exist
+
+Before posting:
+
+- run `validate-live-state` against the current `fetch_review_threads.py` artifact
+- consume the fresh `validation_token` it returns
+- confirm a prior `status`, `review`, or `reassess` pass already exists on the
+  exact same heads
 
 Posting rules:
 
@@ -420,7 +462,8 @@ Final response should include:
 When the user says the author pushed changes and wants another pass:
 
 - reuse the existing review worktree if possible
-- fetch latest refs and verify the tracked review refs are current
+- fetch latest refs and verify the tracked review refs are current with
+  `validate-live-state`
 - load the structured review state first with `summarize-context`
 - compare against the prior structured state and linked artifact
 - identify commits since the prior review
@@ -442,6 +485,8 @@ The reassessment summary must distinguish:
 - Never hard-reset, delete, or recreate a user worktree without explicit approval.
 - Never post GitHub comments from sidecar agents.
 - Never approve a PR while simultaneously documenting legitimate blocking issues.
+- Never call a worktree "ready" unless each review submodule is on the exact PR
+  head SHA being reviewed.
 - Never treat an unresolved thread as valid without checking the current code.
 - Never treat a resolved thread as safe without checking whether the underlying
   issue was actually fixed.
@@ -450,4 +495,5 @@ The reassessment summary must distinguish:
 - Never post vague review comments that fail to explain risk and the next step.
 - Never let one PR's finding or inline target overwrite another PR's context in a
   linked cross-repo batch.
+- Never use `record-pass` for a normal review run.
 - Never use `uv run scripts/update_submodules.py` as a default review refresh.

@@ -23,17 +23,19 @@ For each PR:
 
 1. Read the PR metadata, description, and changed files.
 2. Read all review comments and replies.
-3. When resolution or outdated-state fidelity matters, prefer a thread-aware
-   source such as `gh api graphql` or the GitHub plugin workflow that exposes
-   `reviewThreads`, `isResolved`, and `isOutdated`.
+3. When resolution or outdated-state fidelity matters, use the orchestrator's
+   deterministic `fetch_review_threads.py` helper so the acquisition path is
+   explicit and repeatable.
 4. Build three buckets:
    - still legitimate
    - moot / no longer applicable
    - resolved but still useful context
 5. Validate author claims against the current code instead of repeating them.
 
-If you only have flat comments, say thread state is provisional. Still read the
-comments and reuse the context.
+If `fetch_review_threads.py` is unavailable and thread-resolution fidelity
+materially affects the result, stop and report that the run is blocked. Only
+fall back to flat comments when the user explicitly accepts a provisional
+context-only read that does not depend on reliable resolved/open thread state.
 
 Default acquisition path:
 
@@ -42,9 +44,8 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   --pr-url <github-pr-url> [...]
 ```
 
-Use that helper whenever GitHub auth is available. Fall back to flat comments
-only when the helper cannot be used, and mark thread state provisional in that
-case.
+Use that helper whenever GitHub auth is available. If it cannot be used and the
+request still depends on reliable thread state, fail closed instead of guessing.
 
 Mental model:
 
@@ -68,7 +69,11 @@ Recommended flow:
 
 1. `init` once per batch.
 2. `summarize-context` before reassessment or posting.
-3. `record-review` after every substantive pass.
+3. `validate-live-state` before reassessment or posting. It now uses the
+   `fetch_review_threads.py` artifact as a PR-url input and then performs a
+   fresh live GitHub read before minting a token. For `post`, consume the
+   returned `validation_token` in the posting payload.
+4. `record-review` after every substantive pass.
 
 `record-review` should persist:
 
@@ -77,11 +82,12 @@ Recommended flow:
 - scope summary
 - entries with repo, PR number, base branch, head SHA, and merge base for the
   full batch
-- author claims checked
+- author claims checked, or `no_author_claims=true`
 - comment context, including structured review-thread records when available
-- findings with repo-scoped stable IDs
+- findings with repo-scoped stable IDs, or `no_findings_after_full_review=true`
 - teaching points
 - inline comment targets
+- `backend_handoff` when the batch includes Django4Lyfe
 
 Thread-record note:
 
@@ -89,7 +95,8 @@ Thread-record note:
   `resolved`, `moot`)
 - `is_resolved` is the raw GitHub resolution state when known
 - the helper should reject obviously contradictory combinations such as
-  `status=open` with `is_resolved=true`
+  `status=open` with `is_resolved=true` or `status=resolved` with
+  `is_resolved=false`
 
 Guardrails:
 
@@ -98,9 +105,11 @@ Guardrails:
   rejected during normalization rather than silently upgraded
 - every inline comment target must include a `finding_id`, and that ID should
   exist in the active `new` or `carried_forward` findings for the pass
+- `record-pass` is compatibility-only and should not be used for normal review
+  runs
 - omitting comment context or teaching points in a later pass should not erase
   them from `summarize-context`; the helper merges persistent context across
-  passes
+  all passes, then trims at the item level for compact output
 - `summarize-context` should stay compact by prioritizing recent-pass context
   instead of replaying every historical thread record or teaching point forever
 - capped `open_findings` output should prefer the most recent surviving active
@@ -159,16 +168,39 @@ cat <<'EOF' | uv run --script plugins/monolith-review-orchestrator/skills/monoli
       "pr_number": 2779,
       "base_branch": "main",
       "head_sha": "abc123",
-      "merge_base": "def456"
+      "merge_base": "def456",
+      "pr_state": "OPEN",
+      "is_draft": false
     },
     {
       "repo": "Optimo-Frontend",
       "pr_number": 389,
       "base_branch": "main",
       "head_sha": "ghi789",
-      "merge_base": "jkl012"
+      "merge_base": "jkl012",
+      "pr_state": "OPEN",
+      "is_draft": false
     }
   ],
+  "author_claims_checked": [
+    {
+      "repo": "Django4Lyfe",
+      "pr_number": 2779,
+      "claim": "This now scopes the queryset by tenant.",
+      "status": "verified",
+      "evidence": "Confirmed the service now passes the tenant-bound queryset into the reused helper."
+    }
+  ],
+  "backend_handoff": {
+    "repo": "Django4Lyfe",
+    "pr_number": 2779,
+    "worktree_path": "/path/to/monolith-review-bk2779-of389",
+    "pr_url": "https://github.com/DiversioTeam/Django4Lyfe/pull/2779",
+    "head_sha": "abc123",
+    "prior_open_finding_ids": [],
+    "thread_context_summary": "Fetched full GitHub thread history before invoking monty.",
+    "allowed_posting_action": "request_changes"
+  },
   "comment_context": {
     "thread_source": "gh_graphql",
     "summary": "Read all review threads, including resolved ones, before reassessing.",
@@ -190,6 +222,9 @@ cat <<'EOF' | uv run --script plugins/monolith-review-orchestrator/skills/monoli
     ],
     "still_legit": [
       "Frontend still renders an empty body when backend returns an empty string."
+    ],
+    "moot_or_no_longer_applicable": [
+      "An earlier thread about a missing import is no longer applicable after the component split."
     ],
     "resolved_for_context": [
       "Previous spacing/thread cleanup is resolved but explains the current component split."
@@ -224,6 +259,24 @@ cat <<'EOF' | uv run --script plugins/monolith-review-orchestrator/skills/monoli
 }
 EOF
 ```
+
+If a reassessment or posting run depends on current PR heads still matching the
+stored batch identity, validate that from the live `fetch_review_threads.py`
+artifact:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  validate-live-state \
+  --state-path "$STATE_PATH" \
+  --pr-context-path /path/to/fetch-review-threads.json
+```
+
+That command now writes a one-time live-state proof into the state file and
+returns a `token`. `mode=post` must consume that token before it can record the
+posting pass. The proof is intentionally short-lived; stale proofs must be
+rejected and revalidated immediately before posting. The supplied artifact must
+come from `fetch_review_threads.py`, and the helper re-reads GitHub before
+minting the token.
 
 ## Author-Guiding Review Output
 

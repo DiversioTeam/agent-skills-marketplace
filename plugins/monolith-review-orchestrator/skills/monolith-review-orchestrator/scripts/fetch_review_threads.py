@@ -34,13 +34,13 @@ import click
 
 PR_PATH_PARTS = 4
 THREAD_STATUS = {True: "resolved", False: "open"}
-KNOWN_REPOS: dict[str, tuple[str, str]] = {
-    "Django4Lyfe": ("bk", "backend"),
-    "Diversio-Frontend": ("fe", "frontend"),
-    "Optimo-Frontend": ("of", "optimo-frontend"),
-    "diversio-ds": ("ds", "design-system"),
-    "infrastructure": ("infra", "infrastructure"),
-    "diversio-serverless": ("sls", "diversio-serverless"),
+KNOWN_REPOS: dict[tuple[str, str], tuple[str, str]] = {
+    ("DiversioTeam", "Django4Lyfe"): ("bk", "backend"),
+    ("DiversioTeam", "Diversio-Frontend"): ("fe", "frontend"),
+    ("DiversioTeam", "Optimo-Frontend"): ("of", "optimo-frontend"),
+    ("DiversioTeam", "diversio-ds"): ("ds", "design-system"),
+    ("DiversioTeam", "infrastructure"): ("infra", "infrastructure"),
+    ("DiversioTeam", "diversio-serverless"): ("sls", "diversio-serverless"),
 }
 
 MAIN_QUERY = """\
@@ -58,6 +58,7 @@ query(
       url
       title
       state
+      isDraft
       body
       baseRefName
       headRefName
@@ -257,6 +258,7 @@ class RawPullRequest(TypedDict, total=False):
     url: str
     title: str
     state: str
+    isDraft: bool
     body: str | None
     baseRefName: str | None
     headRefName: str | None
@@ -291,6 +293,7 @@ class PullRequestMetadata(TypedDict, total=False):
     url: str
     title: str
     state: str
+    is_draft: bool
     body: str
     author_login: str | None
     base_ref_name: str | None
@@ -494,10 +497,16 @@ def parse_pr_url(pr_url: str) -> PullRequestRef:
     except ValueError as exc:
         raise click.ClickException(f"Invalid PR number in URL: {pr_url}") from exc
 
-    alias: str | None = None
-    submodule_path: str | None = None
-    if repo in KNOWN_REPOS:
-        alias, submodule_path = KNOWN_REPOS[repo]
+    repo_key = (owner, repo)
+    if repo_key not in KNOWN_REPOS:
+        known = ", ".join(
+            f"{known_owner}/{known_repo}" for known_owner, known_repo in sorted(KNOWN_REPOS)
+        )
+        raise click.ClickException(
+            f"Unknown monolith review target `{owner}/{repo}` in {pr_url}. "
+            f"Known repo owners: {known}"
+        )
+    alias, submodule_path = KNOWN_REPOS[repo_key]
 
     return PullRequestRef(
         owner=owner,
@@ -521,6 +530,18 @@ def ensure_unique_prs(pr_refs: list[PullRequestRef]) -> list[PullRequestRef]:
         seen.add(identity)
         unique.append(pr_ref)
     return unique
+
+
+def ensure_v1_scope(pr_refs: list[PullRequestRef]) -> list[PullRequestRef]:
+    if len(pr_refs) > 2:
+        raise click.ClickException(
+            "V1 only supports one PR or one explicitly linked cross-repo PR pair."
+        )
+    if len(pr_refs) == 2 and pr_refs[0].repo == pr_refs[1].repo:
+        raise click.ClickException(
+            "V1 linked pairs must be cross-repo. Use a single PR batch for same-repo review."
+        )
+    return pr_refs
 
 
 def ensure_gh_authenticated() -> None:
@@ -785,6 +806,9 @@ def fetch_pull_request_context(pr_ref: PullRequestRef) -> PullRequestReviewConte
                 "url": require_str(pull_request.get("url"), "pull_request.url"),
                 "title": require_str(pull_request.get("title"), "pull_request.title"),
                 "state": require_str(pull_request.get("state"), "pull_request.state"),
+                "is_draft": require_bool(
+                    pull_request.get("isDraft"), "pull_request.isDraft"
+                ),
                 "body": optional_str(pull_request.get("body"), "pull_request.body")
                 or "",
                 "author_login": parse_author_login(
@@ -933,7 +957,9 @@ def main(pr_urls: tuple[str, ...]) -> None:
     """Fetch thread-aware PR review context for one PR or a linked PR set."""
 
     ensure_gh_authenticated()
-    pr_refs = ensure_unique_prs([parse_pr_url(pr_url) for pr_url in pr_urls])
+    pr_refs = ensure_v1_scope(
+        ensure_unique_prs([parse_pr_url(pr_url) for pr_url in pr_urls])
+    )
     pr_refs.sort(key=lambda pr_ref: ((pr_ref.alias or pr_ref.repo), pr_ref.pr_number))
 
     payload: FetchResult = {

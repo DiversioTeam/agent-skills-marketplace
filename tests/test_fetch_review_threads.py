@@ -87,6 +87,7 @@ class FetchReviewThreadsTests(unittest.TestCase):
                         "url": "https://github.com/DiversioTeam/agent-skills-marketplace/pull/50",
                         "title": "Thread helper test",
                         "state": "OPEN",
+                        "isDraft": False,
                         "body": "body",
                         "baseRefName": "main",
                         "headRefName": "branch",
