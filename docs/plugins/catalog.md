@@ -11,6 +11,10 @@ when command files change.
     deterministic worktree reuse/bootstrap, persistent review context across
     passes, resolved-comment-aware reassessment, and narrow v1 posting
     boundaries.
+  - Recent helper additions:
+    - monolith PR support without a submodule path
+    - external review/artifact and deterministic worktree roots
+    - repair mode for dirty worker-owned deterministic worktrees
   - Claude install:
     `claude plugin install monolith-review-orchestrator@diversiotech`
   - Plugin README:
