@@ -42,6 +42,8 @@ KNOWN_REPOS: dict[str, tuple[str, str | None]] = {
     "diversio-ds": ("ds", "design-system"),
     "infrastructure": ("infra", "infrastructure"),
     "diversio-serverless": ("sls", "diversio-serverless"),
+    "agent-skills-marketplace": ("asm", "agent-skills-marketplace"),
+    "terraform-modules": ("tfm", "terraform-modules"),
 }
 
 MAIN_QUERY = """\
