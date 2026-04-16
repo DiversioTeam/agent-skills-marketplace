@@ -195,6 +195,8 @@ Map common Diversio repos to monolith paths:
 - `diversio-ds` -> `design-system`
 - `infrastructure` -> `infrastructure`
 - `diversio-serverless` -> `diversio-serverless`
+- `agent-skills-marketplace` -> `agent-skills-marketplace`
+- `terraform-modules` -> `terraform-modules`
 
 If a repo cannot be mapped confidently, ask once.
 
