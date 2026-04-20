@@ -9,7 +9,8 @@ Use this plugin when the goal is not just to skim a diff, but to:
 - deeply understand the PR and the back-and-forth review history
 - treat resolved comments as important context, not noise
 - reassess incrementally after new commits
-- post clearer, more instructive GitHub reviews and inline comments
+- post clearer, more instructive GitHub reviews through the worker-owned
+  publish path, with inline comments when anchors are stable
 
 ## What It Figures Out For You
 
@@ -32,6 +33,25 @@ the plugin figures out:
 
 That is why the example prompts below focus on the review ask, not the setup
 mechanics.
+
+## First Principles
+
+The plugin intentionally splits review work into two different jobs:
+
+```text
+Codex / agent
+  -> understand the PR
+  -> draft the review
+
+worker
+  -> re-check live GitHub state
+  -> validate inline anchors
+  -> publish atomically through local `gh` / `gh api`
+```
+
+That split exists because analysis and publication fail in different ways. A
+good review draft can still become stale before publish. Keeping the worker in
+charge of the final mutation makes that last safety check explicit.
 
 ## Best Inputs
 
@@ -88,7 +108,11 @@ Please reassess it using the existing review context. Focus on deltas, re-check 
 ```text
 Now post the final GitHub review for https://github.com/DiversioTeam/Django4Lyfe/pull/2779.
 
-Keep one authoritative top-level review and use inline comments where they help. Teach the author: explain the problem, why it matters, and the next step. Approve only if there are no legitimate blocking issues left.
+Keep one authoritative top-level review. Use inline comments only when the
+exact diff anchor is genuinely stable; otherwise fold the point into the
+top-level review. When inline comments are present, let the worker publish
+them together with the top-level review through the worker-owned path. Approve
+only if there are no legitimate blocking issues left.
 ```
 
 ### 6. Status-Only Read
@@ -118,8 +142,11 @@ follows.
   available.
 - The cache is strongest when you reuse the same deterministic review worktree
   and batch state across passes.
-- This plugin is still intentionally narrow on generic non-backend posting and
-  broad multi-PR automation.
+- When posting is enabled, the worker revalidates the live PR and publishes the
+  top-level review plus any validated inline comments atomically through local
+  `gh` / `gh api`.
+- This plugin is still intentionally narrow on multi-PR publish automation and
+  replies to existing review threads.
 
 ## Why These Pieces Exist
 

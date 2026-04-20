@@ -109,6 +109,66 @@ Guardrails:
 Keep the markdown artifact for humans, but treat the JSON state as canonical for
 follow-up passes.
 
+## Inline Comment Target Shape
+
+Persist `inline_comment_targets` only when the point has a stable current-diff
+anchor and the finding is still active.
+
+Why this shape exists:
+
+```text
+finding_id
+  -> explains why the comment exists
+
+path + line + side
+  -> names one concrete diff anchor
+
+expected_line_text
+  -> helps the worker notice drift before publish
+```
+
+This is intentionally small. The state file should capture only the parts a
+later pass or worker can check reliably, not a blob of prose that needs to be
+reinterpreted each time.
+
+Required shape for each target:
+
+- `finding_id`
+- `path`
+- `line`
+- `side`
+- optional `start_line`
+- optional `start_side`
+- optional `expected_line_text`
+
+Scope fields for persisted batch state:
+
+- include `repo` and `pr_number` when the batch contains more than one PR
+- those scope fields are batch identity, not part of the worker's diff-anchor
+  contract itself
+
+Rules:
+
+- `finding_id` must reference an active `new` or `carried_forward` finding in
+  the same recorded pass.
+- `side` should be `RIGHT` or `LEFT`; prefer single-line `RIGHT`-side anchors
+  when possible.
+- `expected_line_text` should capture the visible diff text when you know it,
+  so the worker can fail closed if the anchor drifts before publish.
+- If you cannot name a stable diff anchor, do not persist an inline target for
+  that point. Fold it into the top-level review body instead.
+- Do not rely on prose-only location hints instead of anchor fields.
+
+Practical writing rule:
+
+```text
+if you can point to one exact diff line
+  -> persist an inline target
+
+if you cannot point to one exact diff line
+  -> keep the point in the top-level review body
+```
+
 ## Stable Finding IDs
 
 Use a repo-scoped finding identity:
@@ -218,7 +278,9 @@ cat <<'EOF' | uv run --script plugins/monolith-review-orchestrator/skills/monoli
       "pr_number": 389,
       "finding_id": "of389|empty-state-contract|src/cards/RiskCard.tsx|render_body",
       "path": "src/cards/RiskCard.tsx",
-      "summary": "Anchor the empty-body root cause here."
+      "line": 77,
+      "side": "RIGHT",
+      "expected_line_text": "return <RiskCardBody body={body} />;"
     }
   ]
 }
@@ -230,7 +292,8 @@ EOF
 When posting or drafting the final review:
 
 - keep one authoritative top-level review
-- keep one inline anchor per root-cause cluster
+- keep one inline anchor per root-cause cluster only when the diff anchor is
+  genuinely stable
 - avoid duplicating already-open reviewer threads
 - tie each serious comment to risk or broken behavior
 - give the author a concrete next step
@@ -248,6 +311,8 @@ Inline comments should be compact but complete:
 - what is wrong
 - why it matters
 - what change would fix it
+- prefer single-line `RIGHT`-side anchors and fold uncertain anchors into the
+  top-level review
 
 If a prior resolved comment still matters, mention that briefly so the author
 can see the continuity without having to reconstruct the whole history.

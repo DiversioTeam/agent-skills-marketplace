@@ -1,5 +1,5 @@
 ---
-description: Post a polished, teaching-oriented monolith review to GitHub, including inline comments when justified and an approval only when the final verdict is clean.
+description: Draft a polished, teaching-oriented monolith final review for worker-owned GitHub publication, with inline comments only when the diff anchor is stable.
 ---
 
 Use the `monolith-review-orchestrator` skill.
@@ -9,10 +9,16 @@ Operate in posting mode:
 - load the latest compact review context before drafting the final review
 - treat thread-resolution status as reliable when it came from the orchestrator's
   thread-aware `fetch_review_threads.py` helper
-- dedupe against existing comments conservatively
 - keep one authoritative top-level review per PR
-- add inline comments only for distinct root-cause findings
+- remember the Phase 2a split: Codex drafts, worker revalidates, worker
+  publishes
+- dedupe against existing comments conservatively
+- add inline comments only for distinct root-cause findings with genuinely
+  stable diff anchors
+- prefer simple single-line `RIGHT`-side anchors when possible
+- use multi-line anchors only when the location is unambiguous
+- if an inline anchor is uncertain or likely stale, fold that point into the
+  top-level review body instead
 - explain risk and concrete next step in every serious comment
 - approve only when no legitimate blocking issues remain
-- in v1, prefer backend posting paths that can reuse Monty posting/memory
-  machinery
+- do not imply support for thread replies or partial inline publication

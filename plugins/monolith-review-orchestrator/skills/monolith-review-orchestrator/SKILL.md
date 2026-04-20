@@ -14,16 +14,18 @@ Supported v1 scope:
 
 - single PR, or one explicitly linked cross-repo PR pair
 - monolith-local execution only
-- read-only `status`, `review`, and `reassess`
+- `status`, `review`, `reassess`, and worker-owned `post` mode
 - deterministic worktree reuse/bootstrap
 - persistent JSON-first review context plus markdown artifacts
-- backend GitHub posting only when reusing `monty-code-review` memory/posting
-  machinery
+- worker-owned final review publishing: Codex drafts, the worker revalidates,
+  and the worker publishes one top-level review plus zero or more inline
+  comments atomically when the anchors validate cleanly
 
 Explicitly out of scope for v1:
 
 - generic multi-PR batch posting
 - generic unresolved-thread automation without a dedicated helper
+- replies to existing review threads or partial inline publication
 - repo-agnostic marketplace-style usage outside the Diversio monolith
 - broad submodule branch normalization during review prep
 - claiming reliable "final status" from comment lists alone
@@ -91,8 +93,9 @@ Choose one mode early and state it explicitly to the user:
    - Re-review after new commits, focusing on deltas, prior findings, and still
      open concerns.
 4. `post`
-   - Publish the latest validated review to GitHub, including inline comments
-     when warranted and approval only if clean.
+   - Draft the latest validated review for worker-owned GitHub publication,
+     including inline comments only when the diff anchor is stable enough for
+     the worker to validate safely.
 
 If the prompt implies more than one mode, use this order:
 
@@ -269,8 +272,8 @@ Backend rule:
 
 - If a PR touches `backend/`, invoke `monty-code-review` for that slice.
 - Reuse its review memory protocol when doing a follow-up pass.
-- When posting to GitHub for backend findings, follow the monty GitHub posting
-  protocol instead of improvising.
+- Reuse Monty's backend review taste and memory context when it helps, but keep
+  the final GitHub publish step on this orchestrator's worker-owned path.
 
 Non-backend rule:
 
@@ -287,8 +290,8 @@ delegation, or multiple agents.
 
 Ownership model:
 
-- main agent owns intake, local state management, final synthesis, and GitHub
-  posting
+- main agent owns intake, local state management, final synthesis, and the
+  final drafted review bundle
 - sidecar agents own bounded analysis tasks only
 
 Good parallel splits:
@@ -300,7 +303,7 @@ Good parallel splits:
 
 Bad parallel splits:
 
-- two agents posting to the same PR
+- two agents preparing competing final review drafts for the same PR
 - two agents editing the same review artifact
 - delegating the immediate blocker when the main agent needs the answer next
 
@@ -371,17 +374,28 @@ it from the combined artifact instead of duplicating it line for line.
 
 Only post when the user asked or explicitly confirmed posting.
 
-V1 posting boundary:
+Phase 2a posting contract:
 
-- backend posting may proceed only through `monty-code-review` posting/memory
-  machinery
-- generic multi-PR or non-backend posting should be treated as not yet
-  productized unless dedicated helpers exist
+- Codex drafts one authoritative top-level review body and zero or more inline
+  comments.
+- Codex does not post the final review to GitHub directly.
+- The worker re-checks the live PR summary, unresolved-thread state, and
+  top-level review/comment activity immediately before publish.
+- The worker validates inline anchors against the current diff.
+- The worker publishes one atomic review through local `gh` / `gh api`, or
+  publishes nothing if the stale-input or anchor checks fail.
+- Replies to existing review threads and partial inline publication are still
+  out of scope.
 
-Posting rules:
+Drafting rules for `post` mode:
 
 - one authoritative top-level review per PR
-- inline comments only for distinct root-cause findings
+- inline comments only for distinct root-cause findings with genuinely stable
+  diff anchors
+- prefer single-line `RIGHT`-side anchors when possible
+- use multi-line anchors only when the diff location is unambiguous
+- if an anchor is uncertain or likely to drift, fold that point into the
+  top-level review body instead
 - avoid duplicate comments against already-open reviewer threads
 - explain why a prior unresolved comment is still valid, or why it is now moot
 - explain when a resolved comment shaped the current assessment or fix

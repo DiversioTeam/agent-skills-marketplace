@@ -45,6 +45,9 @@ CONTEXT_LIST_FIELDS: tuple[str, ...] = (
 
 FINDING_BUCKETS: tuple[str, ...] = ("new", "carried_forward", "resolved", "moot")
 ReviewThreadStatus = Literal["open", "resolved", "moot"]
+# GitHub review anchors only support two sides in the current worker contract.
+# Keeping the alias explicit makes the validation logic below easier to read.
+ReviewCommentSide = Literal["RIGHT", "LEFT"]
 
 
 class ReviewBatchIdentity(TypedDict):
@@ -113,12 +116,41 @@ class CommentContext(TypedDict, total=False):
 
 
 class InlineCommentTarget(TypedDict, total=False):
+    """One persisted inline-comment plan tied to an active finding.
+
+    First principle:
+    this state file does not store arbitrary prose about "maybe comment here".
+    It stores the smallest anchor shape that later review passes and workers can
+    reason about safely.
+
+    Visual model:
+
+        finding_id
+          -> why this comment exists
+
+        path + line + side
+          -> where the worker should expect to anchor it
+
+        start_line + start_side
+          -> optional range start for the rare multiline case
+
+        expected_line_text
+          -> optional safety check so stale anchors fail closed
+
+    `summary` stays optional for backwards compatibility and human context, but
+    the current Phase 2a contract is the explicit anchor fields above.
+    """
+
     repo: str
     pr_number: int
     finding_id: str
     path: str
     line: int
     summary: str
+    side: ReviewCommentSide
+    start_line: int
+    start_side: ReviewCommentSide
+    expected_line_text: str
 
 
 class ReviewPassRecord(TypedDict, total=False):
@@ -430,6 +462,24 @@ def optional_non_empty_string(value: object, field_name: str) -> str | None:
             f"Review payload field `{field_name}` must be a non-empty string when set."
         )
     return value.strip()
+
+
+def require_review_comment_side(value: object, field_name: str) -> ReviewCommentSide:
+    """Validate one GitHub review-comment side field.
+
+    We keep this as a tiny helper instead of repeating string checks inline so
+    later readers can see that `RIGHT` / `LEFT` is an intentional contract,
+    not an arbitrary string convention.
+    """
+
+    side = require_non_empty_string(value, field_name)
+    if side == "RIGHT":
+        return "RIGHT"
+    if side == "LEFT":
+        return "LEFT"
+    raise click.ClickException(
+        f"Review payload field `{field_name}` must be `RIGHT` or `LEFT`."
+    )
 
 
 def normalize_string_list(value: object, field_name: str) -> list[str]:
@@ -825,6 +875,33 @@ def normalize_inline_comment_targets(
     known_prs: set[tuple[str, int]],
     allowed_finding_ids: set[str],
 ) -> list[InlineCommentTarget]:
+    """Normalize persisted inline-comment plans for the current worker contract.
+
+    First principle:
+    inline comments are riskier than top-level review prose.
+
+    A top-level review can still be useful after lines move. An inline comment
+    becomes misleading if its diff anchor drifts. That is why this helper keeps
+    the anchor shape explicit and validates it early when review state is
+    written or re-read.
+
+    Visual model:
+
+        persisted state
+          -> finding_id
+          -> path
+          -> optional anchor fields
+
+        normalization
+          -> reject unknown findings
+          -> reject malformed anchors
+          -> preserve only fields later passes can trust
+
+    Backwards compatibility note:
+    older state may still carry a human-facing `summary`. We preserve it when
+    present, but new automation should rely on explicit anchor fields instead.
+    """
+
     if value is None:
         return []
     if not isinstance(value, list):
@@ -850,10 +927,14 @@ def normalize_inline_comment_targets(
             "path": require_non_empty_string(
                 item.get("path"), f"inline_comment_targets[{index}].path"
             ),
-            "summary": require_non_empty_string(
-                item.get("summary"), f"inline_comment_targets[{index}].summary"
-            ),
         }
+        # `summary` is optional legacy/human context. The current worker-owned
+        # inline contract is the explicit anchor payload below.
+        summary = optional_non_empty_string(
+            item.get("summary"), f"inline_comment_targets[{index}].summary"
+        )
+        if summary is not None:
+            target["summary"] = summary
         finding_id = require_non_empty_string(
             item.get("finding_id"), f"inline_comment_targets[{index}].finding_id"
         )
@@ -878,6 +959,63 @@ def normalize_inline_comment_targets(
                     f"Review payload field `inline_comment_targets[{index}].line` must be a positive integer."
                 )
             target["line"] = raw_line
+        raw_side = item.get("side")
+        if raw_side is not None:
+            side = require_review_comment_side(
+                raw_side, f"inline_comment_targets[{index}].side"
+            )
+            if raw_line is None:
+                raise click.ClickException(
+                    f"Review payload field `inline_comment_targets[{index}].side` requires `line`."
+                )
+            target["side"] = side
+        if raw_line is not None and raw_side is None:
+            raise click.ClickException(
+                "Review payload field "
+                f"`inline_comment_targets[{index}].line` requires `side`."
+            )
+        # Multiline anchors are supported, but only when both start fields are
+        # present together so later readers do not have to guess the intended
+        # range shape.
+        raw_start_line = item.get("start_line")
+        if raw_start_line is not None:
+            if (
+                not isinstance(raw_start_line, int)
+                or isinstance(raw_start_line, bool)
+                or raw_start_line < 1
+            ):
+                raise click.ClickException(
+                    f"Review payload field `inline_comment_targets[{index}].start_line` must be a positive integer."
+                )
+            target["start_line"] = raw_start_line
+        raw_start_side = item.get("start_side")
+        if raw_start_side is not None:
+            target["start_side"] = require_review_comment_side(
+                raw_start_side, f"inline_comment_targets[{index}].start_side"
+            )
+        if (raw_start_line is None) != (raw_start_side is None):
+            raise click.ClickException(
+                "Review payload field "
+                f"`inline_comment_targets[{index}]` must provide `start_line` "
+                "and `start_side` together."
+            )
+        expected_line_text = optional_non_empty_string(
+            item.get("expected_line_text"),
+            f"inline_comment_targets[{index}].expected_line_text",
+        )
+        if expected_line_text is not None:
+            target["expected_line_text"] = expected_line_text
+        # Advanced anchor fields only make sense when the main anchor exists.
+        # That keeps the persisted shape first-principles-driven instead of
+        # allowing half-specified plans like "maybe this line, maybe that one".
+        if (
+            raw_start_line is not None or expected_line_text is not None
+        ) and (raw_line is None or raw_side is None):
+            raise click.ClickException(
+                "Review payload field "
+                f"`inline_comment_targets[{index}]` must provide both `line` "
+                "and `side` when using advanced anchor fields."
+            )
         normalized.append(target)
     return normalized
 
