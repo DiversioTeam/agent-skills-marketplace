@@ -7,6 +7,18 @@ description: "Mixpanel analytics integration for React frontends: event tracking
 
 Analytics tracking and integration guide for frontend Mixpanel implementations.
 
+## When to Use This Skill
+
+- When adding new Mixpanel tracking events, reviewing PII compliance, or debugging analytics.
+- `/frontend-mixpanel:implement` — add a new tracking event with enum registration.
+- `/frontend-mixpanel:review` — audit existing Mixpanel implementation for compliance.
+
+## Example Prompts
+
+- "Add a Mixpanel event for the dashboard page view"
+- "Review the login tracking for PII compliance"
+- "Debug why page view events aren't firing"
+
 ---
 
 ## Argument Routing

@@ -7,6 +7,19 @@ description: "Testing guidance for React/TypeScript frontends. Supports unit (Vi
 
 Comprehensive testing guide for React/TypeScript frontend applications.
 
+## When to Use This Skill
+
+- When writing, running, or debugging unit tests (Vitest), component tests (RTL), or E2E tests (Playwright).
+- When analyzing test coverage or debugging CI test failures.
+- `/frontend-testing:run-e2e-local` — run E2E tests locally against a sandbox.
+
+## Example Prompts
+
+- "Run E2E tests against the staging sandbox"
+- "Help me write a unit test for the useAuth hook"
+- "Debug why the login E2E test is failing in CI"
+- "Check test coverage for the uploads feature"
+
 ---
 
 ## Quick Command Reference

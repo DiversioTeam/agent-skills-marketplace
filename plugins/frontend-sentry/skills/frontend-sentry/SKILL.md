@@ -7,6 +7,17 @@ description: "Sentry error monitoring for React frontends: PII scrubbing, featur
 
 Error monitoring and debugging guide for frontend Sentry integrations.
 
+## When to Use This Skill
+
+- When investigating Sentry errors, adding error context, or verifying Sentry integration.
+- `/frontend-sentry:sentry` — architecture overview and debugging guide.
+
+## Example Prompts
+
+- "Investigate the TypeError showing up in Sentry for the uploads page"
+- "Add feature area tags to the feedback module errors"
+- "Verify Sentry is capturing errors correctly in staging"
+
 ---
 
 ## Argument Routing

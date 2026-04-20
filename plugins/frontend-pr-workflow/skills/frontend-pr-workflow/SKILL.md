@@ -7,6 +7,17 @@ description: "Create pull requests for React/TypeScript frontends. Handles featu
 
 Handles creating both Feature PRs and Release PRs with strict template compliance.
 
+## When to Use This Skill
+
+- When creating a feature PR (branch → dev) or release PR (dev → main).
+- `/frontend-pr-workflow:create-pr` — full PR creation with quality gates and template compliance.
+
+## Example Prompts
+
+- "Create a feature PR for this branch"
+- "Create a release PR from dev to main"
+- "/create-pr feature"
+
 ---
 
 ## Step 1: Determine PR Type

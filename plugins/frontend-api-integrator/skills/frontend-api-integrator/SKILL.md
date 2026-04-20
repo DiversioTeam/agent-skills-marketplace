@@ -7,6 +7,17 @@ description: "Implement API integrations for React/TypeScript frontends using Re
 
 Guides the implementation of new API integrations following established frontend patterns.
 
+## When to Use This Skill
+
+- When adding a new API endpoint integration (types, actions, React Query hooks).
+- `/frontend-api-integrator:api-integrator` — scaffold a complete API integration for a feature area.
+
+## Example Prompts
+
+- "Integrate the GET /feedback/ endpoint"
+- "Add API hooks for the new goals feature"
+- "/api-integrator hris"
+
 ---
 
 ## Step 1: Gather Requirements

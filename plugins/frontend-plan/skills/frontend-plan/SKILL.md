@@ -9,6 +9,19 @@ This skill MUST be followed strictly. Do not skip steps. Do not rush to implemen
 
 **Philosophy**: 90% of the time should be spent planning. 10% implementing. Ambiguity in planning becomes chaos in code.
 
+## When to Use This Skill
+
+- When starting a new feature and needing a structured plan before implementation.
+- `/frontend-plan:plan` — full 8-step planning workflow with GitHub issue linkage.
+- `/frontend-plan:new-branch` — create a feature branch from dev with proper naming.
+
+## Example Prompts
+
+- "Plan the new notification preferences feature"
+- "Create a plan for implementing dark mode"
+- "/plan slack-pr-notifications"
+- "/new-branch 1234-fix-login-redirect"
+
 ---
 
 ## Step 0: Issue Reference & Branch Setup

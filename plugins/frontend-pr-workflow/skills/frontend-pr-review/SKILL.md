@@ -7,6 +7,17 @@ description: "Interactive PR quality review for React/TypeScript frontends. Chec
 
 Interactive review of a pull request against frontend code quality standards.
 
+## When to Use This Skill
+
+- When reviewing a PR for code quality, template compliance, DS standards, and commit hygiene.
+- `/frontend-pr-workflow:pr-review` — run an interactive quality review on a specific PR number.
+
+## Example Prompts
+
+- "Review PR #309"
+- "/pr-review 342"
+- "Check if PR 285 follows our code standards"
+
 ---
 
 ## Input

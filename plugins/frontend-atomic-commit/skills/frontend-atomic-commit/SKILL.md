@@ -7,6 +7,18 @@ description: "Create atomic commits for React/TypeScript frontends with strict q
 
 Create atomic, quality-enforced commits for React/TypeScript frontend projects.
 
+## When to Use This Skill
+
+- Before committing frontend changes — ensures lint, type-check, and commit hygiene.
+- `/frontend-atomic-commit:pre-commit` — run lint + type-check quality gates without committing.
+- `/frontend-atomic-commit:atomic-commit` — validate staged changes are one logical unit and create a clean commit.
+
+## Example Prompts
+
+- "Run pre-commit checks on my staged files"
+- "Create an atomic commit for the login page refactor"
+- "Check if my changes are ready to commit"
+
 ---
 
 ## Core Principles

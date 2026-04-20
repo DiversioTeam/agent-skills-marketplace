@@ -7,6 +7,18 @@ description: "CI/CD pipeline guidance for React/TypeScript frontends: GitHub Act
 
 Pipeline management and debugging guide for frontend CI/CD infrastructure.
 
+## When to Use This Skill
+
+- When debugging CI failures, managing Crafting Sandboxes, or creating production releases.
+- `/frontend-cicd:cicd` — pipeline overview and troubleshooting guidance.
+
+## Example Prompts
+
+- "Why is the CI lint check failing on my PR?"
+- "How do I create a Crafting Sandbox for this branch?"
+- "Walk me through the production release process"
+- "Debug the E2E test timeout in the CI pipeline"
+
 ---
 
 ## Argument Routing
