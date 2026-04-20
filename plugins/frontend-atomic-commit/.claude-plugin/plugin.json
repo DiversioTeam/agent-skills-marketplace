@@ -1,0 +1,8 @@
+{
+  "name": "frontend-atomic-commit",
+  "version": "0.1.0",
+  "description": "Frontend pre-commit and atomic-commit Skill for React/TypeScript repos with ESLint + tsc quality gates, conventional commit enforcement, and no-AI-signature policy.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

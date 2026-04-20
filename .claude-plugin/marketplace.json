@@ -204,6 +204,94 @@
       "source": "./plugins/login-cta-attribution-skill",
       "category": "code-analysis",
       "keywords": ["django", "cta", "attribution", "login", "tracking", "slack", "teams", "email", "optimo", "diversio"]
+    },
+    {
+      "name": "frontend-atomic-commit",
+      "description": "Frontend pre-commit and atomic-commit Skill for React/TypeScript repos with ESLint + tsc quality gates, conventional commit enforcement, and no-AI-signature policy.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-atomic-commit",
+      "category": "process",
+      "keywords": ["frontend", "react", "typescript", "pre-commit", "atomic-commit", "eslint", "diversio"]
+    },
+    {
+      "name": "frontend-pr-workflow",
+      "description": "Frontend PR creation and review workflow with feature/release PR templates, quality gates, commit hygiene checks, and interactive PR review reports.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-pr-workflow",
+      "category": "process",
+      "keywords": ["frontend", "react", "typescript", "pull-request", "code-review", "github", "diversio"]
+    },
+    {
+      "name": "frontend-testing",
+      "description": "Frontend testing guidance for React/TypeScript apps: unit tests (Vitest), component tests (RTL), E2E tests (Playwright), coverage analysis, and CI failure debugging.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-testing",
+      "category": "code-analysis",
+      "keywords": ["frontend", "react", "typescript", "vitest", "playwright", "testing-library", "e2e", "unit-tests", "diversio"]
+    },
+    {
+      "name": "frontend-api-integrator",
+      "description": "Frontend API integration scaffold for React/TypeScript apps using React Query, axios, and TypeScript types with functional patterns and enum-based query key management.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-api-integrator",
+      "category": "code-analysis",
+      "keywords": ["frontend", "react", "typescript", "react-query", "axios", "api", "hooks", "diversio"]
+    },
+    {
+      "name": "frontend-mixpanel",
+      "description": "Frontend Mixpanel analytics integration for React apps: event tracking, PII compliance, impersonation handling, session management, and privacy-first patterns.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-mixpanel",
+      "category": "code-analysis",
+      "keywords": ["frontend", "react", "mixpanel", "analytics", "tracking", "privacy", "pii", "diversio"]
+    },
+    {
+      "name": "frontend-sentry",
+      "description": "Frontend Sentry error monitoring for React apps: PII scrubbing, feature area tagging, distributed tracing, Redux breadcrumbs, and production debugging workflows.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-sentry",
+      "category": "code-analysis",
+      "keywords": ["frontend", "react", "sentry", "error-monitoring", "tracing", "debugging", "diversio"]
+    },
+    {
+      "name": "frontend-cicd",
+      "description": "Frontend CI/CD pipeline guidance: GitHub Actions workflows, CloudFlare Pages deployment, Crafting Sandboxes, E2E caching strategy, and production release process.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-cicd",
+      "category": "process",
+      "keywords": ["frontend", "cicd", "github-actions", "cloudflare", "crafting", "sandbox", "deployment", "diversio"]
+    },
+    {
+      "name": "frontend-plan",
+      "description": "Feature planning workflow for frontend projects with GitHub issue linkage, structured 8-step process, scoping questions, wireframes, and implementation plan generation.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-plan",
+      "category": "process",
+      "keywords": ["frontend", "planning", "feature", "github", "wireframes", "implementation", "scoping", "diversio"]
     }
   ]
 }

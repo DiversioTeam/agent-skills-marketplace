@@ -1,0 +1,8 @@
+{
+  "name": "frontend-cicd",
+  "version": "0.1.0",
+  "description": "Frontend CI/CD pipeline guidance: GitHub Actions workflows, CloudFlare Pages deployment, Crafting Sandboxes, E2E caching strategy, and production release process.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "frontend-sentry",
+  "version": "0.1.0",
+  "description": "Frontend Sentry error monitoring for React apps: PII scrubbing, feature area tagging, distributed tracing, Redux breadcrumbs, and production debugging workflows.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

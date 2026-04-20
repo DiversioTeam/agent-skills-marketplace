@@ -1,0 +1,8 @@
+{
+  "name": "frontend-mixpanel",
+  "version": "0.1.0",
+  "description": "Frontend Mixpanel analytics integration for React apps: event tracking, PII compliance, impersonation handling, session management, and privacy-first patterns.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

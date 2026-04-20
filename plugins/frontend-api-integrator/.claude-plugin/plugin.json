@@ -1,0 +1,8 @@
+{
+  "name": "frontend-api-integrator",
+  "version": "0.1.0",
+  "description": "Frontend API integration scaffold for React/TypeScript apps using React Query, axios, and TypeScript types with functional patterns and enum-based query key management.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

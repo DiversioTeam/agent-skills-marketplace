@@ -1,0 +1,8 @@
+{
+  "name": "frontend-pr-workflow",
+  "version": "0.1.0",
+  "description": "Frontend PR creation and review workflow with feature/release PR templates, quality gates, commit hygiene checks, and interactive PR review reports.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}
