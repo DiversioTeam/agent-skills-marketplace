@@ -164,3 +164,71 @@ when command files change.
   - Skill path:
     `plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill`
   - Slash commands: `/login-cta-attribution-skill:implement`
+
+## Frontend
+
+- `frontend-atomic-commit`
+  - Purpose: frontend pre-commit and atomic-commit with ESLint + tsc quality
+    gates, conventional commit enforcement, and no-AI-signature policy.
+  - Claude install:
+    `claude plugin install frontend-atomic-commit@diversiotech`
+  - Skill path:
+    `plugins/frontend-atomic-commit/skills/frontend-atomic-commit`
+  - Slash commands: `/frontend-atomic-commit:pre-commit`,
+    `/frontend-atomic-commit:atomic-commit`
+- `frontend-pr-workflow`
+  - Purpose: frontend PR creation and review with feature/release PR templates,
+    quality gates, commit hygiene, and interactive PR review reports.
+  - Claude install:
+    `claude plugin install frontend-pr-workflow@diversiotech`
+  - Skill paths:
+    `plugins/frontend-pr-workflow/skills/frontend-pr-workflow`,
+    `plugins/frontend-pr-workflow/skills/frontend-pr-review`
+  - Slash commands: `/frontend-pr-workflow:create-pr`,
+    `/frontend-pr-workflow:pr-review`
+- `frontend-testing`
+  - Purpose: testing guidance for React/TypeScript frontends covering unit
+    (Vitest), component (RTL), and E2E (Playwright) tests with coverage
+    analysis and CI failure debugging.
+  - Claude install:
+    `claude plugin install frontend-testing@diversiotech`
+  - Skill path: `plugins/frontend-testing/skills/frontend-testing`
+  - Reference: `plugins/frontend-testing/skills/frontend-testing/references/e2e-debugging.md`
+  - Slash commands: `/frontend-testing:run-e2e-local`
+- `frontend-api-integrator`
+  - Purpose: implement API integrations using React Query, axios, TypeScript
+    types, and enum-based query key management.
+  - Claude install:
+    `claude plugin install frontend-api-integrator@diversiotech`
+  - Skill path:
+    `plugins/frontend-api-integrator/skills/frontend-api-integrator`
+  - Slash commands: `/frontend-api-integrator:api-integrator`
+- `frontend-mixpanel`
+  - Purpose: frontend Mixpanel analytics with event enums, PII compliance,
+    impersonation handling, and privacy-first patterns.
+  - Claude install:
+    `claude plugin install frontend-mixpanel@diversiotech`
+  - Skill path: `plugins/frontend-mixpanel/skills/frontend-mixpanel`
+  - Slash commands: `/frontend-mixpanel:implement`,
+    `/frontend-mixpanel:review`
+- `frontend-sentry`
+  - Purpose: frontend Sentry error monitoring with PII scrubbing, feature area
+    tagging, distributed tracing, and production error investigation.
+  - Claude install:
+    `claude plugin install frontend-sentry@diversiotech`
+  - Skill path: `plugins/frontend-sentry/skills/frontend-sentry`
+  - Slash commands: `/frontend-sentry:sentry`
+- `frontend-cicd`
+  - Purpose: frontend CI/CD pipeline guidance for GitHub Actions, CloudFlare
+    Pages, Crafting Sandboxes, and production releases.
+  - Claude install:
+    `claude plugin install frontend-cicd@diversiotech`
+  - Skill path: `plugins/frontend-cicd/skills/frontend-cicd`
+  - Slash commands: `/frontend-cicd:cicd`
+- `frontend-plan`
+  - Purpose: feature planning workflow with GitHub issue linkage, structured
+    8-step process, and implementation plan generation.
+  - Claude install:
+    `claude plugin install frontend-plan@diversiotech`
+  - Skill path: `plugins/frontend-plan/skills/frontend-plan`
+  - Slash commands: `/frontend-plan:plan`, `/frontend-plan:new-branch`
