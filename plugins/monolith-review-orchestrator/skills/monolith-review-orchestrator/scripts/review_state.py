@@ -967,8 +967,13 @@ def normalize_inline_comment_targets(
             if raw_line is None:
                 raise click.ClickException(
                     f"Review payload field `inline_comment_targets[{index}].side` requires `line`."
-            )
+                )
             target["side"] = side
+        if raw_line is not None and raw_side is None:
+            raise click.ClickException(
+                "Review payload field "
+                f"`inline_comment_targets[{index}].line` requires `side`."
+            )
         # Multiline anchors are supported, but only when both start fields are
         # present together so later readers do not have to guess the intended
         # range shape.
