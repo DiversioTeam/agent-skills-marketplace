@@ -43,6 +43,10 @@ REVIEW_TARGETS: Final[dict[tuple[str, str], ReviewTargetConfig]] = {
         "alias": "asm",
         "submodule_path": "agent-skills-marketplace",
     },
+    ("DiversioTeam", "terraform-modules"): {
+        "alias": "tfm",
+        "submodule_path": "terraform-modules",
+    },
 }
 
 KNOWN_V1_REPOS: Final[frozenset[str]] = frozenset(

@@ -275,6 +275,30 @@ What it does:
 - keeps markdown as the human artifact and JSON as the machine identity
 - refuses to overwrite existing state unless `--force` is explicit
 
+Why the inline target fields matter now:
+
+```text
+old habit
+  -> "leave an inline note around here"
+
+problem
+  -> future passes cannot tell whether "here" still exists in the diff
+
+current contract
+  -> finding_id
+  -> path
+  -> line + side
+  -> optional start_line + start_side
+  -> optional expected_line_text
+
+benefit
+  -> later passes can understand the intent
+  -> the worker can re-check the anchor safely before publish
+```
+
+Think of `review_state.py` as the place where we turn fuzzy review intent into
+small, durable, machine-checkable review memory.
+
 Example:
 
 ```bash
@@ -378,6 +402,69 @@ cat <<EOF | uv run --script plugins/monolith-review-orchestrator/skills/monolith
 }
 EOF
 ```
+
+Rich review-context write example with an inline target:
+
+```bash
+cat <<EOF | uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  record-review \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
+{
+  "mode": "post",
+  "artifact_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
+  "posting_status": "not_posted",
+  "recommendation": "request_changes",
+  "scope_summary": "Prepared the final review draft and one stable inline anchor.",
+  "entries": [
+    {
+      "repo": "Django4Lyfe",
+      "pr_number": 2779,
+      "base_branch": "main",
+      "head_sha": "<backend-head-sha>",
+      "merge_base": "<backend-merge-base>"
+    },
+    {
+      "repo": "Optimo-Frontend",
+      "pr_number": 389,
+      "base_branch": "main",
+      "head_sha": "<optimo-head-sha>",
+      "merge_base": "<optimo-merge-base>"
+    }
+  ],
+  "findings": {
+    "new": [
+      {
+        "repo": "Optimo-Frontend",
+        "pr_number": 389,
+        "id": "of389|empty-state-contract|src/cards/RiskCard.tsx|render_body",
+        "severity": "blocking",
+        "summary": "The empty-body case is still not handled end-to-end."
+      }
+    ],
+    "carried_forward": [],
+    "resolved": [],
+    "moot": []
+  },
+  "inline_comment_targets": [
+    {
+      "repo": "Optimo-Frontend",
+      "pr_number": 389,
+      "finding_id": "of389|empty-state-contract|src/cards/RiskCard.tsx|render_body",
+      "path": "src/cards/RiskCard.tsx",
+      "line": 77,
+      "side": "RIGHT",
+      "expected_line_text": "return <RiskCardBody body={body} />;"
+    }
+  ]
+}
+EOF
+```
+
+Why `expected_line_text` is useful:
+
+- it gives the worker one more safety check before publish
+- it makes rebases or nearby edits fail closed instead of silently anchoring to
+  the wrong changed line
 
 Guardrails:
 

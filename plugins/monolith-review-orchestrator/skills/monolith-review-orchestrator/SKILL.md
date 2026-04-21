@@ -14,16 +14,18 @@ Supported v1 scope:
 
 - single PR, or one explicitly linked cross-repo PR pair
 - monolith-local execution only
-- read-only `status`, `review`, and `reassess`
+- `status`, `review`, `reassess`, and worker-owned `post` mode
 - deterministic worktree reuse/bootstrap
 - persistent JSON-first review context plus markdown artifacts
-- backend GitHub posting only when reusing `monty-code-review` memory/posting
-  machinery
+- worker-owned final review publishing: Codex drafts, the worker revalidates,
+  and the worker publishes one top-level review plus zero or more inline
+  comments atomically when the anchors validate cleanly
 
 Explicitly out of scope for v1:
 
 - generic multi-PR batch posting
 - generic unresolved-thread automation without a dedicated helper
+- replies to existing review threads or partial inline publication
 - repo-agnostic marketplace-style usage outside the Diversio monolith
 - broad submodule branch normalization during review prep
 - claiming reliable "final status" from comment lists alone
@@ -40,8 +42,6 @@ Explicitly out of scope for v1:
   final review to GitHub".
 - The user wants the agent to manage deterministic review worktrees and keep the
   local monolith state fresh.
-
-This skill is an orchestrator. It does not replace repo-specific review taste.
 
 - For Django4Lyfe/backend slices, invoke `monty-code-review`.
 - For thread-aware GitHub acquisition, use this plugin's deterministic
@@ -91,7 +91,9 @@ Choose one mode early and state it explicitly to the user:
    - Re-review after new commits, focusing on deltas, prior findings, and still
      open concerns.
 4. `post`
-   - Publish the latest validated review to GitHub.
+   - Draft the latest validated review for worker-owned GitHub publication,
+     including inline comments only when the diff anchor is stable enough for
+     the worker to validate safely.
    - This is illegal as an entry mode unless a current-head prior pass already
      exists and `validate-live-state` still matches the live PR heads.
 
@@ -139,14 +141,6 @@ Gather this data:
 - if posting is allowed, whether this run is eligible for `COMMENT`,
   `REQUEST_CHANGES`, or `APPROVE`
 
-Default assumptions when the user did not say:
-
-- local mutation: no
-- dirty worktree reuse: no
-- tests/builds: code-reading only
-- GitHub posting: no
-- parallel sub-agents: no
-
 Do not ask for information already present in the prompt. Infer obvious things
 from the PR URL, local paths, and the monolith repo layout first.
 
@@ -177,7 +171,7 @@ Core rules:
   - refresh it safely instead of replacing it
   - never delete or force-reset it unless the user explicitly asks
 - If the user points you at an already-prepared worktree, treat that as the
-  source of truth and do not silently switch to a different one.
+  source of truth.
 
 ## Execution Workflow
 
@@ -202,6 +196,8 @@ Map common Diversio repos to monolith paths:
 - `diversio-ds` -> `design-system`
 - `infrastructure` -> `infrastructure`
 - `diversio-serverless` -> `diversio-serverless`
+- `agent-skills-marketplace` -> `agent-skills-marketplace`
+- `terraform-modules` -> `terraform-modules`
 
 If a repo cannot be mapped confidently, ask once.
 
@@ -239,8 +235,6 @@ Refreshing utility repos is opt-in only.
 
 Use `scripts/prepare_review_worktree.py` for deterministic worktree
 create/reuse, safe submodule initialization, and exact PR-head checkout.
-
-State clearly what you updated and what you intentionally left untouched.
 
 ### 4. Review Code Deeply
 
@@ -285,15 +279,13 @@ Backend rule:
 
 - If a PR touches `backend/`, invoke `monty-code-review` for that slice.
 - Reuse its review memory protocol when doing a follow-up pass.
-- When posting to GitHub for backend findings, follow the monty GitHub posting
-  protocol instead of improvising.
+- Reuse Monty's backend review taste and memory context when it helps, but keep
+  the final GitHub publish step on this orchestrator's worker-owned path.
 
 Non-backend rule:
 
 - Keep v1 to code reading, repo-local pattern checks, and synthesis.
 - Do not manufacture Monty-specific Django findings for frontend-only work.
-- If a stable repo-specific review adapter does not exist, say so explicitly.
-
 Before invoking `monty-code-review` for backend work, persist a
 `backend_handoff` object that includes the worktree path, PR URL, head SHA,
 prior open finding IDs, and thread-context summary. The handoff must match the
@@ -308,8 +300,8 @@ delegation, or multiple agents.
 
 Ownership model:
 
-- main agent owns intake, local state management, final synthesis, and GitHub
-  posting
+- main agent owns intake, local state management, final synthesis, and the
+  final drafted review bundle
 - sidecar agents own bounded analysis tasks only
 
 Good parallel splits:
@@ -321,11 +313,9 @@ Good parallel splits:
 
 Bad parallel splits:
 
-- two agents posting to the same PR
+- two agents preparing competing final review drafts for the same PR
 - two agents editing the same review artifact
 - delegating the immediate blocker when the main agent needs the answer next
-
-Before spawning, tell the user you are parallelizing and what each agent owns.
 
 ### 6. Persist Review Artifacts
 
@@ -376,12 +366,6 @@ Create or update deterministic markdown artifacts under a `reviews/` directory
 at the monolith root of the chosen worktree unless the user specified another
 path.
 
-Use filenames derived from the review batch key, for example:
-
-- `reviews/review-bk2779.md`
-- `reviews/review-bk2779-of389.md`
-- `reviews/review-bk2779-reassess.md`
-
 Each combined artifact should include:
 
 - review scope and mode
@@ -404,12 +388,18 @@ it from the combined artifact instead of duplicating it line for line.
 
 Only post when the user asked or explicitly confirmed posting.
 
-V1 posting boundary:
+Phase 2a posting contract:
 
-- backend posting may proceed only through `monty-code-review` posting/memory
-  machinery
-- generic multi-PR or non-backend posting should be treated as not yet
-  productized unless dedicated helpers exist
+- Codex drafts one authoritative top-level review body and zero or more inline
+  comments.
+- Codex does not post the final review to GitHub directly.
+- The worker re-checks the live PR summary, unresolved-thread state, and
+  top-level review/comment activity immediately before publish.
+- The worker validates inline anchors against the current diff.
+- The worker publishes one atomic review through local `gh` / `gh api`, or
+  publishes nothing if the stale-input or anchor checks fail.
+- Replies to existing review threads and partial inline publication are still
+  out of scope.
 
 Before posting:
 
@@ -418,10 +408,15 @@ Before posting:
 - confirm a prior `status`, `review`, or `reassess` pass already exists on the
   exact same heads
 
-Posting rules:
+Drafting rules for `post` mode:
 
 - one authoritative top-level review per PR
-- inline comments only for distinct root-cause findings
+- inline comments only for distinct root-cause findings with genuinely stable
+  diff anchors
+- prefer single-line `RIGHT`-side anchors when possible
+- use multi-line anchors only when the diff location is unambiguous
+- if an anchor is uncertain or likely to drift, fold that point into the
+  top-level review body instead
 - avoid duplicate comments against already-open reviewer threads
 - explain why a prior unresolved comment is still valid, or why it is now moot
 - explain when a resolved comment shaped the current assessment or fix
