@@ -35,6 +35,12 @@ from uuid import uuid4
 
 import click
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from review_targets import KNOWN_V1_REPOS
+
 
 SCHEMA_VERSION = 3
 SUPPORTED_SCHEMA_VERSIONS: set[int] = {1, 2, SCHEMA_VERSION}
@@ -49,14 +55,6 @@ ALLOWED_POSTING_STATUSES: set[str] = {
     "posted_approved",
 }
 LIVE_VALIDATION_TTL = timedelta(minutes=10)
-KNOWN_V1_REPOS: set[str] = {
-    "Django4Lyfe",
-    "Diversio-Frontend",
-    "Optimo-Frontend",
-    "diversio-ds",
-    "infrastructure",
-    "diversio-serverless",
-}
 CONTEXT_LIST_FIELDS: tuple[str, ...] = (
     "still_legit",
     "moot_or_no_longer_applicable",

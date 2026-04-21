@@ -97,6 +97,12 @@ PREPARE_WORKTREE = load_module("prepare_review_worktree", PREPARE_WORKTREE_PATH)
 
 
 class ReviewStateContractTests(unittest.TestCase):
+    def test_validate_v1_batch_scope_accepts_agent_skills_marketplace(self) -> None:
+        REVIEW_STATE.validate_v1_batch_scope(
+            [{"repo": "agent-skills-marketplace", "pr_number": 59}],
+            "test identities",
+        )
+
     def test_backend_handoff_pr_url_requires_exact_pr_number(self) -> None:
         REVIEW_STATE.validate_backend_handoff_pr_url(
             "https://github.com/DiversioTeam/Django4Lyfe/pull/1/files",
@@ -144,6 +150,78 @@ class ReviewStateContractTests(unittest.TestCase):
 
 
 class PrepareReviewWorktreeContractTests(unittest.TestCase):
+    def test_worktree_is_clean_when_only_review_target_sha_differs(self) -> None:
+        worktree_path = Path("/tmp/monolith-review-batch")
+
+        def fake_run_command(cmd: list[str], cwd: Path | None = None) -> object:
+            command_key = tuple(cmd)
+            if command_key == (
+                "git",
+                "status",
+                "--short",
+                "--ignore-submodules=none",
+            ) and cwd == worktree_path:
+                return PREPARE_WORKTREE.subprocess.CompletedProcess(
+                    cmd, 0, stdout=" M agent-skills-marketplace\n", stderr=""
+                )
+            if command_key == (
+                "git",
+                "status",
+                "--short",
+                "--ignore-submodules=none",
+            ) and cwd == worktree_path / "agent-skills-marketplace":
+                return PREPARE_WORKTREE.subprocess.CompletedProcess(
+                    cmd, 0, stdout="", stderr=""
+                )
+            raise AssertionError(f"Unexpected command: cmd={cmd!r} cwd={cwd!r}")
+
+        with patch.object(
+            PREPARE_WORKTREE,
+            "run_command",
+            side_effect=fake_run_command,
+        ):
+            dirty = PREPARE_WORKTREE.worktree_is_dirty(
+                worktree_path, {"agent-skills-marketplace"}
+            )
+
+        self.assertFalse(dirty)
+
+    def test_worktree_is_dirty_when_review_target_has_local_edits(self) -> None:
+        worktree_path = Path("/tmp/monolith-review-batch")
+
+        def fake_run_command(cmd: list[str], cwd: Path | None = None) -> object:
+            command_key = tuple(cmd)
+            if command_key == (
+                "git",
+                "status",
+                "--short",
+                "--ignore-submodules=none",
+            ) and cwd == worktree_path:
+                return PREPARE_WORKTREE.subprocess.CompletedProcess(
+                    cmd, 0, stdout=" M agent-skills-marketplace\n", stderr=""
+                )
+            if command_key == (
+                "git",
+                "status",
+                "--short",
+                "--ignore-submodules=none",
+            ) and cwd == worktree_path / "agent-skills-marketplace":
+                return PREPARE_WORKTREE.subprocess.CompletedProcess(
+                    cmd, 0, stdout=" M plugins/example.py\n", stderr=""
+                )
+            raise AssertionError(f"Unexpected command: cmd={cmd!r} cwd={cwd!r}")
+
+        with patch.object(
+            PREPARE_WORKTREE,
+            "run_command",
+            side_effect=fake_run_command,
+        ):
+            dirty = PREPARE_WORKTREE.worktree_is_dirty(
+                worktree_path, {"agent-skills-marketplace"}
+            )
+
+        self.assertTrue(dirty)
+
     def test_infer_pr_remote_name_does_not_treat_branch_prefix_as_remote(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir)

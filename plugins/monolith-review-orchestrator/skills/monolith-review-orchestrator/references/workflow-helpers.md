@@ -94,7 +94,8 @@ Why it exists:
 What it does:
 
 - parses GitHub PR URLs
-- maps `(owner, repo)` pairs to the relevant monolith execution location
+- maps `(owner, repo)` pairs to the relevant monolith execution location from
+  one shared source of truth, including `DiversioTeam/agent-skills-marketplace`
   - most repos map to a submodule path
   - `DiversioTeam/monolith` maps to the monolith root itself and therefore has no
     submodule path
@@ -162,7 +163,8 @@ What it does:
 - creates one detached worktree, or reuses an existing registered one
 - initializes only the explicitly listed review-batch submodules in that
   worktree
-- blocks dirty reuse unless explicitly allowed
+- blocks dirty reuse unless explicitly allowed, but does not treat the expected
+  detached review-target submodule SHA drift as generic dirtiness
 - fetches and detaches each review submodule at the exact expected PR head SHA
 - fails closed if a submodule cannot be matched to the requested PR head
 - rejects duplicate `--review-target` values for the same submodule path

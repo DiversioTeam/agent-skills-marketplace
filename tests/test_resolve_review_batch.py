@@ -91,6 +91,14 @@ class ResolveReviewBatchTests(unittest.TestCase):
         self.assertEqual(payload["submodule_path"], "backend")
         self.assertEqual(payload["entry_key"], "bk2836")
 
+    def test_parse_pr_url_supports_agent_skills_marketplace(self) -> None:
+        payload = RESOLVE_REVIEW_BATCH.parse_pr_url(
+            "https://github.com/DiversioTeam/agent-skills-marketplace/pull/59"
+        )
+        self.assertEqual(payload["alias"], "asm")
+        self.assertEqual(payload["submodule_path"], "agent-skills-marketplace")
+        self.assertEqual(payload["entry_key"], "asm59")
+
     def test_review_and_worktree_roots_are_applied(self) -> None:
         monolith_root = Path("/tmp/monolith-root")
         review_root = Path("/tmp/review-root")

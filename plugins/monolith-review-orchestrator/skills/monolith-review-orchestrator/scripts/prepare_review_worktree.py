@@ -92,16 +92,59 @@ def remove_worktree(monolith_root: Path, target: Path) -> None:
         shutil.rmtree(target)
 
 
-def worktree_is_dirty(worktree_path: Path) -> bool:
-    """Return whether the target worktree currently has local changes."""
+def read_status_entries(repo_path: Path) -> list[tuple[str, str]]:
+    """Return parsed porcelain status entries for the given repository."""
 
-    result = run_command(["git", "status", "--short"], cwd=worktree_path)
+    result = run_command(
+        ["git", "status", "--short", "--ignore-submodules=none"],
+        cwd=repo_path,
+    )
     if result.returncode != 0:
         raise click.ClickException(
             result.stderr.strip()
-            or f"Failed to inspect worktree status for {worktree_path}"
+            or f"Failed to inspect worktree status for {repo_path}"
         )
-    return bool(result.stdout.strip())
+    entries: list[tuple[str, str]] = []
+    for line in result.stdout.splitlines():
+        if len(line) < 4:
+            raise click.ClickException(
+                f"Unexpected porcelain status line for `{repo_path}`: {line!r}"
+            )
+        path = line[3:]
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        entries.append((line[:2], path))
+    return entries
+
+
+def repository_is_dirty(repo_path: Path) -> bool:
+    return bool(read_status_entries(repo_path))
+
+
+def worktree_is_dirty(
+    worktree_path: Path, review_target_submodule_paths: set[str] | None = None
+) -> bool:
+    """Return whether the target worktree has blocking local changes.
+
+    Detaching a review-target submodule at the exact PR head intentionally
+    changes the superproject's recorded submodule SHA. Treat that exact clean
+    detached-submodule state as reusable, while still blocking genuine local
+    edits in the worktree or within the review-target submodule itself.
+    """
+
+    allowed_review_targets = review_target_submodule_paths or set()
+    clean_review_target_cache: dict[str, bool] = {}
+
+    for status, path in read_status_entries(worktree_path):
+        if path in allowed_review_targets and status == " M":
+            is_clean = clean_review_target_cache.get(path)
+            if is_clean is None:
+                is_clean = not repository_is_dirty(worktree_path / path)
+                clean_review_target_cache[path] = is_clean
+            if is_clean:
+                continue
+        return True
+    return False
 
 
 def parse_review_target(raw_value: str) -> ReviewTarget:
@@ -334,6 +377,9 @@ def main(
     parsed_review_targets = ensure_unique_review_targets(
         [parse_review_target(raw_value) for raw_value in review_targets]
     )
+    review_target_submodule_paths = {
+        entry["submodule_path"] for entry in parsed_review_targets
+    }
     target_submodule_paths = [entry["submodule_path"] for entry in parsed_review_targets]
     unique_submodule_paths = tuple(dict.fromkeys((*submodule_paths, *target_submodule_paths)))
 
@@ -343,7 +389,7 @@ def main(
             raise click.ClickException(
                 f"{target} exists but is not a registered git worktree."
             )
-        dirty = worktree_is_dirty(target)
+        dirty = worktree_is_dirty(target, review_target_submodule_paths)
         if dirty and not allow_dirty_reuse:
             if repair_dirty_reuse:
                 remove_worktree(root, target)
@@ -385,7 +431,7 @@ def main(
         checkout_exact_review_ref(target, review_target)
         for review_target in parsed_review_targets
     ]
-    dirty = worktree_is_dirty(target)
+    dirty = worktree_is_dirty(target, review_target_submodule_paths)
 
     payload = {
         "action": action,

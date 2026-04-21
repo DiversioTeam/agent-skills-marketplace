@@ -26,23 +26,22 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
+import sys
 from typing import Literal, TypedDict
 from urllib.parse import urlparse
 
 import click
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from review_targets import REVIEW_TARGETS, format_known_review_targets
+
 
 PR_PATH_PARTS = 4
 THREAD_STATUS = {True: "resolved", False: "open"}
-KNOWN_REPOS: dict[tuple[str, str], tuple[str, str | None]] = {
-    ("DiversioTeam", "monolith"): ("mono", None),
-    ("DiversioTeam", "Django4Lyfe"): ("bk", "backend"),
-    ("DiversioTeam", "Diversio-Frontend"): ("fe", "frontend"),
-    ("DiversioTeam", "Optimo-Frontend"): ("of", "optimo-frontend"),
-    ("DiversioTeam", "diversio-ds"): ("ds", "design-system"),
-    ("DiversioTeam", "infrastructure"): ("infra", "infrastructure"),
-    ("DiversioTeam", "diversio-serverless"): ("sls", "diversio-serverless"),
-}
 
 MAIN_QUERY = """\
 query(
@@ -499,23 +498,20 @@ def parse_pr_url(pr_url: str) -> PullRequestRef:
         raise click.ClickException(f"Invalid PR number in URL: {pr_url}") from exc
 
     repo_key = (owner, repo)
-    if repo_key not in KNOWN_REPOS:
-        known = ", ".join(
-            f"{known_owner}/{known_repo}" for known_owner, known_repo in sorted(KNOWN_REPOS)
-        )
+    target = REVIEW_TARGETS.get(repo_key)
+    if target is None:
         raise click.ClickException(
             f"Unknown monolith review target `{owner}/{repo}` in {pr_url}. "
-            f"Known targets: {known}"
+            f"Known targets: {format_known_review_targets()}"
         )
-    alias, submodule_path = KNOWN_REPOS[repo_key]
 
     return PullRequestRef(
         owner=owner,
         repo=repo,
         pr_number=pr_number,
         pr_url=pr_url,
-        alias=alias,
-        submodule_path=submodule_path,
+        alias=target["alias"],
+        submodule_path=target["submodule_path"],
     )
 
 

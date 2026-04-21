@@ -62,6 +62,7 @@ Suggested aliases:
 - `design-system` -> `ds`
 - `infrastructure` -> `infra`
 - `diversio-serverless` -> `sls`
+- `agent-skills-marketplace` -> `asm`
 - `monolith` -> `mono`
 
 Examples:

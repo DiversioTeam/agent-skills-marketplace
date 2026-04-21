@@ -24,11 +24,18 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import TypedDict
 from urllib.parse import urlparse
 
 import click
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from review_targets import REVIEW_TARGETS, format_known_review_targets
 
 
 MONOLITH_ROOT_MARKERS: tuple[str, ...] = (
@@ -39,15 +46,6 @@ MONOLITH_ROOT_MARKERS: tuple[str, ...] = (
     "docs/github-first-branch-and-pr-conventions.md",
 )
 ALLOWED_MODES: set[str] = {"status", "review", "reassess", "post"}
-REPO_MAP: dict[tuple[str, str], tuple[str, str | None]] = {
-    ("DiversioTeam", "monolith"): ("mono", None),
-    ("DiversioTeam", "Django4Lyfe"): ("bk", "backend"),
-    ("DiversioTeam", "Diversio-Frontend"): ("fe", "frontend"),
-    ("DiversioTeam", "Optimo-Frontend"): ("of", "optimo-frontend"),
-    ("DiversioTeam", "diversio-ds"): ("ds", "design-system"),
-    ("DiversioTeam", "infrastructure"): ("infra", "infrastructure"),
-    ("DiversioTeam", "diversio-serverless"): ("sls", "diversio-serverless"),
-}
 PR_PATH_PATTERN = re.compile(
     r"^/(?P<owner>[^/]+)/(?P<repo>[^/]+)/pull/(?P<number>\d+)(?:/.*)?$"
 )
@@ -158,23 +156,22 @@ def parse_pr_url(pr_url: str) -> PullRequestTarget:
     owner = match.group("owner")
     repo_name = match.group("repo")
     repo_key = (owner, repo_name)
-    if repo_key not in REPO_MAP:
-        known = ", ".join(f"{known_owner}/{repo}" for known_owner, repo in sorted(REPO_MAP))
+    target = REVIEW_TARGETS.get(repo_key)
+    if target is None:
         raise click.ClickException(
             f"Unknown monolith review target `{owner}/{repo_name}` in {pr_url}. "
-            f"Known targets: {known}"
+            f"Known targets: {format_known_review_targets()}"
         )
 
-    alias, submodule_path = REPO_MAP[repo_key]
     pr_number = int(match.group("number"))
     return {
         "owner": owner,
         "repo": repo_name,
         "pr_number": pr_number,
-        "alias": alias,
-        "submodule_path": submodule_path,
+        "alias": target["alias"],
+        "submodule_path": target["submodule_path"],
         "pr_url": pr_url,
-        "entry_key": f"{alias}{pr_number}",
+        "entry_key": f"{target['alias']}{pr_number}",
     }
 
 
