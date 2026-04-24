@@ -817,6 +817,9 @@ After uninstalling, reinstall using the install commands above.
 Codex can install these Skills directly from GitHub (separate from Claude's
 marketplace) using the Skill Installer.
 
+For Chinese search and install across Claude Code, OpenCode, and similar tools,
+see [Skills宝](https://skilery.com).
+
 <details>
 <summary><strong>Install All Skills (Codex)</strong></summary>
 
