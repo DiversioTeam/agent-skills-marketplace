@@ -21,8 +21,8 @@ If provided, use as the commit message. Otherwise, suggest a message based on st
     - No AI co-author signatures in commit history
 
 6. Craft or validate the commit message:
-    - Format: `type(scope): concise description`
-    - Use repo-specific commit conventions when present
+    - Use repo-specific commit conventions from the digest when present
+    - Default format when no convention is detected: `type(scope): concise description`
     - Imperative mood, under 72 chars, no trailing period
     - **NEVER include `Co-Authored-By: Claude`**
 

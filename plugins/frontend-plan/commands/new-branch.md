@@ -13,12 +13,12 @@ Accepted formats:
 
 1. Parse optional GitHub issue number and feature name from arguments.
 2. Validate that a feature description exists.
-3. Build branch name:
-    - With issue: `feature/{issue-number}-{feature-slug}`
-    - Without: `feature/{feature-slug}`
-4. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
-5. Use the repo’s detected base branch and naming conventions instead of
-   assuming `dev`.
+3. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
+4. Build branch name using the repo's detected naming conventions:
+    - With issue: `feature/{issue-number}-{feature-slug}` (fallback)
+    - Without: `feature/{feature-slug}` (fallback)
+    - Override with repo-specific conventions from the digest when present.
+5. Use the repo's detected base branch instead of assuming `dev`.
 
 6. Report the created branch name and base branch used.
 
