@@ -1,6 +1,6 @@
 {
   "name": "frontend-cicd",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Digest-first frontend CI/CD workflow that detects the repo's real CI provider, deploy target, preview platform, and local reproduction commands.",
   "author": {
     "name": "Diversio Devs"

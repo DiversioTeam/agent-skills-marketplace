@@ -208,7 +208,7 @@
     {
       "name": "frontend-bundle",
       "description": "Repo-agnostic frontend bundle with a persistent project digest, dynamic repo detection, and routing for review, API, testing, analytics, observability, CI/CD, and planning workflows.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -219,7 +219,7 @@
     {
       "name": "frontend-atomic-commit",
       "description": "Digest-first frontend atomic-commit workflow that uses detected repo commands, workspace scope, and commit conventions instead of fixed Yarn/tsc assumptions.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -230,7 +230,7 @@
     {
       "name": "frontend-pr-workflow",
       "description": "Digest-first frontend PR creation and review workflow for app, design-system, and monorepo repos using detected branch models, quality gates, and review priorities.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -241,7 +241,7 @@
     {
       "name": "frontend-testing",
       "description": "Digest-first frontend testing workflow that chooses the repo's real unit, component, and E2E stack, package scope, and preview target instead of fixed assumptions.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -252,7 +252,7 @@
     {
       "name": "frontend-api-integrator",
       "description": "Digest-first frontend API integration workflow that detects generated clients, Swagger/OpenAPI, Bruno/Postman, monolith backend code, or external backend paths before scaffolding.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -263,7 +263,7 @@
     {
       "name": "frontend-mixpanel",
       "description": "Digest-first Mixpanel workflow for frontend repos that first verifies Mixpanel exists locally and then matches the repo's tracking layer and privacy rules.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -274,7 +274,7 @@
     {
       "name": "frontend-sentry",
       "description": "Digest-first Sentry workflow for frontend repos that first verifies Sentry is present and then adapts to local bootstrap, release, and privacy patterns.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -285,7 +285,7 @@
     {
       "name": "frontend-cicd",
       "description": "Digest-first frontend CI/CD workflow that detects the repo's real CI provider, deploy target, preview platform, and local reproduction commands.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -296,7 +296,7 @@
     {
       "name": "frontend-plan",
       "description": "Digest-first frontend planning workflow for app, design-system, and monorepo repos using detected branch and docs conventions instead of fixed defaults.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Diversio Devs"
       },

@@ -1,6 +1,6 @@
 {
   "name": "frontend-pr-workflow",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Digest-first frontend PR creation and review workflow for app, design-system, and monorepo repos using detected branch models, quality gates, and review priorities.",
   "author": {
     "name": "Diversio Devs"

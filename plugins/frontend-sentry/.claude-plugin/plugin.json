@@ -1,6 +1,6 @@
 {
   "name": "frontend-sentry",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Digest-first Sentry workflow for frontend repos that first verifies Sentry is present and then adapts to local bootstrap, release, and privacy patterns.",
   "author": {
     "name": "Diversio Devs"

@@ -1,6 +1,6 @@
 {
   "name": "frontend-mixpanel",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Digest-first Mixpanel workflow for frontend repos that first verifies Mixpanel exists locally and then matches the repo's tracking layer and privacy rules.",
   "author": {
     "name": "Diversio Devs"

@@ -5,15 +5,11 @@ observability setup.
 
 The user optionally provides: `$ARGUMENTS` (`debug`, `context`, or `verify`)
 
-## Routing
+## Steps
 
-- `debug` - Investigate a Sentry error using the repo’s real init/release flow
-- `context` - Add breadcrumbs or tags using the local abstraction
-- `verify` - Check Sentry is working if the repo actually uses it
-- (none) - Show architecture overview
-
-## Quick Reference
-
-- First confirm the repo actually uses Sentry.
-- Use the repo’s local bootstrap/wrapper/release flow.
-- Do not assume Vite, Redux, or URL-derived feature-area tagging.
+1. Run the `frontend-sentry` skill, passing the lane from `$ARGUMENTS`:
+   - `debug` - Investigate a Sentry error
+   - `context` - Add breadcrumbs or tags
+   - `verify` - Check Sentry setup
+   - (none) - Architecture overview
+2. Report the result produced by the skill.

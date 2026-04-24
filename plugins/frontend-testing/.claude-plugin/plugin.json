@@ -1,6 +1,6 @@
 {
   "name": "frontend-testing",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Digest-first frontend testing workflow that chooses the repo's real unit, component, and E2E stack, package scope, and preview target instead of fixed assumptions.",
   "author": {
     "name": "Diversio Devs"
