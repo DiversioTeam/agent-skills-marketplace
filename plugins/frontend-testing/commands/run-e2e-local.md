@@ -1,26 +1,16 @@
-Run E2E tests locally against a Crafting Sandbox.
+Run frontend E2E tests locally using the repo-local digest and detected preview
+or sandbox setup.
 
 ## Steps
 
-1. Verify CS CLI is ready: `cs info`
-2. Find sandbox: `cs sandbox list`
-3. Resume if suspended: `cs sandbox resume <name>`
-4. Set env vars:
-
-    ```bash
-    export E2E_BASE_URL="https://web--<sandbox>.org.sandboxes.run"
-    export VITE_API_URL="https://backend--<sandbox>.org.sandboxes.run/optimo/api/v1"
-    export E2E_TEST_SECRET="<value>"
-    ```
-
-5. Run tests: `yarn test:e2e --project=chromium`
-6. View report: `yarn test:e2e:report`
+1. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
+2. Confirm the repo actually has an E2E framework and identify the correct
+   preview/sandbox/local target.
+3. Use the repo’s real environment variables and local E2E command.
+4. Ask for missing secrets or preview URLs only when the repo requires them.
+5. Run the detected E2E command and inspect the report/artifacts.
 
 ## Quick Commands
 
-```bash
-yarn test:e2e --project=chromium --grep '@critical'   # Critical path only
-yarn test:e2e --project=chromium --grep '@smoke'      # Smoke tests
-yarn test:e2e:headed                                   # Visible browser
-yarn test:e2e:debug                                    # Step-through debug
-```
+Use package- or repo-specific E2E commands from the digest. Do not assume
+Crafting or Playwright unless the repo actually uses them.

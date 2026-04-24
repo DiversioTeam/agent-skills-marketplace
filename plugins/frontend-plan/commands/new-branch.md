@@ -1,4 +1,4 @@
-Create a new feature branch from dev.
+Create a new frontend branch using the repo-local digest and branch model.
 
 ## Input
 
@@ -16,15 +16,11 @@ Accepted formats:
 3. Build branch name:
     - With issue: `feature/{issue-number}-{feature-slug}`
     - Without: `feature/{feature-slug}`
-4. Run:
+4. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
+5. Use the repo’s detected base branch and naming conventions instead of
+   assuming `dev`.
 
-    ```bash
-    git checkout dev
-    git pull origin dev
-    git checkout -b feature/{branch-name}
-    ```
-
-5. Report the created branch name.
+6. Report the created branch name and base branch used.
 
 ## Examples
 
@@ -33,3 +29,5 @@ Accepted formats:
 | `4757 slack pr notifications`  | `feature/4757-slack-pr-notifications` |
 | `#4800 fix login redirect`    | `feature/4800-fix-login-redirect`     |
 | `improve manager alerts`      | `feature/improve-manager-alerts`      |
+
+These are examples only; the repo’s actual naming convention wins.

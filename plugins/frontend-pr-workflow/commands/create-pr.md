@@ -1,4 +1,4 @@
-Create a pull request for the frontend repository.
+Create a frontend pull request using the repo-local digest and workflow rules.
 
 ## Input
 
@@ -6,24 +6,27 @@ The user optionally provides: `$ARGUMENTS` (`feature` or `release`)
 
 ## Steps
 
-1. Ask the user: "Is this a **Feature PR** (branch -> dev) or a **Release PR** (dev -> main)?"
+1. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
+2. Infer the PR type and branch model from repo-local docs plus the digest.
+3. Ask a short clarifying question only if the PR type is still ambiguous.
 
-2. Follow the frontend-pr-workflow skill based on their answer:
-    - **Feature PR**: Run quality gates, gather ticket info, create PR against dev with template
-    - **Release PR**: Find unreleased PRs, create PR from dev to main with bulleted links
+4. Follow the `frontend-pr-workflow` skill:
+    - **Feature/change PR**: run digest-selected quality gates, gather only the
+      fields this repo actually uses, then create the PR with the right base
+      branch and template
+    - **Release PR**: use the repo’s detected release workflow rather than
+      forcing `dev -> main`
 
 ## Quick Reference
 
-### Feature PR
+### Feature / Change PR
 
-- Base: `dev`
-- Template: ticket link + what/why/components + browser checklist
-- Gates: `yarn lint` + `yarn type-check` (0 errors, 0 warnings)
-- No `eslint-disable`, no AI co-author, atomic commits
+- Base: use the branch model detected from the repo
+- Template: prefer repo-local PR template, otherwise use the fallback structure
+- Gates: use digest-selected lint/type-check/test commands
+- No AI co-author, no unjustified suppressions, atomic commits
 
 ### Release PR
 
-- Base: `main`, Head: `dev`
-- Title: `Release [Month] [Day with ordinal] [Year]`
-- Body: Bulleted PR links only (dashes, no extra text)
-- Find PRs: `git log main..dev --grep="Merge pull request" --oneline`
+- Base/head/title/body: use the repo’s detected release workflow
+- Do not force the old `dev -> main` and fixed-title model unless the repo uses it

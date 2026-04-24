@@ -1,4 +1,5 @@
-CI/CD pipeline guidance for the frontend.
+CI/CD guidance for the frontend using the repo-local digest and real delivery
+stack.
 
 ## Input
 
@@ -6,9 +7,9 @@ The user optionally provides: `$ARGUMENTS` (`workflows`, `deploy`, `sandbox`, `d
 
 ## Routing
 
-- `workflows` - Explain all CI/CD workflows
-- `deploy` - Deployment process (staging/production)
-- `sandbox` - Crafting Sandbox management
+- `workflows` - Explain the repo’s actual CI/CD workflows
+- `deploy` - Deployment process for the detected platform(s)
+- `sandbox` - Preview/sandbox management if the repo actually has it
 - `debug` - Debug failing CI runs
 - `release` - Production release process
 - (none) - Pipeline overview
@@ -16,15 +17,7 @@ The user optionally provides: `$ARGUMENTS` (`workflows`, `deploy`, `sandbox`, `d
 ## Quick Commands
 
 ```bash
-# Debug CI failures
-gh run list --limit 10
-gh run view {run-id} --log-failed
-
-# Sandbox management
-cs sandbox list
-cs sandbox show test-my-feature
-cs sandbox resume test-my-feature
-
-# Reproduce CI locally
-yarn lint && yarn type-check && yarn build
+First load or refresh `docs/frontend-skill-digest/project-digest.md`, then use
+the detected CI, preview, and local build/test commands. Do not assume Crafting
+or Yarn unless the digest says they are present.
 ```

@@ -206,92 +206,103 @@
       "keywords": ["django", "cta", "attribution", "login", "tracking", "slack", "teams", "email", "optimo", "diversio"]
     },
     {
-      "name": "frontend-atomic-commit",
-      "description": "Frontend pre-commit and atomic-commit Skill for React/TypeScript repos with ESLint + tsc quality gates, conventional commit enforcement, and no-AI-signature policy.",
+      "name": "frontend-bundle",
+      "description": "Repo-agnostic frontend bundle with a persistent project digest, dynamic repo detection, and routing for review, API, testing, analytics, observability, CI/CD, and planning workflows.",
       "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-bundle",
+      "category": "process",
+      "keywords": ["frontend", "bundle", "digest", "react", "monorepo", "design-system", "workflow", "diversio"]
+    },
+    {
+      "name": "frontend-atomic-commit",
+      "description": "Digest-first frontend atomic-commit workflow that uses detected repo commands, workspace scope, and commit conventions instead of fixed Yarn/tsc assumptions.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-atomic-commit",
       "category": "process",
-      "keywords": ["frontend", "react", "typescript", "pre-commit", "atomic-commit", "eslint", "diversio"]
+      "keywords": ["frontend", "react", "typescript", "pre-commit", "atomic-commit", "digest", "monorepo", "diversio"]
     },
     {
       "name": "frontend-pr-workflow",
-      "description": "Frontend PR creation and review workflow with feature/release PR templates, quality gates, commit hygiene checks, and interactive PR review reports.",
-      "version": "0.1.0",
+      "description": "Digest-first frontend PR creation and review workflow for app, design-system, and monorepo repos using detected branch models, quality gates, and review priorities.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-pr-workflow",
       "category": "process",
-      "keywords": ["frontend", "react", "typescript", "pull-request", "code-review", "github", "diversio"]
+      "keywords": ["frontend", "pull-request", "code-review", "digest", "design-system", "monorepo", "github", "diversio"]
     },
     {
       "name": "frontend-testing",
-      "description": "Frontend testing guidance for React/TypeScript apps: unit tests (Vitest), component tests (RTL), E2E tests (Playwright), coverage analysis, and CI failure debugging.",
-      "version": "0.1.0",
+      "description": "Digest-first frontend testing workflow that chooses the repo's real unit, component, and E2E stack, package scope, and preview target instead of fixed assumptions.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-testing",
       "category": "code-analysis",
-      "keywords": ["frontend", "react", "typescript", "vitest", "playwright", "testing-library", "e2e", "unit-tests", "diversio"]
+      "keywords": ["frontend", "testing", "unit-tests", "e2e", "digest", "monorepo", "design-system", "diversio"]
     },
     {
       "name": "frontend-api-integrator",
-      "description": "Frontend API integration scaffold for React/TypeScript apps using React Query, axios, and TypeScript types with functional patterns and enum-based query key management.",
-      "version": "0.1.0",
+      "description": "Digest-first frontend API integration workflow that detects generated clients, Swagger/OpenAPI, Bruno/Postman, monolith backend code, or external backend paths before scaffolding.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-api-integrator",
       "category": "code-analysis",
-      "keywords": ["frontend", "react", "typescript", "react-query", "axios", "api", "hooks", "diversio"]
+      "keywords": ["frontend", "api", "openapi", "swagger", "bruno", "monorepo", "typescript", "diversio"]
     },
     {
       "name": "frontend-mixpanel",
-      "description": "Frontend Mixpanel analytics integration for React apps: event tracking, PII compliance, impersonation handling, session management, and privacy-first patterns.",
-      "version": "0.1.0",
+      "description": "Digest-first Mixpanel workflow for frontend repos that first verifies Mixpanel exists locally and then matches the repo's tracking layer and privacy rules.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-mixpanel",
       "category": "code-analysis",
-      "keywords": ["frontend", "react", "mixpanel", "analytics", "tracking", "privacy", "pii", "diversio"]
+      "keywords": ["frontend", "mixpanel", "analytics", "privacy", "tracking", "digest", "diversio"]
     },
     {
       "name": "frontend-sentry",
-      "description": "Frontend Sentry error monitoring for React apps: PII scrubbing, feature area tagging, distributed tracing, Redux breadcrumbs, and production debugging workflows.",
-      "version": "0.1.0",
+      "description": "Digest-first Sentry workflow for frontend repos that first verifies Sentry is present and then adapts to local bootstrap, release, and privacy patterns.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-sentry",
       "category": "code-analysis",
-      "keywords": ["frontend", "react", "sentry", "error-monitoring", "tracing", "debugging", "diversio"]
+      "keywords": ["frontend", "sentry", "error-monitoring", "observability", "debugging", "digest", "diversio"]
     },
     {
       "name": "frontend-cicd",
-      "description": "Frontend CI/CD pipeline guidance: GitHub Actions workflows, CloudFlare Pages deployment, Crafting Sandboxes, E2E caching strategy, and production release process.",
-      "version": "0.1.0",
+      "description": "Digest-first frontend CI/CD workflow that detects the repo's real CI provider, deploy target, preview platform, and local reproduction commands.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-cicd",
       "category": "process",
-      "keywords": ["frontend", "cicd", "github-actions", "cloudflare", "crafting", "sandbox", "deployment", "diversio"]
+      "keywords": ["frontend", "cicd", "github-actions", "deployments", "preview", "monorepo", "diversio"]
     },
     {
       "name": "frontend-plan",
-      "description": "Feature planning workflow for frontend projects with GitHub issue linkage, structured 8-step process, scoping questions, wireframes, and implementation plan generation.",
-      "version": "0.1.0",
+      "description": "Digest-first frontend planning workflow for app, design-system, and monorepo repos using detected branch and docs conventions instead of fixed defaults.",
+      "version": "0.2.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/frontend-plan",
       "category": "process",
-      "keywords": ["frontend", "planning", "feature", "github", "wireframes", "implementation", "scoping", "diversio"]
+      "keywords": ["frontend", "planning", "feature", "design-system", "monorepo", "implementation", "scoping", "diversio"]
     }
   ]
 }

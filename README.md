@@ -229,6 +229,16 @@ agent-skills-marketplace/
 │   │   │   ├── SKILL.md
 │   │   │   └── references/
 │   │   └── commands/implement.md
+│   ├── frontend-bundle/               # Install-once frontend digest + routing bundle
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/
+│   │   │   ├── frontend-bundle/SKILL.md
+│   │   │   └── frontend-project-digest/
+│   │   │       ├── SKILL.md
+│   │   │       └── references/
+│   │   └── commands/
+│   │       ├── frontend.md
+│   │       └── refresh-digest.md
 │   ├── frontend-atomic-commit/        # Frontend pre-commit & atomic-commit
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/frontend-atomic-commit/SKILL.md
@@ -243,7 +253,7 @@ agent-skills-marketplace/
 │   │   └── commands/
 │   │       ├── create-pr.md
 │   │       └── pr-review.md
-│   ├── frontend-testing/              # Frontend testing (Vitest + Playwright)
+│   ├── frontend-testing/              # Frontend testing (digest-first, repo-aware)
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/frontend-testing/
 │   │   │   ├── SKILL.md
@@ -302,14 +312,19 @@ agent-skills-marketplace/
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
-| `frontend-atomic-commit` | Frontend pre-commit and atomic-commit Skill for React/TypeScript repos with ESLint + tsc quality gates, conventional commit enforcement, and no-AI-signature policy |
-| `frontend-pr-workflow` | Frontend PR creation and review workflow with feature/release PR templates, quality gates, commit hygiene checks, and interactive PR review reports |
-| `frontend-testing` | Frontend testing guidance for React/TypeScript apps: unit tests (Vitest), component tests (RTL), E2E tests (Playwright), coverage analysis, and CI failure debugging |
-| `frontend-api-integrator` | Implement API integrations for React/TypeScript frontends using React Query, axios, TypeScript types, and enum-based query key management |
-| `frontend-mixpanel` | Frontend Mixpanel analytics integration with event enums, PII compliance, impersonation handling, session management, and privacy-first patterns |
-| `frontend-sentry` | Frontend Sentry error monitoring with PII scrubbing, feature area tagging, distributed tracing, Redux breadcrumbs, and production error investigation |
-| `frontend-cicd` | Frontend CI/CD pipeline guidance: GitHub Actions workflows, CloudFlare Pages deployment, Crafting Sandboxes, E2E caching, and production releases |
-| `frontend-plan` | Frontend feature planning workflow with GitHub issue linkage, structured 8-step process, scoping questions, and implementation plan generation |
+| `frontend-bundle` | Install-once frontend bundle with a repo-local digest, repo classification, and dynamic routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows |
+| `frontend-atomic-commit` | Digest-first frontend atomic-commit workflow that uses detected repo commands, workspace scope, and commit conventions |
+| `frontend-pr-workflow` | Digest-first frontend PR creation and review workflow for app, design-system, and monorepo repos |
+| `frontend-testing` | Digest-first frontend testing workflow that chooses the repo’s real unit/component/E2E stack and preview target |
+| `frontend-api-integrator` | Digest-first frontend API integration workflow that detects generated clients, Swagger/OpenAPI, Bruno/Postman, monolith backend code, or external backend paths |
+| `frontend-mixpanel` | Digest-first Mixpanel workflow that first verifies Mixpanel exists locally and then matches the repo’s tracking layer |
+| `frontend-sentry` | Digest-first Sentry workflow that first verifies Sentry is present and then adapts to local bootstrap and release patterns |
+| `frontend-cicd` | Digest-first frontend CI/CD workflow that detects the repo’s real CI provider, deploy target, and preview platform |
+| `frontend-plan` | Digest-first frontend planning workflow that uses detected branch and docs conventions instead of fixed defaults |
+
+For most frontend repos, install `frontend-bundle` first. It writes a durable
+repo-local digest under `docs/frontend-skill-digest/`, and the standalone
+frontend plugins are designed to reuse that digest when installed separately.
 
 ## Monolith Review Orchestrator
 
@@ -621,6 +636,7 @@ claude plugin install backend-release@diversiotech
 claude plugin install dependabot-remediation@diversiotech
 claude plugin install terraform@diversiotech
 claude plugin install login-cta-attribution-skill@diversiotech
+claude plugin install frontend-bundle@diversiotech
 claude plugin install frontend-atomic-commit@diversiotech
 claude plugin install frontend-pr-workflow@diversiotech
 claude plugin install frontend-testing@diversiotech
@@ -663,6 +679,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Dependabot remediation (backend/frontend) | `claude plugin install dependabot-remediation@diversiotech` |
 | Terraform workflows | `claude plugin install terraform@diversiotech` |
 | Login CTA attribution | `claude plugin install login-cta-attribution-skill@diversiotech` |
+| Frontend bundle (recommended) | `claude plugin install frontend-bundle@diversiotech` |
 | Frontend atomic commit | `claude plugin install frontend-atomic-commit@diversiotech` |
 | Frontend PR workflow & review | `claude plugin install frontend-pr-workflow@diversiotech` |
 | Frontend testing | `claude plugin install frontend-testing@diversiotech` |
@@ -728,18 +745,20 @@ Once plugins are installed:
    /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
    /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
    /login-cta-attribution-skill:implement   # Add new CTA login attribution source
-   /frontend-atomic-commit:pre-commit      # Run frontend lint + type-check quality gates
-   /frontend-atomic-commit:atomic-commit   # Create a quality-enforced atomic commit
-   /frontend-pr-workflow:create-pr         # Create a feature or release PR
-   /frontend-pr-workflow:pr-review         # Interactive PR quality review
-   /frontend-testing:run-e2e-local         # Run E2E tests locally against a sandbox
-   /frontend-api-integrator:api-integrator # Scaffold a new API integration
-   /frontend-mixpanel:implement            # Add new Mixpanel tracking events
-   /frontend-mixpanel:review               # Review Mixpanel implementation for PII compliance
-   /frontend-sentry:sentry                 # Sentry architecture overview and debugging
-   /frontend-cicd:cicd                     # CI/CD pipeline overview and troubleshooting
-   /frontend-plan:plan                     # Structured feature planning workflow
-   /frontend-plan:new-branch               # Create a feature branch from dev
+   /frontend-bundle:frontend               # Install-once frontend router for review, API, testing, analytics, observability, CI/CD, planning, and commit work
+   /frontend-bundle:refresh-digest         # Refresh the repo-local frontend digest under docs/frontend-skill-digest/
+   /frontend-atomic-commit:pre-commit      # Run digest-selected frontend pre-commit quality gates
+   /frontend-atomic-commit:atomic-commit   # Create a digest-aware atomic frontend commit
+   /frontend-pr-workflow:create-pr         # Create a frontend PR using detected branch model and template conventions
+   /frontend-pr-workflow:pr-review         # Review a frontend PR using the repo-local digest and Bumang-style priorities
+   /frontend-testing:run-e2e-local         # Run the repo’s detected E2E flow against the right preview, sandbox, or local target
+   /frontend-api-integrator:api-integrator # Implement an API integration using generated clients, OpenAPI/Swagger, Bruno, monolith code, or a provided backend path
+   /frontend-mixpanel:implement            # Add Mixpanel tracking only when the repo actually uses Mixpanel
+   /frontend-mixpanel:review               # Review local Mixpanel usage for privacy and architecture consistency
+   /frontend-sentry:sentry                 # Debug or extend Sentry only when the repo actually uses Sentry
+   /frontend-cicd:cicd                     # Inspect the repo’s actual CI, deploy, and preview stack
+   /frontend-plan:plan                     # Plan frontend work using detected docs and branch conventions
+   /frontend-plan:new-branch               # Create a frontend branch using the repo’s detected branch model
    ```
 
 ## Monty Review Memory
@@ -849,6 +868,7 @@ claude plugin uninstall backend-release@diversiotech
 claude plugin uninstall dependabot-remediation@diversiotech
 claude plugin uninstall terraform@diversiotech
 claude plugin uninstall login-cta-attribution-skill@diversiotech
+claude plugin uninstall frontend-bundle@diversiotech
 claude plugin uninstall frontend-atomic-commit@diversiotech
 claude plugin uninstall frontend-pr-workflow@diversiotech
 claude plugin uninstall frontend-testing@diversiotech
@@ -882,6 +902,7 @@ claude plugin uninstall backend-release@diversiotech --scope project
 claude plugin uninstall dependabot-remediation@diversiotech --scope project
 claude plugin uninstall terraform@diversiotech --scope project
 claude plugin uninstall login-cta-attribution-skill@diversiotech --scope project
+claude plugin uninstall frontend-bundle@diversiotech --scope project
 claude plugin uninstall frontend-atomic-commit@diversiotech --scope project
 claude plugin uninstall frontend-pr-workflow@diversiotech --scope project
 claude plugin uninstall frontend-testing@diversiotech --scope project
@@ -943,6 +964,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/terraform/skills/terraform-atomic-commit \
     plugins/terraform/skills/terraform-pr-workflow \
     plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+    plugins/frontend-bundle/skills/frontend-bundle \
+    plugins/frontend-bundle/skills/frontend-project-digest \
     plugins/frontend-atomic-commit/skills/frontend-atomic-commit \
     plugins/frontend-pr-workflow/skills/frontend-pr-workflow \
     plugins/frontend-pr-workflow/skills/frontend-pr-review \
@@ -978,6 +1001,8 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/terraform/skills/terraform-atomic-commit \
   path=plugins/terraform/skills/terraform-pr-workflow \
   path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+  path=plugins/frontend-bundle/skills/frontend-bundle \
+  path=plugins/frontend-bundle/skills/frontend-project-digest \
   path=plugins/frontend-atomic-commit/skills/frontend-atomic-commit \
   path=plugins/frontend-pr-workflow/skills/frontend-pr-workflow \
   path=plugins/frontend-pr-workflow/skills/frontend-pr-review \
@@ -1035,6 +1060,8 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/terraform-atomic-commit" \
        "$CODEX_HOME/skills/terraform-pr-workflow" \
        "$CODEX_HOME/skills/login-cta-attribution-skill" \
+       "$CODEX_HOME/skills/frontend-bundle" \
+       "$CODEX_HOME/skills/frontend-project-digest" \
        "$CODEX_HOME/skills/frontend-atomic-commit" \
        "$CODEX_HOME/skills/frontend-pr-workflow" \
        "$CODEX_HOME/skills/frontend-pr-review" \

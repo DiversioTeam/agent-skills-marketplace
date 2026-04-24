@@ -1,7 +1,7 @@
 {
   "name": "frontend-testing",
-  "version": "0.1.0",
-  "description": "Frontend testing guidance for React/TypeScript apps: unit tests (Vitest), component tests (RTL), E2E tests (Playwright), coverage analysis, and CI failure debugging.",
+  "version": "0.2.0",
+  "description": "Digest-first frontend testing workflow that chooses the repo's real unit, component, and E2E stack, package scope, and preview target instead of fixed assumptions.",
   "author": {
     "name": "Diversio Devs"
   }

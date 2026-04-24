@@ -1,4 +1,5 @@
-Start a feature planning workflow with structured 8-step process.
+Start a frontend planning workflow using the repo-local digest and detected docs
+conventions.
 
 ## Input
 
@@ -6,17 +7,14 @@ The user optionally provides: `$ARGUMENTS` (issue reference, e.g., `#1234`)
 
 ## Steps
 
-1. Get issue reference and feature name
-2. Create feature branch from dev
-3. Locate documentation folder
-4. Understand scope (summarize back to user)
-5. Ask 10+ scoping questions -> `scoping-questions.md`
-6. Review answers and clarify direction
-7. Create ASCII wireframes + user stories -> `design-wireframes.md`
-8. Decide prototype vs direct implementation
-9. Write implementation plan -> `implementation-plan.md`
-10. Sign off and handoff to new session
+1. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
+2. Resolve issue reference, feature name, and affected package/app if needed.
+3. Use the repo’s docs/planning convention instead of assuming `docs/feature/`.
+4. Understand scope, ask scoping questions, and write the right planning
+   artifacts for this repo.
+5. Use the repo’s branch model instead of assuming `dev`.
 
 ## Philosophy
 
-90% planning, 10% implementing. Never skip steps.
+Spend most of the time clarifying scope before implementation, but adapt the
+artifact set to the repo’s actual workflow.

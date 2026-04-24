@@ -1,7 +1,7 @@
 {
   "name": "frontend-plan",
-  "version": "0.1.0",
-  "description": "Feature planning workflow for frontend projects with GitHub issue linkage, structured 8-step process, scoping questions, wireframes, and implementation plan generation.",
+  "version": "0.2.0",
+  "description": "Digest-first frontend planning workflow for app, design-system, and monorepo repos using detected branch and docs conventions instead of fixed defaults.",
   "author": {
     "name": "Diversio Devs"
   }

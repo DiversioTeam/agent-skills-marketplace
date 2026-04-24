@@ -1,182 +1,129 @@
 ---
 name: frontend-pr-workflow
-description: "Create pull requests for React/TypeScript frontends. Handles feature PRs (branch to dev) and release PRs (dev to main) with template compliance, quality gates, and branch naming conventions."
+description: "Digest-first frontend PR creation workflow for app, design-system, and monorepo repos. Uses detected branch models, quality gates, and repo-local templates instead of fixed Yarn/dev/main assumptions."
 ---
 
 # Frontend PR Workflow Skill
 
-Handles creating both Feature PRs and Release PRs with strict template compliance.
+Create frontend PRs using the current repo’s actual branch model, quality gates,
+and template conventions.
 
 ## When to Use This Skill
 
-- When creating a feature PR (branch → dev) or release PR (dev → main).
-- `/frontend-pr-workflow:create-pr` — full PR creation with quality gates and template compliance.
+- Creating a feature PR, release PR, or equivalent frontend change review.
+- Validating that the branch is ready before opening the PR.
+- Running `/frontend-pr-workflow:create-pr`.
 
-## Example Prompts
+## Digest-First Preflight
 
-- "Create a feature PR for this branch"
-- "Create a release PR from dev to main"
-- "/create-pr feature"
+Before creating the PR:
 
----
+1. Load `docs/frontend-skill-digest/AGENTS.md` and
+   `docs/frontend-skill-digest/project-digest.md`.
+2. Refresh the digest first if it is missing, stale, or obviously wrong.
+3. Prefer repo-local workflow docs and PR templates when present.
+
+Do not assume:
+- feature PRs always target `dev`
+- release PRs always target `main`
+- `yarn` is the package manager
+- preview URLs or backend-branch metadata are always required
 
 ## Step 1: Determine PR Type
 
-If the argument is `feature` or `release`, skip the prompt. Otherwise:
+Infer the PR type from:
+1. current branch
+2. digest workflow conventions
+3. repo-local docs/templates
 
-**Ask the user:**
+If still ambiguous, ask the user a short question.
 
-> "Is this a **Feature PR** (branch -> dev) or a **Release PR** (dev -> main)?"
+Common outcomes:
+- feature/change PR
+- release PR
+- design-system release/dependency PR
 
----
+## Step 2: Run Quality Gates
 
-## Feature PR Workflow
+Use the commands recorded in the digest, scoped to the affected package(s) when
+the repo is a monorepo.
 
-### Step 2F: Code Quality Gates
+Check:
+- lint
+- type-check
+- tests required by repo convention
+- no newly added `eslint-disable` or equivalent suppressions unless justified
+- no leftover debug logging
+- no AI co-author signatures
 
-Run these checks. ALL must pass with 0 errors AND 0 warnings. No exceptions.
+If any required gate fails, fix it before creating the PR.
 
-```bash
-yarn lint            # ESLint - zero warnings, zero errors
-yarn type-check      # TypeScript - zero errors
-```
+## Step 3: Gather PR Inputs
 
-**Manual verification (grep the codebase):**
+Ask only for the fields the repo actually uses. Examples:
+- linked issue/reference
+- one-line summary
+- preview URL
+- backend branch dependency
+- release notes context
 
-- No new `eslint-disable` comments added in this branch's changes
-- No `console.log` statements left in code
+For monorepos or design-system repos, also identify:
+- affected package(s)
+- consumer impact
+- dependency publication expectations
 
-**Git verification:**
+## Step 4: Build The PR Body
 
-- No AI co-author signatures in any commit: `git log --format="%b" origin/dev..HEAD | grep -i "co-authored"`
-- Each commit is atomic (one logical change per commit)
-- Branch follows the repo convention: `feature/<slug>` or `feature/<issue-number>-<slug>`
+Use this precedence:
+1. repo-local PR template
+2. digest workflow conventions
+3. a minimal fallback structure
 
-If ANY check fails, fix the issue BEFORE creating the PR. Do NOT proceed with failures.
-
-### Step 3F: Gather PR Information
-
-**Ask the user (or extract from branch name):**
-
-1. Linked GitHub issue or planning issue reference, if any (e.g., `#4757` or `Org/repo#4757`)
-2. Brief summary of the change (1 line)
-3. Sandbox preview URL (if available)
-4. Backend branch (default: `release`). Ask: "Does this PR require a specific backend branch?"
-
-**Auto-detect from git:**
-
-- What changed: `git diff --stat origin/dev..HEAD`
-- Which files: `git diff --name-only origin/dev..HEAD`
-- Commit history: `git log --oneline origin/dev..HEAD`
-
-### Step 4F: Create the Feature PR
-
-Push the branch and create the PR against `dev`:
-
-```bash
-git push -u origin HEAD
-```
-
-Create PR with `gh pr create` using this template:
+### Fallback feature/change PR body
 
 ```markdown
 ## Related issues
-
 - Closes #XXXX
-- Refs Org/repo#XXXX
 
-Sandbox Preview Link: [Sandbox URL or "Pending sandbox creation"]
-Backend-Branch: release
+## What changed?
+- bullet list
 
-## What has changed?
+## Why?
+- short rationale
 
-- [List each logical change as a bullet point]
-- [Be specific: "Added X component", "Updated Y hook", "Fixed Z bug"]
+## Scope / affected areas
+- packages, components, modules, or consumers
 
-## Why has it changed?
-
-- [Explain the business reason or technical necessity]
-
-## Which components will this change affect?
-
-- [List affected components, modules, or services]
-- [Include file paths where helpful]
-
-I tested it and it works in:
-
-- [x] Chrome
-- [x] Firefox
-- [x] Safari
-- [ ] Edge
+## Validation
+- commands run
+- preview/sandbox link if applicable
 ```
 
-**CRITICAL:**
+### Fallback release PR body
 
-- Title format: concise summary (short, under 70 chars)
-- Base branch: `dev` (always for feature PRs)
-- Do NOT close and recreate PRs - get it right the first time
-- `Backend-Branch:` defaults to `release`. Change it when the PR depends on backend changes.
+When the repo uses a release PR model, follow the digest for:
+- base/head branches
+- title format
+- whether the body is only PR links or needs extra release notes
 
----
+Do not force the old `Release [Month] [Day] [Year]` format unless the repo
+actually uses it.
 
-## Release PR Workflow
+## Step 5: Create The PR
 
-### Step 2R: Verify Dev Branch State
+Push the branch if needed, then create the PR with:
+- the correct base branch from the digest/repo docs
+- the correct template/body shape
+- any required package, preview, or backend metadata
 
-```bash
-git checkout dev
-git pull origin dev
-git fetch origin main
-```
+If the repo has unusual rules and the digest confidence is low, stop and ask one
+short clarifying question rather than opening the wrong PR.
 
-Verify dev is up to date with remote.
+## Output Expectations
 
-### Step 3R: Find Unreleased PRs
-
-Get all merged PRs in dev that aren't in main:
-
-```bash
-git log main..dev --grep="Merge pull request" --oneline
-```
-
-Extract PR numbers and build the link list.
-
-### Step 4R: Create the Release PR
-
-Create the PR from `dev` to `main` with `gh pr create`:
-
-**Title format (EXACT):**
-
-```
-Release [Month] [Day with ordinal suffix] [Year]
-```
-
-Examples: `Release February 10th 2026`, `Release December 1st 2025`
-
-Ordinal suffixes: 1st, 2nd, 3rd, 4th-20th, 21st, 22nd, 23rd, 24th-30th, 31st
-
-**Body format (EXACT):**
-
-```markdown
-- https://github.com/ORG/REPO/pull/296
-- https://github.com/ORG/REPO/pull/308
-```
-
-**Rules:**
-
-- Body MUST be a bulleted list using dashes (-)
-- Each line starts with `- ` followed by the PR link
-- NO additional text, sections, or explanations
-- Base branch: `main`
-- Head branch: `dev`
-
----
-
-## Rules That Apply to ALL PRs
-
-1. **NEVER include AI co-author signatures** in any commit. This is an auto-reject rule.
-2. **0 errors, 0 warnings** from lint and type-check.
-3. **No `eslint-disable`** comments added in the diff.
-4. **Atomic commits** - each commit is one logical unit of change.
-5. **Do NOT close and recreate PRs** - get the format right the first time.
-6. **Follow pre-commit hooks** - do not bypass with `--no-verify`.
+Report:
+- digest status (reused/refreshed)
+- PR type selected
+- base/head branches used
+- quality gates run
+- any repo-specific fields included

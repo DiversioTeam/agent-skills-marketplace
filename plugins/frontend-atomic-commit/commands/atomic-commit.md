@@ -1,4 +1,4 @@
-Create atomic commits with strict quality enforcement.
+Create an atomic frontend commit using the repo-local digest and quality gates.
 
 ## Input
 
@@ -12,31 +12,27 @@ If provided, use as the commit message. Otherwise, suggest a message based on st
 
 2. Verify staged changes represent ONE logical change. If not, advise splitting.
 
-3. Run quality gates (both must pass with 0 errors, 0 warnings):
+3. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
+4. Run the digest-selected quality gates for the affected package(s).
 
-    ```bash
-    yarn lint
-    yarn type-check
-    ```
-
-4. Check staged diff for forbidden patterns:
-    - No `eslint-disable` comments added
+5. Check staged diff for forbidden patterns:
+    - No `eslint-disable` or similar suppressions added without justification
     - No `console.log` statements
     - No AI co-author signatures in commit history
 
-5. Craft or validate the commit message:
+6. Craft or validate the commit message:
     - Format: `type(scope): concise description`
-    - Types: `feat`, `fix`, `refactor`, `style`, `chore`, `docs`, `test`, `perf`
+    - Use repo-specific commit conventions when present
     - Imperative mood, under 72 chars, no trailing period
     - **NEVER include `Co-Authored-By: Claude`**
 
-6. Create the commit (do NOT use `--no-verify`).
+7. Create the commit (do NOT use `--no-verify`).
 
-7. Report: hash, message, file count, lint/type-check status, and confirm no forbidden patterns.
+8. Report: hash, message, file count, gates run, and confirm no forbidden patterns.
 
 ## Validation
 
-- Reject if lint or type-check has errors or warnings
+- Reject if required digest-selected gates fail
 - Reject if `eslint-disable` found in staged diff
 - Warn if staged changes aren't atomic (multiple unrelated concerns)
 - NEVER add AI co-author signatures to any commit

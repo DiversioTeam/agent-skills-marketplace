@@ -1,14 +1,13 @@
-Review Mixpanel implementations for PII compliance and quality.
+Review Mixpanel implementations using the repo-local digest and local privacy
+rules.
 
 ## Steps
 
-1. Scan for direct `mixpanel.track()` calls (should use service layer)
-2. Check all event properties for PII (email, name, etc.)
-3. Verify event names use `MIXPANEL_EVENTS` enum
-4. Verify property keys use `MIXPANEL_PARAMS` enum
-5. Check `isReady()` guard before all tracking calls
-6. Verify impersonation handling (session_id null check)
-7. Check hook naming follows `useXxxTracking` convention
+1. Load or refresh `docs/frontend-skill-digest/project-digest.md`.
+2. Confirm the repo uses Mixpanel rather than another analytics tool.
+3. Scan for local-wrapper bypasses, privacy issues, and inconsistent taxonomy.
+4. Check readiness/session guards only when the repo actually uses them.
+5. Report findings in the repo’s own terms rather than assuming enum/service names.
 
 ## Output
 

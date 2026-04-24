@@ -1,343 +1,143 @@
 ---
 name: frontend-api-integrator
-description: "Implement API integrations for React/TypeScript frontends using React Query, axios instances, TypeScript types, and enum-based query key management with functional patterns."
+description: "Digest-first frontend API integration workflow. Detects the repo’s real API contract source and local client pattern, supports monorepos and monoliths, and asks for backend/spec paths only when the repo does not already provide them."
 ---
 
 # Frontend API Integrator Skill
 
-Guides the implementation of new API integrations following established frontend patterns.
+Implement frontend API work by matching the current repo’s actual contract
+source and client architecture.
 
 ## When to Use This Skill
 
-- When adding a new API endpoint integration (types, actions, React Query hooks).
-- `/frontend-api-integrator:api-integrator` — scaffold a complete API integration for a feature area.
+- Adding or updating a frontend API integration.
+- Wiring endpoint types, generated clients, hooks, or service functions.
+- Investigating how a frontend should consume a backend contract in an app,
+  monorepo, or monolith.
 
-## Example Prompts
+## Digest-First Preflight
 
-- "Integrate the GET /feedback/ endpoint"
-- "Add API hooks for the new goals feature"
-- "/api-integrator hris"
+Before changing code:
 
----
+1. Load `docs/frontend-skill-digest/AGENTS.md` and
+   `docs/frontend-skill-digest/project-digest.md`.
+2. Refresh the digest first if it is missing, stale, or clearly inconsistent.
+3. Use the digest’s repo class, package manager, workspace layout, data/state
+   stack, and API contract sources.
 
-## Step 1: Gather Requirements
+Do not assume:
+- React Query
+- axios
+- `src/api/actions`
+- query/mutation enums
+- a separate backend repo
 
-**Ask the user:**
+## Step 1: Confirm Applicability
 
-> "What API endpoint(s) are you integrating? Please provide:
->
-> 1. Feature area (e.g., auth, feedback, hris, employee, manager)
-> 2. Endpoint(s) and HTTP method(s) (e.g., `GET /feedback/`, `POST /goals/`)
-> 3. Is it public (no auth) or private (requires auth)?
-> 4. Brief description of what it does"
+Use the digest to decide whether API integration applies:
 
-If the user provides a feature name via argument, use that as the feature area and ask for remaining details.
+- `frontend-app`: usually applies
+- `monorepo-frontend`: applies, but first identify the affected package
+- `design-system`: often out of scope unless the repo includes demo apps,
+  contract fixtures, or API-bound examples
 
----
+If the digest marks API integration as partial or out of scope, explain why
+before proceeding.
 
-## Step 2: Check Existing Infrastructure
+## Step 2: Resolve The API Contract Source
 
-Before creating files, verify what already exists:
+Choose the best contract source in this order:
 
-```bash
-# Check existing API structure
-ls src/api/actions/
-ls src/api/
+1. generated SDK / typed client already used in the repo
+2. OpenAPI / Swagger files or generated schema artifacts
+3. Bruno / Postman / Insomnia collections
+4. backend code in the same repo or monorepo
+5. backend code outside the repo, if provided by the user
 
-# Check existing hooks
-ls src/hooks/
+### Missing-context rule
 
-# Check existing query/mutation enums
-cat src/api/queries.enum.ts
-cat src/api/mutations.enum.ts
+Only ask for a backend working directory when the repo does not already contain
+enough contract context.
 
-# Check existing endpoints
-cat src/api/endpoints.ts
-```
+Examples:
+- If OpenAPI or Swagger exists locally, use it instead of asking for backend code.
+- If Bruno docs exist locally, use them instead of reverse-engineering endpoints
+  from components.
+- If the repo is a monolith with frontend and backend together, detect the local
+  backend path and use it.
+- If none of the above exist, ask the user for one of:
+  - backend working directory
+  - API spec path / URL
+  - docs collection path
 
-Report what's already in place and what needs to be created.
+## Step 3: Inspect The Existing Frontend Pattern
 
----
+Use the digest and local code to identify the real implementation pattern:
+- generated client consumption
+- service/module functions
+- hooks wrapping services
+- Redux/RTK Query slices
+- TanStack Query hooks
+- plain fetch utilities
 
-## Step 3: Create Directory Structure
+Match the existing naming, folder layout, and error-handling style. Do not
+force the old `actions + hooks + endpoints + enums` shape if the repo uses a
+different one.
 
-Follow the established folder structure:
+## Step 4: Identify The Affected Package And Working Directory
 
-```bash
-# For API actions (if feature folder doesn't exist)
-mkdir -p src/api/actions/{feature}/
+For monorepos or monoliths:
+- identify the frontend package/app that consumes the API
+- identify the backend service or docs path if local
+- record both before editing
 
-# For hooks (if feature folder doesn't exist)
-mkdir -p src/hooks/{feature}/
-```
+If backend context is external, ask for the backend directory only after
+confirming it is actually needed.
 
-### Expected File Structure
+## Step 5: Implement Using The Local Contract
 
-```
-src/api/actions/{feature}/
-├── {feature}Actions.ts          # API action functions
-└── {feature}Actions.types.ts    # TypeScript interfaces
+Common valid implementation shapes:
 
-src/hooks/{feature}/
-├── useGet{Resource}.ts          # Query hooks
-├── useCreate{Resource}.ts       # Mutation hooks
-└── useUpdate{Resource}.ts       # Mutation hooks
-```
+### Generated client / SDK
 
----
+- update generation inputs if needed
+- use the existing generated client entrypoint
+- avoid hand-writing duplicate endpoint wrappers
 
-## Step 4: Define TypeScript Types
+### OpenAPI / Swagger contract
 
-Create types in `src/api/actions/{feature}/{feature}Actions.types.ts`:
+- derive request/response types from the spec or the repo’s generation flow
+- place code where the repo normally stores API clients or hooks
 
-```typescript
-// Request interfaces - prefix with I, suffix with Params or Payload
-export interface I{Action}{Resource}Params {
-    // GET request parameters
-}
+### Bruno / Postman / Insomnia contract
 
-export interface I{Action}{Resource}Payload {
-    // POST/PUT/PATCH request body
-}
+- treat the collection as the request/response source of truth
+- reconcile with existing frontend client patterns
+- ask for backend clarification only if the collection is ambiguous
 
-// Response interfaces - prefix with I, suffix with Response
-export interface I{Resource}Response {
-    // API response shape
-}
-```
+### Backend-code contract
 
-### Type Rules
+- inspect the backend serializer / handler / controller behavior
+- model frontend types against the shipped response contract, not only comments
 
-- All interfaces in `.types.ts` files - NO inline interfaces
-- Prefix with `I` (e.g., `IGoalResponse`, `ICreateGoalPayload`)
-- Request types: `I{Action}{Resource}Params` (GET) or `I{Action}{Resource}Payload` (POST/PUT)
-- Response types: `I{Resource}Response`
-- Use existing enums for predefined options
-
----
-
-## Step 5: Register Endpoints
-
-Add to `src/api/endpoints.ts`:
-
-**Note:** The base URL is already set in the axios instance. Endpoints here are **relative paths only**.
-
-```typescript
-export const endpoints = {
-    // ... existing endpoints
-    {feature}: {
-        list: '/{feature}/',
-        detail: (id: string) => `/{feature}/${id}/`,
-        create: '/{feature}/',
-        update: (id: string) => `/{feature}/${id}/`,
-        delete: (id: string) => `/{feature}/${id}/`,
-    },
-} as const
-```
-
-Use function endpoints for dynamic IDs. Use string endpoints for static paths.
+## Step 6: Verify The Integration
 
-**Only add the endpoints that are actually needed.** Don't pre-create unused CRUD endpoints.
-
----
+Run the digest-selected quality gates for the affected package:
+- lint
+- type-check
+- relevant tests
 
-## Step 6: Register Query/Mutation Keys
-
-### For Queries (`src/api/queries.enum.ts`)
+In addition, verify:
+- no duplicate client abstraction was introduced
+- request/response types match the chosen contract source
+- cache keys / invalidation / store updates are locally consistent
+- error handling matches the repo’s pattern
 
-```typescript
-export enum Queries {
-    // ... existing queries
-    get{Resource} = 'get{Resource}',
-    get{Resource}List = 'get{Resource}List',
-}
-```
-
-### For Mutations (`src/api/mutations.enum.ts`)
-
-```typescript
-export enum Mutations {
-    // ... existing mutations
-    create{Resource} = 'create{Resource}',
-    update{Resource} = 'update{Resource}',
-    delete{Resource} = 'delete{Resource}',
-}
-```
-
-**Naming conventions:**
-
-- Query keys: `get{Resource}` (e.g., `getInsightData`, `getFeedbackList`)
-- Mutation keys: `{action}{Resource}` (e.g., `createGoal`, `updateUser`, `deleteComment`)
-
----
-
-## Step 7: Create Action Functions
-
-Create in `src/api/actions/{feature}/{feature}Actions.ts`:
-
-```typescript
-import { optimoPrivateApi } from '@/api/axios/axiosInstance'
-import { endpoints } from '@/api/endpoints'
-import type { I{Resource}Response, I{Action}{Resource}Payload } from './{feature}Actions.types'
-
-// GET action
-export const get{Resource} = async (): Promise<I{Resource}Response> => {
-    const response = await optimoPrivateApi.get<I{Resource}Response>(endpoints.{feature}.list)
-    return response.data
-}
-
-// GET with params
-export const get{Resource}ById = async (id: string): Promise<I{Resource}Response> => {
-    const response = await optimoPrivateApi.get<I{Resource}Response>(endpoints.{feature}.detail(id))
-    return response.data
-}
-
-// POST action
-export const create{Resource} = async (payload: ICreate{Resource}Payload): Promise<I{Resource}Response> => {
-    const response = await optimoPrivateApi.post<I{Resource}Response>(endpoints.{feature}.create, payload)
-    return response.data
-}
-
-// PUT/PATCH action
-export const update{Resource} = async (
-    id: string,
-    payload: IUpdate{Resource}Payload
-): Promise<I{Resource}Response> => {
-    const response = await optimoPrivateApi.patch<I{Resource}Response>(
-        endpoints.{feature}.update(id),
-        payload
-    )
-    return response.data
-}
-
-// DELETE action
-export const delete{Resource} = async (id: string): Promise<void> => {
-    await optimoPrivateApi.delete(endpoints.{feature}.delete(id))
-}
-```
-
-### Axios Instance Reference
-
-| Instance                   | Auth Required | Use For                          |
-| -------------------------- | ------------- | -------------------------------- |
-| `optimoPublicApi`          | No            | Login, signup, magic link        |
-| `optimoPrivateApi`         | Yes           | All authenticated JSON API calls |
-| `optimoPrivateApiFormData` | Yes           | File uploads (2-min timeout)     |
-
-### Action Function Rules
-
-- **Functional patterns only** - no class-based implementations
-- Return `response.data` (not the full axios response)
-- Only create the actions that are actually needed
-
----
-
-## Step 8: Create React Query Hooks
-
-### Query Hook (`src/hooks/{feature}/useGet{Resource}.ts`)
-
-```typescript
-import { useQuery } from '@tanstack/react-query'
-
-import { get{Resource} } from '@/api/actions/{feature}/{feature}Actions'
-import { Queries } from '@/api/queries.enum'
-import type { I{Resource}Response } from '@/api/actions/{feature}/{feature}Actions.types'
-
-export function useGet{Resource}() {
-    return useQuery<I{Resource}Response>({
-        queryKey: [Queries.get{Resource}],
-        queryFn: get{Resource},
-    })
-}
-```
-
-### Mutation Hook (`src/hooks/{feature}/useCreate{Resource}.ts`)
-
-```typescript
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { AxiosError } from 'axios'
-import { toast } from 'sonner'
-
-import { create{Resource} } from '@/api/actions/{feature}/{feature}Actions'
-import { Mutations } from '@/api/mutations.enum'
-import { Queries } from '@/api/queries.enum'
-import type {
-    ICreate{Resource}Payload,
-    I{Resource}Response,
-} from '@/api/actions/{feature}/{feature}Actions.types'
-
-interface IUseCreate{Resource}Options {
-    onSuccess?: (data: I{Resource}Response) => void
-    onError?: (error: AxiosError) => void
-}
-
-export function useCreate{Resource}(options?: IUseCreate{Resource}Options) {
-    const queryClient = useQueryClient()
-
-    return useMutation<I{Resource}Response, AxiosError, ICreate{Resource}Payload>({
-        mutationKey: [Mutations.create{Resource}],
-        mutationFn: create{Resource},
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: [Queries.get{Resource}] })
-            toast.success('{Resource} created successfully')
-            options?.onSuccess?.(data)
-        },
-        onError: (error) => {
-            if (error.response?.status !== 422) {
-                toast.error(error.message || 'Failed to create {resource}')
-            }
-            options?.onError?.(error)
-        },
-    })
-}
-```
-
-### Hook Rules
-
-- Use **function declarations** - no `React.FC`, no arrow function exports
-- Hook naming: `useGet{Resource}` for queries, `use{Action}{Resource}` for mutations
-- Invalidate related queries on mutation success
-- Field errors (422) shown inline, generic errors as toasts
-
----
-
-## Step 9: Verify Integration
-
-After creating all files, run the quality gates:
-
-```bash
-yarn lint
-yarn type-check
-```
-
-**Must pass with 0 errors AND 0 warnings.**
-
-### Integration Checklist
-
-```
-API Integration Complete:
-- [ ] TypeScript types defined in .types.ts file
-- [ ] Endpoint(s) registered in endpoints.ts
-- [ ] Query/Mutation keys registered in enums
-- [ ] Action function(s) created (functional, not class-based)
-- [ ] React Query hook(s) created with function declarations
-- [ ] Error handling: field errors inline, generic errors as toasts
-- [ ] Cache invalidation configured on mutations
-- [ ] Lint: 0 errors, 0 warnings
-- [ ] Type-check: 0 errors
-```
-
----
-
-## Naming Conventions
-
-| Item          | Pattern                             | Example                    |
-| ------------- | ----------------------------------- | -------------------------- |
-| Type file     | `{feature}Actions.types.ts`         | `feedbackActions.types.ts` |
-| Action file   | `{feature}Actions.ts`               | `feedbackActions.ts`       |
-| Query key     | `get{Resource}`                     | `getFeedbackList`          |
-| Mutation key  | `{action}{Resource}`                | `createFeedback`           |
-| Query hook    | `useGet{Resource}`                  | `useGetFeedbackList`       |
-| Mutation hook | `use{Action}{Resource}`             | `useCreateFeedback`        |
-| Request type  | `I{Action}{Resource}Params/Payload` | `ICreateFeedbackPayload`   |
-| Response type | `I{Resource}Response`               | `IFeedbackResponse`        |
+## Output Expectations
+
+Report:
+- digest status (reused/refreshed)
+- repo class and affected package
+- chosen API contract source
+- whether backend/spec context was local or requested from the user
+- quality gates run

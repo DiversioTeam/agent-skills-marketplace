@@ -1,4 +1,5 @@
-Sentry error monitoring guidance for the frontend.
+Sentry guidance for the frontend using the repo-local digest and local
+observability setup.
 
 ## Input
 
@@ -6,15 +7,13 @@ The user optionally provides: `$ARGUMENTS` (`debug`, `context`, or `verify`)
 
 ## Routing
 
-- `debug` - Investigate a Sentry error (read logs, find source, reproduce)
-- `context` - Add breadcrumbs or tags to improve future debugging
-- `verify` - Check Sentry is working (staging test route)
+- `debug` - Investigate a Sentry error using the repo’s real init/release flow
+- `context` - Add breadcrumbs or tags using the local abstraction
+- `verify` - Check Sentry is working if the repo actually uses it
 - (none) - Show architecture overview
 
 ## Quick Reference
 
-- **Add breadcrumb:** `Sentry.addBreadcrumb({ category, message, level, data })`
-- **Capture with context:** `Sentry.captureException(error, { tags, extra })`
-- **Profile operation:** `profileCriticalOperation('name', async () => { ... })`
-- **Feature area rules:** `FEATURE_AREA_RULES` in Sentry init file
-- **PII scrubbing:** Automatic - emails, tokens, employee IDs replaced
+- First confirm the repo actually uses Sentry.
+- Use the repo’s local bootstrap/wrapper/release flow.
+- Do not assume Vite, Redux, or URL-derived feature-area tagging.
