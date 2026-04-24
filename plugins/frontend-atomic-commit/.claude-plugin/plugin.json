@@ -1,6 +1,6 @@
 {
   "name": "frontend-atomic-commit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Digest-first frontend atomic-commit workflow that uses detected repo commands, workspace scope, and commit conventions instead of fixed Yarn/tsc assumptions.",
   "author": {
     "name": "Diversio Devs"

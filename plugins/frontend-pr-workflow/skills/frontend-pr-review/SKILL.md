@@ -23,8 +23,16 @@ Before reviewing:
    `docs/frontend-skill-digest/project-digest.md`.
 2. If the digest is missing, stale, or obviously inconsistent with the repo,
    run the `frontend-project-digest` workflow first.
-3. Read the review heuristics in
-   `references/bumang-frontend-review-taste.md`.
+3. If the digest is unavailable and cannot be created (the `frontend-bundle`
+   plugin is not installed), detect the minimum required context inline before
+   proceeding: package manager from lockfiles, framework from `package.json`
+   dependencies, test/lint commands from `package.json` scripts, workspace
+   layout from workspace config. Proceed with reduced confidence and note the
+   missing digest in output.
+4. Read the review heuristics in
+   `references/bumang-frontend-review-taste.md` (shipped with the
+   `frontend-bundle` plugin; if unavailable, apply the review priorities in
+   Step 4 below).
 
 Do not assume:
 - `dev` / `main`

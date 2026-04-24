@@ -12,7 +12,13 @@ Mixpanel-backed wrapper.
 
 1. Load `docs/frontend-skill-digest/project-digest.md`.
 2. Refresh it first if missing or stale.
-3. Check the detected analytics stack.
+3. If the digest is unavailable and cannot be created (the `frontend-bundle`
+   plugin is not installed), detect the minimum required context inline before
+   proceeding: package manager from lockfiles, framework from `package.json`
+   dependencies, test/lint commands from `package.json` scripts, workspace
+   layout from workspace config. Proceed with reduced confidence and note the
+   missing digest in output.
+4. Check the detected analytics stack.
 
 If the digest shows PostHog, Segment, RudderStack, or no analytics instead of
 Mixpanel, say so explicitly. Do not pretend the repo is Mixpanel-based.

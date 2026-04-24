@@ -11,7 +11,13 @@ Use this only when the repo’s observability stack actually includes Sentry.
 
 1. Load `docs/frontend-skill-digest/project-digest.md`.
 2. Refresh it first if missing or stale.
-3. Check the detected observability stack.
+3. If the digest is unavailable and cannot be created (the `frontend-bundle`
+   plugin is not installed), detect the minimum required context inline before
+   proceeding: package manager from lockfiles, framework from `package.json`
+   dependencies, test/lint commands from `package.json` scripts, workspace
+   layout from workspace config. Proceed with reduced confidence and note the
+   missing digest in output.
+4. Check the detected observability stack.
 
 If the repo uses another tool or no frontend error-monitoring tool, say so
 explicitly instead of forcing Sentry-specific advice.

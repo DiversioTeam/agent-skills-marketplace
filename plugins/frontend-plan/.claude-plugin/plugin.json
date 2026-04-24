@@ -1,6 +1,6 @@
 {
   "name": "frontend-plan",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Digest-first frontend planning workflow for app, design-system, and monorepo repos using detected branch and docs conventions instead of fixed defaults.",
   "author": {
     "name": "Diversio Devs"
