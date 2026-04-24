@@ -66,6 +66,17 @@ FETCH_REVIEW_THREADS = load_module_under_test()
 
 
 class FetchReviewThreadsTests(unittest.TestCase):
+    def test_parse_pr_url_supports_agent_skills_marketplace(self) -> None:
+        pr_ref = FETCH_REVIEW_THREADS.parse_pr_url(
+            "https://github.com/DiversioTeam/agent-skills-marketplace/pull/50"
+        )
+
+        self.assertEqual(pr_ref.owner, "DiversioTeam")
+        self.assertEqual(pr_ref.repo, "agent-skills-marketplace")
+        self.assertEqual(pr_ref.pr_number, 50)
+        self.assertEqual(pr_ref.alias, "asm")
+        self.assertEqual(pr_ref.submodule_path, "agent-skills-marketplace")
+
     def make_response(
         self,
         *,
@@ -87,6 +98,7 @@ class FetchReviewThreadsTests(unittest.TestCase):
                         "url": "https://github.com/DiversioTeam/agent-skills-marketplace/pull/50",
                         "title": "Thread helper test",
                         "state": "OPEN",
+                        "isDraft": False,
                         "body": "body",
                         "baseRefName": "main",
                         "headRefName": "branch",

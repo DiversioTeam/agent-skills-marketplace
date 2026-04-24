@@ -25,6 +25,8 @@ you provide:
 
 the plugin figures out:
   - review batch identity
+  - linked-pair metadata when two PRs must be reviewed together
+  - live PR head SHAs before local checkout
   - worktree reuse or preparation
   - thread-aware GitHub review history
   - durable local review context
@@ -60,6 +62,8 @@ The workflow is strongest when your prompt includes:
 - the PR URL
 - linked PR URLs when the change spans repos
 - whether this is `status`, `review`, `reassess`, or `post`
+- for linked PRs: why they are linked and which PR is authoritative if the
+  verdicts diverge
 - whether GitHub posting is allowed in this run
 
 Only mention a local worktree or submodule path when you explicitly want the
@@ -139,9 +143,15 @@ follows.
 ## Notes
 
 - The plugin uses a thread-aware GitHub acquisition helper when GitHub auth is
-  available.
+  available, and that deterministic path currently uses `gh`.
 - The cache is strongest when you reuse the same deterministic review worktree
   and batch state across passes.
+- Worktree prep should fail closed unless each review submodule is detached at
+  the exact PR head SHA being reviewed.
+- `post` should only run after current-head validation plus a prior substantive
+  pass on the same heads, and it should consume the live-state validation token
+  from that check while it is still fresh. That validation now re-reads GitHub
+  from the thread-helper artifact instead of trusting caller-typed state.
 - When posting is enabled, the worker revalidates the live PR and publishes the
   top-level review plus any validated inline comments atomically through local
   `gh` / `gh api`.

@@ -29,10 +29,10 @@ preflight
 resolve review batch
    |
    v
-prepare or reuse worktree
+fetch live PR context
    |
    v
-fetch thread-aware review history
+prepare or reuse worktree
    |
    v
 initialize / update structured state
@@ -64,13 +64,15 @@ What it checks:
 
 - monolith markers such as `.gitmodules` and the monolith scripts/docs
 - `git`, `uv`, and `git worktree`
-- optional GitHub auth via `gh auth status`
+- GitHub auth via `gh auth status` whenever a mode or PR URL is provided
 - sibling directory suitability for deterministic worktrees
 
 Example:
 
 ```bash
-uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py \
+  --mode review \
+  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779
 ```
 
 ### 2. `resolve_review_batch.py`
@@ -92,10 +94,12 @@ Why it exists:
 What it does:
 
 - parses GitHub PR URLs
-- maps repo names to the relevant monolith execution location
+- maps `(owner, repo)` pairs to the relevant monolith execution location from
+  one shared source of truth, including `DiversioTeam/agent-skills-marketplace`
   - most repos map to a submodule path
-  - `monolith` maps to the monolith root itself and therefore has no
+  - `DiversioTeam/monolith` maps to the monolith root itself and therefore has no
     submodule path
+- carries the selected mode into the resolved batch payload
 - derives a deterministic batch key such as `bk2779-of389`
 - derives the worktree path, review artifact path, reassessment path, and state
   file path
@@ -105,16 +109,20 @@ What it does:
   external worktree root instead of creating them as siblings to the monolith
   checkout
 - rejects duplicate PR inputs and same-repo linked pairs in v1
+- requires linked-pair metadata for linked cross-repo review batches
 - fails clearly when it cannot discover a real monolith root
 
 Example:
 
 ```bash
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
+  --mode review \
   --review-root "$HOME/.local/state/diversio-monolith/auto-reviewer/reviews" \
   --worktree-root "$HOME/.local/state/diversio-monolith/auto-reviewer/worktrees" \
   --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
+  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389 \
+  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
+  --authoritative-pr Django4Lyfe:2779
 ```
 
 Why `--review-root` exists:
@@ -131,6 +139,9 @@ Why `--worktree-root` exists:
 - an unattended worker should not accidentally collide with those human-owned
   paths
 - a dedicated worker-owned worktree root makes cleanup and debugging easier
+
+This helper now mirrors preflight's sibling-worktree root discovery instead of
+requiring the caller to stand in the monolith root specifically.
 
 ### 3. `prepare_review_worktree.py`
 
@@ -152,7 +163,11 @@ What it does:
 - creates one detached worktree, or reuses an existing registered one
 - initializes only the explicitly listed review-batch submodules in that
   worktree
-- blocks dirty reuse unless explicitly allowed
+- blocks dirty reuse unless explicitly allowed, but does not treat the expected
+  detached review-target submodule SHA drift as generic dirtiness
+- fetches and detaches each review submodule at the exact expected PR head SHA
+- fails closed if a submodule cannot be matched to the requested PR head
+- rejects duplicate `--review-target` values for the same submodule path
 
 Important non-goal:
 
@@ -169,10 +184,14 @@ Example:
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
   --monolith-root "$MONOLITH_ROOT" \
   --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
-  --submodule-path backend \
-  --submodule-path optimo-frontend \
+  --review-target "backend:2779:<backend-head-sha>:<backend-head-ref-name>" \
+  --review-target "optimo-frontend:389:<optimo-head-sha>:<optimo-head-ref-name>" \
   --start-ref HEAD
 ```
+
+If the helper must fall back to the pull-ref fetch path, it now infers the
+remote from the preferred ref or the configured remotes instead of hardcoding
+`origin`.
 
 ### 4. `fetch_review_threads.py`
 
@@ -197,6 +216,8 @@ What it does:
 - paginates PR comments, review submissions, and review threads
 - follows up for extra thread-comment pages when a thread has more than the
   first page of comments
+- enforces the same v1 scope as the batch resolver: one PR or one linked
+  cross-repo pair under the known Diversio repos
 - emits normalized thread-aware JSON keyed by repo and PR number
 
 Why the helper owns this instead of leaving it to prompts:
@@ -242,7 +263,12 @@ Why it exists:
 What it does:
 
 - initializes one structured state file for a batch
+- enforces the same v1 batch scope as `resolve_review_batch.py`
 - summarizes the latest reusable review context for reassessment/posting
+- validates live GitHub PR metadata against the latest recorded substantive
+  batch identity by re-reading GitHub from the supplied `fetch_review_threads.py`
+  artifact
+- emits a one-time validation token that `mode=post` must consume
 - records one completed batch-scoped review pass
 - records one completed review pass plus compact review context from stdin JSON
 - rejects review-pass records for PRs outside the batch
@@ -282,24 +308,16 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
   --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
   --pr Django4Lyfe:2779 \
-  --pr Optimo-Frontend:389
+  --pr Optimo-Frontend:389 \
+  --link-type explicit_cross_repo_pair \
+  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
+  --authoritative-pr Django4Lyfe:2779
 ```
 
 If the state file already exists and you intentionally want to replace it:
 
 ```bash
 uv run --script .../review_state.py init --force ...
-```
-
-Batch-scoped pass recording example:
-
-```bash
-uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py record-pass \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
-  --review-target "Django4Lyfe:2779:main:<backend-head-sha>:<backend-merge-base-sha>" \
-  --review-target "Optimo-Frontend:389:main:<optimo-head-sha>:<optimo-merge-base-sha>" \
-  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
-  --posting-status not_posted
 ```
 
 Compact context read example:
@@ -309,6 +327,21 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   summarize-context \
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
 ```
+
+Live-state validation example:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  validate-live-state \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
+  --pr-context-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/pr-context-bk2779-of389.json"
+```
+
+For posting, take the returned `token` and include it as
+`validation_token` in the `record-review` payload for `mode=post`. That proof is
+time-limited and must still be fresh when posting occurs. It is now sourced from
+structured live GitHub metadata, not caller-typed entries. The current
+live-validation proof covers base branch, head SHA, PR state, and draft state.
 
 Rich review-context write example:
 
@@ -328,16 +361,38 @@ cat <<EOF | uv run --script plugins/monolith-review-orchestrator/skills/monolith
       "pr_number": 2779,
       "base_branch": "main",
       "head_sha": "<backend-head-sha>",
-      "merge_base": "<backend-merge-base>"
+      "merge_base": "<backend-merge-base>",
+      "pr_state": "OPEN",
+      "is_draft": false
     },
     {
       "repo": "Optimo-Frontend",
       "pr_number": 389,
       "base_branch": "main",
       "head_sha": "<optimo-head-sha>",
-      "merge_base": "<optimo-merge-base>"
+      "merge_base": "<optimo-merge-base>",
+      "pr_state": "OPEN",
+      "is_draft": false
     }
   ],
+  "backend_handoff": {
+    "repo": "Django4Lyfe",
+    "pr_number": 2779,
+    "worktree_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389",
+    "pr_url": "https://github.com/DiversioTeam/Django4Lyfe/pull/2779",
+    "head_sha": "<backend-head-sha>",
+    "prior_open_finding_ids": [],
+    "thread_context_summary": "Fetched full GitHub thread history before invoking monty."
+  },
+  "no_author_claims": true,
+  "no_findings_after_full_review": true,
+  "comment_context": {
+    "thread_source": "gh_graphql",
+    "summary": "Read all GitHub review threads, including resolved ones, before concluding the pass.",
+    "resolved_for_context": [
+      "A resolved earlier thread still explains why the helper now owns the PR ref validation."
+    ]
+  },
   "findings": {
     "new": [],
     "carried_forward": [],
@@ -355,27 +410,39 @@ cat <<EOF | uv run --script plugins/monolith-review-orchestrator/skills/monolith
   record-review \
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
 {
-  "mode": "post",
+  "mode": "review",
   "artifact_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
   "posting_status": "not_posted",
   "recommendation": "request_changes",
-  "scope_summary": "Prepared the final review draft and one stable inline anchor.",
+  "scope_summary": "Recorded one active finding and one stable inline anchor during the initial review pass.",
   "entries": [
     {
       "repo": "Django4Lyfe",
       "pr_number": 2779,
       "base_branch": "main",
       "head_sha": "<backend-head-sha>",
-      "merge_base": "<backend-merge-base>"
+      "merge_base": "<backend-merge-base>",
+      "pr_state": "OPEN",
+      "is_draft": false
     },
     {
       "repo": "Optimo-Frontend",
       "pr_number": 389,
       "base_branch": "main",
       "head_sha": "<optimo-head-sha>",
-      "merge_base": "<optimo-merge-base>"
+      "merge_base": "<optimo-merge-base>",
+      "pr_state": "OPEN",
+      "is_draft": false
     }
   ],
+  "no_author_claims": true,
+  "comment_context": {
+    "thread_source": "gh_graphql",
+    "summary": "Read all review threads before recording the inline anchor plan.",
+    "resolved_for_context": [
+      "An earlier resolved thread still explains why this inline anchor belongs on the active frontend finding."
+    ]
+  },
   "findings": {
     "new": [
       {
@@ -416,10 +483,16 @@ Guardrails:
 - `entries` must cover the full batch, not just one side of a linked PR pair
 - `inline_comment_targets[].finding_id` must point at an active `new` or
   `carried_forward` finding ID
-- `summarize-context` merges durable context across recent passes instead of
-  exposing only the latest pass's thread notes and teaching points
+- `summarize-context` merges durable context across all passes and only trims at
+  the item level for compact output
 - incomplete persisted linked-batch passes should fail normalization instead of
   being silently upgraded
+- `mode=post` must reuse the latest validated recommendation and active finding
+  set instead of inventing a new verdict at write time
+- `backend_handoff` must match the backend batch entry's PR, SHA, recommendation,
+  and recorded worktree path
+- `record-pass` is disabled for normal review runs and only available behind
+  `--compatibility-only --justification`
 
 ## What These Helpers Do Not Solve Yet
 
@@ -441,9 +514,9 @@ For a normal review run:
 
 ```bash
 uv run --script .../preflight_review_env.py
-uv run --script .../resolve_review_batch.py --pr-url ...
-uv run --script .../prepare_review_worktree.py --monolith-root ... --worktree-path ... --submodule-path ...
+uv run --script .../resolve_review_batch.py --mode review --pr-url ...
 uv run --script .../fetch_review_threads.py --pr-url ...
+uv run --script .../prepare_review_worktree.py --monolith-root ... --worktree-path ... --review-target ...
 uv run --script .../review_state.py init ...
 ```
 
@@ -451,6 +524,7 @@ For reassessment:
 
 ```bash
 uv run --script .../review_state.py summarize-context --state-path ...
+uv run --script .../review_state.py validate-live-state --state-path ... --pr-context-path ...
 ```
 
 Then load the stored identity before comparing new commits or writing a new
