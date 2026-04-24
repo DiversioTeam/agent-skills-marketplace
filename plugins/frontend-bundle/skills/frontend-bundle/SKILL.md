@@ -54,7 +54,7 @@ Apply:
 - repo workflow conventions from the digest
 - detected styling / framework / testing / package-manager context
 - the frontend review taste captured in
-  `references/bumang-frontend-review-taste.md`
+  `../frontend-project-digest/references/bumang-frontend-review-taste.md`
 
 Focus on:
 - shipped contract vs intended contract
