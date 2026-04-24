@@ -103,6 +103,68 @@ class ReviewStateContractTests(unittest.TestCase):
             "test identities",
         )
 
+    def test_read_json_synthesizes_legacy_summary_for_schema_two_findings(self) -> None:
+        payload = {
+            "schema_version": 2,
+            "batch_key": "asm-59",
+            "created_at_utc": "2026-04-24T00:00:00Z",
+            "updated_at_utc": "2026-04-24T00:00:00Z",
+            "worktree_path": "/tmp/monolith-review-asm-59",
+            "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+            "posting_status": "not_posted",
+            "prs": [{"repo": "agent-skills-marketplace", "pr_number": 59}],
+            "passes": [
+                {
+                    "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+                    "posting_status": "not_posted",
+                    "recorded_at_utc": "2026-04-24T00:00:00Z",
+                    "review_pass_number": 1,
+                    "entries": [
+                        {
+                            "repo": "agent-skills-marketplace",
+                            "pr_number": 59,
+                            "base_branch": "main",
+                            "head_sha": "6557e6c",
+                            "merge_base": "9d1c6e1c",
+                        }
+                    ],
+                    "findings": {
+                        "new": [
+                            {
+                                "id": "legacy-finding-without-summary",
+                                "path": "plugins/example.py",
+                            }
+                        ],
+                        "carried_forward": [],
+                        "resolved": [],
+                        "moot": [],
+                    },
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "state.json"
+            state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            normalized = REVIEW_STATE.read_json(state_path)
+
+        finding = normalized["passes"][0]["findings"]["new"][0]
+        self.assertEqual(
+            finding["summary"],
+            "Legacy finding `legacy-finding-without-summary` (plugins/example.py)",
+        )
+        self.assertEqual(normalized["schema_version"], REVIEW_STATE.SCHEMA_VERSION)
+
+    def test_normalize_findings_still_requires_summary_for_current_writes(self) -> None:
+        with self.assertRaises(REVIEW_STATE.click.ClickException) as exc_info:
+            REVIEW_STATE.normalize_findings(
+                {"new": [{"id": "missing-summary"}]},
+                {("agent-skills-marketplace", 59)},
+            )
+
+        self.assertIn("findings.new[0].summary", str(exc_info.exception))
+
     def test_backend_handoff_pr_url_requires_exact_pr_number(self) -> None:
         REVIEW_STATE.validate_backend_handoff_pr_url(
             "https://github.com/DiversioTeam/Django4Lyfe/pull/1/files",

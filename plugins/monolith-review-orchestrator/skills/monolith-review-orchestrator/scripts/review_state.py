@@ -491,12 +491,16 @@ def read_json(path: Path) -> ReviewStateRecord:
             f"found {raw_schema_version}, supported versions are {supported_versions}. "
             f"Upgrade/migrate the state file or remove {path} and rerun the command."
         )
-    normalized = normalize_state_record(data)
+    normalized = normalize_state_record(
+        data, source_schema_version=raw_schema_version
+    )
     parse_prs_from_state(normalized)
     return normalized
 
 
-def normalize_state_record(payload: object) -> ReviewStateRecord:
+def normalize_state_record(
+    payload: object, *, source_schema_version: int | None = None
+) -> ReviewStateRecord:
     """Normalize older on-disk state into the current in-memory shape.
 
     First principle:
@@ -558,6 +562,10 @@ def normalize_state_record(payload: object) -> ReviewStateRecord:
                     known_prs,
                     normalized_passes,
                     normalized.get("worktree_path"),
+                    allow_legacy_missing_finding_summary=bool(
+                        source_schema_version is not None
+                        and source_schema_version < SCHEMA_VERSION
+                    ),
                 )
             )
         normalized["passes"] = normalized_passes
@@ -1239,8 +1247,25 @@ def normalize_comment_context(
     return normalized or None
 
 
+def synthesize_legacy_finding_summary(finding: ReviewFinding) -> str:
+    location_parts = [
+        part
+        for part in (finding.get("path"), finding.get("symbol"))
+        if isinstance(part, str) and part
+    ]
+    if location_parts:
+        return f"Legacy finding `{finding['id']}` ({', '.join(location_parts)})"
+    severity = finding.get("severity")
+    if isinstance(severity, str) and severity:
+        return f"Legacy {severity} finding `{finding['id']}`"
+    return f"Legacy finding `{finding['id']}`"
+
+
 def normalize_findings(
-    value: object, known_prs: set[tuple[str, int]]
+    value: object,
+    known_prs: set[tuple[str, int]],
+    *,
+    allow_legacy_missing_summary: bool = False,
 ) -> ReviewFindings:
     if value is None:
         return {bucket: [] for bucket in FINDING_BUCKETS}
@@ -1284,9 +1309,6 @@ def normalize_findings(
                 "repo": repo,
                 "pr_number": pr_number,
                 "id": finding_id,
-                "summary": require_non_empty_string(
-                    item.get("summary"), f"findings.{bucket}[{index}].summary"
-                ),
             }
             for key in (
                 "severity",
@@ -1300,6 +1322,18 @@ def normalize_findings(
                 )
                 if normalized_value is not None:
                     finding[key] = normalized_value
+            summary = optional_non_empty_string(
+                item.get("summary"), f"findings.{bucket}[{index}].summary"
+            )
+            if summary is None:
+                if allow_legacy_missing_summary:
+                    summary = synthesize_legacy_finding_summary(finding)
+                else:
+                    raise click.ClickException(
+                        "Review payload is missing non-empty string "
+                        f"`findings.{bucket}[{index}].summary`."
+                    )
+            finding["summary"] = summary
             bucket_entries.append(finding)
         normalized[bucket] = bucket_entries
     return normalized
@@ -1611,6 +1645,8 @@ def normalize_persisted_review_pass(
     known_prs: set[tuple[str, int]],
     existing_passes: list[ReviewPassRecord],
     state_worktree_path: str | None,
+    *,
+    allow_legacy_missing_finding_summary: bool = False,
 ) -> ReviewPassRecord:
     if not isinstance(value, dict):
         raise click.ClickException(
@@ -1681,7 +1717,11 @@ def normalize_persisted_review_pass(
     if cross_repo_summary is not None:
         normalized["cross_repo_summary"] = cross_repo_summary
 
-    findings = normalize_findings(value.get("findings"), known_prs)
+    findings = normalize_findings(
+        value.get("findings"),
+        known_prs,
+        allow_legacy_missing_summary=allow_legacy_missing_finding_summary,
+    )
     normalized["findings"] = findings
 
     all_finding_ids = {

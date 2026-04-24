@@ -410,27 +410,39 @@ cat <<EOF | uv run --script plugins/monolith-review-orchestrator/skills/monolith
   record-review \
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
 {
-  "mode": "post",
+  "mode": "review",
   "artifact_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
   "posting_status": "not_posted",
   "recommendation": "request_changes",
-  "scope_summary": "Prepared the final review draft and one stable inline anchor.",
+  "scope_summary": "Recorded one active finding and one stable inline anchor during the initial review pass.",
   "entries": [
     {
       "repo": "Django4Lyfe",
       "pr_number": 2779,
       "base_branch": "main",
       "head_sha": "<backend-head-sha>",
-      "merge_base": "<backend-merge-base>"
+      "merge_base": "<backend-merge-base>",
+      "pr_state": "OPEN",
+      "is_draft": false
     },
     {
       "repo": "Optimo-Frontend",
       "pr_number": 389,
       "base_branch": "main",
       "head_sha": "<optimo-head-sha>",
-      "merge_base": "<optimo-merge-base>"
+      "merge_base": "<optimo-merge-base>",
+      "pr_state": "OPEN",
+      "is_draft": false
     }
   ],
+  "no_author_claims": true,
+  "comment_context": {
+    "thread_source": "gh_graphql",
+    "summary": "Read all review threads before recording the inline anchor plan.",
+    "resolved_for_context": [
+      "An earlier resolved thread still explains why this inline anchor belongs on the active frontend finding."
+    ]
+  },
   "findings": {
     "new": [
       {
