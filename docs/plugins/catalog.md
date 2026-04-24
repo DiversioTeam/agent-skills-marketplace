@@ -164,3 +164,82 @@ when command files change.
   - Skill path:
     `plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill`
   - Slash commands: `/login-cta-attribution-skill:implement`
+
+## Frontend
+
+- `frontend-bundle`
+  - Purpose: recommended install-once frontend bundle with repo classification,
+    persistent `docs/frontend-skill-digest/` memory, and routing for review,
+    API, testing, analytics, observability, CI/CD, planning, and commit work.
+  - Claude install:
+    `claude plugin install frontend-bundle@diversiotech`
+  - Skill paths:
+    `plugins/frontend-bundle/skills/frontend-bundle`,
+    `plugins/frontend-bundle/skills/frontend-project-digest`
+  - Slash commands: `/frontend-bundle:frontend`,
+    `/frontend-bundle:refresh-digest`
+- `frontend-atomic-commit`
+  - Purpose: digest-first frontend pre-commit and atomic-commit using detected
+    repo commands, workspace scope, and commit conventions.
+  - Claude install:
+    `claude plugin install frontend-atomic-commit@diversiotech`
+  - Skill path:
+    `plugins/frontend-atomic-commit/skills/frontend-atomic-commit`
+  - Slash commands: `/frontend-atomic-commit:pre-commit`,
+    `/frontend-atomic-commit:atomic-commit`
+- `frontend-pr-workflow`
+  - Purpose: digest-first frontend PR creation and review for app,
+    design-system, and monorepo repos.
+  - Claude install:
+    `claude plugin install frontend-pr-workflow@diversiotech`
+  - Skill paths:
+    `plugins/frontend-pr-workflow/skills/frontend-pr-workflow`,
+    `plugins/frontend-pr-workflow/skills/frontend-pr-review`
+  - Slash commands: `/frontend-pr-workflow:create-pr`,
+    `/frontend-pr-workflow:pr-review`
+- `frontend-testing`
+  - Purpose: digest-first testing guidance that chooses the repo’s real
+    unit/component/E2E stack and preview target.
+  - Claude install:
+    `claude plugin install frontend-testing@diversiotech`
+  - Skill path: `plugins/frontend-testing/skills/frontend-testing`
+  - Reference: `plugins/frontend-testing/skills/frontend-testing/references/e2e-debugging.md`
+  - Slash commands: `/frontend-testing:run-e2e-local`
+- `frontend-api-integrator`
+  - Purpose: digest-first API integration using the repo’s real contract source:
+    generated client, OpenAPI/Swagger, Bruno/Postman, local backend code, or a
+    provided backend path.
+  - Claude install:
+    `claude plugin install frontend-api-integrator@diversiotech`
+  - Skill path:
+    `plugins/frontend-api-integrator/skills/frontend-api-integrator`
+  - Slash commands: `/frontend-api-integrator:api-integrator`
+- `frontend-mixpanel`
+  - Purpose: digest-first Mixpanel workflow that first verifies Mixpanel exists
+    locally and then follows the repo’s tracking layer and privacy rules.
+  - Claude install:
+    `claude plugin install frontend-mixpanel@diversiotech`
+  - Skill path: `plugins/frontend-mixpanel/skills/frontend-mixpanel`
+  - Slash commands: `/frontend-mixpanel:implement`,
+    `/frontend-mixpanel:review`
+- `frontend-sentry`
+  - Purpose: digest-first Sentry workflow that first verifies Sentry is present
+    and then adapts to local bootstrap, release, and privacy patterns.
+  - Claude install:
+    `claude plugin install frontend-sentry@diversiotech`
+  - Skill path: `plugins/frontend-sentry/skills/frontend-sentry`
+  - Slash commands: `/frontend-sentry:sentry`
+- `frontend-cicd`
+  - Purpose: digest-first frontend CI/CD workflow that detects the repo’s real
+    CI provider, deploy target, and preview platform.
+  - Claude install:
+    `claude plugin install frontend-cicd@diversiotech`
+  - Skill path: `plugins/frontend-cicd/skills/frontend-cicd`
+  - Slash commands: `/frontend-cicd:cicd`
+- `frontend-plan`
+  - Purpose: digest-first frontend planning workflow using detected branch and
+    docs conventions instead of fixed defaults.
+  - Claude install:
+    `claude plugin install frontend-plan@diversiotech`
+  - Skill path: `plugins/frontend-plan/skills/frontend-plan`
+  - Slash commands: `/frontend-plan:plan`, `/frontend-plan:new-branch`

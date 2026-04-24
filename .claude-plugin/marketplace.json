@@ -204,6 +204,105 @@
       "source": "./plugins/login-cta-attribution-skill",
       "category": "code-analysis",
       "keywords": ["django", "cta", "attribution", "login", "tracking", "slack", "teams", "email", "optimo", "diversio"]
+    },
+    {
+      "name": "frontend-bundle",
+      "description": "Repo-agnostic frontend bundle with a persistent project digest, dynamic repo detection, and routing for review, API, testing, analytics, observability, CI/CD, and planning workflows.",
+      "version": "0.1.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-bundle",
+      "category": "process",
+      "keywords": ["frontend", "bundle", "digest", "react", "monorepo", "design-system", "workflow", "diversio"]
+    },
+    {
+      "name": "frontend-atomic-commit",
+      "description": "Digest-first frontend atomic-commit workflow that uses detected repo commands, workspace scope, and commit conventions instead of fixed Yarn/tsc assumptions.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-atomic-commit",
+      "category": "process",
+      "keywords": ["frontend", "react", "typescript", "pre-commit", "atomic-commit", "digest", "monorepo", "diversio"]
+    },
+    {
+      "name": "frontend-pr-workflow",
+      "description": "Digest-first frontend PR creation and review workflow for app, design-system, and monorepo repos using detected branch models, quality gates, and review priorities.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-pr-workflow",
+      "category": "process",
+      "keywords": ["frontend", "pull-request", "code-review", "digest", "design-system", "monorepo", "github", "diversio"]
+    },
+    {
+      "name": "frontend-testing",
+      "description": "Digest-first frontend testing workflow that chooses the repo's real unit, component, and E2E stack, package scope, and preview target instead of fixed assumptions.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-testing",
+      "category": "code-analysis",
+      "keywords": ["frontend", "testing", "unit-tests", "e2e", "digest", "monorepo", "design-system", "diversio"]
+    },
+    {
+      "name": "frontend-api-integrator",
+      "description": "Digest-first frontend API integration workflow that detects generated clients, Swagger/OpenAPI, Bruno/Postman, monolith backend code, or external backend paths before scaffolding.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-api-integrator",
+      "category": "code-analysis",
+      "keywords": ["frontend", "api", "openapi", "swagger", "bruno", "monorepo", "typescript", "diversio"]
+    },
+    {
+      "name": "frontend-mixpanel",
+      "description": "Digest-first Mixpanel workflow for frontend repos that first verifies Mixpanel exists locally and then matches the repo's tracking layer and privacy rules.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-mixpanel",
+      "category": "code-analysis",
+      "keywords": ["frontend", "mixpanel", "analytics", "privacy", "tracking", "digest", "diversio"]
+    },
+    {
+      "name": "frontend-sentry",
+      "description": "Digest-first Sentry workflow for frontend repos that first verifies Sentry is present and then adapts to local bootstrap, release, and privacy patterns.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-sentry",
+      "category": "code-analysis",
+      "keywords": ["frontend", "sentry", "error-monitoring", "observability", "debugging", "digest", "diversio"]
+    },
+    {
+      "name": "frontend-cicd",
+      "description": "Digest-first frontend CI/CD workflow that detects the repo's real CI provider, deploy target, preview platform, and local reproduction commands.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-cicd",
+      "category": "process",
+      "keywords": ["frontend", "cicd", "github-actions", "deployments", "preview", "monorepo", "diversio"]
+    },
+    {
+      "name": "frontend-plan",
+      "description": "Digest-first frontend planning workflow for app, design-system, and monorepo repos using detected branch and docs conventions instead of fixed defaults.",
+      "version": "0.2.2",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend-plan",
+      "category": "process",
+      "keywords": ["frontend", "planning", "feature", "design-system", "monorepo", "implementation", "scoping", "diversio"]
     }
   ]
 }
