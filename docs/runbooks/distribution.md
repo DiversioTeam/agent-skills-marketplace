@@ -60,15 +60,7 @@ PLUGINS=(
   dependabot-remediation
   terraform
   login-cta-attribution-skill
-  frontend-bundle
-  frontend-atomic-commit
-  frontend-pr-workflow
-  frontend-testing
-  frontend-api-integrator
-  frontend-mixpanel
-  frontend-sentry
-  frontend-cicd
-  frontend-plan
+  frontend
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -108,15 +100,7 @@ PLUGINS=(
   dependabot-remediation
   terraform
   login-cta-attribution-skill
-  frontend-bundle
-  frontend-atomic-commit
-  frontend-pr-workflow
-  frontend-testing
-  frontend-api-integrator
-  frontend-mixpanel
-  frontend-sentry
-  frontend-cicd
-  frontend-plan
+  frontend
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -219,17 +203,7 @@ SKILLS=(
   terraform-atomic-commit
   terraform-pr-workflow
   login-cta-attribution-skill
-  frontend-bundle
-  frontend-project-digest
-  frontend-atomic-commit
-  frontend-pr-workflow
-  frontend-pr-review
-  frontend-testing
-  frontend-api-integrator
-  frontend-mixpanel
-  frontend-sentry
-  frontend-cicd
-  frontend-plan
+  frontend
 )
 
 for skill in "${SKILLS[@]}"; do
