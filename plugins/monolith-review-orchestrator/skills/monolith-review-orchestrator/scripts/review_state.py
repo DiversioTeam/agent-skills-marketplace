@@ -62,6 +62,12 @@ CONTEXT_LIST_FIELDS: tuple[str, ...] = (
     "follow_up",
 )
 LEGACY_CONTEXT_LIST_FIELDS: tuple[str, ...] = ("moot_or_resolved",)
+CURRENT_STATUS_CONTEXT_FIELDS: tuple[str, ...] = (
+    "still_legit",
+    "moot_or_no_longer_applicable",
+    "follow_up",
+)
+DURABLE_CONTEXT_LIST_FIELDS: tuple[str, ...] = ("resolved_for_context",)
 
 FINDING_BUCKETS: tuple[str, ...] = ("new", "carried_forward", "resolved", "moot")
 ReviewThreadStatus = Literal["open", "resolved", "moot"]
@@ -563,6 +569,10 @@ def normalize_state_record(
                     normalized_passes,
                     normalized.get("worktree_path"),
                     allow_legacy_missing_finding_summary=bool(
+                        source_schema_version is not None
+                        and source_schema_version < SCHEMA_VERSION
+                    ),
+                    allow_legacy_public_mode_contract_gaps=bool(
                         source_schema_version is not None
                         and source_schema_version < SCHEMA_VERSION
                     ),
@@ -1647,6 +1657,7 @@ def normalize_persisted_review_pass(
     state_worktree_path: str | None,
     *,
     allow_legacy_missing_finding_summary: bool = False,
+    allow_legacy_public_mode_contract_gaps: bool = False,
 ) -> ReviewPassRecord:
     if not isinstance(value, dict):
         raise click.ClickException(
@@ -1786,6 +1797,18 @@ def normalize_persisted_review_pass(
         normalized["inline_comment_targets"] = inline_comment_targets
 
     persisted_mode = normalized.get("mode")
+    legacy_read_compat = bool(
+        allow_legacy_public_mode_contract_gaps
+        and persisted_mode in {"status", "review", "reassess"}
+    )
+    if legacy_read_compat and persisted_mode in {"review", "reassess"}:
+        if (
+            "no_findings_after_full_review" not in normalized
+            and total_finding_count(findings) == 0
+        ):
+            normalized["no_findings_after_full_review"] = True
+        if "no_author_claims" not in normalized and not author_claims_checked:
+            normalized["no_author_claims"] = True
     if persisted_mode in PUBLIC_MODES:
         validate_review_requirements(
             mode=persisted_mode,
@@ -1806,6 +1829,7 @@ def normalize_persisted_review_pass(
             enforce_artifact_existence=False,
             require_post_validation_proof=False,
             require_pr_lifecycle=False,
+            require_comment_context_evidence=not legacy_read_compat,
         )
 
     return normalized
@@ -1917,11 +1941,13 @@ def merge_comment_context_history(
     merged: CommentContext = {}
     merged_threads: dict[str, ReviewThreadContext] = {}
     thread_order: list[str] = []
+    latest_context: CommentContext | None = None
 
     for pass_record in passes:
         context = pass_record.get("comment_context")
         if not isinstance(context, dict):
             continue
+        latest_context = context
 
         thread_source = context.get("thread_source")
         if isinstance(thread_source, str) and thread_source.strip():
@@ -1943,7 +1969,7 @@ def merge_comment_context_history(
                     thread_order.append(thread_key)
                 merged_threads[thread_key] = thread
 
-        for key in CONTEXT_LIST_FIELDS:
+        for key in DURABLE_CONTEXT_LIST_FIELDS:
             raw_items = context.get(key, [])
             if not isinstance(raw_items, list):
                 continue
@@ -1953,6 +1979,17 @@ def merge_comment_context_history(
             if not valid_items:
                 continue
             merged[key] = merge_unique_strings(merged.get(key, []), valid_items)
+
+    if isinstance(latest_context, dict):
+        for key in CURRENT_STATUS_CONTEXT_FIELDS:
+            raw_items = latest_context.get(key, [])
+            if not isinstance(raw_items, list):
+                continue
+            valid_items = [
+                item for item in raw_items if isinstance(item, str) and item.strip()
+            ]
+            if valid_items:
+                merged[key] = valid_items
 
     if thread_order:
         selected_thread_keys = (
@@ -2147,6 +2184,7 @@ def validate_review_requirements(
     enforce_artifact_existence: bool = True,
     require_post_validation_proof: bool = True,
     require_pr_lifecycle: bool = True,
+    require_comment_context_evidence: bool = True,
 ) -> None:
     if enforce_artifact_existence:
         ensure_artifact_exists(artifact_path)
@@ -2177,7 +2215,9 @@ def validate_review_requirements(
         )
 
     if mode == "status":
-        if not has_comment_context_evidence(comment_context):
+        if require_comment_context_evidence and not has_comment_context_evidence(
+            comment_context
+        ):
             raise click.ClickException(
                 "`status` review payloads must include non-empty `comment_context` evidence."
             )
@@ -2189,7 +2229,9 @@ def validate_review_requirements(
             )
 
     if mode in {"review", "reassess"}:
-        if not has_comment_context_evidence(comment_context):
+        if require_comment_context_evidence and not has_comment_context_evidence(
+            comment_context
+        ):
             raise click.ClickException(
                 f"`{mode}` review payloads must include non-empty `comment_context` evidence."
             )
@@ -2654,19 +2696,9 @@ def summarize_context(
     click.echo(json.dumps(summary, indent=2, sort_keys=True))
 
 
-@cli.command("validate-live-state")
-@click.option(
-    "--state-path", type=click.Path(path_type=Path, exists=True), required=True
-)
-@click.option(
-    "--pr-context-path",
-    type=click.Path(path_type=Path, exists=True),
-    required=True,
-    help="Structured output from fetch_review_threads.py for the current live PR state.",
-)
-def validate_live_state(state_path: Path, pr_context_path: Path) -> None:
-    """Fail closed if live PR refs drifted from the latest recorded batch state."""
-
+def build_live_state_comparison(
+    state_path: Path, pr_context_path: Path
+) -> tuple[ReviewStateRecord, ReviewPassRecord, list[ReviewPassEntry], list[dict[str, object]]]:
     path = state_path.expanduser().resolve()
     payload = read_json(path)
     known_prs = parse_prs_from_state(payload)
@@ -2678,7 +2710,7 @@ def validate_live_state(state_path: Path, pr_context_path: Path) -> None:
     latest_pass = latest_substantive_pass(passes)
     if latest_pass is None:
         raise click.ClickException(
-            "Cannot validate live state before at least one substantive review pass is recorded."
+            "Cannot compare live state before at least one substantive review pass is recorded."
         )
     latest_entries = latest_pass.get("entries")
     if not isinstance(latest_entries, list) or not latest_entries:
@@ -2693,7 +2725,9 @@ def validate_live_state(state_path: Path, pr_context_path: Path) -> None:
         "Latest substantive pass entries",
     )
     supplied_artifact = parse_live_pr_context_artifact(pr_context_path, known_prs)
-    pr_urls = [supplied_artifact[identity]["pr_url"] for identity in sorted(supplied_artifact)]
+    pr_urls = [
+        supplied_artifact[identity]["pr_url"] for identity in sorted(supplied_artifact)
+    ]
     live_metadata_map = fetch_live_pr_context_from_github(pr_urls, known_prs)
 
     latest_map = entry_identity_map(normalized_latest_entries)
@@ -2741,6 +2775,65 @@ def validate_live_state(state_path: Path, pr_context_path: Path) -> None:
             drift["status"] = "draft_state_mismatch"
             mismatches.append(drift)
 
+    return (
+        payload,
+        latest_pass,
+        [live_map[identity] for identity in sorted(live_map)],
+        mismatches,
+    )
+
+
+@cli.command("report-live-drift")
+@click.option(
+    "--state-path", type=click.Path(path_type=Path, exists=True), required=True
+)
+@click.option(
+    "--pr-context-path",
+    type=click.Path(path_type=Path, exists=True),
+    required=True,
+    help="Structured output from fetch_review_threads.py for the current live PR state.",
+)
+def report_live_drift(state_path: Path, pr_context_path: Path) -> None:
+    """Report live PR drift for reassessment without writing a validation token."""
+
+    _payload, latest_pass, live_entries, mismatches = build_live_state_comparison(
+        state_path, pr_context_path
+    )
+    click.echo(
+        json.dumps(
+            {
+                "status": "drifted" if mismatches else "matched",
+                "validated_against_pass_number": require_non_boolean_int(
+                    latest_pass.get("review_pass_number"),
+                    "latest_pass.review_pass_number",
+                ),
+                "entries": live_entries,
+                "mismatches": mismatches,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@cli.command("validate-live-state")
+@click.option(
+    "--state-path", type=click.Path(path_type=Path, exists=True), required=True
+)
+@click.option(
+    "--pr-context-path",
+    type=click.Path(path_type=Path, exists=True),
+    required=True,
+    help="Structured output from fetch_review_threads.py for the current live PR state.",
+)
+def validate_live_state(state_path: Path, pr_context_path: Path) -> None:
+    """Fail closed if live PR refs drifted from the latest recorded batch state."""
+
+    path = state_path.expanduser().resolve()
+    payload, latest_pass, live_entries, mismatches = build_live_state_comparison(
+        path, pr_context_path
+    )
+
     if mismatches:
         mismatch_json = json.dumps(mismatches, indent=2, sort_keys=True)
         raise click.ClickException(
@@ -2755,7 +2848,7 @@ def validate_live_state(state_path: Path, pr_context_path: Path) -> None:
         "validated_against_pass_number": require_non_boolean_int(
             latest_pass.get("review_pass_number"), "latest_pass.review_pass_number"
         ),
-        "entries": [live_map[identity] for identity in sorted(live_map)],
+        "entries": live_entries,
         "source_artifact_path": str(pr_context_path.expanduser().resolve()),
     }
     payload["pending_live_validation"] = validation_record

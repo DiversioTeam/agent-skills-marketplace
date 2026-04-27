@@ -328,7 +328,19 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
 ```
 
-Live-state validation example:
+Reassessment drift-report example:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  report-live-drift \
+  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
+  --pr-context-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/pr-context-bk2779-of389.json"
+```
+
+Treat reported head drift as the normal trigger for exact-head reassessment, not
+as a pre-review blocker.
+
+Live-state validation example for posting:
 
 ```bash
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
@@ -524,7 +536,7 @@ For reassessment:
 
 ```bash
 uv run --script .../review_state.py summarize-context --state-path ...
-uv run --script .../review_state.py validate-live-state --state-path ... --pr-context-path ...
+uv run --script .../review_state.py report-live-drift --state-path ... --pr-context-path ...
 ```
 
 Then load the stored identity before comparing new commits or writing a new

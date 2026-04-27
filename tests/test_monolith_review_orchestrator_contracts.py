@@ -156,6 +156,57 @@ class ReviewStateContractTests(unittest.TestCase):
         )
         self.assertEqual(normalized["schema_version"], REVIEW_STATE.SCHEMA_VERSION)
 
+    def test_read_json_accepts_legacy_schema_two_review_pass_without_new_proof_fields(
+        self,
+    ) -> None:
+        payload = {
+            "schema_version": 2,
+            "batch_key": "asm-59",
+            "created_at_utc": "2026-04-24T00:00:00Z",
+            "updated_at_utc": "2026-04-24T00:00:00Z",
+            "worktree_path": "/tmp/monolith-review-asm-59",
+            "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+            "posting_status": "not_posted",
+            "prs": [{"repo": "agent-skills-marketplace", "pr_number": 59}],
+            "passes": [
+                {
+                    "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+                    "posting_status": "not_posted",
+                    "recorded_at_utc": "2026-04-24T00:00:00Z",
+                    "review_pass_number": 1,
+                    "mode": "review",
+                    "recommendation": "comment",
+                    "scope_summary": "Legacy schema-2 review pass.",
+                    "entries": [
+                        {
+                            "repo": "agent-skills-marketplace",
+                            "pr_number": 59,
+                            "base_branch": "main",
+                            "head_sha": "2769963",
+                            "merge_base": "6557e6c",
+                        }
+                    ],
+                    "findings": {
+                        "new": [],
+                        "carried_forward": [],
+                        "resolved": [],
+                        "moot": [],
+                    },
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "state.json"
+            state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            normalized = REVIEW_STATE.read_json(state_path)
+
+        review_pass = normalized["passes"][0]
+        self.assertEqual(review_pass["mode"], "review")
+        self.assertTrue(review_pass["no_findings_after_full_review"])
+        self.assertTrue(review_pass["no_author_claims"])
+
     def test_normalize_findings_still_requires_summary_for_current_writes(self) -> None:
         with self.assertRaises(REVIEW_STATE.click.ClickException) as exc_info:
             REVIEW_STATE.normalize_findings(
@@ -164,6 +215,156 @@ class ReviewStateContractTests(unittest.TestCase):
             )
 
         self.assertIn("findings.new[0].summary", str(exc_info.exception))
+
+    def test_merge_comment_context_history_uses_latest_current_status_buckets(self) -> None:
+        merged = REVIEW_STATE.merge_comment_context_history(
+            [
+                {
+                    "comment_context": {
+                        "thread_source": "gh_graphql",
+                        "summary": "Initial review",
+                        "still_legit": ["Old issue still looked open."],
+                        "resolved_for_context": ["Older durable context."],
+                    }
+                },
+                {
+                    "comment_context": {
+                        "thread_source": "gh_graphql",
+                        "summary": "Latest review",
+                        "moot_or_no_longer_applicable": [
+                            "The old issue is now fixed."
+                        ],
+                        "resolved_for_context": ["New durable context."],
+                    }
+                },
+            ]
+        )
+
+        assert merged is not None
+        self.assertNotIn("still_legit", merged)
+        self.assertEqual(
+            merged["moot_or_no_longer_applicable"],
+            ["The old issue is now fixed."],
+        )
+        self.assertEqual(
+            merged["resolved_for_context"],
+            ["Older durable context.", "New durable context."],
+        )
+        self.assertEqual(merged["summary"], "Latest review")
+
+    def test_merge_comment_context_history_drops_old_current_status_when_latest_has_none(
+        self,
+    ) -> None:
+        merged = REVIEW_STATE.merge_comment_context_history(
+            [
+                {
+                    "comment_context": {
+                        "still_legit": ["Old issue still looked open."],
+                        "resolved_for_context": ["Older durable context."],
+                    }
+                },
+                {
+                    "comment_context": {
+                        "resolved_for_context": ["Latest pass recorded the fix."],
+                    }
+                },
+            ]
+        )
+
+        assert merged is not None
+        self.assertNotIn("still_legit", merged)
+        self.assertEqual(
+            merged["resolved_for_context"],
+            ["Older durable context.", "Latest pass recorded the fix."],
+        )
+
+    def test_report_live_drift_returns_drift_payload_without_raising(self) -> None:
+        payload = {
+            "schema_version": 3,
+            "batch_key": "asm-59",
+            "created_at_utc": "2026-04-24T00:00:00Z",
+            "updated_at_utc": "2026-04-24T00:00:00Z",
+            "worktree_path": "/tmp/monolith-review-asm-59",
+            "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+            "posting_status": "not_posted",
+            "review_pass_number": 1,
+            "prs": [{"repo": "agent-skills-marketplace", "pr_number": 59}],
+            "passes": [
+                {
+                    "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+                    "posting_status": "not_posted",
+                    "recorded_at_utc": "2026-04-24T00:00:00Z",
+                    "review_pass_number": 1,
+                    "mode": "reassess",
+                    "recommendation": "request_changes",
+                    "scope_summary": "Latest reassessment",
+                    "entries": [
+                        {
+                            "repo": "agent-skills-marketplace",
+                            "pr_number": 59,
+                            "base_branch": "main",
+                            "head_sha": "expected-sha",
+                            "merge_base": "merge-base",
+                            "pr_state": "OPEN",
+                            "is_draft": False,
+                        }
+                    ],
+                    "no_author_claims": True,
+                    "comment_context": {
+                        "thread_source": "gh_graphql",
+                        "summary": "Reviewed thread history.",
+                        "still_legit": ["One finding is still open."],
+                    },
+                    "findings": {
+                        "new": [
+                            {
+                                "repo": "agent-skills-marketplace",
+                                "pr_number": 59,
+                                "id": "open-finding",
+                                "summary": "One finding is still open.",
+                            }
+                        ],
+                        "carried_forward": [],
+                        "resolved": [],
+                        "moot": [],
+                    },
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "state.json"
+            pr_context_path = Path(temp_dir) / "pr-context.json"
+            state_path.write_text(json.dumps(payload), encoding="utf-8")
+            pr_context_path.write_text("{}", encoding="utf-8")
+            outputs: list[str] = []
+
+            with patch.object(
+                REVIEW_STATE,
+                "parse_live_pr_context_artifact",
+                return_value={
+                    ("agent-skills-marketplace", 59): {
+                        "pr_url": "https://github.com/DiversioTeam/agent-skills-marketplace/pull/59"
+                    }
+                },
+            ), patch.object(
+                REVIEW_STATE,
+                "fetch_live_pr_context_from_github",
+                return_value={
+                    ("agent-skills-marketplace", 59): {
+                        "base_branch": "main",
+                        "head_sha": "actual-sha",
+                        "pr_state": "OPEN",
+                        "is_draft": False,
+                    }
+                },
+            ), patch.object(REVIEW_STATE.click, "echo", side_effect=outputs.append):
+                REVIEW_STATE.report_live_drift(state_path, pr_context_path)
+
+        self.assertEqual(len(outputs), 1)
+        result = json.loads(outputs[0])
+        self.assertEqual(result["status"], "drifted")
+        self.assertEqual(result["mismatches"][0]["status"], "head_sha_mismatch")
 
     def test_backend_handoff_pr_url_requires_exact_pr_number(self) -> None:
         REVIEW_STATE.validate_backend_handoff_pr_url(

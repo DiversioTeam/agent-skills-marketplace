@@ -69,11 +69,14 @@ Recommended flow:
 
 1. `init` once per batch.
 2. `summarize-context` before reassessment or posting.
-3. `validate-live-state` before reassessment or posting. It now uses the
+3. `report-live-drift` before reassessment when author pushes may have moved
+   the PR heads. It compares the latest recorded substantive pass against live
+   GitHub state and reports drift without mutating the state file.
+4. `validate-live-state` immediately before `post`. It uses the
    `fetch_review_threads.py` artifact as a PR-url input and then performs a
    fresh live GitHub read before minting a token. For `post`, consume the
    returned `validation_token` in the posting payload.
-4. `record-review` after every substantive pass.
+5. `record-review` after every substantive pass.
 
 `record-review` should persist:
 
@@ -322,9 +325,20 @@ cat <<'EOF' | uv run --script plugins/monolith-review-orchestrator/skills/monoli
 EOF
 ```
 
-If a reassessment or posting run depends on current PR heads still matching the
-stored batch identity, validate that from the live `fetch_review_threads.py`
-artifact:
+Before reassessment, report live drift from the latest recorded substantive pass
+without mutating state:
+
+```bash
+uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
+  report-live-drift \
+  --state-path "$STATE_PATH" \
+  --pr-context-path /path/to/fetch-review-threads.json
+```
+
+Treat reported head drift as the normal trigger for exact-head reassessment,
+not as a blocker.
+
+Immediately before posting, mint the one-time live-state proof:
 
 ```bash
 uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
@@ -333,12 +347,12 @@ uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orch
   --pr-context-path /path/to/fetch-review-threads.json
 ```
 
-That command now writes a one-time live-state proof into the state file and
-returns a `token`. `mode=post` must consume that token before it can record the
-posting pass. The proof is intentionally short-lived; stale proofs must be
-rejected and revalidated immediately before posting. The supplied artifact must
-come from `fetch_review_threads.py`, and the helper re-reads GitHub before
-minting the token.
+That command writes a one-time live-state proof into the state file and returns
+a `token`. `mode=post` must consume that token before it can record the posting
+pass. The proof is intentionally short-lived; stale proofs must be rejected and
+revalidated immediately before posting. The supplied artifact must come from
+`fetch_review_threads.py`, and the helper re-reads GitHub before minting the
+token.
 
 ## Author-Guiding Review Output
 

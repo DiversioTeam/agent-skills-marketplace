@@ -347,7 +347,9 @@ Use `scripts/review_state.py` for:
 
 - `init` once per batch
 - `summarize-context` before reassessment or posting
-- `validate-live-state` before reassessment or posting
+- `report-live-drift` before reassessment when new commits may have moved the
+  PR heads
+- `validate-live-state` immediately before posting
 - `record-review` after each substantive status/review/reassess/post pass
 - `record-pass` only for explicit migration/recovery with
   `--compatibility-only --justification`
@@ -457,9 +459,11 @@ Final response should include:
 When the user says the author pushed changes and wants another pass:
 
 - reuse the existing review worktree if possible
-- fetch latest refs and verify the tracked review refs are current with
-  `validate-live-state`
 - load the structured review state first with `summarize-context`
+- fetch latest refs and run `report-live-drift` against the latest
+  `fetch_review_threads.py` artifact
+- treat reported head drift as the normal trigger for exact-head checkout and
+  reassessment, not as a pre-review blocker
 - compare against the prior structured state and linked artifact
 - identify commits since the prior review
 - re-check every previously material finding
