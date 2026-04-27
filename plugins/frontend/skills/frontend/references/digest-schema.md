@@ -1,9 +1,50 @@
-# Frontend Project Digest Schema
+# Frontend Digest Schemas
+
+## Generated `AGENTS.md` — Operating Contract
+
+Use this schema when writing `docs/frontend-skill-digest/AGENTS.md` in a target
+repo. This file is the operating contract that all frontend lanes read before
+acting on the digest.
+
+### Required Sections
+
+#### 1. `## Purpose`
+
+- What this digest folder contains and why it exists.
+- That `project-digest.md` is the authoritative fingerprint; `AGENTS.md` is the
+  operating contract that governs how lanes consume it.
+
+#### 2. `## Authoritative File`
+
+- State that `project-digest.md` is the single source of truth for repo
+  detection results.
+- `AGENTS.md` (this file) governs trust, freshness, and re-check rules.
+
+#### 3. `## When to Refresh`
+
+- List the signals that should trigger a digest refresh: lockfile change,
+  workspace layout change, primary framework change, new analytics/observability
+  tool, CI provider change, branch model change, or any signal listed in the
+  freshness section of `project-digest.md`.
+- State that only `/frontend:refresh-digest` persists updates; all other
+  commands use ephemeral inline detection when the digest is stale.
+
+#### 4. `## Trust and Re-check Rules`
+
+- Which digest fields lanes should trust without re-checking: repo
+  classification, package manager, framework, workspace layout.
+- Which fields lanes should verify at runtime when staleness is possible:
+  analytics/observability stack, API contract sources, CI provider, test
+  commands, branch model.
+- That lanes must never silently override digest values; if a lane detects a
+  mismatch, it should note the discrepancy and recommend a refresh.
+
+---
+
+## Generated `project-digest.md` — Full Fingerprint
 
 Use this schema when writing `docs/frontend-skill-digest/project-digest.md` in a
 target repo.
-
-## Required Sections
 
 ### 1. `## Repo Classification`
 

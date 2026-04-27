@@ -87,8 +87,8 @@ Follow this order when persisting a full digest.
 ### Digest output
 
 Write to `docs/frontend-skill-digest/AGENTS.md` (operating contract) and
-`docs/frontend-skill-digest/project-digest.md` (full fingerprint using the
-schema in `references/digest-schema.md`).
+`docs/frontend-skill-digest/project-digest.md` (full fingerprint). Both files
+have required schemas defined in `references/digest-schema.md`.
 
 Include freshness evidence: generated commit SHA, inspected file list, key
 file hashes or mtimes.
