@@ -1,8 +1,0 @@
-{
-  "name": "frontend-api-integrator",
-  "version": "0.2.2",
-  "description": "Digest-first frontend API integration workflow that detects generated clients, Swagger/OpenAPI, Bruno/Postman, monolith backend code, or external backend paths before scaffolding.",
-  "author": {
-    "name": "Diversio Devs"
-  }
-}

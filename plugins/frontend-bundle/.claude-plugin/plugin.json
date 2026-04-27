@@ -1,8 +1,0 @@
-{
-  "name": "frontend-bundle",
-  "version": "0.1.2",
-  "description": "Repo-agnostic frontend bundle with a persistent project digest, dynamic repo detection, and routing for review, API, testing, analytics, observability, CI/CD, and planning workflows.",
-  "author": {
-    "name": "Diversio Devs"
-  }
-}
