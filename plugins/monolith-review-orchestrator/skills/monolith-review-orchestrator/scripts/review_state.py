@@ -1025,6 +1025,15 @@ def normalize_persisted_review_entries(
     known_prs: set[tuple[str, int]],
     field_name: str,
 ) -> list[ReviewPassEntry]:
+    """Normalize already-persisted pass entries.
+
+    Some historical worker-owned state stores a batch-level `prs` list but has
+    older pass rows whose `entries` only name the PR reviewed in that pass. For
+    reads, keep the useful context when every listed entry is valid. The write
+    paths (`record-pass` and `record-review`) still enforce complete
+    batch-scoped entries for every new pass.
+    """
+
     if not isinstance(value, list) or not value:
         raise click.ClickException(
             f"State file field `{field_name}` must be a non-empty list."
@@ -1045,7 +1054,6 @@ def normalize_persisted_review_entries(
             )
         seen_targets.add(identity)
         normalized.append(entry)
-    ensure_full_batch_coverage(seen_targets, known_prs, field_name)
     return normalized
 
 

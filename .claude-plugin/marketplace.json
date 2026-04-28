@@ -21,7 +21,7 @@
     {
       "name": "monolith-review-orchestrator",
       "description": "Monolith-local PR review harness for the Diversio monolith: deep PR understanding, thread-aware GitHub review acquisition, deterministic worktree reuse/bootstrap, persistent review context across passes, resolved-comment-aware reassessment, backend monty-review handoff, and author-guiding review output.",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "author": {
         "name": "Diversio Devs"
       },
