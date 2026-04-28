@@ -460,12 +460,14 @@ cd "$MONOLITH_ROOT"
 uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py summarize-context \
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
 
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py validate-live-state \
+uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py report-live-drift \
   --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
   --pr-context-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/pr-context-bk2779-of389.json"
 ```
 
-Then record the new pass after reviewing:
+Then record the new pass after reviewing. Reserve `validate-live-state` for the
+final posting gate, when the recorded pass should already match the live PR
+heads:
 
 ```bash
 cd "$MONOLITH_ROOT"

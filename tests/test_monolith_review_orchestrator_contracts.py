@@ -207,6 +207,56 @@ class ReviewStateContractTests(unittest.TestCase):
         self.assertTrue(review_pass["no_findings_after_full_review"])
         self.assertTrue(review_pass["no_author_claims"])
 
+    def test_read_json_accepts_legacy_schema_two_status_pass_without_comment_context(
+        self,
+    ) -> None:
+        payload = {
+            "schema_version": 2,
+            "batch_key": "asm-59",
+            "created_at_utc": "2026-04-27T00:00:00Z",
+            "updated_at_utc": "2026-04-27T00:00:00Z",
+            "worktree_path": "/tmp/monolith-review-asm-59",
+            "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+            "posting_status": "not_posted",
+            "prs": [{"repo": "agent-skills-marketplace", "pr_number": 59}],
+            "passes": [
+                {
+                    "artifact_path": "/tmp/monolith-review-asm-59/review.md",
+                    "posting_status": "not_posted",
+                    "recorded_at_utc": "2026-04-27T00:00:00Z",
+                    "review_pass_number": 1,
+                    "mode": "status",
+                    "recommendation": "comment",
+                    "scope_summary": "Legacy schema-2 status pass.",
+                    "entries": [
+                        {
+                            "repo": "agent-skills-marketplace",
+                            "pr_number": 59,
+                            "base_branch": "main",
+                            "head_sha": "b8c36a1",
+                            "merge_base": "6557e6c",
+                        }
+                    ],
+                    "findings": {
+                        "new": [],
+                        "carried_forward": [],
+                        "resolved": [],
+                        "moot": [],
+                    },
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "state.json"
+            state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            normalized = REVIEW_STATE.read_json(state_path)
+
+        review_pass = normalized["passes"][0]
+        self.assertEqual(review_pass["mode"], "status")
+        self.assertNotIn("comment_context", review_pass)
+
     def test_normalize_findings_still_requires_summary_for_current_writes(self) -> None:
         with self.assertRaises(REVIEW_STATE.click.ClickException) as exc_info:
             REVIEW_STATE.normalize_findings(
@@ -215,6 +265,42 @@ class ReviewStateContractTests(unittest.TestCase):
             )
 
         self.assertIn("findings.new[0].summary", str(exc_info.exception))
+
+    def test_current_status_payloads_still_require_status_assessment(self) -> None:
+        with self.assertRaises(REVIEW_STATE.click.ClickException) as exc_info:
+            REVIEW_STATE.validate_review_requirements(
+                mode="status",
+                posting_status="not_posted",
+                recommendation="comment",
+                artifact_path=Path("/tmp/review.md"),
+                entries=[
+                    {
+                        "repo": "agent-skills-marketplace",
+                        "pr_number": 59,
+                        "base_branch": "main",
+                        "head_sha": "b8c36a1",
+                        "merge_base": "6557e6c",
+                        "pr_state": "OPEN",
+                        "is_draft": False,
+                    }
+                ],
+                findings={
+                    "new": [],
+                    "carried_forward": [],
+                    "resolved": [],
+                    "moot": [],
+                },
+                no_findings_after_full_review=False,
+                author_claims_checked=[],
+                no_author_claims=False,
+                comment_context={"summary": "Legacy-free current status payload."},
+                backend_handoff=None,
+                known_prs={("agent-skills-marketplace", 59)},
+                existing_passes=[],
+                enforce_artifact_existence=False,
+            )
+
+        self.assertIn("must classify current state", str(exc_info.exception))
 
     def test_merge_comment_context_history_uses_latest_current_status_buckets(self) -> None:
         merged = REVIEW_STATE.merge_comment_context_history(

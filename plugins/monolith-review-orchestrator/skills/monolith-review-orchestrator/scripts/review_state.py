@@ -1830,6 +1830,7 @@ def normalize_persisted_review_pass(
             require_post_validation_proof=False,
             require_pr_lifecycle=False,
             require_comment_context_evidence=not legacy_read_compat,
+            require_status_assessment=not legacy_read_compat,
         )
 
     return normalized
@@ -2185,6 +2186,7 @@ def validate_review_requirements(
     require_post_validation_proof: bool = True,
     require_pr_lifecycle: bool = True,
     require_comment_context_evidence: bool = True,
+    require_status_assessment: bool = True,
 ) -> None:
     if enforce_artifact_existence:
         ensure_artifact_exists(artifact_path)
@@ -2221,7 +2223,7 @@ def validate_review_requirements(
             raise click.ClickException(
                 "`status` review payloads must include non-empty `comment_context` evidence."
             )
-        if not has_status_assessment(comment_context):
+        if require_status_assessment and not has_status_assessment(comment_context):
             raise click.ClickException(
                 "`status` review payloads must classify current state via "
                 "`still_legit`, `moot_or_no_longer_applicable`, "
