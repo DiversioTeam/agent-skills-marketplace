@@ -45,6 +45,8 @@ when command files change.
     `<git-root>/.pi/dev-workflow/prompts.json` or
     `${XDG_CONFIG_HOME:-~/.config}/pi/dev-workflow/prompts.json`; custom prompts
     use `project.*` or `user.*` codes and can run via `/workflow:run <code>`.
+    `/workflow:prompts` opens a native TUI Prompt Studio to add user prompts or
+    override core prompts without hand-writing the full JSON file.
   - TUI behavior: `/workflow:help` uses the user's configured
     `app.message.followUp` keybinding (default `Alt+Enter`, often
     `Option+Enter` on macOS) to queue the selected prompt or edited prompt as a

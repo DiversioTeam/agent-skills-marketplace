@@ -52,6 +52,9 @@ Then `/reload` in any pi session.
 | `/workflow:help` or `Ctrl+Shift+/` | Interactive TUI prompt browser — browse, run, queue, edit |
 | `/workflow:flow` | Text overview of the full workflow |
 | `/workflow:run <code>` | Run a core, project, or user prompt by stable code |
+| `/workflow:prompts` or `/workflow:prompts studio` | Open native TUI Prompt Studio for adding user prompts or overriding core prompts |
+| `/workflow:prompts add` | Open a JSON form to add/update a `user.*` prompt |
+| `/workflow:prompts override [workflow.code]` | Pick or directly override a core `workflow.*` prompt |
 | `/workflow:prompts list` | List loaded prompts with source labels |
 | `/workflow:prompts paths` | Show project/user/legacy config paths |
 | `/workflow:prompts validate` | Validate prompt config and show warnings |
@@ -63,7 +66,7 @@ Then `/reload` in any pi session.
 `/workflow:help` opens a tabbed TUI panel:
 
 - **↑↓** navigate prompts · **←→/Tab** switch tabs
-- **↵** run prompt · configured **`app.message.followUp`** key (default Alt+Enter / Option+Enter) queues the selected prompt · **d** details · **e** edit
+- **↵** run prompt · configured **`app.message.followUp`** key (default Alt+Enter / Option+Enter) queues the selected prompt · **d** details · **e** edit · **n** add a user prompt · **o** override selected prompt
 - In edit mode: **Ctrl+Y** copy, configured **`app.message.followUp`** queues the edited prompt, configured `tui.input.newLine` inserts a newline, **Esc** close/back
 
 Rows show source labels such as `[core]`, `[project]`, `[user]`, `[override:project]`, and `[override:user]`.

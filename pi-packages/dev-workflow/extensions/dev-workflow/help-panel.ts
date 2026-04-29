@@ -78,6 +78,8 @@ export class HelpPanel {
   public onSelect?: (code: string) => void;
   public onQueue?: (code: string) => void;
   public onEdit?: (code: string) => void;
+  public onAddPrompt?: () => void;
+  public onOverridePrompt?: (code: string) => void;
   public onCancel?: () => void;
 
   constructor(
@@ -164,6 +166,11 @@ export class HelpPanel {
     } else if (data === "e" || data === "E") {
       const cmd = cmds[this.selectedIdx];
       if (cmd) this.onEdit?.(cmd.code);
+    } else if (data === "n" || data === "N") {
+      this.onAddPrompt?.();
+    } else if (data === "o" || data === "O") {
+      const cmd = cmds[this.selectedIdx];
+      if (cmd) this.onOverridePrompt?.(cmd.code);
     } else if (matchesKey(data, Key.escape)) {
       this.onCancel?.();
     }
@@ -233,7 +240,7 @@ export class HelpPanel {
 
     const cmds = this.visibleCommands();
     if (cmds.length === 0) {
-      lines.push(...new Text(t.fg("muted", "No prompts in this tab."), pad, 0).render(width));
+      lines.push(...new Text(t.fg("muted", "No prompts in this tab yet. Press n to add a user prompt."), pad, 0).render(width));
     } else {
       for (let i = 0; i < cmds.length; i++) {
         lines.push(this.renderCommandRow(width, pad, cmds[i], i === this.selectedIdx));
@@ -242,7 +249,7 @@ export class HelpPanel {
 
     lines.push(...new Spacer(1).render(width));
     const queueKey = this.keyLabel("app.message.followUp", "Alt+Enter");
-    lines.push(...new Text(t.fg("dim", `↑↓ navigate    ←→/Tab switch tabs    ↵ run    ${queueKey} queue    d details    e edit    Esc close`), pad, 0).render(width));
+    lines.push(...new Text(t.fg("dim", `↑↓ navigate    ←→/Tab switch tabs    ↵ run    ${queueKey} queue    d details    e edit    n new    o override    Esc close`), pad, 0).render(width));
     lines.push(...new DynamicBorder((s: string) => t.fg("accent", s)).render(width));
     return lines;
   }

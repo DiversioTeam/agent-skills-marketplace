@@ -1,5 +1,6 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { DynamicBorder, type ExtensionAPI, type Theme } from "@mariozechner/pi-coding-agent";
 import { HelpPanel, PromptEditor, type WorkflowHelpCommand, type WorkflowPromptCategory, type WorkflowPromptSource } from "./help-panel";
+import { Container, SelectList, Spacer, Text, type SelectItem } from "@mariozechner/pi-tui";
 import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -712,6 +713,207 @@ function configTemplate(): string {
   }, null, 2) + "\n";
 }
 
+
+function customPromptTemplate(seed?: { code?: string; label?: string; short?: string; prompt?: string }): string {
+  return JSON.stringify({
+    code: seed?.code || "user.my-workflow-prompt",
+    label: seed?.label || "My workflow prompt",
+    short: seed?.short || "Short description shown in /workflow:help",
+    category: "user",
+    prompt: seed?.prompt || "Write the full prompt here. Keep it specific and actionable."
+  }, null, 2);
+}
+
+function overrideTemplate(): string {
+  return JSON.stringify({
+    append: "Add your extra local guidance here."
+  }, null, 2);
+}
+
+async function ensureUserConfigFile(path: string): Promise<void> {
+  if (!(await fileExists(path))) {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, configTemplate(), "utf8");
+  }
+}
+
+function parseJsonObject(text: string, label: string): Record<string, unknown> {
+  const parsed = JSON.parse(text) as unknown;
+  if (!isObject(parsed)) throw new Error(`${label} must be a JSON object`);
+  return parsed;
+}
+
+async function writeUserConfig(path: string, mutator: (config: Record<string, unknown>) => void): Promise<void> {
+  await ensureUserConfigFile(path);
+  const config = parseJsonObject(await readFile(path, "utf8"), path);
+  if (config.version !== 1) config.version = 1;
+  mutator(config);
+  await writeFile(path, JSON.stringify(config, null, 2) + "\n", "utf8");
+}
+
+async function addUserPrompt(path: string, prompt: Record<string, unknown>): Promise<void> {
+  await writeUserConfig(path, (config) => {
+    const prompts = Array.isArray(config.prompts) ? config.prompts : [];
+    const code = typeof prompt.code === "string" ? prompt.code : undefined;
+    if (!code) throw new Error("prompt.code is required");
+    const existing = prompts.findIndex((item) => isObject(item) && item.code === code);
+    if (existing >= 0) prompts[existing] = prompt;
+    else prompts.push(prompt);
+    config.prompts = prompts;
+  });
+}
+
+async function setUserOverride(path: string, code: string, override: Record<string, unknown>): Promise<void> {
+  await writeUserConfig(path, (config) => {
+    const overrides = isObject(config.overrides) ? config.overrides : {};
+    overrides[code] = override;
+    config.overrides = overrides;
+  });
+}
+
+async function editJsonObject(ctx: WorkflowContext, title: string, initialJson: string): Promise<Record<string, unknown> | undefined> {
+  let current = initialJson;
+  while (true) {
+    const text = await ctx.ui.custom<string | null>((tui, theme, keybindings, done) => {
+      const editor = new PromptEditor(current, theme, title, keybindings);
+      editor.onDone = done;
+      editor.onQueue = done;
+      editor.onCancel = () => done(null);
+      return {
+        render: (width: number) => [
+          ...new DynamicBorder((s: string) => theme.fg("accent", s)).render(width),
+          ...new Spacer(1).render(width),
+          ...new Text(theme.fg("accent", theme.bold(title)), 1, 0).render(width),
+          ...new Text(theme.fg("dim", "Edit the JSON form below. Enter saves; Shift+Enter inserts a newline; Esc cancels."), 1, 0).render(width),
+          ...new Spacer(1).render(width),
+          ...editor.render(width),
+          ...new DynamicBorder((s: string) => theme.fg("accent", s)).render(width),
+        ],
+        invalidate: () => editor.invalidate(),
+        handleInput: (data: string) => { editor.handleInput(data); tui.requestRender(); },
+      };
+    });
+    if (text === null) return undefined;
+    try {
+      return parseJsonObject(text, title);
+    } catch (error) {
+      ctx.ui.notify(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`, "warning");
+      current = text;
+    }
+  }
+}
+
+async function pickPrompt(ctx: WorkflowContext, registry: PromptRegistry, title: string, onlyCore = false): Promise<WorkflowPrompt | undefined> {
+  const prompts = onlyCore ? registry.prompts.filter((prompt) => prompt.code.startsWith("workflow.")) : registry.prompts;
+  const selectedCode = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
+    const items: SelectItem[] = prompts.map((prompt) => ({
+      value: prompt.code,
+      label: `${prompt.code}${prompt.command ? ` /${prompt.command}` : ""}`,
+      description: `[${prompt.sourceLabel}] ${prompt.short}`,
+    }));
+    const list = new SelectList(items, Math.min(Math.max(items.length, 1), 14), {
+      selectedPrefix: (text: string) => theme.fg("accent", text),
+      selectedText: (text: string) => theme.fg("accent", text),
+      description: (text: string) => theme.fg("muted", text),
+      scrollInfo: (text: string) => theme.fg("dim", text),
+      noMatch: (text: string) => theme.fg("warning", text),
+    });
+    list.onSelect = (item) => done(item.value);
+    list.onCancel = () => done(null);
+    const container = new Container();
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(list);
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("dim", "↑↓ navigate · Enter select · Esc cancel"), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    return {
+      render: (width: number) => container.render(width),
+      invalidate: () => container.invalidate(),
+      handleInput: (data: string) => { list.handleInput(data); tui.requestRender(); },
+    };
+  });
+  return selectedCode ? prompts.find((prompt) => prompt.code === selectedCode) : undefined;
+}
+
+async function addPromptWithForm(pi: ExtensionAPI, ctx: WorkflowContext, registry: PromptRegistry): Promise<void> {
+  const prompt = await editJsonObject(ctx, "Add user workflow prompt", customPromptTemplate());
+  if (!prompt) return;
+  await addUserPrompt(registry.paths.user, prompt);
+  const updated = await loadPromptRegistry(pi, ctx.cwd).catch(() => undefined);
+  ctx.ui.notify(`Saved user prompt ${(prompt.code as string) || ""} to ${registry.paths.user}${updated?.warnings.length ? `\nWarnings:\n- ${updated.warnings.join("\n- ")}` : ""}`, updated?.warnings.length ? "warning" : "info");
+}
+
+async function overridePromptWithForm(ctx: WorkflowContext, registry: PromptRegistry, code?: string): Promise<void> {
+  const selected = code ? registry.prompts.find((prompt) => prompt.code === code) : await pickPrompt(ctx, registry, "Override core workflow prompt", true);
+  if (!selected) return;
+  const override = await editJsonObject(ctx, `Override ${selected.code}`, overrideTemplate());
+  if (!override) return;
+  await setUserOverride(registry.paths.user, selected.code, override);
+  ctx.ui.notify(`Saved override for ${selected.code} to ${registry.paths.user}`, "info");
+}
+
+async function openPromptStudio(pi: ExtensionAPI, ctx: WorkflowContext): Promise<void> {
+  const registry = await loadPromptRegistry(pi, ctx.cwd);
+  const action = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
+    const items: SelectItem[] = [
+      { value: "add", label: "Add user prompt", description: `Create a user.* prompt in ${registry.paths.user}` },
+      { value: "override", label: "Override core prompt", description: "Pick a workflow.* prompt and add append/prepend/replace JSON" },
+      { value: "init", label: "Create starter config", description: registry.paths.user },
+      { value: "paths", label: "Show config paths", description: "Project, XDG user, and legacy config locations" },
+      { value: "validate", label: "Validate config", description: `${registry.warnings.length} warning(s)` },
+    ];
+    const list = new SelectList(items, items.length, {
+      selectedPrefix: (text: string) => theme.fg("accent", text),
+      selectedText: (text: string) => theme.fg("accent", text),
+      description: (text: string) => theme.fg("muted", text),
+      scrollInfo: (text: string) => theme.fg("dim", text),
+      noMatch: (text: string) => theme.fg("warning", text),
+    });
+    list.onSelect = (item) => done(item.value);
+    list.onCancel = () => done(null);
+    const container = new Container();
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("accent", theme.bold("Workflow Prompt Studio")), 1, 0));
+    container.addChild(new Text(theme.fg("dim", "Create user prompts or override core prompts without hand-writing the full config."), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(list);
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("dim", "↑↓ navigate · Enter select · Esc close"), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    return {
+      render: (width: number) => container.render(width),
+      invalidate: () => container.invalidate(),
+      handleInput: (data: string) => { list.handleInput(data); tui.requestRender(); },
+    };
+  });
+
+  if (action === "add") await addPromptWithForm(pi, ctx, registry);
+  else if (action === "override") await overridePromptWithForm(ctx, registry);
+  else if (action === "init") {
+    if (await fileExists(registry.paths.user)) ctx.ui.notify(`User prompt config already exists: ${registry.paths.user}`, "warning");
+    else {
+      await mkdir(dirname(registry.paths.user), { recursive: true });
+      await writeFile(registry.paths.user, configTemplate(), "utf8");
+      ctx.ui.notify(`Created user prompt config: ${registry.paths.user}`, "info");
+    }
+  } else if (action === "paths") {
+    ctx.ui.notify([
+      "Dev Workflow prompt config paths:",
+      registry.paths.project ? `project: ${registry.paths.project}` : "project: (no git root detected)",
+      `user:    ${registry.paths.user}`,
+      `legacy:  ${registry.paths.legacy}`,
+    ].join("\n"), "info");
+  } else if (action === "validate") {
+    ctx.ui.notify(registry.warnings.length > 0 ? `Prompt config warnings:\n- ${registry.warnings.join("\n- ")}` : "Prompt config is valid.", registry.warnings.length > 0 ? "warning" : "info");
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Extension entry point
 // ---------------------------------------------------------------------------
@@ -803,12 +1005,16 @@ export default function (pi: ExtensionAPI) {
     const registry = await loadPromptRegistry(pi, ctx.cwd);
     let editRequested: string | null = null;
     let queueRequested: string | null = null;
+    let addRequested = false;
+    let overrideRequested: string | null = null;
 
     const result = await ctx.ui.custom<string | null>((tui: any, theme: any, keybindings: any, done: any) => {
       const panel = new HelpPanel(theme, detectSubagents(), registry.prompts, registry.warnings, keybindings);
       panel.onSelect = (code) => done(code);
       panel.onQueue = (code) => { queueRequested = code; done(null); };
       panel.onEdit = (code) => { editRequested = code; done(null); };
+      panel.onAddPrompt = () => { addRequested = true; done(null); };
+      panel.onOverridePrompt = (code) => { overrideRequested = code; done(null); };
       panel.onCancel = () => done(null);
       return {
         render: (w: number) => panel.render(w),
@@ -820,6 +1026,10 @@ export default function (pi: ExtensionAPI) {
     if (result) {
       const prompt = promptForInput(registry, result);
       if (prompt) await runPrompt(ctx, prompt);
+    } else if (addRequested) {
+      await addPromptWithForm(pi, ctx, registry);
+    } else if (overrideRequested) {
+      await overridePromptWithForm(ctx, registry, overrideRequested);
     } else if (queueRequested) {
       const prompt = promptForInput(registry, queueRequested);
       if (prompt) await runPrompt(ctx, prompt, undefined, "followUp");
@@ -893,11 +1103,17 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("workflow:prompts", {
-    description: "Manage workflow prompt config: list, paths, validate, init, reload",
+    description: "Manage workflow prompt config: studio, add, override, list, paths, validate, init, reload",
     handler: async (args, ctx) => {
-      const action = args.trim().split(/\s+/)[0] || "list";
+      const [action = "studio", target] = args.trim().split(/\s+/).filter(Boolean);
       const registry = await loadPromptRegistry(pi, ctx.cwd);
-      if (action === "paths") {
+      if (action === "studio") {
+        await openPromptStudio(pi, ctx);
+      } else if (action === "add") {
+        await addPromptWithForm(pi, ctx, registry);
+      } else if (action === "override") {
+        await overridePromptWithForm(ctx, registry, target);
+      } else if (action === "paths") {
         ctx.ui.notify([
           "Dev Workflow prompt config paths:",
           registry.paths.project ? `project: ${registry.paths.project}` : "project: (no git root detected)",
@@ -951,7 +1167,7 @@ export default function (pi: ExtensionAPI) {
           : "Subagent prompts fall back inline unless pi-subagents is installed.",
         "",
         "Custom prompts:",
-        "/workflow:prompts init|paths|validate|list|reload",
+        "/workflow:prompts studio|add|override|init|paths|validate|list|reload",
         "/workflow:run <code> [extra context]",
       ].join("\n"), "info");
     },
