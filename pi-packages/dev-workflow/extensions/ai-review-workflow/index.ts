@@ -1,5 +1,8 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { HelpPanel, PromptEditor } from "./help-panel";
+import { writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // ── Verbatim Prompts (from the AI Review Workflow) ──────────
 // Append your own project-specific context by passing args.
@@ -338,18 +341,39 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
-  // Helper: copy text to system clipboard via shell pipe
-  const copyToClipboard = async (text: string) => {
-    const delimiter = "CPEND_" + Math.random().toString(36).slice(2, 10);
-    const heredoc = `cat <<'${delimiter}'`;
-    const copyCmd = process.platform === "darwin"
-      ? `${heredoc} | pbcopy\n${text}\n${delimiter}`
-      : `if command -v xclip >/dev/null 2>&1; then\n${heredoc} | xclip -selection clipboard\n${text}\n${delimiter}\nelif command -v wl-copy >/dev/null 2>&1; then\n${heredoc} | wl-copy\n${text}\n${delimiter}\nfi`;
-    try {
-      await pi.exec("bash", ["-c", copyCmd], { timeout: 3000 });
-    } catch {
-      // Silently fail — text is still in the editor
+  const execOrThrow = async (command: string, args: string[], timeout = 5_000) => {
+    const result = await pi.exec(command, args, { timeout });
+    if (result.code !== 0) {
+      const details = [
+        `${command} ${args.join(" ")} failed with exit code ${result.code}`,
+        result.stderr ? `stderr: ${result.stderr.trim().slice(0, 500)}` : undefined,
+        result.stdout ? `stdout: ${result.stdout.trim().slice(0, 500)}` : undefined,
+      ].filter(Boolean).join("\n");
+      throw new Error(details);
     }
+  };
+
+  const withTempClipboardFile = async <T>(text: string, fn: (path: string) => Promise<T>): Promise<T> => {
+    const path = join(tmpdir(), `pi-review-clipboard-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`);
+    await writeFile(path, text, "utf8");
+    try {
+      return await fn(path);
+    } finally {
+      await unlink(path).catch(() => undefined);
+    }
+  };
+
+  // Helper: copy text to system clipboard with platform-specific commands.
+  const copyToClipboard = async (text: string) => {
+    await withTempClipboardFile(text, async (path) => {
+      if (process.platform === "win32") {
+        await execOrThrow("cmd", ["/c", `clip < "${path.replace(/"/g, "\"\"")}"`]);
+      } else if (process.platform === "darwin") {
+        await execOrThrow("bash", ["-c", `pbcopy < "$1"`, "bash", path]);
+      } else {
+        await execOrThrow("bash", ["-c", `if command -v wl-copy >/dev/null 2>&1; then wl-copy < "$1"; elif command -v xclip >/dev/null 2>&1; then xclip -selection clipboard < "$1"; else echo 'No clipboard command found (install wl-copy or xclip)' >&2; exit 127; fi`, "bash", path]);
+      }
+    });
   };
 
   const waitForIdleWithTimeout = async (
@@ -429,7 +453,9 @@ export default function (pi: ExtensionAPI) {
         editor.onQueue = (text) => done({ text, deliverAs: "followUp" });
         editor.onCancel = () => done(null);
         editor.onCopyRequested = (text) => {
-          copyToClipboard(text);
+          copyToClipboard(text)
+            .then(() => ctx.ui.notify("Copied prompt to clipboard", "info"))
+            .catch((error) => ctx.ui.notify(`Copy failed: ${error instanceof Error ? error.message : String(error)}`, "warning"));
         };
         return {
           render: (w: number) => editor.render(w),

@@ -1,6 +1,9 @@
 import { DynamicBorder, type ExtensionAPI, type ExtensionContext, type Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Key, matchesKey, SelectList, Spacer, Text, truncateToWidth, visibleWidth, type SelectItem, type SelectListTheme } from "@mariozechner/pi-tui";
+import { writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -886,15 +889,27 @@ function openUrl(pi: ExtensionAPI, url: string) {
   });
 }
 
+async function withTempClipboardFile<T>(text: string, fn: (path: string) => Promise<T>): Promise<T> {
+  const path = join(tmpdir(), `pi-ci-clipboard-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`);
+  await writeFile(path, text, "utf8");
+  try {
+    return await fn(path);
+  } finally {
+    await unlink(path).catch(() => undefined);
+  }
+}
+
 /** Cross-platform clipboard copy. */
-function copyToClipboard(pi: ExtensionAPI, text: string) {
-  const escaped = text.replace(/'/g, "'\\''");
-  const platform = process.platform;
-  let clip: string;
-  if (platform === "darwin") clip = "pbcopy";
-  else if (platform === "win32") clip = "clip";
-  else clip = "{ wl-copy 2>/dev/null || xclip -selection clipboard 2>/dev/null; }";
-  pi.exec("bash", ["-c", `echo -n '${escaped}' | ${clip}`], { timeout: 5000 }).catch(() => {});
+async function copyToClipboard(pi: ExtensionAPI, text: string): Promise<void> {
+  await withTempClipboardFile(text, async (path) => {
+    if (process.platform === "win32") {
+      await execText(pi, "cmd", ["/c", `clip < "${path.replace(/"/g, "\"\"")}"`], process.cwd(), 5_000);
+    } else if (process.platform === "darwin") {
+      await execText(pi, "bash", ["-c", `pbcopy < "$1"`, "bash", path], process.cwd(), 5_000);
+    } else {
+      await execText(pi, "bash", ["-c", `if command -v wl-copy >/dev/null 2>&1; then wl-copy < "$1"; elif command -v xclip >/dev/null 2>&1; then xclip -selection clipboard < "$1"; else echo 'No clipboard command found (install wl-copy or xclip)' >&2; exit 127; fi`, "bash", path], process.cwd(), 5_000);
+    }
+  });
 }
 
 // ===========================================================================
@@ -1643,14 +1658,19 @@ class CiDetailComponent {
 
   private copyJobUrl(job: CiJob | undefined): void {
     if (!job?.url) {
-      this.copiedMessage = job ? `No URL for selected job: ${job.name}` : "No selected job URL to copy";
+      this.statusMessage = job ? `No URL for selected job: ${job.name}` : "No selected job URL to copy";
       this.rerender();
       return;
     }
 
-    copyToClipboard(this.pi, job.url);
-    this.copiedMessage = `Copied URL for ${this.jobDisplayName(job)}: ${this.shortUrl(job.url, 90)}`;
-    this.rerender();
+    copyToClipboard(this.pi, job.url).then(() => {
+      this.copiedMessage = `Copied URL for ${this.jobDisplayName(job)}: ${this.shortUrl(job.url!, 90)}`;
+      this.statusMessage = "";
+      this.rerender();
+    }).catch((error) => {
+      this.statusMessage = `Copy failed: ${truncate(errorMessage(error), 160)}`;
+      this.rerender();
+    });
   }
 
   private stateText(state: CiState): string {
@@ -1773,7 +1793,7 @@ class CiDetailComponent {
     container.addChild(this.text(this.theme.fg("dim", `Counts: ${this.countsForJobs(allJobs)}`)));
     container.addChild(this.text(`Next: ${this.nextActionForJobs(allJobs)}`));
     if (this.statusMessage) {
-      const color: "warning" | "success" = this.statusMessage.startsWith("Refresh failed") || this.refreshing ? "warning" : "success";
+      const color: "warning" | "success" = /failed|unavailable|no |selected job is/i.test(this.statusMessage) || this.refreshing ? "warning" : "success";
       container.addChild(this.text(this.theme.fg(color, this.statusMessage)));
     }
   }
