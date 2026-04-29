@@ -112,6 +112,7 @@ Rules:
 - core prompts use reserved `workflow.*` codes
 - invalid config warns and falls back to valid prompts instead of crashing pi
 - custom prompts are immediately usable via `/workflow:help` and `/workflow:run <code>`
+- custom top-level slash command aliases are intentionally not registered dynamically yet
 
 ## Subagent chain
 

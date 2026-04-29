@@ -570,9 +570,10 @@ function validateCustomPrompt(raw: unknown, layer: PromptLayer, path: string, in
   const category = validCategory(prompt.category, layer === "project" ? "project" : "user");
   if (!category) warnings.push(`${path}: prompts[${index}].category is invalid`);
 
-  const command = prompt.command === undefined ? undefined : stringValue(prompt.command);
-  if (prompt.command !== undefined && !command) warnings.push(`${path}: prompts[${index}].command must be a non-empty string`);
-  if (command && !command.startsWith("workflow:")) warnings.push(`${path}: prompts[${index}].command must start with workflow:`);
+  if (prompt.command !== undefined) {
+    warnings.push(`${path}: prompts[${index}].command is not registered dynamically yet; use /workflow:run ${code ?? "<code>"} instead`);
+  }
+  const command = undefined;
 
   if (!code || !label || !short || !body || !category) return undefined;
 
