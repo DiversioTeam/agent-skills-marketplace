@@ -266,253 +266,8 @@ agent-skills-marketplace/
 
 | Package | Description | Install |
 |---------|-------------|---------|
-| `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools | `pi install -l ./pi-packages/ci-status` |
-| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain | `pi install -l ./pi-packages/dev-workflow` |
-
-## Monolith Review Orchestrator
-
-This plugin exists because deep PR review in the Diversio monolith has a few
-failure-prone steps that should not be re-derived from scratch every run:
-
-- deciding whether the machine is even in a valid monolith environment
-- turning one PR or one linked cross-repo PR pair into one stable review identity
-- creating or reusing the right detached review worktree
-- fetching thread-aware review history, including resolved and outdated threads
-- remembering durable review context across multiple passes, including prior
-  findings and resolved-comment history
-
-The basic shape is:
-
-```text
-preflight -> resolve batch -> prepare worktree -> fetch review threads -> persist review context -> write review artifact
-```
-
-Recent helper-layer additions:
-
-- monolith PRs can resolve without a submodule path
-- batch resolution can place review artifacts and deterministic worktrees under
-  external roots
-- worker-owned dirty deterministic worktrees can be repaired by recreate-and-reuse
-  instead of wedging the automation loop
-
-Why we added helper scripts:
-
-- prose is good for policy, but bad for deterministic naming and state
-- reassessment needs structured identity, not just markdown files
-- thread-aware GitHub review history should come from one deterministic helper,
-  not ad hoc GraphQL commands
-- resolved comments and prior findings need a compact local memory, not a fresh
-  reconstruction every pass
-- review prep should stay narrow and avoid monolith-wide mutation helpers
-
-Where to read more:
-
-- plugin README: `plugins/monolith-review-orchestrator/README.md`
-- skill: `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/SKILL.md`
-- worktree protocol:
-  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
-- review context protocol:
-  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/review-context-protocol.md`
-- helper explainer:
-  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/workflow-helpers.md`
-
-Example helper usage:
-
-```bash
-uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
-
-uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
-```
-
-### Copy-Paste Workflow
-
-Use this when you want the deterministic local workflow without re-reading the
-full skill docs.
-
-#### 1. Preflight the machine and checkout
-
-Why:
-- fail early if this is not a real monolith checkout
-- avoid discovering missing tools after worktree or review state steps
-- allow an explicit `--monolith-root` override when you are invoking the helper
-  from outside the monolith checkout
-
-```bash
-export MONOLITH_ROOT="/path/to/monolith"
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py
-```
-
-#### 2. Resolve one stable review batch identity
-
-Why:
-- one PR or one linked cross-repo PR pair should always map to the same batch key,
-  worktree path, markdown artifact path, and state path
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
-```
-
-Expected shape:
-
-This is a partial excerpt of the JSON you should expect. The actual command
-also includes keys such as `monolith_root`, `review_dir`,
-`reassess_artifact_path`, and `prs`.
-
-```json
-{
-  "batch_key": "bk2779-of389",
-  "worktree_path": "/path/to/monolith-review-bk2779-of389",
-  "artifact_path": "/path/to/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
-  "state_path": "/path/to/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
-}
-```
-
-#### 3. Create or reuse the detached review worktree
-
-Why:
-- keep the review run isolated
-- avoid attached-branch worktree lock pain
-- initialize only this worktree instead of broad monolith mutation
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
-  --monolith-root "$MONOLITH_ROOT" \
-  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
-  --submodule-path backend \
-  --submodule-path optimo-frontend \
-  --start-ref HEAD
-```
-
-Important:
-- this helper intentionally does **not** run `scripts/update_submodules.py`
-- review prep should stay narrow and not normalize unrelated submodules
-
-#### 4. Fetch thread-aware GitHub review history
-
-Why:
-- resolved and outdated threads carry important review context
-- the orchestrator now owns a first-class GraphQL acquisition path for thread
-  state and thread comments
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/fetch_review_threads.py \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
-```
-
-#### 5. Initialize structured review state
-
-Why:
-- markdown is for humans
-- JSON state is for reassessment identity and compact review context
-- follow-up passes should update the same batch state, not invent a new one
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py init \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
-  --batch-key bk2779-of389 \
-  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
-  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
-  --pr Django4Lyfe:2779 \
-  --pr Optimo-Frontend:389
-```
-
-If the state file already exists and you intentionally want to replace it, add
-`--force`. The default behavior is to refuse overwrite so reassessment history
-is not destroyed accidentally.
-
-#### 6. Reassessment and context reuse
-
-Why:
-- load the durable local identity first
-- reuse prior findings, comment-history notes, and teaching points before
-  comparing deltas
-- preserve repo-scoped findings and thread context across passes instead of
-  replacing them with the latest pass only
-- prefer recent active findings in the compact summary instead of surfacing the
-  oldest still-open issues first
-- compare deltas against stored state instead of guessing from the latest
-  markdown file alone
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py summarize-context \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
-```
-
-Then record the new pass after reviewing:
-
-```bash
-cd "$MONOLITH_ROOT"
-
-cat <<EOF | uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
-  record-review \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
-{
-  "mode": "reassess",
-  "artifact_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
-  "posting_status": "not_posted",
-  "recommendation": "request_changes",
-  "scope_summary": "Reassessed the linked backend and Optimo frontend PRs after follow-up commits.",
-  "entries": [
-    {
-      "repo": "Django4Lyfe",
-      "pr_number": 2779,
-      "base_branch": "main",
-      "head_sha": "<backend-head-sha>",
-      "merge_base": "<backend-merge-base-sha>"
-    },
-    {
-      "repo": "Optimo-Frontend",
-      "pr_number": 389,
-      "base_branch": "main",
-      "head_sha": "<optimo-head-sha>",
-      "merge_base": "<optimo-merge-base-sha>"
-    }
-  ],
-  "comment_context": {
-    "thread_source": "gh_graphql",
-    "summary": "Read existing review threads, including resolved ones, before reassessing."
-  },
-  "findings": {
-    "new": [],
-    "carried_forward": [],
-    "resolved": [],
-    "moot": []
-  }
-}
-EOF
-```
-
-Important:
-- `entries` must include every PR in the batch
-- findings and inline targets should stay repo-scoped inside linked PR batches
-- inline comment targets should reference active findings, not free-form IDs
-- `summarize-context` is intentionally compact and should prioritize recent-pass
-  context instead of replaying every historical note forever
-
-#### Visual summary
-
-There is also a presentation-style explainer at:
-
-```text
-~/.agent/diagrams/monolith-review-orchestrator-visual-explainer.html
-```
+| `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools | `pi install "$PWD/pi-packages/ci-status"` |
+| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain | `pi install "$PWD/pi-packages/dev-workflow"` |
 
 ## Installation
 
@@ -538,28 +293,34 @@ Project-scope plugins don't persist across worktrees.
 ### Pi-native packages
 
 Pi-native packages live under `pi-packages/` and install with the pi CLI instead
-of the Claude Code marketplace. From this repo checkout:
+of the Claude Code marketplace. For normal use, install them globally from an
+absolute local path:
 
 ```bash
-pi install -l ./pi-packages/ci-status
-pi install -l ./pi-packages/dev-workflow
+pi install "$PWD/pi-packages/ci-status"
+pi install "$PWD/pi-packages/dev-workflow"
 ```
 
+Plain `pi install` writes to global user settings. Use `pi -e ./pi-packages/<package>`
+for one-off extension testing without changing settings. Use `pi install -l`
+only when you need to test project-local install, reload, or persistence
+behavior.
+
+Install each pi package in one scope at a time. If `ci-status` is installed
+globally and also from a different project-local path, Pi can load both copies
+and duplicate `get_ci_status` / `ci_fetch_job_logs` tool registration. Remove
+the duplicate project package entry from `.pi/settings.json` or uninstall the
+global copy before reloading.
+
 Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`
-and `pi-packages/dev-workflow/README.md` for command inventory and CI integration details.
+and `pi-packages/dev-workflow/README.md` for command inventory, contribution
+workflow, and local testing commands.
 
-### Monolith-Only Prerequisites
+### Monolith Review Orchestrator
 
-`monolith-review-orchestrator` is not a generic marketplace-style review plugin.
-It assumes:
-
-- a Diversio monolith checkout or sibling monolith review worktree
-- the monolith `scripts/` helpers and docs are present
-- `uv`, `git`, and `git worktree` are installed
-- GitHub auth is available if PR metadata or posting is required
-- local permission to create sibling worktrees
-
-Treat it as a harness-local workflow plugin.
+`monolith-review-orchestrator` is a harness-local workflow for Diversio
+monolith review work. Read `plugins/monolith-review-orchestrator/README.md`
+for prerequisites, helper commands, and usage examples.
 
 If you already use the upstream `visual-explainer` plugin, uninstall it before
 installing this marketplace version:

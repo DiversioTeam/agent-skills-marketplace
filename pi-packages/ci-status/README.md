@@ -4,18 +4,63 @@ Pi extension for checking CI from inside pi. It currently fetches GitHub Actions
 
 ## Install
 
+For normal use, install globally from a checkout of this repo. Use `$PWD` so Pi
+registers the checkout you intend in user settings.
+
 ```bash
-# From the agent-skills-marketplace repo root, project-level (writes to .pi/settings.json)
-pi install -l ./pi-packages/ci-status
+# From the agent-skills-marketplace repo root
+pi install "$PWD/pi-packages/ci-status"
 
 # From the Diversio monolith root
-pi install -l ./agent-skills-marketplace/pi-packages/ci-status
-
-# Personal/global install from a local checkout
-pi install /path/to/agent-skills-marketplace/pi-packages/ci-status
+pi install "$PWD/agent-skills-marketplace/pi-packages/ci-status"
 ```
 
-Then restart pi or run `/reload` in an existing pi session.
+Plain `pi install` writes to global user settings. Then restart pi or run
+`/reload` in an existing pi session.
+
+Install `ci-status` in one scope at a time. If it is installed globally and
+also from a different project-local path, Pi can load both copies and duplicate
+`get_ci_status` / `ci_fetch_job_logs` tool registration. Remove the duplicate
+project package entry from `.pi/settings.json` or uninstall the global copy
+before `/reload`.
+
+## Contributing And Local Testing
+
+Use `-e` for one-off extension testing while actively editing this package. It
+loads the package for the current Pi run without changing global or project
+settings:
+
+```bash
+# From the agent-skills-marketplace repo root
+pi -e ./pi-packages/ci-status
+```
+
+Use a project-local install only when you need to test `.pi/settings.json`,
+`/reload`, or persistence behavior:
+
+```bash
+# From the agent-skills-marketplace repo root
+pi install -l ./pi-packages/ci-status
+```
+
+Run these checks before opening a PR:
+
+```bash
+jq -e . pi-packages/ci-status/package.json >/dev/null
+
+(cd pi-packages/ci-status && npm pack --dry-run --json >/tmp/ci-status-pack.json)
+
+printf '{"id":"cmds","type":"get_commands"}\n' | \
+  PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files \
+    --no-extensions -e ./pi-packages/ci-status \
+    --no-prompt-templates --no-skills >/tmp/ci-status-commands.json
+
+jq -e '.success == true' /tmp/ci-status-commands.json >/dev/null
+```
+
+After changing commands, tools, shortcuts, or package resources, update this
+README plus the top-level `README.md`, `docs/runbooks/distribution.md`, and
+`docs/plugins/catalog.md`.
 
 ## Commands
 

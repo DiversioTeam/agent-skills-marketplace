@@ -92,6 +92,11 @@ possible (for example, `app.message.followUp`) so custom user bindings still
 make sense. Bump the package version when publishing an update rather than only
 editing source files.
 
+For local extension smoke tests, prefer `pi -e ./pi-packages/<package>` so the
+package loads for the current run without mutating user or project settings.
+Use `pi install -l` only when testing project-local install, `/reload`, or
+settings persistence behavior.
+
 ## Validation
 
 Run the guardrails that match your change:
@@ -102,6 +107,7 @@ bash scripts/validate-skills.sh --all
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null
+(cd pi-packages/<package> && npm pack --dry-run --json >/tmp/<package>-pack.json)
 printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
 ```
 

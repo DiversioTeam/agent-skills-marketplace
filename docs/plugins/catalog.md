@@ -11,7 +11,7 @@ when command files change.
     status discovery, auto-watch after pushes, widget/status rendering,
     notifications, CI-provider/workflow-cycle TUI job details, failed-job reruns,
     guided fix prompts, and log access.
-  - Pi install from repo checkout: `pi install -l ./pi-packages/ci-status`
+  - Pi install from repo checkout: `pi install "$PWD/pi-packages/ci-status"`
   - Package path: `pi-packages/ci-status`
   - Extension path: `pi-packages/ci-status/extensions/ci-status`
   - Slash commands: `/ci`, `/ci-detail`, `/ci-logs`, `/ci-refresh`,
@@ -27,7 +27,7 @@ when command files change.
     interactive TUI help panel, CI analysis, PR review feedback handling,
     release PR prep prompts, local skills, and optional pi-subagents chain.
   - Pi install from repo checkout:
-    `pi install -l ./pi-packages/dev-workflow`
+    `pi install "$PWD/pi-packages/dev-workflow"`
   - Package path: `pi-packages/dev-workflow`
   - Extension path:
     `pi-packages/dev-workflow/extensions/dev-workflow`

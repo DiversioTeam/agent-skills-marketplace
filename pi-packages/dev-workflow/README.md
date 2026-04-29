@@ -4,18 +4,22 @@ Daily developer workflow for pi: plan review, self-review, standards, CI, docume
 
 ## Install
 
+For normal use, install globally from a checkout of this repo. Use `$PWD` so Pi
+registers the checkout you intend in user settings.
+
 ```bash
-# From the agent-skills-marketplace repo root, project-level (writes to .pi/settings.json)
-pi install -l ./pi-packages/dev-workflow
+# From the agent-skills-marketplace repo root
+pi install "$PWD/pi-packages/dev-workflow"
 
 # From the Diversio monolith root
-pi install -l ./agent-skills-marketplace/pi-packages/dev-workflow
-
-# Personal/global install from a local checkout
-pi install /path/to/agent-skills-marketplace/pi-packages/dev-workflow
+pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
 ```
 
-Then `/reload` in any pi session.
+Plain `pi install` writes to global user settings. Then restart pi or run
+`/reload` in any pi session.
+
+Install `dev-workflow` in one scope at a time. Use `-l` only when testing the
+package project-locally as a developer.
 
 ## Commands
 
@@ -139,13 +143,55 @@ Run with:
 /run-chain workflow-pipeline -- <task>
 ```
 
+## Contributing And Local Testing
+
+Use `-e` for one-off extension testing while actively editing this package. It
+loads the package for the current Pi run without changing global or project
+settings:
+
+```bash
+# From the agent-skills-marketplace repo root
+pi -e ./pi-packages/dev-workflow
+```
+
+Use a project-local install only when you need to test `.pi/settings.json`,
+`/reload`, or persistence behavior:
+
+```bash
+# From the agent-skills-marketplace repo root
+pi install -l ./pi-packages/dev-workflow
+```
+
+Run these checks before opening a PR:
+
+```bash
+jq -e . pi-packages/dev-workflow/package.json >/dev/null
+
+(cd pi-packages/dev-workflow && npm pack --dry-run --json >/tmp/dev-workflow-pack.json)
+
+printf '{"id":"cmds","type":"get_commands"}\n' | \
+  PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files \
+    --no-extensions -e ./pi-packages/dev-workflow \
+    --no-prompt-templates --no-skills >/tmp/dev-workflow-commands.json
+
+jq -e '.success == true' /tmp/dev-workflow-commands.json >/dev/null
+```
+
+After changing commands, tools, shortcuts, prompt inventory, skills, chain
+files, or package resources, update this README plus the top-level `README.md`,
+`docs/runbooks/distribution.md`, and `docs/plugins/catalog.md`.
+
 ## Requirements
 
 - pi >= 1.0.0
 - Recommended: install the separate `ci-status` package for `/ci`, `/ci-detail`, and `/ci-logs`:
 
   ```bash
-  pi install -l ./pi-packages/ci-status
+  pi install "$PWD/pi-packages/ci-status"
   ```
+
+  Use the same install scope you use for other pi packages. Do not install
+  `ci-status` both globally and from a different project-local path; duplicated
+  CI tools can conflict.
 
 Subagent commands require [pi-subagents](https://github.com/nicobailon/pi-subagents) for true agent isolation; they fall back to inline execution without it. CI prompts prefer the `ci-status` package when installed and only fall back to `get_ci_status` / `ci_fetch_job_logs` when the current harness exposes those tools.
