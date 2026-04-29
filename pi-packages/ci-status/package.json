@@ -1,6 +1,6 @@
 {
   "name": "ci-status",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Pi extension for CI status: GitHub Actions and CircleCI grouped by CI provider and workflow/cycle, interactive TUI details, log access, auto-watch, widget, notifications, and LLM CI tools.",
   "keywords": ["pi-package", "ci", "github-actions", "circleci"],
   "files": ["extensions/", "README.md"],
