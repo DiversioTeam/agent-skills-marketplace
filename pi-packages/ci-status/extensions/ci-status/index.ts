@@ -24,6 +24,8 @@ type CiJob = {
   summary?: string;
   /** For GitHub Actions runs, the run databaseId so we can fetch logs */
   runId?: number;
+  /** For GitHub Actions jobs, the job databaseId so we can rerun one selected job */
+  githubJobId?: number;
   /** For CircleCI jobs, the job number */
   jobNumber?: number;
   /** For CircleCI jobs, the workflow id so we can rerun failed workflow jobs */
@@ -54,7 +56,7 @@ const ERROR_POLL_MS = 60_000;
 const MAX_RENDERED_PASSING_JOBS = 8;
 const AUTO_WATCH_ON_START = process.env.PI_CI_AUTO_WATCH !== "0";
 const SHOW_WIDGET_ON_START = process.env.PI_CI_SHOW_WIDGET_ON_START === "1";
-const CI_DETAIL_SHORTCUT = process.env.PI_CI_DETAIL_SHORTCUT || "ctrl+shift+i";
+const CI_DETAIL_SHORTCUT = process.env.PI_CI_DETAIL_SHORTCUT || "ctrl+shift+.";
 const STARTUP_REFRESH_DELAY_MS = 1_000;
 const LOG_FETCH_TIMEOUT = 30_000;
 const ASCII_ICONS = process.env.PI_CI_ASCII === "1";
@@ -91,6 +93,13 @@ function truncate(text: string, max = 500): string {
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function keyComboLabel(keyCombo: string): string {
+  return keyCombo
+    .split("+")
+    .map((part) => part.length === 1 ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1))
+    .join("+");
 }
 
 async function execText(
@@ -253,8 +262,8 @@ async function enrichGitHubRunIds(pi: ExtensionAPI, cwd: string, branch: string,
     }
   }
 
-  const matchingRuns = runs.filter((run) => !run.headSha || run.headSha === sha);
-  const runsForSha = matchingRuns.length > 0 ? matchingRuns : runs;
+  const runsForSha = runs.filter((run) => !run.headSha || run.headSha === sha);
+  if (runsForSha.length === 0) return jobs;
 
   return jobs.map((job) => {
     if (job.provider !== "github" || job.providerHint !== "github-actions" || job.runId) return job;
@@ -293,6 +302,10 @@ type GhRun = {
   status?: string | null; conclusion?: string | null;
   headSha?: string | null; url?: string | null;
   createdAt?: string | null; startedAt?: string | null; updatedAt?: string | null;
+};
+
+type GhRunJob = {
+  databaseId: number; name: string; status?: string | null; conclusion?: string | null; url?: string | null;
 };
 
 async function fetchGitHubChecks(pi: ExtensionAPI, cwd: string, branch: string, sha: string): Promise<Partial<CiSummary>> {
@@ -512,6 +525,24 @@ async function fetchJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<
   return "Log fetching not supported for this job type.";
 }
 
+async function githubJobIdForSelectedJob(pi: ExtensionAPI, cwd: string, runId: number, job: CiJob): Promise<number> {
+  if (job.githubJobId) return job.githubJobId;
+  const jobs = await execJson<GhRunJob[]>(pi, "gh", ["run", "view", String(runId), "--json", "jobs", "--jq", ".jobs"], cwd, 20_000);
+  const candidates = new Set(githubJobNameCandidates(job).map(normalizedCiName));
+  const sameName = jobs.filter((runJob) => candidates.has(normalizedCiName(runJob.name)));
+  const failedMatch = sameName.find((runJob) => normalizeGitHubState(runJob.status, runJob.conclusion) === "failed");
+  const match = failedMatch ?? sameName[0];
+  if (match?.databaseId) return match.databaseId;
+
+  const available = jobs.map((runJob) => runJob.name).filter(Boolean).join(", ");
+  throw new Error(`Could not identify the GitHub Actions job id for ${job.name}. Available jobs in run ${runId}: ${available || "none"}`);
+}
+
+function circleJobId(job: CiJob): string | undefined {
+  if (job.provider !== "circleci") return undefined;
+  return job.id.startsWith("circleci:") ? job.id.slice("circleci:".length) : job.id;
+}
+
 async function rerunFailedJob(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<string> {
   if (job.state !== "failed") {
     throw new Error(`Selected job is ${job.state}; rerun is only enabled for failed jobs.`);
@@ -519,16 +550,19 @@ async function rerunFailedJob(pi: ExtensionAPI, cwd: string, job: CiJob): Promis
 
   const githubRunId = job.runId ?? githubRunIdFromUrl(job.url);
   if (job.provider === "github" && githubRunId) {
-    await execText(pi, "gh", ["run", "rerun", String(githubRunId), "--failed"], cwd, 20_000);
-    return `Requested GitHub rerun for failed jobs in run ${githubRunId}.`;
+    const githubJobId = await githubJobIdForSelectedJob(pi, cwd, githubRunId, job);
+    await execText(pi, "gh", ["run", "rerun", String(githubRunId), "--job", String(githubJobId)], cwd, 20_000);
+    return `Requested GitHub rerun for ${job.name} in run ${githubRunId}.`;
   }
 
   if (job.provider === "circleci") {
     const token = process.env.CIRCLECI_TOKEN?.trim();
     if (!token) throw new Error("Set CIRCLECI_TOKEN to rerun CircleCI workflow jobs.");
     if (!job.workflowId) throw new Error("CircleCI workflow id is unavailable for this job; refresh after enabling CircleCI enrichment.");
-    await circlePost(`/workflow/${job.workflowId}/rerun`, token, { from_failed: true });
-    return `Requested CircleCI rerun for failed jobs in workflow ${job.workflowId}.`;
+    const jobId = circleJobId(job);
+    if (!jobId) throw new Error("CircleCI job id is unavailable for this job.");
+    await circlePost(`/workflow/${job.workflowId}/rerun`, token, { jobs: [jobId] });
+    return `Requested CircleCI rerun for ${job.name}.`;
   }
 
   throw new Error("Rerun is not supported for this job type yet.");
@@ -657,7 +691,7 @@ function renderSummary(summary: CiSummary): string[] {
 }
 
 function compactStatus(summary: CiSummary): string {
-  const hint = `· ${CI_DETAIL_SHORTCUT} details`;
+  const hint = `· ${keyComboLabel(CI_DETAIL_SHORTCUT)} details`;
   if (summary.jobs.length === 0) return `${summary.errors.length > 0 ? "CI unavailable" : "CI no checks"} ${hint}`;
   const groups = groupJobs(summary);
   if (groups.failed.length > 0) return `CI ❌ ${groups.failed.length} failed · ${groups.running.length} running · ${groups.passing.length} passing ${hint}`;
@@ -758,7 +792,9 @@ function notifyTransitions(ctx: ExtensionContext, previous: CiSummary | undefine
   }
   if (currentFailureSignature) {
     hadFailureSinceLastSuccess = true;
-    if (currentFailureSignature !== lastFailureSignature) {
+    if (!previous && reason === "startup") {
+      lastFailureSignature = currentFailureSignature;
+    } else if (currentFailureSignature !== lastFailureSignature) {
       ctx.ui.notify(`CI failed: ${summarizeJobNames(currentFailures)}`, "error");
       lastFailureSignature = currentFailureSignature;
     }
@@ -805,10 +841,12 @@ async function refreshAndRender(ctx: ExtensionContext, reason: string): Promise<
     return summary;
   } catch (error) {
     const message = errorMessage(error);
-    ctx.ui.setStatus(STATUS_KEY, "CI unavailable");
+    ctx.ui.setStatus(STATUS_KEY, `CI unavailable · ${keyComboLabel(CI_DETAIL_SHORTCUT)} details`);
     if (widgetVisible) ctx.ui.setWidget(WIDGET_KEY, renderError(error), { placement: "aboveEditor" });
-    if (message !== lastErrorMessage) {
+    if (reason !== "startup" && message !== lastErrorMessage) {
       ctx.ui.notify(`CI refresh failed: ${truncate(message, 240)}`, "warning");
+      lastErrorMessage = message;
+    } else if (reason === "startup") {
       lastErrorMessage = message;
     }
     scheduleNext(ctx, undefined);

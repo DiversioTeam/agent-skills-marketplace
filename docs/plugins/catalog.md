@@ -16,7 +16,7 @@ when command files change.
   - Extension path: `pi-packages/ci-status/extensions/ci-status`
   - Slash commands: `/ci`, `/ci-detail`, `/ci-logs`, `/ci-refresh`,
     `/ci-watch`, `/ci-unwatch`, `/ci-clear`
-  - Shortcut: `Ctrl+Shift+I` opens `/ci-detail` by default; override with
+  - Shortcut: `Ctrl+Shift+.` opens `/ci-detail` by default; override with
     `PI_CI_DETAIL_SHORTCUT`.
   - LLM tools: `get_ci_status`, `ci_fetch_job_logs`
   - Environment: uses `gh` CLI for GitHub; set `CIRCLECI_TOKEN` for CircleCI

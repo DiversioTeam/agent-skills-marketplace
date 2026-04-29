@@ -22,7 +22,7 @@ Then restart pi or run `/reload` in an existing pi session.
 | Command | Does |
 |---|---|
 | `/ci` | Fetch and render CI status for the current branch/PR in the widget area |
-| `/ci-detail` or `Ctrl+Shift+I` | Open interactive TUI detail view grouped by CI provider and workflow/cycle, automatic focus on the most important CI/cycle, sorted job list, details, log access, selected failed-job rerun, guided fix prompts, browser open, and copy URL |
+| `/ci-detail` or `Ctrl+Shift+.` | Open interactive TUI detail view grouped by CI provider and workflow/cycle, automatic focus on the most important CI/cycle, sorted job list, details, log access, selected failed-job rerun, guided fix prompts, browser open, and copy URL |
 | `/ci-logs <job>` | Fetch and display logs for a job by name or id |
 | `/ci-refresh` | Force-refresh CI status |
 | `/ci-watch` | Watch CI status and notify when failures/recoveries occur |
@@ -46,13 +46,13 @@ These tools are the fallback used by `/review:ci` when the interactive slash com
 - Set `CIRCLECI_TOKEN` to enrich CircleCI checks with workflow/job details.
 - Set `PI_CI_AUTO_WATCH=0` to disable automatic startup watch.
 - Set `PI_CI_SHOW_WIDGET_ON_START=1` to show the CI widget immediately on startup.
-- Set `PI_CI_DETAIL_SHORTCUT` to override the `/ci-detail` shortcut, default `ctrl+shift+i`.
+- Set `PI_CI_DETAIL_SHORTCUT` to override the `/ci-detail` shortcut, default `ctrl+shift+.`.
 
 ## UI shortcuts
 
 From the main pi UI:
 
-- `Ctrl+Shift+I` opens `/ci-detail`.
+- `Ctrl+Shift+.` opens `/ci-detail`.
 
 Inside `/ci-detail`:
 
@@ -68,7 +68,7 @@ Inside `/ci-detail`:
 - `r` fetch logs for selected job
 - `f` jump to the first error-like log line after logs are loaded
 - `F` start a guided fix flow for the selected job: pick a model, review a context-rich prompt, press `e` to edit, `Enter` to run, or the configured `app.message.followUp` key to queue
-- `x` rerun the selected failed job (`gh run rerun --failed` for GitHub Actions; CircleCI reruns require enriched workflow data and `CIRCLECI_TOKEN`)
+- `x` rerun the selected failed job one-by-one (`gh run rerun --job <job-id>` for GitHub Actions; CircleCI reruns require enriched workflow data and `CIRCLECI_TOKEN`)
 - `l` open the selected job URL in browser
 - `c` copy the selected job URL; the view shows the exact copy target
 - `g` jump to first failing job, switching CI/cycle if needed
