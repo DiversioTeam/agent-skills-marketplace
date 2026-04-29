@@ -56,7 +56,8 @@ Then `/reload` in any pi session.
 | `/workflow:prompts add` | Open a field-based form to add/update a `user.*` prompt |
 | `/workflow:prompts override [workflow.code]` | Pick or directly override a core `workflow.*` prompt with a field-based form |
 | `/workflow:prompts delete [code]` | Delete a user prompt, remove a user override, or hide a project prompt after confirmation |
-| `/workflow:prompts list` | List loaded prompts with source labels |
+| `/workflow:prompts restore [code]` | Restore a prompt hidden by a user-level disabled override |
+| `/workflow:prompts list` | List loaded prompts with source labels and hidden prompts |
 | `/workflow:prompts paths` | Show project/user/legacy config paths |
 | `/workflow:prompts validate` | Validate prompt config and show warnings |
 | `/workflow:prompts init` | Create a starter user config |
@@ -74,7 +75,7 @@ Then `/reload` in any pi session.
 
 Rows show source labels such as `[core]`, `[project]`, `[user]`, `[override:project]`, and `[override:user]`.
 
-Prompt Studio uses native Pi TUI forms: short metadata fields are single-line inputs, while the prompt body opens a multi-line editor so prompts can be formatted with readable sections and newlines. The form validates before saving, including required fields, `user.*` code format, and duplicate code collisions. Deletion is confirmed before writing: user prompts are removed from user config, user overrides are removed, and project prompts are hidden through a user-level disabled override rather than mutating project config.
+Prompt Studio uses native Pi TUI forms: short metadata fields are single-line inputs, while the prompt body opens a multi-line editor so prompts can be formatted with readable sections and newlines. The form validates before saving, including required fields, `user.*` code format, and duplicate code collisions. Renaming a user prompt removes the old code entry instead of leaving a duplicate. Deletion is confirmed before writing: user prompts are removed from user config, user overrides are removed, and project prompts are hidden through a user-level disabled override rather than mutating project config. Hidden prompts remain discoverable through `/workflow:prompts list` and can be restored with `/workflow:prompts restore <code>`.
 
 ## Prompt customization
 

@@ -45,8 +45,14 @@ type PromptConfig = {
   prompts?: unknown;
 };
 
+type HiddenWorkflowPrompt = WorkflowPrompt & {
+  hiddenBy: WorkflowPromptSource;
+  hiddenPath: string;
+};
+
 type PromptRegistry = {
   prompts: WorkflowPrompt[];
+  hiddenPrompts: HiddenWorkflowPrompt[];
   warnings: string[];
   paths: { project?: string; user: string; legacy: string };
 };
@@ -612,7 +618,14 @@ async function readConfig(path: string, layer: PromptLayer, warnings: string[]):
   }
 }
 
-function applyConfig(promptsByCode: Map<string, WorkflowPrompt>, config: PromptConfig, layer: PromptLayer, path: string, warnings: string[]): void {
+function applyConfig(
+  promptsByCode: Map<string, WorkflowPrompt>,
+  config: PromptConfig,
+  layer: PromptLayer,
+  path: string,
+  warnings: string[],
+  hiddenPrompts: HiddenWorkflowPrompt[],
+): void {
   const overrideSource: WorkflowPromptSource = layer === "project" ? "project override" : "user override";
 
   if (config.overrides !== undefined) {
@@ -628,6 +641,7 @@ function applyConfig(promptsByCode: Map<string, WorkflowPrompt>, config: PromptC
         const override = validateOverride(rawOverride, code, path, warnings);
         if (!override) continue;
         if (override.disabled) {
+          hiddenPrompts.push({ ...existing, hiddenBy: overrideSource, hiddenPath: path });
           promptsByCode.delete(code);
           continue;
         }
@@ -671,16 +685,18 @@ async function loadPromptRegistry(pi: ExtensionAPI, cwd: string): Promise<Prompt
   const paths = await configPaths(pi, cwd);
   const warnings: string[] = [];
   const promptsByCode = new Map(CORE_PROMPTS.map((prompt) => [prompt.code, cloneCorePrompt(prompt)]));
+  const hiddenPrompts: HiddenWorkflowPrompt[] = [];
 
   for (const [layer, path] of [["project", paths.project], ["legacy", paths.legacy], ["user", paths.user]] as Array<[PromptLayer, string | undefined]>) {
     if (!path) continue;
     const config = await readConfig(path, layer, warnings);
-    if (config) applyConfig(promptsByCode, config, layer, path, warnings);
+    if (config) applyConfig(promptsByCode, config, layer, path, warnings, hiddenPrompts);
   }
 
   const prompts = Array.from(promptsByCode.values());
+  const stillHidden = hiddenPrompts.filter((prompt) => !promptsByCode.has(prompt.code));
   validateUniqueCommands(prompts, warnings);
-  return { prompts, warnings, paths };
+  return { prompts, hiddenPrompts: stillHidden, warnings, paths };
 }
 
 function promptForInput(registry: PromptRegistry, input: string): WorkflowPrompt | undefined {
@@ -761,10 +777,15 @@ async function writeUserConfig(path: string, mutator: (config: Record<string, un
 }
 
 async function addUserPrompt(path: string, prompt: Record<string, unknown>): Promise<void> {
+  await replaceUserPrompt(path, undefined, prompt);
+}
+
+async function replaceUserPrompt(path: string, oldCode: string | undefined, prompt: Record<string, unknown>): Promise<void> {
   await writeUserConfig(path, (config) => {
-    const prompts = Array.isArray(config.prompts) ? config.prompts : [];
+    let prompts = Array.isArray(config.prompts) ? config.prompts : [];
     const code = typeof prompt.code === "string" ? prompt.code : undefined;
     if (!code) throw new Error("prompt.code is required");
+    if (oldCode && oldCode !== code) prompts = prompts.filter((item) => !(isObject(item) && item.code === oldCode));
     const existing = prompts.findIndex((item) => isObject(item) && item.code === code);
     if (existing >= 0) prompts[existing] = prompt;
     else prompts.push(prompt);
@@ -1181,6 +1202,42 @@ async function pickPrompt(ctx: WorkflowContext, registry: PromptRegistry, title:
   return selectedCode ? prompts.find((prompt) => prompt.code === selectedCode) : undefined;
 }
 
+async function pickHiddenPrompt(ctx: WorkflowContext, registry: PromptRegistry, title: string): Promise<HiddenWorkflowPrompt | undefined> {
+  const selectedCode = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
+    const items: SelectItem[] = registry.hiddenPrompts.map((prompt) => ({
+      value: prompt.code,
+      label: prompt.code,
+      description: `[hidden by ${prompt.hiddenBy}] ${prompt.short}`,
+    }));
+    const list = new SelectList(items, Math.min(Math.max(items.length, 1), 14), {
+      selectedPrefix: (text: string) => theme.fg("accent", text),
+      selectedText: (text: string) => theme.fg("accent", text),
+      description: (text: string) => theme.fg("muted", text),
+      scrollInfo: (text: string) => theme.fg("dim", text),
+      noMatch: (text: string) => theme.fg("warning", text),
+    });
+    list.onSelect = (item) => done(item.value);
+    list.onCancel = () => done(null);
+    const container = new Container();
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
+    if (items.length === 0) container.addChild(new Text(theme.fg("muted", "No hidden prompts."), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(list);
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("dim", "↑↓ navigate · Enter select · Esc cancel"), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    return {
+      render: (width: number) => container.render(width),
+      invalidate: () => container.invalidate(),
+      handleInput: (data: string) => { list.handleInput(data); tui.requestRender(); },
+    };
+  });
+  return selectedCode ? registry.hiddenPrompts.find((prompt) => prompt.code === selectedCode) : undefined;
+}
+
 async function confirmDestructiveAction(ctx: WorkflowContext, title: string, description: string): Promise<boolean> {
   const result = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
     const items: SelectItem[] = [
@@ -1217,8 +1274,17 @@ async function confirmDestructiveAction(ctx: WorkflowContext, title: string, des
 }
 
 async function deletePromptWithConfirmation(ctx: WorkflowContext, registry: PromptRegistry, code?: string): Promise<void> {
+  const hidden = code ? registry.hiddenPrompts.find((prompt) => prompt.code === code) : undefined;
+  if (hidden) {
+    await restorePromptWithConfirmation(ctx, registry, hidden.code);
+    return;
+  }
+
   const selected = code ? registry.prompts.find((prompt) => prompt.code === code) : await pickPrompt(ctx, registry, "Delete or hide workflow prompt");
-  if (!selected) return;
+  if (!selected) {
+    if (code) ctx.ui.notify(`No active or hidden prompt found for ${code}.`, "warning");
+    return;
+  }
 
   let action = "";
   let description = "";
@@ -1244,6 +1310,27 @@ async function deletePromptWithConfirmation(ctx: WorkflowContext, registry: Prom
   else await setUserOverride(registry.paths.user, selected.code, { disabled: true });
 
   ctx.ui.notify(`${action.charAt(0).toUpperCase() + action.slice(1)} complete for ${selected.code}.`, "info");
+}
+
+async function restorePromptWithConfirmation(ctx: WorkflowContext, registry: PromptRegistry, code?: string): Promise<void> {
+  const hidden = code
+    ? registry.hiddenPrompts.find((prompt) => prompt.code === code)
+    : await pickHiddenPrompt(ctx, registry, "Restore hidden workflow prompt");
+  if (!hidden) {
+    if (code) ctx.ui.notify(`No hidden prompt found for ${code}.`, "warning");
+    return;
+  }
+
+  const description = `Remove the disabled override for ${hidden.code} from ${hidden.hiddenPath}. The prompt will appear again after reload.`;
+  const confirmed = await confirmDestructiveAction(ctx, `Restore ${hidden.code}?`, description);
+  if (!confirmed) return;
+
+  if (hidden.hiddenPath === registry.paths.user) {
+    await removeUserOverride(registry.paths.user, hidden.code);
+    ctx.ui.notify(`Restore complete for ${hidden.code}.`, "info");
+  } else {
+    ctx.ui.notify(`Hidden prompt ${hidden.code} is disabled in ${hidden.hiddenPath}; edit that config to restore it.`, "warning");
+  }
 }
 
 async function addPromptWithForm(pi: ExtensionAPI, ctx: WorkflowContext, registry: PromptRegistry): Promise<void> {
@@ -1272,7 +1359,7 @@ async function editCustomPromptWithForm(pi: ExtensionAPI, ctx: WorkflowContext, 
     const existingCodes = new Set(registry.prompts.map((prompt) => prompt.code));
     const data = await editUserPromptForm(ctx, `Edit saved user prompt ${selected.code}`, workflowPromptToUserFormData(selected), existingCodes, selected.code);
     if (!data) return;
-    await addUserPrompt(registry.paths.user, userPromptToConfig(data));
+    await replaceUserPrompt(registry.paths.user, selected.code, userPromptToConfig(data));
     const updated = await loadPromptRegistry(pi, ctx.cwd).catch(() => undefined);
     ctx.ui.notify(`Updated ${data.code} in ${registry.paths.user}${updated?.warnings.length ? `\nWarnings:\n- ${updated.warnings.join("\n- ")}` : ""}`, updated?.warnings.length ? "warning" : "info");
     return;
@@ -1291,6 +1378,7 @@ async function openPromptStudio(pi: ExtensionAPI, ctx: WorkflowContext): Promise
       { value: "add", label: "Add user prompt", description: `Create a user.* prompt in ${registry.paths.user}` },
       { value: "override", label: "Override core prompt", description: "Pick a workflow.* prompt and add append/prepend/replace guidance" },
       { value: "delete", label: "Delete/hide prompt", description: "Delete a user prompt, remove a user override, or hide a project prompt with confirmation" },
+      { value: "restore", label: "Restore hidden prompt", description: `${registry.hiddenPrompts.length} hidden prompt(s)` },
       { value: "init", label: "Create starter config", description: registry.paths.user },
       { value: "paths", label: "Show config paths", description: "Project, XDG user, and legacy config locations" },
       { value: "validate", label: "Validate config", description: `${registry.warnings.length} warning(s)` },
@@ -1325,6 +1413,7 @@ async function openPromptStudio(pi: ExtensionAPI, ctx: WorkflowContext): Promise
   if (action === "add") await addPromptWithForm(pi, ctx, registry);
   else if (action === "override") await overridePromptWithForm(ctx, registry);
   else if (action === "delete") await deletePromptWithConfirmation(ctx, registry);
+  else if (action === "restore") await restorePromptWithConfirmation(ctx, registry);
   else if (action === "init") {
     if (await fileExists(registry.paths.user)) ctx.ui.notify(`User prompt config already exists: ${registry.paths.user}`, "warning");
     else {
@@ -1541,7 +1630,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("workflow:prompts", {
-    description: "Manage workflow prompt config: studio, add, override, delete, list, paths, validate, init, reload",
+    description: "Manage workflow prompt config: studio, add, override, delete, restore, list, paths, validate, init, reload",
     handler: async (args, ctx) => {
       const [action = "studio", target] = args.trim().split(/\s+/).filter(Boolean);
       const registry = await loadPromptRegistry(pi, ctx.cwd);
@@ -1553,6 +1642,8 @@ export default function (pi: ExtensionAPI) {
         await overridePromptWithForm(ctx, registry, target);
       } else if (action === "delete" || action === "remove") {
         await deletePromptWithConfirmation(ctx, registry, target);
+      } else if (action === "restore" || action === "unhide") {
+        await restorePromptWithConfirmation(ctx, registry, target);
       } else if (action === "paths") {
         ctx.ui.notify([
           "Dev Workflow prompt config paths:",
@@ -1574,6 +1665,10 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify(`Reloaded workflow prompts (${registry.prompts.length} available).`, "info");
       } else {
         const lines = registry.prompts.map((prompt) => `[${prompt.sourceLabel}] ${prompt.code}${prompt.command ? ` /${prompt.command}` : ""} — ${prompt.short}`);
+        if (registry.hiddenPrompts.length > 0) {
+          lines.push("", "Hidden prompts:");
+          lines.push(...registry.hiddenPrompts.map((prompt) => `[hidden by ${prompt.hiddenBy}] ${prompt.code} — restore with /workflow:prompts restore ${prompt.code}`));
+        }
         ctx.ui.notify(lines.join("\n"), "info");
       }
     },
@@ -1607,7 +1702,7 @@ export default function (pi: ExtensionAPI) {
           : "Subagent prompts fall back inline unless pi-subagents is installed.",
         "",
         "Custom prompts:",
-        "/workflow:prompts studio|add|override|delete|init|paths|validate|list|reload",
+        "/workflow:prompts studio|add|override|delete|restore|init|paths|validate|list|reload",
         "/workflow:run <code> [extra context]",
       ].join("\n"), "info");
     },
