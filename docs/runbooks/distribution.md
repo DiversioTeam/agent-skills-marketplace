@@ -60,6 +60,7 @@ PLUGINS=(
   dependabot-remediation
   terraform
   login-cta-attribution-skill
+  frontend
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -99,6 +100,7 @@ PLUGINS=(
   dependabot-remediation
   terraform
   login-cta-attribution-skill
+  frontend
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -237,6 +239,7 @@ SKILLS=(
   terraform-atomic-commit
   terraform-pr-workflow
   login-cta-attribution-skill
+  frontend
 )
 
 for skill in "${SKILLS[@]}"; do

@@ -232,6 +232,17 @@ agent-skills-marketplace/
 │   │   │   ├── SKILL.md
 │   │   │   └── references/
 │   │   └── commands/implement.md
+│   ├── frontend/                      # Digest-first frontend skill (all lanes)
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/frontend/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── work.md
+│   │       ├── refresh-digest.md
+│   │       ├── review.md
+│   │       ├── commit.md
+│   │       └── new-branch.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -261,6 +272,7 @@ agent-skills-marketplace/
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
+| `frontend` | Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows |
 
 ## Available Pi Packages
 
@@ -592,6 +604,7 @@ claude plugin install backend-release@diversiotech
 claude plugin install dependabot-remediation@diversiotech
 claude plugin install terraform@diversiotech
 claude plugin install login-cta-attribution-skill@diversiotech
+claude plugin install frontend@diversiotech
 ```
 
 For project-scoped installation (shared with collaborators via `.claude/settings.json`):
@@ -626,6 +639,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Dependabot remediation (backend/frontend) | `claude plugin install dependabot-remediation@diversiotech` |
 | Terraform workflows | `claude plugin install terraform@diversiotech` |
 | Login CTA attribution | `claude plugin install login-cta-attribution-skill@diversiotech` |
+| Frontend (all lanes) | `claude plugin install frontend@diversiotech` |
 
 </details>
 
@@ -683,6 +697,11 @@ Once plugins are installed:
    /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
    /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
    /login-cta-attribution-skill:implement   # Add new CTA login attribution source
+   /frontend:work                          # Main frontend entrypoint — routes to the correct lane based on arguments
+   /frontend:refresh-digest                # Persist a full frontend project digest to docs/frontend-skill-digest/
+   /frontend:review                        # Review a frontend PR using the repo-local digest and Bumang-style priorities
+   /frontend:commit                        # Create a digest-aware atomic frontend commit with quality gates
+   /frontend:new-branch                    # Create a frontend branch using the repo's detected branch model
    ```
 
 ## Monty Review Memory
@@ -792,6 +811,7 @@ claude plugin uninstall backend-release@diversiotech
 claude plugin uninstall dependabot-remediation@diversiotech
 claude plugin uninstall terraform@diversiotech
 claude plugin uninstall login-cta-attribution-skill@diversiotech
+claude plugin uninstall frontend@diversiotech
 ```
 
 **Step 3: Uninstall project-scoped plugins (if any)**
@@ -817,6 +837,7 @@ claude plugin uninstall backend-release@diversiotech --scope project
 claude plugin uninstall dependabot-remediation@diversiotech --scope project
 claude plugin uninstall terraform@diversiotech --scope project
 claude plugin uninstall login-cta-attribution-skill@diversiotech --scope project
+claude plugin uninstall frontend@diversiotech --scope project
 ```
 
 </details>
@@ -869,7 +890,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/dependabot-remediation/skills/dependabot-remediation \
     plugins/terraform/skills/terraform-atomic-commit \
     plugins/terraform/skills/terraform-pr-workflow \
-    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
+    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+    plugins/frontend/skills/frontend
 ```
 
 **Codex console alternative:**
@@ -895,7 +917,8 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/dependabot-remediation/skills/dependabot-remediation \
   path=plugins/terraform/skills/terraform-atomic-commit \
   path=plugins/terraform/skills/terraform-pr-workflow \
-  path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
+  path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+  path=plugins/frontend/skills/frontend
 ```
 
 </details>
@@ -943,7 +966,8 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/dependabot-remediation" \
        "$CODEX_HOME/skills/terraform-atomic-commit" \
        "$CODEX_HOME/skills/terraform-pr-workflow" \
-       "$CODEX_HOME/skills/login-cta-attribution-skill"
+       "$CODEX_HOME/skills/login-cta-attribution-skill" \
+       "$CODEX_HOME/skills/frontend"
 echo "Done. Restart Codex and reinstall skills."
 ```
 

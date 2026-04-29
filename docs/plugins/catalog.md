@@ -213,3 +213,26 @@ when command files change.
   - Skill path:
     `plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill`
   - Slash commands: `/login-cta-attribution-skill:implement`
+
+## Frontend
+
+- `frontend`
+  - Purpose: digest-first frontend skill with repo classification, dynamic
+    detection, and internal lane routing for review, API, testing, analytics,
+    observability, CI/CD, planning, and commit workflows.
+  - Claude install: `claude plugin install frontend@diversiotech`
+  - Skill path: `plugins/frontend/skills/frontend`
+  - References:
+    `plugins/frontend/skills/frontend/references/digest-schema.md`,
+    `plugins/frontend/skills/frontend/references/review-taste.md`,
+    `plugins/frontend/skills/frontend/references/review.md`,
+    `plugins/frontend/skills/frontend/references/api-integration.md`,
+    `plugins/frontend/skills/frontend/references/testing.md`,
+    `plugins/frontend/skills/frontend/references/analytics.md`,
+    `plugins/frontend/skills/frontend/references/observability.md`,
+    `plugins/frontend/skills/frontend/references/cicd.md`,
+    `plugins/frontend/skills/frontend/references/planning.md`,
+    `plugins/frontend/skills/frontend/references/commit-hygiene.md`,
+    `plugins/frontend/skills/frontend/references/pr-workflow.md`
+  - Slash commands: `/frontend:work`, `/frontend:refresh-digest`,
+    `/frontend:review`, `/frontend:commit`, `/frontend:new-branch`
