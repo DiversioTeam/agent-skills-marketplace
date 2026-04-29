@@ -131,24 +131,40 @@ not the Claude Code marketplace.
 From a checkout of this repo:
 
 ```bash
-pi install -l ./pi-packages/ci-status
-pi install -l ./pi-packages/dev-workflow
+pi install "$PWD/pi-packages/ci-status"
+pi install "$PWD/pi-packages/dev-workflow"
 ```
 
 From the Diversio monolith root, include the submodule path:
 
 ```bash
-pi install -l ./agent-skills-marketplace/pi-packages/ci-status
-pi install -l ./agent-skills-marketplace/pi-packages/dev-workflow
+pi install "$PWD/agent-skills-marketplace/pi-packages/ci-status"
+pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
 ```
 
-Use `-l` for project-local installs that write to `.pi/settings.json`. For a
-personal global install, pass an absolute path instead:
+Plain `pi install` writes to global user settings (`~/.pi/agent/settings.json`).
+For one-off extension testing, prefer `-e` so Pi loads the package for the
+current run without changing settings:
 
 ```bash
-pi install /path/to/agent-skills-marketplace/pi-packages/ci-status
-pi install /path/to/agent-skills-marketplace/pi-packages/dev-workflow
+pi -e ./pi-packages/ci-status
+pi -e ./pi-packages/dev-workflow
 ```
+
+Use `-l` only when you need to test project-local install, reload, or
+persistence behavior that writes to `.pi/settings.json`:
+
+```bash
+pi install -l ./pi-packages/ci-status
+pi install -l ./pi-packages/dev-workflow
+```
+
+Install a pi package in one scope at a time. Pi deduplicates the same package
+identity across user and project settings, but different local paths can still
+resolve as different packages. For `ci-status`, duplicate loads can produce
+tool registration conflicts for `get_ci_status` and `ci_fetch_job_logs`. Remove
+the duplicate project package entry or uninstall the global copy before
+restarting or running `/reload`.
 
 After install, restart pi or run `/reload`. The `ci-status` package provides
 `/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch, UI widgets, notifications, and
