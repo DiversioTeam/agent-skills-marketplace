@@ -780,6 +780,20 @@ async function setUserOverride(path: string, code: string, override: Record<stri
   });
 }
 
+async function removeUserPrompt(path: string, code: string): Promise<void> {
+  await writeUserConfig(path, (config) => {
+    const prompts = Array.isArray(config.prompts) ? config.prompts : [];
+    config.prompts = prompts.filter((item) => !(isObject(item) && item.code === code));
+  });
+}
+
+async function removeUserOverride(path: string, code: string): Promise<void> {
+  await writeUserConfig(path, (config) => {
+    if (!isObject(config.overrides)) return;
+    delete config.overrides[code];
+  });
+}
+
 function userPromptToConfig(data: UserPromptFormData): Record<string, unknown> {
   return {
     code: data.code.trim(),
@@ -1167,6 +1181,71 @@ async function pickPrompt(ctx: WorkflowContext, registry: PromptRegistry, title:
   return selectedCode ? prompts.find((prompt) => prompt.code === selectedCode) : undefined;
 }
 
+async function confirmDestructiveAction(ctx: WorkflowContext, title: string, description: string): Promise<boolean> {
+  const result = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
+    const items: SelectItem[] = [
+      { value: "cancel", label: "Cancel", description: "Keep everything unchanged" },
+      { value: "delete", label: "Delete", description },
+    ];
+    const list = new SelectList(items, items.length, {
+      selectedPrefix: (text: string) => theme.fg("accent", text),
+      selectedText: (text: string) => theme.fg("accent", text),
+      description: (text: string) => theme.fg("muted", text),
+      scrollInfo: (text: string) => theme.fg("dim", text),
+      noMatch: (text: string) => theme.fg("warning", text),
+    });
+    list.onSelect = (item) => done(item.value);
+    list.onCancel = () => done(null);
+    const container = new Container();
+    container.addChild(new DynamicBorder((s: string) => theme.fg("error", s)));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("error", theme.bold(title)), 1, 0));
+    container.addChild(new Text(description, 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(list);
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("dim", "↑↓ select · Enter confirm · Esc cancel"), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new DynamicBorder((s: string) => theme.fg("error", s)));
+    return {
+      render: (width: number) => container.render(width),
+      invalidate: () => container.invalidate(),
+      handleInput: (data: string) => { list.handleInput(data); tui.requestRender(); },
+    };
+  });
+  return result === "delete";
+}
+
+async function deletePromptWithConfirmation(ctx: WorkflowContext, registry: PromptRegistry, code?: string): Promise<void> {
+  const selected = code ? registry.prompts.find((prompt) => prompt.code === code) : await pickPrompt(ctx, registry, "Delete or hide workflow prompt");
+  if (!selected) return;
+
+  let action = "";
+  let description = "";
+  if (selected.sourceLabel === "user" && selected.sourcePath === registry.paths.user && selected.code.startsWith("user.")) {
+    action = "delete";
+    description = `Delete user prompt ${selected.code} from ${registry.paths.user}.`;
+  } else if (selected.sourceLabel === "user override") {
+    action = "remove override";
+    description = `Remove the user override for ${selected.code} from ${registry.paths.user}. The underlying prompt will become visible again.`;
+  } else if (selected.category === "project" || selected.sourceLabel === "project override") {
+    action = "hide";
+    description = `Hide project prompt ${selected.code} on this machine by writing a user-level disabled override. Project config will not be modified.`;
+  } else {
+    ctx.ui.notify(`${selected.code} is a core prompt. Use /workflow:prompts override ${selected.code} with disabled:true manually if you really want to hide it.`, "warning");
+    return;
+  }
+
+  const confirmed = await confirmDestructiveAction(ctx, `${action.charAt(0).toUpperCase() + action.slice(1)} ${selected.code}?`, description);
+  if (!confirmed) return;
+
+  if (action === "delete") await removeUserPrompt(registry.paths.user, selected.code);
+  else if (action === "remove override") await removeUserOverride(registry.paths.user, selected.code);
+  else await setUserOverride(registry.paths.user, selected.code, { disabled: true });
+
+  ctx.ui.notify(`${action.charAt(0).toUpperCase() + action.slice(1)} complete for ${selected.code}.`, "info");
+}
+
 async function addPromptWithForm(pi: ExtensionAPI, ctx: WorkflowContext, registry: PromptRegistry): Promise<void> {
   const existingCodes = new Set(registry.prompts.map((prompt) => prompt.code));
   const data = await editUserPromptForm(ctx, "Add user workflow prompt", defaultUserPromptData(), existingCodes);
@@ -1210,7 +1289,8 @@ async function openPromptStudio(pi: ExtensionAPI, ctx: WorkflowContext): Promise
   const action = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) => {
     const items: SelectItem[] = [
       { value: "add", label: "Add user prompt", description: `Create a user.* prompt in ${registry.paths.user}` },
-      { value: "override", label: "Override core prompt", description: "Pick a workflow.* prompt and add append/prepend/replace JSON" },
+      { value: "override", label: "Override core prompt", description: "Pick a workflow.* prompt and add append/prepend/replace guidance" },
+      { value: "delete", label: "Delete/hide prompt", description: "Delete a user prompt, remove a user override, or hide a project prompt with confirmation" },
       { value: "init", label: "Create starter config", description: registry.paths.user },
       { value: "paths", label: "Show config paths", description: "Project, XDG user, and legacy config locations" },
       { value: "validate", label: "Validate config", description: `${registry.warnings.length} warning(s)` },
@@ -1244,6 +1324,7 @@ async function openPromptStudio(pi: ExtensionAPI, ctx: WorkflowContext): Promise
 
   if (action === "add") await addPromptWithForm(pi, ctx, registry);
   else if (action === "override") await overridePromptWithForm(ctx, registry);
+  else if (action === "delete") await deletePromptWithConfirmation(ctx, registry);
   else if (action === "init") {
     if (await fileExists(registry.paths.user)) ctx.ui.notify(`User prompt config already exists: ${registry.paths.user}`, "warning");
     else {
@@ -1357,6 +1438,7 @@ export default function (pi: ExtensionAPI) {
     let queueRequested: string | null = null;
     let addRequested = false;
     let overrideRequested: string | null = null;
+    let deleteRequested: string | null = null;
 
     const result = await ctx.ui.custom<string | null>((tui: any, theme: any, keybindings: any, done: any) => {
       const panel = new HelpPanel(theme, detectSubagents(), registry.prompts, registry.warnings, keybindings);
@@ -1366,6 +1448,7 @@ export default function (pi: ExtensionAPI) {
       panel.onEditCustomPrompt = (code) => { editCustomRequested = code; done(null); };
       panel.onAddPrompt = () => { addRequested = true; done(null); };
       panel.onOverridePrompt = (code) => { overrideRequested = code; done(null); };
+      panel.onDeletePrompt = (code) => { deleteRequested = code; done(null); };
       panel.onCancel = () => done(null);
       return {
         render: (w: number) => panel.render(w),
@@ -1381,6 +1464,8 @@ export default function (pi: ExtensionAPI) {
       await addPromptWithForm(pi, ctx, registry);
     } else if (overrideRequested) {
       await overridePromptWithForm(ctx, registry, overrideRequested);
+    } else if (deleteRequested) {
+      await deletePromptWithConfirmation(ctx, registry, deleteRequested);
     } else if (editCustomRequested) {
       await editCustomPromptWithForm(pi, ctx, registry, editCustomRequested);
     } else if (queueRequested) {
@@ -1456,7 +1541,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("workflow:prompts", {
-    description: "Manage workflow prompt config: studio, add, override, list, paths, validate, init, reload",
+    description: "Manage workflow prompt config: studio, add, override, delete, list, paths, validate, init, reload",
     handler: async (args, ctx) => {
       const [action = "studio", target] = args.trim().split(/\s+/).filter(Boolean);
       const registry = await loadPromptRegistry(pi, ctx.cwd);
@@ -1466,6 +1551,8 @@ export default function (pi: ExtensionAPI) {
         await addPromptWithForm(pi, ctx, registry);
       } else if (action === "override") {
         await overridePromptWithForm(ctx, registry, target);
+      } else if (action === "delete" || action === "remove") {
+        await deletePromptWithConfirmation(ctx, registry, target);
       } else if (action === "paths") {
         ctx.ui.notify([
           "Dev Workflow prompt config paths:",
@@ -1520,7 +1607,7 @@ export default function (pi: ExtensionAPI) {
           : "Subagent prompts fall back inline unless pi-subagents is installed.",
         "",
         "Custom prompts:",
-        "/workflow:prompts studio|add|override|init|paths|validate|list|reload",
+        "/workflow:prompts studio|add|override|delete|init|paths|validate|list|reload",
         "/workflow:run <code> [extra context]",
       ].join("\n"), "info");
     },

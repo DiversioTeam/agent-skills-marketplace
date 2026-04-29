@@ -55,6 +55,7 @@ Then `/reload` in any pi session.
 | `/workflow:prompts` or `/workflow:prompts studio` | Open native TUI Prompt Studio for adding user prompts or overriding core prompts |
 | `/workflow:prompts add` | Open a field-based form to add/update a `user.*` prompt |
 | `/workflow:prompts override [workflow.code]` | Pick or directly override a core `workflow.*` prompt with a field-based form |
+| `/workflow:prompts delete [code]` | Delete a user prompt, remove a user override, or hide a project prompt after confirmation |
 | `/workflow:prompts list` | List loaded prompts with source labels |
 | `/workflow:prompts paths` | Show project/user/legacy config paths |
 | `/workflow:prompts validate` | Validate prompt config and show warnings |
@@ -68,12 +69,12 @@ Then `/reload` in any pi session.
 - **↑↓** navigate prompts · **←→/Tab** switch tabs
 - **↵** run prompt · configured **`app.message.followUp`** key (default Alt+Enter / Option+Enter) queues the selected prompt · **d** details
 - **e** edits the prompt before running on core tabs, but edits the saved prompt/config on the **CUSTOM** tab
-- **n** adds a user prompt · **o** overrides the selected prompt
+- **n** adds a user prompt · **o** overrides the selected prompt · **x** deletes/hides a custom prompt after confirmation
 - In edit mode: **Ctrl+Y** copy, configured **`app.message.followUp`** queues the edited prompt, configured `tui.input.newLine` inserts a newline, **Esc** close/back
 
 Rows show source labels such as `[core]`, `[project]`, `[user]`, `[override:project]`, and `[override:user]`.
 
-Prompt Studio uses native Pi TUI forms: short metadata fields are single-line inputs, while the prompt body opens a multi-line editor so prompts can be formatted with readable sections and newlines. The form validates before saving, including required fields, `user.*` code format, and duplicate code collisions.
+Prompt Studio uses native Pi TUI forms: short metadata fields are single-line inputs, while the prompt body opens a multi-line editor so prompts can be formatted with readable sections and newlines. The form validates before saving, including required fields, `user.*` code format, and duplicate code collisions. Deletion is confirmed before writing: user prompts are removed from user config, user overrides are removed, and project prompts are hidden through a user-level disabled override rather than mutating project config.
 
 ## Prompt customization
 

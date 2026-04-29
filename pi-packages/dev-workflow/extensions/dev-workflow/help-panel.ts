@@ -81,6 +81,7 @@ export class HelpPanel {
   public onEditCustomPrompt?: (code: string) => void;
   public onAddPrompt?: () => void;
   public onOverridePrompt?: (code: string) => void;
+  public onDeletePrompt?: (code: string) => void;
   public onCancel?: () => void;
 
   constructor(
@@ -173,6 +174,9 @@ export class HelpPanel {
     } else if (data === "o" || data === "O") {
       const cmd = cmds[this.selectedIdx];
       if (cmd) this.onOverridePrompt?.(cmd.code);
+    } else if ((data === "x" || data === "X" || matchesKey(data, Key.delete)) && this.activeCategory() === "custom") {
+      const cmd = cmds[this.selectedIdx];
+      if (cmd) this.onDeletePrompt?.(cmd.code);
     } else if (matchesKey(data, Key.escape)) {
       this.onCancel?.();
     }
@@ -193,6 +197,9 @@ export class HelpPanel {
       const cmd = this.commands[this.detailIdx];
       if (cmd && (cmd.category === "project" || cmd.category === "user")) this.onEditCustomPrompt?.(cmd.code);
       else if (cmd) this.onEdit?.(cmd.code);
+    } else if (data === "x" || data === "X" || matchesKey(data, Key.delete)) {
+      const cmd = this.commands[this.detailIdx];
+      if (cmd && (cmd.category === "project" || cmd.category === "user" || cmd.sourceLabel === "user override")) this.onDeletePrompt?.(cmd.code);
     } else if (matchesKey(data, Key.escape)) {
       this.mode = "list";
       const cat = this.activeCategory();
@@ -253,7 +260,8 @@ export class HelpPanel {
     lines.push(...new Spacer(1).render(width));
     const queueKey = this.keyLabel("app.message.followUp", "Alt+Enter");
     const editLabel = this.activeCategory() === "custom" ? "e edit saved" : "e edit run";
-    lines.push(...new Text(t.fg("dim", `↑↓ navigate    ←→/Tab switch tabs    ↵ run    ${queueKey} queue    d details    ${editLabel}    n new    o override    Esc close`), pad, 0).render(width));
+    const deleteLabel = this.activeCategory() === "custom" ? "    x delete" : "";
+    lines.push(...new Text(t.fg("dim", `↑↓ navigate    ←→/Tab switch tabs    ↵ run    ${queueKey} queue    d details    ${editLabel}    n new    o override${deleteLabel}    Esc close`), pad, 0).render(width));
     lines.push(...new DynamicBorder((s: string) => t.fg("accent", s)).render(width));
     return lines;
   }
@@ -311,7 +319,8 @@ export class HelpPanel {
     lines.push(...new Spacer(1).render(width));
     const queueKey = this.keyLabel("app.message.followUp", "Alt+Enter");
     const editLabel = cmd.category === "project" || cmd.category === "user" ? "e edit saved" : "e edit first";
-    lines.push(...new Text(t.fg("dim", `↵ run    ${queueKey} queue    ${editLabel}    ←→ prev/next prompt    Esc back to list`), pad, 0).render(width));
+    const deleteLabel = cmd.category === "project" || cmd.category === "user" || cmd.sourceLabel === "user override" ? "    x delete" : "";
+    lines.push(...new Text(t.fg("dim", `↵ run    ${queueKey} queue    ${editLabel}${deleteLabel}    ←→ prev/next prompt    Esc back to list`), pad, 0).render(width));
     lines.push(...new DynamicBorder((s: string) => t.fg(color, s)).render(width));
     return lines;
   }
