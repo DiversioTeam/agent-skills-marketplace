@@ -121,6 +121,41 @@ Troubleshooting:
 - If cleanup is still required, inspect the repo-local `.claude/` directory and
   your user-level Claude Code config location before deleting anything.
 
+## Pi Package Installation
+
+Pi-native packages live under `pi-packages/` and are installed with the pi CLI,
+not the Claude Code marketplace.
+
+From a checkout of this repo:
+
+```bash
+pi install -l ./pi-packages/ci-status
+pi install -l ./pi-packages/dev-workflow
+```
+
+From the Diversio monolith root, include the submodule path:
+
+```bash
+pi install -l ./agent-skills-marketplace/pi-packages/ci-status
+pi install -l ./agent-skills-marketplace/pi-packages/dev-workflow
+```
+
+Use `-l` for project-local installs that write to `.pi/settings.json`. For a
+personal global install, pass an absolute path instead:
+
+```bash
+pi install /path/to/agent-skills-marketplace/pi-packages/ci-status
+pi install /path/to/agent-skills-marketplace/pi-packages/dev-workflow
+```
+
+After install, restart pi or run `/reload`. The `ci-status` package provides
+`/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch, UI widgets, notifications, and
+LLM tools (`get_ci_status`, `ci_fetch_job_logs`). The `dev-workflow`
+package provides `/review:*` commands, `/review:help`, `/review:flow`, the
+`ai-review-workflow` and `ci` skills, and a bundled `agents/review-pipeline.chain.md`
+file for pi-subagents. If your pi-subagents setup only scans `.pi/agents/`, copy
+that chain file there manually.
+
 ## Codex Skill Installation
 
 ### Install a single skill

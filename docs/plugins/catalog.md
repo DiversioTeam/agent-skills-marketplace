@@ -6,6 +6,41 @@ when command files change.
 
 ## Review And Workflow
 
+- `ci-status` (pi package)
+  - Purpose: pi-native CI status extension with GitHub Actions and CircleCI
+    status discovery, auto-watch after pushes, widget/status rendering,
+    notifications, CI-provider/workflow-cycle TUI job details, and log access.
+  - Pi install from repo checkout: `pi install -l ./pi-packages/ci-status`
+  - Package path: `pi-packages/ci-status`
+  - Extension path: `pi-packages/ci-status/extensions/ci-status`
+  - Slash commands: `/ci`, `/ci-detail`, `/ci-logs`, `/ci-refresh`,
+    `/ci-watch`, `/ci-unwatch`, `/ci-clear`
+  - LLM tools: `get_ci_status`, `ci_fetch_job_logs`
+  - Environment: uses `gh` CLI for GitHub; set `CIRCLECI_TOKEN` for CircleCI
+    enrichment.
+- `dev-workflow` (pi package)
+  - Purpose: pi-native daily developer workflow with TypeScript extension
+    commands, interactive TUI help panel, CI analysis prompt, local skills, and
+    optional pi-subagents review chain.
+  - Pi install from repo checkout:
+    `pi install -l ./pi-packages/dev-workflow`
+  - Package path: `pi-packages/dev-workflow`
+  - Extension path:
+    `pi-packages/dev-workflow/extensions/ai-review-workflow`
+  - Skill paths: `pi-packages/dev-workflow/skills/ai-review-workflow`,
+    `pi-packages/dev-workflow/skills/ci`
+  - Chain path: `pi-packages/dev-workflow/agents/review-pipeline.chain.md`
+  - Slash commands: `/review:plan`, `/review:self`, `/review:standards`,
+    `/review:ci`, `/review:docs`, `/review:ship`, `/review:context`,
+    `/review:handoff`, `/review:onboard`, `/review:scout`, `/review:oracle`,
+    `/review:reviewer`, `/review:parallel`, `/review:help`, `/review:flow`
+  - TUI behavior: `/review:help` uses the user's configured
+    `app.message.followUp` keybinding (default `Alt+Enter`, often
+    `Option+Enter` on macOS) to queue the selected command or edited prompt as a
+    follow-up while pi is streaming.
+  - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
+    `/ci-logs`; workflow prompts fall back to `get_ci_status` /
+    `ci_fetch_job_logs` only when the current harness exposes those tools.
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
     deterministic worktree reuse/bootstrap, persistent review context across

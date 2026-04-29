@@ -83,6 +83,9 @@ The practical takeaway for this repo is:
 agent-skills-marketplace/
 ├── .claude-plugin/
 │   └── marketplace.json               # Marketplace definition
+├── pi-packages/
+│   ├── ci-status/                     # Pi-native CI status extension
+│   └── dev-workflow/                  # Pi-native daily developer workflow extension + skills
 ├── plugins/
 │   ├── monty-code-review/             # Monty backend code review plugin
 │   │   ├── .claude-plugin/plugin.json
@@ -258,6 +261,13 @@ agent-skills-marketplace/
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
+
+## Available Pi Packages
+
+| Package | Description | Install |
+|---------|-------------|---------|
+| `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools | `pi install -l ./pi-packages/ci-status` |
+| `dev-workflow` | Pi-native daily developer workflow with 13 review commands, `/review:help`, `/review:flow`, CI analysis, local skills, and optional pi-subagents chain | `pi install -l ./pi-packages/dev-workflow` |
 
 ## Monolith Review Orchestrator
 
@@ -524,6 +534,19 @@ Or from within a Claude Code session:
 
 **Recommended:** Install at user scope (default) for compatibility with git worktrees.
 Project-scope plugins don't persist across worktrees.
+
+### Pi-native packages
+
+Pi-native packages live under `pi-packages/` and install with the pi CLI instead
+of the Claude Code marketplace. From this repo checkout:
+
+```bash
+pi install -l ./pi-packages/ci-status
+pi install -l ./pi-packages/dev-workflow
+```
+
+Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`
+and `pi-packages/dev-workflow/README.md` for command inventory and CI integration details.
 
 ### Monolith-Only Prerequisites
 

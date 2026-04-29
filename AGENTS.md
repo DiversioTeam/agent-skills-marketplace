@@ -41,17 +41,24 @@ bash scripts/validate-skills.sh
 bash scripts/validate-skills.sh --all
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
-git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin plugins
+jq -e . pi-packages/<package>/package.json >/dev/null
+printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
+git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin plugins pi-packages
 ```
 
 ## Non-Negotiable Rules
 
-- Treat this as configuration, not application code.
+- Treat this as configuration, not product application code. Pi extension code is
+  allowed only inside `pi-packages/**` and must stay harness-focused.
 - Keep JSON valid and minimal. When a plugin changes, bump the version in both
   `plugins/<plugin>/.claude-plugin/plugin.json` and the matching entry in
-  `.claude-plugin/marketplace.json`.
-- Every skill must live under `plugins/<plugin>/skills/<skill>/SKILL.md` and
-  have at least one thin wrapper in `plugins/<plugin>/commands/*.md`.
+  `.claude-plugin/marketplace.json`. When a pi package changes, keep its
+  `pi-packages/<package>/package.json` version and README accurate.
+- Every Claude Code marketplace skill must live under
+  `plugins/<plugin>/skills/<skill>/SKILL.md` and have at least one thin wrapper
+  in `plugins/<plugin>/commands/*.md`. Pi-local skills may live under
+  `pi-packages/<package>/skills/<skill>/SKILL.md` when packaged with a pi
+  extension.
 - Keep each changed `SKILL.md` at or below 500 lines. Move deep guidance to
   `references/` and reusable logic to `scripts/`.
 - Quote YAML frontmatter strings that contain special characters such as
@@ -77,6 +84,7 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
 - `plugins/<plugin>/.claude-plugin/plugin.json` - per-plugin manifest
 - `plugins/<plugin>/skills/<skill>/SKILL.md` - skill definition
 - `plugins/<plugin>/commands/*.md` - slash-command wrappers
+- `pi-packages/<package>/` - pi-native packages with extensions, skills, and package READMEs
 - `scripts/validate-skills.sh` - local and CI `SKILL.md` size budget check
 - `.github/workflows/validate-marketplace.yml` - JSON, version, and structure CI
 - `.github/workflows/notify-plugin-updates.yml` - Slack notification on plugin
@@ -99,7 +107,7 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
   remain tribal knowledge.
 - If install or distribution behavior changes, update
   `docs/runbooks/distribution.md` and any top-level pointers that reference it.
-- If the plugin inventory or command surface changes, update both
+- If the plugin or pi-package inventory or command surface changes, update both
   `docs/plugins/catalog.md` and `README.md`. Keep the catalog as the structured
   inventory and keep `README.md` accurate for engineers who use it as the main
   handbook.
