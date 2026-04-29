@@ -15,6 +15,21 @@ Use this as the single entrypoint for all frontend work in any repo shape.
 - You want later tasks to reuse a persistent repo-local digest instead of
   rediscovering tooling every session.
 
+## Example Prompts
+
+- `/frontend:work review 123` - Review PR #123 with thread-aware context.
+- `/frontend:work api feedback` - Implement or debug frontend API integration
+  for the "feedback" flow.
+- `/frontend:work testing` - Run, add, or repair tests using the detected
+  frontend test stack.
+- `/frontend:refresh-digest` - Recompute and persist
+  `docs/frontend-skill-digest/AGENTS.md` and
+  `docs/frontend-skill-digest/project-digest.md`.
+- `/frontend:work new-branch 45 digest-contract-fix` - Create a branch using
+  the repo's detected branch model.
+- `/frontend:work commit "align frontend digest contract"` - Create an atomic
+  commit using detected repo conventions.
+
 ## Digest-First Preflight
 
 Every frontend task starts here.
@@ -96,6 +111,14 @@ file hashes or mtimes.
 ## Lane Routing
 
 After loading or detecting context, route the work into one lane.
+
+### refresh-digest
+
+Run the full Detection Workflow and persist both
+`docs/frontend-skill-digest/AGENTS.md` and
+`docs/frontend-skill-digest/project-digest.md`.
+
+This is the only lane allowed to write digest files to the repo.
 
 ### review
 
