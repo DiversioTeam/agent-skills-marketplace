@@ -206,6 +206,69 @@ function providerHintFromUrlOrName(url: string | undefined, name: string): CiJob
   return "unknown";
 }
 
+function githubRunIdFromUrl(url: string | null | undefined): number | undefined {
+  if (!url) return undefined;
+  const match = url.match(/github\.com\/[^/]+\/[^/]+\/actions\/runs\/(\d+)/i);
+  if (!match) return undefined;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+}
+
+function normalizedCiName(name: string | undefined): string {
+  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function githubJobNameCandidates(job: CiJob): string[] {
+  const parts = job.name.split(/\s+\/\s+/).map((part) => part.trim()).filter(Boolean);
+  return Array.from(new Set([job.name, parts[0], parts[parts.length - 1]].filter(Boolean)));
+}
+
+async function enrichGitHubRunIds(pi: ExtensionAPI, cwd: string, branch: string, sha: string, jobs: CiJob[]): Promise<CiJob[]> {
+  const needsRunId = jobs.some((job) => job.provider === "github" && job.providerHint === "github-actions" && !job.runId);
+  if (!needsRunId) return jobs;
+
+  let runs: GhRun[] = [];
+  try {
+    runs = await execJson<GhRun[]>(
+      pi,
+      "gh",
+      ["run", "list", "--commit", sha, "--limit", "50", "--json", "databaseId,name,workflowName,displayTitle,status,conclusion,headSha,url,createdAt,startedAt,updatedAt"],
+      cwd,
+      20_000,
+    );
+  } catch {
+    try {
+      runs = await execJson<GhRun[]>(
+        pi,
+        "gh",
+        ["run", "list", "--branch", branch, "--limit", "50", "--json", "databaseId,name,workflowName,displayTitle,status,conclusion,headSha,url,createdAt,startedAt,updatedAt"],
+        cwd,
+        20_000,
+      );
+    } catch {
+      return jobs;
+    }
+  }
+
+  const matchingRuns = runs.filter((run) => !run.headSha || run.headSha === sha);
+  const runsForSha = matchingRuns.length > 0 ? matchingRuns : runs;
+
+  return jobs.map((job) => {
+    if (job.provider !== "github" || job.providerHint !== "github-actions" || job.runId) return job;
+
+    const urlRunId = githubRunIdFromUrl(job.url);
+    if (urlRunId) return { ...job, runId: urlRunId };
+
+    const candidates = new Set(githubJobNameCandidates(job).map(normalizedCiName));
+    const match = runsForSha.find((run) => {
+      const runNames = [run.name, run.workflowName, run.displayTitle].map(normalizedCiName).filter(Boolean);
+      return runNames.some((name) => candidates.has(name));
+    });
+
+    return match ? { ...job, runId: match.databaseId } : job;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Data fetching
 // ---------------------------------------------------------------------------
@@ -223,8 +286,10 @@ type GhPrView = {
 };
 
 type GhRun = {
-  databaseId: number; name: string; status?: string | null; conclusion?: string | null;
-  headSha?: string | null; url?: string | null; createdAt?: string | null; updatedAt?: string | null;
+  databaseId: number; name: string; workflowName?: string | null; displayTitle?: string | null;
+  status?: string | null; conclusion?: string | null;
+  headSha?: string | null; url?: string | null;
+  createdAt?: string | null; startedAt?: string | null; updatedAt?: string | null;
 };
 
 async function fetchGitHubChecks(pi: ExtensionAPI, cwd: string, branch: string, sha: string): Promise<Partial<CiSummary>> {
@@ -241,13 +306,17 @@ async function fetchGitHubChecks(pi: ExtensionAPI, cwd: string, branch: string, 
         provider: "github",
         providerHint: providerHintFromUrlOrName(url, name),
         name, url,
+        runId: githubRunIdFromUrl(url),
         state: normalizeGitHubState(item.status ?? item.state, item.conclusion ?? item.state),
         startedAt: item.startedAt ?? undefined,
         completedAt: item.completedAt ?? undefined,
         summary: item.description ?? undefined,
       };
     });
-    return { branch: pr.headRefName ?? branch, sha: pr.headRefOid ?? sha, prNumber: pr.number, prUrl: pr.url, jobs };
+    const summaryBranch = pr.headRefName ?? branch;
+    const summarySha = pr.headRefOid ?? sha;
+    const enrichedJobs = await enrichGitHubRunIds(pi, cwd, summaryBranch, summarySha, jobs);
+    return { branch: summaryBranch, sha: summarySha, prNumber: pr.number, prUrl: pr.url, jobs: enrichedJobs };
   } catch (prError) {
     try {
       const runs = await execJson<GhRun[]>(pi, "gh", ["run", "list", "--branch", branch, "--limit", "10", "--json", "databaseId,name,status,conclusion,headSha,url,createdAt,updatedAt"], cwd, 20_000);
@@ -404,9 +473,10 @@ async function fetchCircleCIJobOutput(_cwd: string, job: CiJob): Promise<string>
 }
 
 async function fetchJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<string> {
-  if (job.provider === "github" && job.runId) {
+  const githubRunId = job.runId ?? githubRunIdFromUrl(job.url);
+  if (job.provider === "github" && githubRunId) {
     try {
-      return await fetchGitHubRunLog(pi, cwd, job.runId, job.state === "failed");
+      return await fetchGitHubRunLog(pi, cwd, githubRunId, job.state === "failed");
     } catch (error) {
       return `Failed to fetch GitHub Actions logs: ${errorMessage(error)}`;
     }
