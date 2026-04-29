@@ -319,9 +319,11 @@ async function fetchGitHubChecks(pi: ExtensionAPI, cwd: string, branch: string, 
     return { branch: summaryBranch, sha: summarySha, prNumber: pr.number, prUrl: pr.url, jobs: enrichedJobs };
   } catch (prError) {
     try {
-      const runs = await execJson<GhRun[]>(pi, "gh", ["run", "list", "--branch", branch, "--limit", "10", "--json", "databaseId,name,status,conclusion,headSha,url,createdAt,updatedAt"], cwd, 20_000);
-      const matchingRuns = runs.filter((run) => !run.headSha || run.headSha === sha);
-      const selectedRuns = matchingRuns.length > 0 ? matchingRuns : runs.slice(0, 3);
+      const runs = await execJson<GhRun[]>(pi, "gh", ["run", "list", "--commit", sha, "--limit", "10", "--json", "databaseId,name,status,conclusion,headSha,url,createdAt,updatedAt"], cwd, 20_000);
+      const selectedRuns = runs.filter((run) => !run.headSha || run.headSha === sha);
+      if (selectedRuns.length === 0) {
+        return { warnings: [`No GitHub Actions runs found for ${shortSha(sha)}; not showing branch runs from other commits.`] };
+      }
       return {
         jobs: selectedRuns.map((run): CiJob => ({
           id: `github-run:${run.databaseId}`,
@@ -485,11 +487,7 @@ async function fetchCircleCIJobOutput(_cwd: string, job: CiJob): Promise<string>
 async function fetchJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<string> {
   const githubRunId = job.runId ?? githubRunIdFromUrl(job.url);
   if (job.provider === "github" && githubRunId) {
-    try {
-      return await fetchGitHubRunLog(pi, cwd, githubRunId, job.state === "failed");
-    } catch (error) {
-      return `Failed to fetch GitHub Actions logs: ${errorMessage(error)}`;
-    }
+    return fetchGitHubRunLog(pi, cwd, githubRunId, job.state === "failed");
   }
   if (job.provider === "circleci") {
     return await fetchCircleCIJobOutput(cwd, job);

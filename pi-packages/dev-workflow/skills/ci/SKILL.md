@@ -1,6 +1,6 @@
 ---
 name: ci
-description: Check CI status for the current branch, analyze failures, distinguish failures caused by our changes from pre-existing flakes, and propose specific fixes. Use when the user asks about CI, build status, failing checks, failing jobs, test failures in CI, or whether the branch is ready after a push.
+description: "Check CI status for the current branch, analyze failures, distinguish failures caused by our changes from pre-existing flakes, and propose specific fixes. Use when the user asks about CI, build status, failing checks, failing jobs, test failures in CI, or whether the branch is ready after a push."
 ---
 
 # CI Check

@@ -1,6 +1,6 @@
 ---
 name: ai-review-workflow
-description: Multi-pass AI review workflow for shipping high-quality code. Use when the user is about to finalize a change, wants a standards review, or asks to ship/workflow/review their code. Covers plan review, self-review, standards pass, documentation, and PR creation.
+description: "Multi-pass AI review workflow for shipping high-quality code. Use when the user is about to finalize a change, wants a standards review, or asks to ship/workflow/review their code. Covers plan review, self-review, standards pass, documentation, and PR creation."
 ---
 
 # Dev Workflow
