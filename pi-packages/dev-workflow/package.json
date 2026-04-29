@@ -1,7 +1,7 @@
 {
   "name": "dev-workflow",
   "version": "0.0.1",
-  "description": "Daily developer workflow for pi — plan review, self-review, standards pass, CI analysis, documentation, subagent review, and PR creation. 13 workflow commands plus help and flow.",
+  "description": "Daily developer workflow for pi — workflow prompt registry, plan review, self-review, standards, CI, PR review comments, release PR prep, docs, and shipping. 15 core prompts plus help, run, prompts, and flow.",
   "keywords": ["pi-package"],
   "files": ["extensions/", "skills/", "agents/", "README.md"],
   "peerDependencies": {

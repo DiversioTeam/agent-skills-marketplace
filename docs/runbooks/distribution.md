@@ -151,8 +151,9 @@ pi install /path/to/agent-skills-marketplace/pi-packages/dev-workflow
 After install, restart pi or run `/reload`. The `ci-status` package provides
 `/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch, UI widgets, notifications, and
 LLM tools (`get_ci_status`, `ci_fetch_job_logs`). The `dev-workflow`
-package provides `/review:*` commands, `/review:help`, `/review:flow`, the
-`ai-review-workflow` and `ci` skills, and a bundled `agents/review-pipeline.chain.md`
+package provides `/workflow:*` commands, `/workflow:help`, `/workflow:run`,
+`/workflow:prompts`, `/workflow:flow`, the `dev-workflow` and `ci` skills,
+XDG/project prompt config, and a bundled `agents/workflow-pipeline.chain.md`
 file for pi-subagents. If your pi-subagents setup only scans `.pi/agents/`, copy
 that chain file there manually.
 

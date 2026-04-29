@@ -267,7 +267,7 @@ agent-skills-marketplace/
 | Package | Description | Install |
 |---------|-------------|---------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools | `pi install -l ./pi-packages/ci-status` |
-| `dev-workflow` | Pi-native daily developer workflow with 13 review commands, `/review:help`, `/review:flow`, CI analysis, local skills, and optional pi-subagents chain | `pi install -l ./pi-packages/dev-workflow` |
+| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain | `pi install -l ./pi-packages/dev-workflow` |
 
 ## Monolith Review Orchestrator
 

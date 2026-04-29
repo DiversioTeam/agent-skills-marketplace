@@ -23,23 +23,31 @@ when command files change.
     enrichment.
 - `dev-workflow` (pi package)
   - Purpose: pi-native daily developer workflow with TypeScript extension
-    commands, interactive TUI help panel, CI analysis prompt, local skills, and
-    optional pi-subagents review chain.
+    commands, stable workflow prompt codes, XDG/project prompt config,
+    interactive TUI help panel, CI analysis, PR review feedback handling,
+    release PR prep prompts, local skills, and optional pi-subagents chain.
   - Pi install from repo checkout:
     `pi install -l ./pi-packages/dev-workflow`
   - Package path: `pi-packages/dev-workflow`
   - Extension path:
-    `pi-packages/dev-workflow/extensions/ai-review-workflow`
-  - Skill paths: `pi-packages/dev-workflow/skills/ai-review-workflow`,
+    `pi-packages/dev-workflow/extensions/dev-workflow`
+  - Skill paths: `pi-packages/dev-workflow/skills/dev-workflow`,
     `pi-packages/dev-workflow/skills/ci`
-  - Chain path: `pi-packages/dev-workflow/agents/review-pipeline.chain.md`
-  - Slash commands: `/review:plan`, `/review:self`, `/review:standards`,
-    `/review:ci`, `/review:docs`, `/review:ship`, `/review:context`,
-    `/review:handoff`, `/review:onboard`, `/review:scout`, `/review:oracle`,
-    `/review:reviewer`, `/review:parallel`, `/review:help`, `/review:flow`
-  - TUI behavior: `/review:help` uses the user's configured
+  - Chain path: `pi-packages/dev-workflow/agents/workflow-pipeline.chain.md`
+  - Slash commands: `/workflow:plan`, `/workflow:self`, `/workflow:standards`,
+    `/workflow:ci`, `/workflow:docs`, `/workflow:ship`,
+    `/workflow:pr-review-comments`, `/workflow:release-prs`,
+    `/workflow:context`, `/workflow:handoff`, `/workflow:onboard`,
+    `/workflow:scout`, `/workflow:oracle`, `/workflow:reviewer`,
+    `/workflow:parallel`, `/workflow:help`, `/workflow:flow`, `/workflow:run`,
+    `/workflow:prompts`
+  - Prompt config: core `workflow.*` prompt codes can be overridden from
+    `<git-root>/.pi/dev-workflow/prompts.json` or
+    `${XDG_CONFIG_HOME:-~/.config}/pi/dev-workflow/prompts.json`; custom prompts
+    use `project.*` or `user.*` codes and can run via `/workflow:run <code>`.
+  - TUI behavior: `/workflow:help` uses the user's configured
     `app.message.followUp` keybinding (default `Alt+Enter`, often
-    `Option+Enter` on macOS) to queue the selected command or edited prompt as a
+    `Option+Enter` on macOS) to queue the selected prompt or edited prompt as a
     follow-up while pi is streaming.
   - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /

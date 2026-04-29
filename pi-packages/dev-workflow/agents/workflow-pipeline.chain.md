@@ -1,6 +1,6 @@
 ---
-name: review-pipeline
-description: "Full review pipeline: scout codebase → self-review → standards pass → documentation → ship. Run with /run-chain review-pipeline -- <task>"
+name: workflow-pipeline
+description: "Full workflow pipeline: scout codebase → self-review → standards pass → documentation → ship. Run with /run-chain workflow-pipeline -- <task>"
 ---
 
 ## scout

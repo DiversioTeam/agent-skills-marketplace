@@ -1,25 +1,25 @@
 ---
-name: ai-review-workflow
-description: "Multi-pass AI review workflow for shipping high-quality code. Use when the user is about to finalize a change, wants a standards review, or asks to ship/workflow/review their code. Covers plan review, self-review, standards pass, documentation, and PR creation."
+name: dev-workflow
+description: "Multi-pass AI workflow for shipping high-quality code. Use when the user is about to finalize a change, wants a standards review, or asks to ship/workflow/review their code. Covers plan review, self-review, standards pass, documentation, and PR creation."
 ---
 
 # Dev Workflow
 
 An 8-step daily developer workflow that forces multiple passes over the same change from different angles: planning quality, implementor self-checking, repository standards, CI analysis, end-to-end verification, independent review, documentation, and a final commit-and-PR handoff.
 
-The package is named `dev-workflow`; the skill name remains `ai-review-workflow` for backward-compatible `/skill:ai-review-workflow` usage.
+The package and skill are named `dev-workflow`; use `/skill:dev-workflow` to load the full workflow context.
 
 ## Workflow Overview
 
 ```
-1. Plan Review      → /review:plan       → Challenge the plan before code gains momentum
+1. Plan Review      → /workflow:plan       → Challenge the plan before code gains momentum
 2. Park Reviewer    → [manual]           → Save implementation details, hold reviewer in reserve
-3. Self-Review      → /review:self       → Implementor rereads own code with fresh eyes
-4. Standards Pass   → /review:standards  → Lint, types, conventions, pre-commit hygiene
-5. CI Check         → /review:ci         → Fetch CI status, analyze failures, distinguish ours vs flakes
+3. Self-Review      → /workflow:self       → Implementor rereads own code with fresh eyes
+4. Standards Pass   → /workflow:standards  → Lint, types, conventions, pre-commit hygiene
+5. CI Check         → /workflow:ci         → Fetch CI status, analyze failures, distinguish ours vs flakes
 6. Verify & Loop    → [manual]           → Verify locally, wake reviewer, iterate 2-6 if needed
-7. Documentation    → /review:docs       → Explain the why and how for future readers
-8. Ship             → /review:ship       → Verify CI green, discover PR context, atomic commit, open PR
+7. Documentation    → /workflow:docs       → Explain the why and how for future readers
+8. Ship             → /workflow:ship       → Verify CI green, discover PR context, atomic commit, open PR
 ```
 
 ## Step Details
@@ -27,7 +27,7 @@ The package is named `dev-workflow`; the skill name remains `ai-review-workflow`
 ### Step 1: Review the Plan
 **Before writing code**, challenge the plan itself. Have the AI reread the plan and surrounding code with fresh eyes, looking for bugs, ambiguity, and conflicts. Update the plan based on findings.
 
-**Command:** `/review:plan` (append extra context like `/review:plan focus on auth module`)
+**Command:** `/workflow:plan` (append extra context like `/workflow:plan focus on auth module`)
 
 ### Step 2: Park the Reviewer
 When AI finishes implementation and outputs "details of what it did":
@@ -39,7 +39,7 @@ This step is manual orchestration. No command for it.
 ### Step 3: Implementor Self-Review
 Force the implementor (same AI session that wrote the code) to reread all new and modified code with fresh eyes. Catch obvious bugs before the independent reviewer spends time on them.
 
-**Command:** `/review:self`
+**Command:** `/workflow:self`
 
 ### Step 4: Standards Pass
 Run the coding standards and pre-commit cleanup. This is the policy and hygiene pass:
@@ -58,7 +58,7 @@ Run the coding standards and pre-commit cleanup. This is the policy and hygiene 
 - Be pedantic about type hints, avoid `Any`
 - Use `ast-grep` where helpful
 
-**Command:** `/review:standards`
+**Command:** `/workflow:standards`
 
 ### Step 5: CI Check
 Before manual verification, check CI for the current branch using the separate **ci-status** pi package when installed. If it is unavailable, use `get_ci_status` and `ci_fetch_job_logs` only if the current harness exposes those tools; otherwise ask the user to install `ci-status` before proceeding.
@@ -69,11 +69,11 @@ Before manual verification, check CI for the current branch using the separate *
 - `/ci-logs <job>` — pull failure logs for a specific job
 
 **Orchestration command:**
-- `/review:ci` — guides the AI through the full CI check: run `/ci` or `/ci-detail`, analyze each failure (ours vs flake), propose fixes, summarize.
+- `/workflow:ci` — guides the AI through the full CI check: run `/ci` or `/ci-detail`, analyze each failure (ours vs flake), propose fixes, summarize.
 
 The ci-status extension auto-watches CI on startup and after git pushes. Failure notifications appear automatically. Covers GitHub Actions and CircleCI (set `CIRCLECI_TOKEN` for CircleCI enrichment).
 
-**Command:** `/review:ci` (orchestrated) or `/ci-detail` (direct interactive UI)
+**Command:** `/workflow:ci` (orchestrated) or `/ci-detail` (direct interactive UI)
 
 ### Step 6: Verify Locally & Run Reviewer
 The engineer verifies everything locally (backend, frontend, etc.). Then wakes the waiting reviewer session. If the reviewer finds issues, paste findings back into the implementor and repeat steps 2-5 until satisfied.
@@ -83,7 +83,7 @@ This step is manual orchestration. No command for it.
 ### Step 7: Documentation Pass
 Make the outcome legible. Document all updated code, especially new additions, in simple, visual, first-principles-driven language. Explain **why** changes were made.
 
-**Command:** `/review:docs`
+**Command:** `/workflow:docs`
 
 ### Step 8: Ship It
 Finalize and ship the work:
@@ -99,7 +99,7 @@ Finalize and ship the work:
 
 Never compromise by excluding files that are part of the change. Everything touched must be improved.
 
-**Command:** `/review:ship`
+**Command:** `/workflow:ship`
 
 ## Principles
 
@@ -133,25 +133,25 @@ When [pi-subagents](https://github.com/nicobailon/pi-subagents) is installed, th
                     │  planner · worker · delegate  │
                     └──────────────────────────────┘
 
-1. /review:scout     → scout agent     → Codebase recon before planning
-2. /review:plan      → [inline]        → Challenge the plan with fresh eyes
-3. /review:self      → [inline]        → Implementor self-review
-4. /review:standards → [inline]        → Coding standards pass
-5. /review:oracle    → oracle agent    → Second opinion, challenge assumptions
-6. /review:reviewer  → reviewer agent  → Independent review with forked context
-7. /review:parallel  → 3× reviewer     → Parallel reviews (correctness, tests, complexity)
-8. /review:docs      → [inline]        → Documentation pass
-9. /review:ship      → [inline]        → Smart ship (discover PR context, atomic commit, PR)
+1. /workflow:scout     → scout agent     → Codebase recon before planning
+2. /workflow:plan      → [inline]        → Challenge the plan with fresh eyes
+3. /workflow:self      → [inline]        → Implementor self-review
+4. /workflow:standards → [inline]        → Coding standards pass
+5. /workflow:oracle    → oracle agent    → Second opinion, challenge assumptions
+6. /workflow:reviewer  → reviewer agent  → Independent review with forked context
+7. /workflow:parallel  → 3× reviewer     → Parallel reviews (correctness, tests, complexity)
+8. /workflow:docs      → [inline]        → Documentation pass
+9. /workflow:ship      → [inline]        → Smart ship (discover PR context, atomic commit, PR)
 ```
 
 ### Subagent Commands
 
 | Command | Agent | What it does |
 |---|---|---|
-| `/review:scout` | `scout` | Fast codebase recon: relevant files, entry points, data flow, risks |
-| `/review:oracle` | `oracle` | Second opinion, challenges assumptions, no editing — just direction |
-| `/review:reviewer` | `reviewer` | Independent review with forked context (correctness, edge cases, tests, simplicity) |
-| `/review:parallel` | 3× `reviewer` | Three parallel reviewers (correctness, tests, complexity) → synthesized fixes |
+| `/workflow:scout` | `scout` | Fast codebase recon: relevant files, entry points, data flow, risks |
+| `/workflow:oracle` | `oracle` | Second opinion, challenges assumptions, no editing — just direction |
+| `/workflow:reviewer` | `reviewer` | Independent review with forked context (correctness, edge cases, tests, simplicity) |
+| `/workflow:parallel` | 3× `reviewer` | Three parallel reviewers (correctness, tests, complexity) → synthesized fixes |
 
 All subagent commands fall back to inline execution if pi-subagents is not installed. The prompts guide the AI to use the subagent tool when available.
 
@@ -160,12 +160,12 @@ All subagent commands fall back to inline execution if pi-subagents is not insta
 The project includes a pre-built review pipeline chain:
 
 ```bash
-/run-chain review-pipeline -- <task description>
+/run-chain workflow-pipeline -- <task description>
 ```
 
 This runs: `scout (recon) → reviewer (self-review) → worker (standards) → reviewer (docs) → delegate (ship)`
 
-Each step forks context from the parent session. The package source keeps the chain at `agents/review-pipeline.chain.md`; after local install, customize the active copy at `.pi/agents/review-pipeline.chain.md` if needed.
+Each step forks context from the parent session. The package source keeps the chain at `agents/workflow-pipeline.chain.md`; after local install, customize the active copy at `.pi/agents/workflow-pipeline.chain.md` if needed.
 
 ## Session Bootstrap & Handoff
 
@@ -173,7 +173,7 @@ Each step forks context from the parent session. The package source keeps the ch
 When starting a new pi session and you need to continue work on an existing PR:
 
 ```bash
-/review:context
+/workflow:context
 ```
 
 This tells the AI to:
@@ -190,7 +190,7 @@ This tells the AI to:
 When you need to hand work to another engineer or spawn a fresh subagent session:
 
 ```bash
-/review:handoff
+/workflow:handoff
 ```
 
 The AI generates a comprehensive handoff including:
@@ -204,7 +204,7 @@ You can refine it with back-and-forth until satisfied. Paste the result into a n
 Generate a message explaining the multi-agent parallel workflow:
 
 ```bash
-/review:onboard
+/workflow:onboard
 ```
 
 Produces a message describing how engineers ("agents") use AI in parallel, readonly-only, with handoff patterns. Ready to share in Slack, email, or docs.
@@ -213,37 +213,37 @@ Produces a message describing how engineers ("agents") use AI in parallel, reado
 
 ```bash
 # Core workflow (always available)
-/review:plan              # Step 1 — Review the plan
-/review:self              # Step 3 — Self-review new/modified code
-/review:standards         # Step 4 — Coding standards pass
-/review:ci                # Step 5 — CI check and failure analysis
-/review:docs              # Step 7 — Documentation pass
-/review:ship              # Step 8 — Smart ship
+/workflow:plan              # Step 1 — Review the plan
+/workflow:self              # Step 3 — Self-review new/modified code
+/workflow:standards         # Step 4 — Coding standards pass
+/workflow:ci                # Step 5 — CI check and failure analysis
+/workflow:docs              # Step 7 — Documentation pass
+/workflow:ship              # Step 8 — Smart ship
 
 # Session bootstrap & handoff
-/review:context           # Load context from existing PRs (local or remote)
-/review:handoff           # Generate handoff for new engineer/subagent
-/review:onboard           # Generate onboarding message for engineers
+/workflow:context           # Load context from existing PRs (local or remote)
+/workflow:handoff           # Generate handoff for new engineer/subagent
+/workflow:onboard           # Generate onboarding message for engineers
 
 # Subagent-enhanced (requires pi-subagents)
-/review:scout             # Scout codebase before planning
-/review:oracle            # Second opinion, challenge assumptions
-/review:reviewer          # Independent review, forked context
-/review:parallel          # 3 parallel reviewers
+/workflow:scout             # Scout codebase before planning
+/workflow:oracle            # Second opinion, challenge assumptions
+/workflow:reviewer          # Independent review, forked context
+/workflow:parallel          # 3 parallel reviewers
 
 # With extra context appended
-/review:standards also check for missing DB indexes
-/review:ship target is the staging branch
+/workflow:standards also check for missing DB indexes
+/workflow:ship target is the staging branch
 
 # See the full flow
-/review:flow
+/workflow:flow
 
 # Interactive help panel (browse, learn, inject)
-/review:help
+/workflow:help
 
 # Run the full pipeline chain (requires pi-subagents)
-/run-chain review-pipeline -- <task>
+/run-chain workflow-pipeline -- <task>
 
 # Load this skill for AI context
-/skill:ai-review-workflow
+/skill:dev-workflow
 ```

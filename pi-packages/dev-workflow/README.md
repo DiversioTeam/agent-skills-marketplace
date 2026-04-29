@@ -1,6 +1,6 @@
 # dev-workflow
 
-Daily developer workflow for pi: multi-pass plan review, self-review, standards, CI, documentation, handoff, and shipping. 13 workflow commands plus `/review:help` and `/review:flow`, with an interactive TUI help panel. Inspired by the [AI Review Workflow](https://heroic-tiramisu-9a5057.netlify.app/).
+Daily developer workflow for pi: plan review, self-review, standards, CI, documentation, PR review feedback, release PR prep, handoff, and shipping. Ships `15` core workflow prompts plus `/workflow:help`, `/workflow:flow`, `/workflow:run`, and `/workflow:prompts`, with XDG/project prompt customization.
 
 ## Install
 
@@ -13,9 +13,6 @@ pi install -l ./agent-skills-marketplace/pi-packages/dev-workflow
 
 # Personal/global install from a local checkout
 pi install /path/to/agent-skills-marketplace/pi-packages/dev-workflow
-
-# If this package is later split into its own repo
-pi install git:github.com/DiversioTeam/dev-workflow
 ```
 
 Then `/reload` in any pi session.
@@ -23,59 +20,114 @@ Then `/reload` in any pi session.
 ## Commands
 
 ### Core workflow
-| Command | Step | Does |
+| Command | Code | Does |
 |---|---|---|
-| `/review:plan` | 1 | Fresh-eyes review of the plan before implementing |
-| `/review:self` | 3 | Implementor rereads own code with fresh eyes |
-| `/review:standards` | 4 | Coding standards pass (lint, types, ORM, imports, Ruff) |
-| `/review:ci` | 5 | CI check — `/ci`, `/ci-detail`, logs, ours-vs-flake analysis |
-| `/review:docs` | 7 | Documentation pass — explain the *why* |
-| `/review:ship` | 8 | Smart ship — verify CI green, discover PR context, atomic commit, open PR |
+| `/workflow:plan` | `workflow.plan` | Fresh-eyes review of the plan before implementing |
+| `/workflow:self` | `workflow.self` | Implementor rereads own code with fresh eyes |
+| `/workflow:standards` | `workflow.standards` | Coding standards pass (lint, types, ORM, imports, Ruff) |
+| `/workflow:ci` | `workflow.ci` | CI check — `/ci`, `/ci-detail`, logs, ours-vs-flake analysis |
+| `/workflow:docs` | `workflow.docs` | Documentation pass — explain the *why* |
+| `/workflow:ship` | `workflow.ship` | Smart ship — verify CI, atomic commit, PR description, open/update PR |
+| `/workflow:pr-review-comments` | `workflow.pr-review-comments` | Address PR review comments, validate, push, resolve threads, re-request review |
+| `/workflow:release-prs` | `workflow.release-prs` | Prepare backend/frontend/optimo-frontend/design-system release PRs |
 
 ### Session bootstrap & handoff
-| Command | Does |
-|---|---|
-| `/review:context` | Load context from existing PRs (local or remote), deep-read diff |
-| `/review:handoff` | Generate handoff message for new engineer or fresh subagent |
-| `/review:onboard` | Generate onboarding message for engineers |
+| Command | Code | Does |
+|---|---|---|
+| `/workflow:context` | `workflow.context` | Load context from existing PRs (local or remote), deep-read diff |
+| `/workflow:handoff` | `workflow.handoff` | Generate handoff message for new engineer or fresh subagent |
+| `/workflow:onboard` | `workflow.onboard` | Generate onboarding message for engineers |
 
 ### Subagent-enhanced (pi-subagents recommended)
-| Command | Agent | Does |
-|---|---|---|
-| `/review:scout` | `scout` | Codebase recon — files, data flow, risks |
-| `/review:oracle` | `oracle` | Second opinion — challenge assumptions, no editing |
-| `/review:reviewer` | `reviewer` | Independent review with forked context |
-| `/review:parallel` | 3× `reviewer` | Parallel reviews (correctness, tests, complexity) |
+| Command | Code | Agent | Does |
+|---|---|---|---|
+| `/workflow:scout` | `workflow.scout` | `scout` | Codebase recon — files, data flow, risks |
+| `/workflow:oracle` | `workflow.oracle` | `oracle` | Second opinion — challenge assumptions, no editing |
+| `/workflow:reviewer` | `workflow.reviewer` | `reviewer` | Independent review with forked context |
+| `/workflow:parallel` | `workflow.parallel` | 3× `reviewer` | Parallel reviews (correctness, tests, complexity) |
 
-### Navigation
+### Navigation and prompt registry
 | Command / Shortcut | Does |
 |---|---|
-| `/review:help` or `Ctrl+Shift+/` | Interactive TUI help panel — browse, learn, inject, edit |
-| `/review:flow` | Text overview of the full workflow |
+| `/workflow:help` or `Ctrl+Shift+/` | Interactive TUI prompt browser — browse, run, queue, edit |
+| `/workflow:flow` | Text overview of the full workflow |
+| `/workflow:run <code>` | Run a core, project, or user prompt by stable code |
+| `/workflow:prompts list` | List loaded prompts with source labels |
+| `/workflow:prompts paths` | Show project/user/legacy config paths |
+| `/workflow:prompts validate` | Validate prompt config and show warnings |
+| `/workflow:prompts init` | Create a starter user config |
+| `/workflow:prompts reload` | Reload prompt config for dynamic help/run usage |
 
 ## Help panel
 
-`/review:help` opens a tabbed TUI panel:
+`/workflow:help` opens a tabbed TUI panel:
 
-- **↑↓** navigate commands · **←→/Tab** switch tabs
-- **↵** inject command · configured **`app.message.followUp`** key (default Alt+Enter / Option+Enter) queues the selected command · **d** details · **e** edit
+- **↑↓** navigate prompts · **←→/Tab** switch tabs
+- **↵** run prompt · configured **`app.message.followUp`** key (default Alt+Enter / Option+Enter) queues the selected prompt · **d** details · **e** edit
 - In edit mode: **Ctrl+Y** copy, configured **`app.message.followUp`** queues the edited prompt, configured `tui.input.newLine` inserts a newline, **Esc** close/back
 
-Works without pi-subagents — subagent commands gracefully fall back to inline execution. The footer renders the resolved Pi keybinding so custom keybindings are shown instead of assuming the default.
+Rows show source labels such as `[core]`, `[project]`, `[user]`, `[override:project]`, and `[override:user]`.
+
+## Prompt customization
+
+Core prompts are bundled in the extension. Add project or user prompts using JSON config:
+
+```text
+project: <git-root>/.pi/dev-workflow/prompts.json
+user:    ${XDG_CONFIG_HOME:-~/.config}/pi/dev-workflow/prompts.json
+legacy:  ~/.pi/agent/dev-workflow/prompts.json
+```
+
+Create a starter config:
+
+```text
+/workflow:prompts init
+```
+
+Example:
+
+```json
+{
+  "version": 1,
+  "overrides": {
+    "workflow.standards": {
+      "append": "Also check for missing database indexes and unsafe queryset patterns."
+    }
+  },
+  "prompts": [
+    {
+      "code": "user.backend-migrations",
+      "label": "Backend migration safety",
+      "short": "Review migrations for deploy and rollback risk",
+      "category": "user",
+      "prompt": "Review migration files in this branch for lock risk, rollback safety, data migration risk, and deploy ordering."
+    }
+  ]
+}
+```
+
+Rules:
+- user prompt codes must start with `user.`
+- project prompt codes must start with `project.`
+- core prompts use reserved `workflow.*` codes
+- invalid config warns and falls back to valid prompts instead of crashing pi
+- custom prompts are immediately usable via `/workflow:help` and `/workflow:run <code>`
 
 ## Subagent chain
 
-The optional review pipeline chain is bundled at `agents/review-pipeline.chain.md`.
+The optional workflow pipeline chain is bundled at `agents/workflow-pipeline.chain.md`.
 If your `pi-subagents` setup only scans `.pi/agents/`, copy it there after install:
 
 ```bash
 mkdir -p .pi/agents
-cp pi-packages/dev-workflow/agents/review-pipeline.chain.md .pi/agents/review-pipeline.chain.md
+cp pi-packages/dev-workflow/agents/workflow-pipeline.chain.md .pi/agents/workflow-pipeline.chain.md
 ```
 
-## Customization
+Run with:
 
-Edit the `PROMPTS` object in `extensions/ai-review-workflow/index.ts` to adjust the verbatim prompts for your team's standards, coding conventions, and PR workflow.
+```text
+/run-chain workflow-pipeline -- <task>
+```
 
 ## Requirements
 
@@ -83,7 +135,6 @@ Edit the `PROMPTS` object in `extensions/ai-review-workflow/index.ts` to adjust 
 - Recommended: install the separate `ci-status` package for `/ci`, `/ci-detail`, and `/ci-logs`:
 
   ```bash
-  # From the agent-skills-marketplace repo root
   pi install -l ./pi-packages/ci-status
   ```
 
