@@ -54,6 +54,7 @@ const ERROR_POLL_MS = 60_000;
 const MAX_RENDERED_PASSING_JOBS = 8;
 const AUTO_WATCH_ON_START = process.env.PI_CI_AUTO_WATCH !== "0";
 const SHOW_WIDGET_ON_START = process.env.PI_CI_SHOW_WIDGET_ON_START === "1";
+const CI_DETAIL_SHORTCUT = process.env.PI_CI_DETAIL_SHORTCUT || "ctrl+shift+i";
 const STARTUP_REFRESH_DELAY_MS = 1_000;
 const LOG_FETCH_TIMEOUT = 30_000;
 const ASCII_ICONS = process.env.PI_CI_ASCII === "1";
@@ -656,13 +657,14 @@ function renderSummary(summary: CiSummary): string[] {
 }
 
 function compactStatus(summary: CiSummary): string {
-  if (summary.jobs.length === 0) return summary.errors.length > 0 ? "CI unavailable" : "CI no checks";
+  const hint = `· ${CI_DETAIL_SHORTCUT} details`;
+  if (summary.jobs.length === 0) return `${summary.errors.length > 0 ? "CI unavailable" : "CI no checks"} ${hint}`;
   const groups = groupJobs(summary);
-  if (groups.failed.length > 0) return `CI ❌ ${groups.failed.length} failed · ${groups.running.length} running · ${groups.passing.length} passing`;
-  if (groups.running.length > 0) return `CI ⏳ ${groups.running.length} running · ${groups.passing.length} passing`;
-  if (groups.cancelled.length > 0) return `CI 🚫 ${groups.cancelled.length} cancelled · ${groups.passing.length} passing`;
-  if (groups.unknown.length > 0) return `CI ? ${groups.unknown.length} unknown · ${groups.passing.length} passing`;
-  return `CI ✅ all passed (${groups.passing.length})`;
+  if (groups.failed.length > 0) return `CI ❌ ${groups.failed.length} failed · ${groups.running.length} running · ${groups.passing.length} passing ${hint}`;
+  if (groups.running.length > 0) return `CI ⏳ ${groups.running.length} running · ${groups.passing.length} passing ${hint}`;
+  if (groups.cancelled.length > 0) return `CI 🚫 ${groups.cancelled.length} cancelled · ${groups.passing.length} passing ${hint}`;
+  if (groups.unknown.length > 0) return `CI ? ${groups.unknown.length} unknown · ${groups.passing.length} passing ${hint}`;
+  return `CI ✅ all passed (${groups.passing.length}) ${hint}`;
 }
 
 function renderDetailedSummary(summary: CiSummary): string {
@@ -793,8 +795,8 @@ async function refreshAndRender(ctx: ExtensionContext, reason: string): Promise<
   refreshInFlight = true;
   try {
     const summary = await fetchCiSummary(extensionApi, ctx.cwd);
-    const shouldRenderWidget = widgetVisible || failedJobs(summary).length > 0;
-    if (shouldRenderWidget) ctx.ui.setWidget(WIDGET_KEY, renderSummary(summary), { placement: "aboveEditor" });
+    if (widgetVisible) ctx.ui.setWidget(WIDGET_KEY, renderSummary(summary), { placement: "aboveEditor" });
+    else ctx.ui.setWidget(WIDGET_KEY, undefined);
     ctx.ui.setStatus(STATUS_KEY, compactStatus(summary));
     notifyTransitions(ctx, lastSummary, summary, reason);
     lastSummary = summary;
@@ -822,7 +824,6 @@ async function refreshAndRender(ctx: ExtensionContext, reason: string): Promise<
 
 function startWatching(ctx: ExtensionContext, reason: string) {
   watching = true;
-  widgetVisible = true;
   clearTimer();
   void refreshAndRender(ctx, reason).catch(() => undefined);
 }
@@ -2384,6 +2385,44 @@ export default function (pi: ExtensionAPI) {
     timer = setTimeout(() => { void refreshAndRender(ctx, "startup").catch(() => undefined); }, STARTUP_REFRESH_DELAY_MS);
   });
 
+  const showCiDetail = async (ctx: ExtensionContext) => {
+    if (!ctx.hasUI) {
+      ctx.ui.notify("CI detail view requires interactive mode.", "warning");
+      return;
+    }
+
+    let summary: CiSummary;
+    try {
+      summary = await fetchCiSummary(pi, ctx.cwd);
+      lastSummary = summary;
+    } catch (error) {
+      ctx.ui.notify(`Failed to fetch CI status: ${errorMessage(error)}`, "error");
+      return;
+    }
+
+    if (summary.jobs.length === 0) {
+      ctx.ui.notify("No CI jobs found for this branch/SHA.", "info");
+      return;
+    }
+
+    const result = await ctx.ui.custom<CiDetailResult>((tui, theme, _kb, done) => {
+      const component = new CiDetailComponent(
+        summary,
+        pi,
+        ctx.cwd,
+        theme,
+        done,
+        () => tui.requestRender(),
+        (job, currentSummary) => done({ action: "fix", job, summary: currentSummary }),
+      );
+      return component;
+    });
+
+    if (result?.action === "fix") {
+      await runFixFlow(pi, ctx, result.summary, result.job);
+    }
+  };
+
   // --- Commands ---
 
   pi.registerCommand("ci", {
@@ -2397,51 +2436,20 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("ci-detail", {
     description: "Open interactive CI detail view grouped by CI provider and workflow/cycle with log access",
     handler: async (_args, ctx) => {
-      if (!ctx.hasUI) {
-        ctx.ui.notify("CI detail view requires interactive mode.", "warning");
-        return;
-      }
+      await showCiDetail(ctx);
+    },
+  });
 
-      // Fetch fresh summary
-      let summary: CiSummary;
-      try {
-        summary = await fetchCiSummary(pi, ctx.cwd);
-        lastSummary = summary;
-      } catch (error) {
-        ctx.ui.notify(`Failed to fetch CI status: ${errorMessage(error)}`, "error");
-        return;
-      }
-
-      if (summary.jobs.length === 0) {
-        ctx.ui.notify("No CI jobs found for this branch/SHA.", "info");
-        return;
-      }
-
-      // Replace the editor instead of using a transparent overlay so old message
-      // labels and terminal chrome do not bleed through the CI UI.
-      const result = await ctx.ui.custom<CiDetailResult>((tui, theme, _kb, done) => {
-        const component = new CiDetailComponent(
-          summary,
-          pi,
-          ctx.cwd,
-          theme,
-          done,
-          () => tui.requestRender(),
-          (job, currentSummary) => done({ action: "fix", job, summary: currentSummary }),
-        );
-        return component;
-      });
-
-      if (result?.action === "fix") {
-        await runFixFlow(pi, ctx, result.summary, result.job);
-      }
+  pi.registerShortcut(CI_DETAIL_SHORTCUT, {
+    description: "Open CI detail view",
+    handler: async (ctx) => {
+      await showCiDetail(ctx);
     },
   });
 
   pi.registerCommand("ci-refresh", {
     description: "Force-refresh CI status",
     handler: async (_args, ctx) => {
-      widgetVisible = true;
       await refreshAndRender(ctx, "manual");
     },
   });
@@ -2659,7 +2667,6 @@ export default function (pi: ExtensionAPI) {
     const command = String((event.input as { command?: string }).command ?? "");
     if (!looksLikeGitPush(command) || event.isError) return;
     watching = true;
-    widgetVisible = true;
     ctx.ui.notify("Detected git push; watching CI", "info");
     clearTimer();
     timer = setTimeout(() => { void refreshAndRender(ctx, "git-push").catch(() => undefined); }, 5_000);
