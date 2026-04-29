@@ -369,7 +369,9 @@ async function fetchCircleCIJobs(repo: GitHubRepo, branch: string, sha: string):
   const pipelines = pipelineList.items ?? [];
   if (pipelines.length === 0) return [];
 
-  const pipeline = pipelines.find((item) => item.vcs?.revision === sha) ?? pipelines[0];
+  const pipeline = pipelines.find((item) => item.vcs?.revision === sha);
+  if (!pipeline) return [];
+
   const workflows = await circleFetch<CircleWorkflowList>(`/pipeline/${pipeline.id}/workflow`, token);
 
   const jobs: CiJob[] = [];
@@ -417,7 +419,7 @@ async function fetchCiSummary(pi: ExtensionAPI, cwd: string): Promise<CiSummary>
         summary.jobs = summary.jobs.filter((job) => job.providerHint !== "circleci");
         summary.jobs.push(...circleJobs);
       } else if (hasCircleChecksFromGitHub) {
-        summary.warnings.push("CircleCI API returned no jobs for this branch/SHA; showing GitHub check-rollup data for CircleCI checks.");
+        summary.warnings.push("CircleCI API did not find workflow jobs for the current commit; showing GitHub check-rollup data for CircleCI checks.");
       }
     } catch (error) {
       summary.warnings.push(`CircleCI API unavailable: ${truncate(errorMessage(error), 300)}.`);
@@ -444,7 +446,15 @@ async function fetchGitHubRunLog(pi: ExtensionAPI, cwd: string, runId: number, f
   if (failedOnly) args.push("--log-failed");
   else args.push("--log");
   const result = await pi.exec("gh", args, { cwd, timeout: LOG_FETCH_TIMEOUT });
-  // gh run view --log exits 0 even when there's content
+  if (result.code !== 0) {
+    const details = [
+      `gh ${args.join(" ")} failed with exit code ${result.code}`,
+      result.stderr ? `stderr: ${truncate(result.stderr, 800)}` : undefined,
+      result.stdout ? `stdout: ${truncate(result.stdout, 800)}` : undefined,
+    ].filter(Boolean).join("\n");
+    throw new Error(details);
+  }
+
   const output = result.stdout || result.stderr || "";
   if (!output.trim()) return "(no log output)";
   // Truncate for display

@@ -382,6 +382,8 @@ export default function (pi: ExtensionAPI) {
     let editRequested: string | null = null;
     let queueRequested: string | null = null;
 
+    const promptForCommand = (commandName: string) => PROMPT_MAP[commandName] ?? commandName;
+
     const sendWorkflowMessage = (text: string, deliverAs: "normal" | "followUp" = "normal") => {
       const idle = ctx.isIdle?.() ?? true;
       const options = idle ? undefined : { deliverAs: deliverAs === "followUp" ? "followUp" as const : "steer" as const };
@@ -413,14 +415,14 @@ export default function (pi: ExtensionAPI) {
     if (result) {
       // Direct inject. If the agent is currently streaming, this matches normal Enter behavior and steers.
       ctx.ui.notify(`Injecting ${result}…`, "info");
-      sendWorkflowMessage(result);
+      sendWorkflowMessage(promptForCommand(result));
     } else if (queueRequested) {
       const willQueue = !(ctx.isIdle?.() ?? true);
       ctx.ui.notify(`${willQueue ? "Queueing" : "Injecting"} ${queueRequested}${willQueue ? " as follow-up" : ""}…`, "info");
-      sendWorkflowMessage(queueRequested, "followUp");
+      sendWorkflowMessage(promptForCommand(queueRequested), "followUp");
     } else if (editRequested) {
       // Edit-before-inject flow
-      const promptText = PROMPT_MAP[editRequested] ?? editRequested;
+      const promptText = promptForCommand(editRequested);
       const edited = await ctx.ui.custom<{ text: string; deliverAs: "normal" | "followUp" } | null>((tui: any, theme: any, keybindings: any, done: any) => {
         const editor = new PromptEditor(promptText, theme, editRequested!, keybindings);
         editor.onDone = (text) => done({ text, deliverAs: "normal" });
