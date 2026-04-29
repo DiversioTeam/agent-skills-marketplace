@@ -799,12 +799,13 @@ function looksLikeGitPush(command: string): boolean {
   return /(^|[;&|\s])git\s+push(\s|$)/.test(command);
 }
 
-/** Cross-platform URL opener. Falls back to logging the URL. */
+/** Cross-platform URL opener. Falls back to the already visible URL in the UI. */
 function openUrl(pi: ExtensionAPI, url: string) {
   const platform = process.platform;
-  const cmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
-  pi.exec(cmd, [url], { timeout: 5000 }).catch(() => {
-    // Fallback: URL is already shown in the UI
+  const command = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
+  pi.exec(command, args, { timeout: 5000 }).catch(() => {
+    // Fallback: URL is already shown in the UI.
   });
 }
 
