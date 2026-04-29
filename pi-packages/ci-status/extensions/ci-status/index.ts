@@ -26,6 +26,8 @@ type CiJob = {
   runId?: number;
   /** For CircleCI jobs, the job number */
   jobNumber?: number;
+  /** For CircleCI jobs, the workflow id so we can rerun failed workflow jobs */
+  workflowId?: string;
 };
 
 type CiSummary = {
@@ -362,6 +364,19 @@ async function circleFetch<T>(path: string, token: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function circlePost<T>(path: string, token: string, body: unknown): Promise<T> {
+  const response = await fetch(`https://circleci.com/api/v2${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json", "Circle-Token": token },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`CircleCI API ${response.status} ${response.statusText}${text ? `: ${truncate(text, 500)}` : ""}`);
+  }
+  return (await response.json().catch(() => ({}))) as T;
+}
+
 async function fetchCircleCIJobs(repo: GitHubRepo, branch: string, sha: string): Promise<CiJob[]> {
   const token = process.env.CIRCLECI_TOKEN?.trim();
   if (!token) return [];
@@ -387,6 +402,7 @@ async function fetchCircleCIJobs(repo: GitHubRepo, branch: string, sha: string):
         id: `circleci:${job.id}`, provider: "circleci", providerHint: "circleci",
         name: `${workflow.name} / ${job.name}`,
         state: normalizeCircleState(job.status), url, jobNumber: job.job_number,
+        workflowId: workflow.id,
         startedAt: job.started_at, completedAt: job.stopped_at, durationMs: job.duration,
       });
     }
@@ -493,6 +509,28 @@ async function fetchJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<
     return await fetchCircleCIJobOutput(cwd, job);
   }
   return "Log fetching not supported for this job type.";
+}
+
+async function rerunFailedJob(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<string> {
+  if (job.state !== "failed") {
+    throw new Error(`Selected job is ${job.state}; rerun is only enabled for failed jobs.`);
+  }
+
+  const githubRunId = job.runId ?? githubRunIdFromUrl(job.url);
+  if (job.provider === "github" && githubRunId) {
+    await execText(pi, "gh", ["run", "rerun", String(githubRunId), "--failed"], cwd, 20_000);
+    return `Requested GitHub rerun for failed jobs in run ${githubRunId}.`;
+  }
+
+  if (job.provider === "circleci") {
+    const token = process.env.CIRCLECI_TOKEN?.trim();
+    if (!token) throw new Error("Set CIRCLECI_TOKEN to rerun CircleCI workflow jobs.");
+    if (!job.workflowId) throw new Error("CircleCI workflow id is unavailable for this job; refresh after enabling CircleCI enrichment.");
+    await circlePost(`/workflow/${job.workflowId}/rerun`, token, { from_failed: true });
+    return `Requested CircleCI rerun for failed jobs in workflow ${job.workflowId}.`;
+  }
+
+  throw new Error("Rerun is not supported for this job type yet.");
 }
 
 // ---------------------------------------------------------------------------
@@ -830,6 +868,275 @@ type CycleKey = string;
 
 const IMPORTANT_STATES = new Set<CiState>(["failed", "running", "pending", "cancelled", "unknown"]);
 
+type CiDetailResult = { action: "fix"; job: CiJob; summary: CiSummary } | undefined;
+
+type CiModel = {
+  id: string;
+  name: string;
+  provider: string;
+  contextWindow?: number;
+  maxTokens?: number;
+};
+
+interface CiKeybindings {
+  matches(data: string, keybinding: string): boolean;
+  getKeys?(keybinding: string): string[];
+}
+
+type PromptAction = "run" | "queue" | "edit" | "cancel";
+
+
+function keyLabel(keybindings: CiKeybindings | undefined, keybinding: string, fallback: string): string {
+  try {
+    const keys = keybindings?.getKeys?.(keybinding);
+    if (keys && keys.length > 0) {
+      return keys[0]
+        .split("+")
+        .map((part) => part.length === 1 ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1))
+        .join("+");
+    }
+  } catch {
+    // Use fallback below.
+  }
+  return fallback;
+}
+
+function matchesBinding(keybindings: CiKeybindings | undefined, data: string, keybinding: string, fallback?: string): boolean {
+  try {
+    if (keybindings?.matches(data, keybinding)) return true;
+  } catch {
+    // App keybindings may not be available in older pi versions.
+  }
+  return fallback ? matchesKey(data, fallback) : false;
+}
+
+class FixPromptPreview {
+  private cachedWidth?: number;
+  private cachedLines?: string[];
+  public onAction?: (action: PromptAction) => void;
+
+  constructor(
+    private theme: Theme,
+    private jobName: string,
+    private modelLabel: string,
+    private prompt: string,
+    private keybindings?: CiKeybindings,
+  ) {}
+
+  handleInput(data: string): void {
+    if (matchesBinding(this.keybindings, data, "app.message.followUp")) {
+      this.onAction?.("queue");
+    } else if (matchesBinding(this.keybindings, data, "tui.select.confirm", Key.enter) || matchesKey(data, Key.enter)) {
+      this.onAction?.("run");
+    } else if (data === "e" || data === "E") {
+      this.onAction?.("edit");
+    } else if (matchesKey(data, Key.escape)) {
+      this.onAction?.("cancel");
+    }
+  }
+
+  render(width: number): string[] {
+    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+
+    const t = this.theme;
+    const container = new Container();
+    container.addChild(new DynamicBorder((s: string) => t.fg("accent", s)));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(t.fg("accent", t.bold("Fix CI failure")), 1, 0));
+    container.addChild(new Text(`Job:   ${this.jobName}`, 1, 0));
+    container.addChild(new Text(`Model: ${this.modelLabel}`, 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(t.fg("dim", "Review the prompt below. Press e to edit, Enter to run, or the follow-up key to queue."), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(this.prompt, 1, 0));
+    container.addChild(new Spacer(1));
+    const queueKey = keyLabel(this.keybindings, "app.message.followUp", "Alt+Enter");
+    container.addChild(new Text(t.fg("dim", `Enter run · ${queueKey} queue follow-up · e edit · Esc cancel`), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new DynamicBorder((s: string) => t.fg("accent", s)));
+
+    this.cachedWidth = width;
+    this.cachedLines = container.render(width);
+    return this.cachedLines;
+  }
+
+  invalidate(): void {
+    this.cachedWidth = undefined;
+    this.cachedLines = undefined;
+  }
+}
+
+class FixPromptEditor {
+  private lines: string[];
+  private cursorLine: number;
+  private cursorCol: number;
+  private pendingCancel = false;
+  private cachedWidth?: number;
+  private cachedLines?: string[];
+
+  public onDone?: (text: string, deliverAs: "normal" | "followUp") => void;
+  public onCancel?: () => void;
+
+  constructor(
+    initialText: string,
+    private theme: Theme,
+    private label: string,
+    private keybindings?: CiKeybindings,
+  ) {
+    this.lines = initialText.length > 0 ? initialText.split("\n") : [""];
+    this.cursorLine = this.lines.length - 1;
+    this.cursorCol = this.lines[this.cursorLine].length;
+  }
+
+  handleInput(data: string): void {
+    if (this.pendingCancel) {
+      if (matchesKey(data, Key.escape)) this.onCancel?.();
+      else {
+        this.pendingCancel = false;
+        this.invalidate();
+      }
+      return;
+    }
+
+    if (matchesBinding(this.keybindings, data, "app.message.followUp")) {
+      this.onDone?.(this.lines.join("\n"), "followUp");
+    } else if (matchesBinding(this.keybindings, data, "tui.input.submit", Key.enter)) {
+      this.onDone?.(this.lines.join("\n"), "normal");
+    } else if (matchesKey(data, Key.escape)) {
+      this.pendingCancel = true;
+      this.invalidate();
+    } else if (matchesBinding(this.keybindings, data, "tui.input.newLine") || this.isShiftEnter(data)) {
+      this.insertNewline();
+    } else if (matchesKey(data, Key.left)) {
+      this.moveCol(-1);
+    } else if (matchesKey(data, Key.right)) {
+      this.moveCol(1);
+    } else if (matchesKey(data, Key.up)) {
+      this.moveLine(-1);
+    } else if (matchesKey(data, Key.down)) {
+      this.moveLine(1);
+    } else if (matchesKey(data, Key.home)) {
+      this.cursorCol = 0;
+      this.invalidate();
+    } else if (matchesKey(data, Key.end)) {
+      this.cursorCol = this.currentLine().length;
+      this.invalidate();
+    } else if (matchesKey(data, Key.backspace)) {
+      this.backspace();
+    } else if (matchesKey(data, Key.delete)) {
+      this.deleteForward();
+    } else if (data.length === 1 && data >= " ") {
+      this.insertChar(data);
+    }
+  }
+
+  private isShiftEnter(data: string): boolean {
+    return data === "\x1b[13;2u" || data === "\x1b[1;2P" || data === "\x1b[13;2~";
+  }
+
+  private currentLine(): string {
+    return this.lines[this.cursorLine] ?? "";
+  }
+
+  private moveCol(delta: number): void {
+    this.cursorCol = Math.max(0, Math.min(this.currentLine().length, this.cursorCol + delta));
+    this.invalidate();
+  }
+
+  private moveLine(delta: number): void {
+    this.cursorLine = Math.max(0, Math.min(this.lines.length - 1, this.cursorLine + delta));
+    this.cursorCol = Math.min(this.cursorCol, this.currentLine().length);
+    this.invalidate();
+  }
+
+  private insertChar(ch: string): void {
+    const line = this.currentLine();
+    this.lines[this.cursorLine] = line.slice(0, this.cursorCol) + ch + line.slice(this.cursorCol);
+    this.cursorCol++;
+    this.invalidate();
+  }
+
+  private insertNewline(): void {
+    const line = this.currentLine();
+    this.lines[this.cursorLine] = line.slice(0, this.cursorCol);
+    this.lines.splice(this.cursorLine + 1, 0, line.slice(this.cursorCol));
+    this.cursorLine++;
+    this.cursorCol = 0;
+    this.invalidate();
+  }
+
+  private backspace(): void {
+    if (this.cursorCol > 0) {
+      const line = this.currentLine();
+      this.lines[this.cursorLine] = line.slice(0, this.cursorCol - 1) + line.slice(this.cursorCol);
+      this.cursorCol--;
+      this.invalidate();
+    } else if (this.cursorLine > 0) {
+      const previousLength = this.lines[this.cursorLine - 1].length;
+      this.lines[this.cursorLine - 1] += this.currentLine();
+      this.lines.splice(this.cursorLine, 1);
+      this.cursorLine--;
+      this.cursorCol = previousLength;
+      this.invalidate();
+    }
+  }
+
+  private deleteForward(): void {
+    const line = this.currentLine();
+    if (this.cursorCol < line.length) {
+      this.lines[this.cursorLine] = line.slice(0, this.cursorCol) + line.slice(this.cursorCol + 1);
+      this.invalidate();
+    } else if (this.cursorLine < this.lines.length - 1) {
+      this.lines[this.cursorLine] += this.lines[this.cursorLine + 1];
+      this.lines.splice(this.cursorLine + 1, 1);
+      this.invalidate();
+    }
+  }
+
+  render(width: number): string[] {
+    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+
+    const t = this.theme;
+    const pad = 2;
+    const contentWidth = Math.max(20, width - pad * 2 - 2);
+    const lines: string[] = [];
+    lines.push(...new DynamicBorder((s: string) => t.fg("accent", s)).render(width));
+    lines.push(...new Text(t.fg("accent", t.bold(`Editing fix prompt — ${this.label}`)), pad, 0).render(width));
+    lines.push(...new Spacer(1).render(width));
+
+    for (let i = 0; i < this.lines.length; i++) {
+      const line = this.lines[i];
+      const isCursorLine = i === this.cursorLine;
+      let rendered = "";
+      for (let col = 0; col <= line.length; col++) {
+        if (isCursorLine && col === this.cursorCol) rendered += "\x1b[7m \x1b[27m";
+        if (col < line.length) rendered += line[col];
+      }
+      lines.push(" ".repeat(pad) + truncateToWidth(rendered, contentWidth, ""));
+    }
+
+    lines.push(...new Spacer(1).render(width));
+    if (this.pendingCancel) {
+      lines.push(...new Text(t.fg("warning", t.bold("Cancel editing? Press Esc again to confirm — any other key to resume")), pad, 0).render(width));
+    } else {
+      const submitKey = keyLabel(this.keybindings, "tui.input.submit", "Enter");
+      const queueKey = keyLabel(this.keybindings, "app.message.followUp", "Alt+Enter");
+      const newlineKey = keyLabel(this.keybindings, "tui.input.newLine", "Shift+Enter");
+      lines.push(...new Text(t.fg("dim", `${submitKey} run · ${queueKey} queue follow-up · ${newlineKey} newline · Esc cancel`), pad, 0).render(width));
+    }
+    lines.push(...new DynamicBorder((s: string) => t.fg("accent", s)).render(width));
+
+    this.cachedWidth = width;
+    this.cachedLines = lines;
+    return lines;
+  }
+
+  invalidate(): void {
+    this.cachedWidth = undefined;
+    this.cachedLines = undefined;
+  }
+}
+
 class CiDetailComponent {
   private summary: CiSummary;
   private pi: ExtensionAPI;
@@ -837,6 +1144,7 @@ class CiDetailComponent {
   private done: () => void;
   private requestRender: () => void;
   private theme: Theme;
+  private onFix: (job: CiJob, summary: CiSummary) => void;
 
   private view: DetailView = "jobs";
   private activeCi: CiKey = "github-actions";
@@ -864,13 +1172,22 @@ class CiDetailComponent {
   private loadingFrame = 0;
   private loadingAnimTimer: ReturnType<typeof setInterval> | undefined;
 
-  constructor(summary: CiSummary, pi: ExtensionAPI, cwd: string, theme: Theme, done: () => void, requestRender: () => void) {
+  constructor(
+    summary: CiSummary,
+    pi: ExtensionAPI,
+    cwd: string,
+    theme: Theme,
+    done: () => void,
+    requestRender: () => void,
+    onFix: (job: CiJob, summary: CiSummary) => void,
+  ) {
     this.summary = summary;
     this.pi = pi;
     this.cwd = cwd;
     this.theme = theme;
     this.done = done;
     this.requestRender = requestRender;
+    this.onFix = onFix;
 
     const groups = groupJobs(summary);
     this.jobs = this.sortedJobsFromSummary(summary);
@@ -1145,6 +1462,45 @@ class CiDetailComponent {
     });
   }
 
+  private selectedVisibleJob(): CiJob | undefined {
+    return this.view === "detail" ? this.selectedJob ?? undefined : this.visibleJobs()[this.selectedIndex];
+  }
+
+  private rerunSelectedFailedJob(): void {
+    const job = this.selectedVisibleJob();
+    if (!job) {
+      this.statusMessage = "No selected job to rerun.";
+      this.rerender();
+      return;
+    }
+    this.statusMessage = `Requesting rerun for ${this.jobDisplayName(job)}...`;
+    this.rerender();
+
+    rerunFailedJob(this.pi, this.cwd, job).then((message) => {
+      this.statusMessage = message;
+      setTimeout(() => { void this.refreshStatus(); }, 2_000);
+    }).catch((error) => {
+      this.statusMessage = `Rerun failed: ${truncate(errorMessage(error), 180)}`;
+      this.rerender();
+    });
+  }
+
+  private fixSelectedJob(): void {
+    const job = this.selectedVisibleJob();
+    if (!job) {
+      this.statusMessage = "No selected job to fix.";
+      this.rerender();
+      return;
+    }
+    if (job.state !== "failed") {
+      this.statusMessage = `Selected job is ${job.state}; fix flow is intended for failed jobs.`;
+      this.rerender();
+      return;
+    }
+    this.dispose();
+    this.onFix(job, this.summary);
+  }
+
   private firstInterestingLogLine(lines: string[]): number {
     const pattern = /(^|\s)(error|failed|failure|exception|traceback|assertion|timeout|timed out|panic|fatal|not ok|npm err|pytest|ruff|mypy|pyright|eslint|tsc)(\s|:|$)/i;
     const index = lines.findIndex((line) => pattern.test(line));
@@ -1311,7 +1667,7 @@ class CiDetailComponent {
 
   private nextActionForJobs(jobs: CiJob[]): string {
     const groups = this.groupsForJobs(jobs);
-    if (groups.failed.length > 0) return "Select a failed job, then press r for logs.";
+    if (groups.failed.length > 0) return "Select a failed job, then press r for logs, F to fix, or x to rerun.";
     if (groups.running.length > 0) return "Wait for running checks to finish.";
     if (groups.cancelled.length > 0) return "Confirm the cancellation was expected.";
     if (groups.unknown.length > 0) return "Open details to inspect unknown checks.";
@@ -1435,7 +1791,7 @@ class CiDetailComponent {
       container.addChild(this.text(this.theme.fg("dim", `c copies: ${selectedJob.url ? this.shortUrl(selectedJob.url, 96) : "no URL available"}`)));
     }
     if (this.copiedMessage) container.addChild(this.text(this.theme.fg("success", this.copiedMessage)));
-    container.addChild(this.text(this.theme.fg("dim", "↑↓ select · Enter details · r logs · l open URL · c copy URL · ? help")));
+    container.addChild(this.text(this.theme.fg("dim", "↑↓ select · Enter details · r logs · F fix · x rerun failed · l open URL · c copy URL · ? help")));
     container.addChild(this.text(this.theme.fg("dim", "Tab/←→ CI · [/] cycle · p pick CI · w pick cycle · R refresh · a all · g fail · Esc close")));
     container.addChild(new Spacer(1));
     container.addChild(new DynamicBorder((s: string) => this.theme.fg("accent", s)));
@@ -1492,7 +1848,7 @@ class CiDetailComponent {
 
     container.addChild(new Spacer(1));
     if (this.copiedMessage) container.addChild(this.text(this.theme.fg("success", this.copiedMessage)));
-    container.addChild(this.text(this.theme.fg("dim", "Esc back · Enter/r logs · f first error · l open URL · c copy URL · R refresh · ? help")));
+    container.addChild(this.text(this.theme.fg("dim", "Esc back · Enter/r logs · f first error · F fix · x rerun failed · l open URL · c copy URL · R refresh · ? help")));
     container.addChild(new Spacer(1));
     container.addChild(new DynamicBorder((s: string) => this.theme.fg("accent", s)));
     return container.render(width);
@@ -1525,6 +1881,7 @@ class CiDetailComponent {
     container.addChild(new Spacer(1));
     container.addChild(this.text("Actions"));
     container.addChild(this.text(this.theme.fg("dim", "r fetch selected job logs · f jump to first error in loaded logs"), 2, 0));
+    container.addChild(this.text(this.theme.fg("dim", "F fix selected failure with a model-picked prompt · x rerun selected failed job"), 2, 0));
     container.addChild(this.text(this.theme.fg("dim", "l open selected job URL · c copy selected job URL"), 2, 0));
     container.addChild(this.text(this.theme.fg("dim", "R refresh status in place · a toggle important-only/all jobs"), 2, 0));
     container.addChild(new Spacer(1));
@@ -1651,6 +2008,14 @@ class CiDetailComponent {
         void this.refreshStatus();
         return;
       }
+      if (data === "F") {
+        this.fixSelectedJob();
+        return;
+      }
+      if (data === "x" || data === "X") {
+        this.rerunSelectedFailedJob();
+        return;
+      }
       if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
         this.switchCi(1);
         return;
@@ -1730,6 +2095,14 @@ class CiDetailComponent {
       void this.refreshStatus();
       return;
     }
+    if (data === "F") {
+      this.fixSelectedJob();
+      return;
+    }
+    if (data === "x" || data === "X") {
+      this.rerunSelectedFailedJob();
+      return;
+    }
     if (data === "p") {
       this.openCiPicker();
       return;
@@ -1802,6 +2175,199 @@ class CiDetailComponent {
   }
 }
 
+
+function modelLabel(model: CiModel): string {
+  return `${model.provider}/${model.id}${model.name ? ` — ${model.name}` : ""}`;
+}
+
+async function selectFixModel(ctx: ExtensionContext): Promise<CiModel | undefined> {
+  const available = ctx.modelRegistry.getAvailable() as unknown as CiModel[];
+  if (available.length === 0) {
+    ctx.ui.notify("No models with configured auth are available. Run /login or configure models first.", "warning");
+    return undefined;
+  }
+
+  const current = ctx.model as unknown as CiModel | undefined;
+  const sorted = [...available].sort((a, b) => {
+    const aCurrent = current && a.provider === current.provider && a.id === current.id ? -1 : 0;
+    const bCurrent = current && b.provider === current.provider && b.id === current.id ? -1 : 0;
+    if (aCurrent !== bCurrent) return aCurrent - bCurrent;
+    return modelLabel(a).localeCompare(modelLabel(b));
+  });
+
+  const selectedValue = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
+    const items: SelectItem[] = sorted.map((model) => ({
+      value: `${model.provider}\u0000${model.id}`,
+      label: modelLabel(model),
+      description: [
+        model.contextWindow ? `context ${model.contextWindow.toLocaleString()}` : "",
+        model.maxTokens ? `max ${model.maxTokens.toLocaleString()}` : "",
+        current && model.provider === current.provider && model.id === current.id ? "current" : "",
+      ].filter(Boolean).join(" · "),
+    }));
+
+    const container = new Container();
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("accent", theme.bold("Pick model for CI fix")), 1, 0));
+    container.addChild(new Spacer(1));
+    const list = new SelectList(items, Math.min(items.length, 12), {
+      selectedPrefix: (text: string) => theme.fg("accent", text),
+      selectedText: (text: string) => theme.fg("accent", text),
+      description: (text: string) => theme.fg("muted", text),
+      scrollInfo: (text: string) => theme.fg("dim", text),
+      noMatch: (text: string) => theme.fg("warning", text),
+    });
+    list.onSelect = (item) => done(item.value);
+    list.onCancel = () => done(null);
+    container.addChild(list);
+    container.addChild(new Spacer(1));
+    container.addChild(new Text(theme.fg("dim", "↑↓ navigate · Enter select · Esc cancel"), 1, 0));
+    container.addChild(new Spacer(1));
+    container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+    return {
+      render: (width: number) => container.render(width),
+      invalidate: () => container.invalidate(),
+      handleInput: (data: string) => {
+        list.handleInput(data);
+        tui.requestRender();
+      },
+    };
+  });
+
+  if (!selectedValue) return undefined;
+  const [provider, id] = selectedValue.split("\u0000");
+  return sorted.find((model) => model.provider === provider && model.id === id);
+}
+
+async function safeExecForPrompt(pi: ExtensionAPI, command: string, args: string[], cwd: string, max = 4_000): Promise<string> {
+  try {
+    return truncate(await execText(pi, command, args, cwd, 10_000), max);
+  } catch (error) {
+    return `(failed: ${truncate(errorMessage(error), max)})`;
+  }
+}
+
+function jobFixPrompt(summary: CiSummary, job: CiJob, logs: string, gitContext: string): string {
+  const duration = formatDuration(durationMs(job));
+  return `Please fix this CI failure.
+
+Goal:
+- Identify the root cause of the selected failed CI job.
+- Decide whether it is caused by our changes or an unrelated flake.
+- If it is caused by our changes, make the smallest correct fix.
+- Run the relevant local validation for the touched area.
+- Do not commit or push unless explicitly asked.
+
+Repository / PR context:
+- Repo: ${summary.repo ?? "unknown"}
+- Branch: ${summary.branch}
+- SHA: ${summary.sha}
+- PR: ${summary.prUrl ?? (summary.prNumber ? `#${summary.prNumber}` : "unknown")}
+
+Selected CI job:
+- Provider: ${job.providerHint ?? job.provider}
+- Name: ${job.name}
+- State: ${job.state}
+- ID: ${job.runId ? `GitHub run ${job.runId}` : job.jobNumber ? `CircleCI job #${job.jobNumber}` : job.id}
+- URL: ${job.url ?? "not available"}
+${duration ? `- Duration: ${duration}\n` : ""}${job.summary ? `- Summary: ${job.summary}\n` : ""}
+Current local context:
+${gitContext}
+
+Failure logs / details:
+\`\`\`
+${truncate(logs, 12_000)}
+\`\`\`
+
+Please proceed carefully:
+1. Briefly explain what appears to be failing.
+2. Inspect the relevant files before editing.
+3. Fix only what is needed.
+4. Run the smallest meaningful validation commands.
+5. Summarize what changed and what still needs follow-up.`;
+}
+
+async function buildFixPrompt(pi: ExtensionAPI, cwd: string, summary: CiSummary, job: CiJob): Promise<string> {
+  const [status, diffStat, changedFiles, logs] = await Promise.all([
+    safeExecForPrompt(pi, "git", ["status", "--short"], cwd, 3_000),
+    safeExecForPrompt(pi, "git", ["diff", "--stat"], cwd, 4_000),
+    safeExecForPrompt(pi, "git", ["diff", "--name-only"], cwd, 4_000),
+    fetchJobLogs(pi, cwd, job).catch((error) => `Log fetch failed: ${errorMessage(error)}`),
+  ]);
+  const gitContext = [
+    "git status --short:", status || "(clean)",
+    "",
+    "git diff --stat:", diffStat || "(no unstaged diff stat)",
+    "",
+    "git diff --name-only:", changedFiles || "(no unstaged changed files)",
+  ].join("\n");
+  return jobFixPrompt(summary, job, logs, gitContext);
+}
+
+async function choosePromptAction(ctx: ExtensionContext, job: CiJob, model: CiModel, prompt: string): Promise<{ prompt: string; deliverAs: "normal" | "followUp" } | undefined> {
+  let currentPrompt = prompt;
+
+  while (true) {
+    const action = await ctx.ui.custom<PromptAction>((tui, theme, keybindings, done) => {
+      const preview = new FixPromptPreview(theme, job.name, modelLabel(model), currentPrompt, keybindings as CiKeybindings);
+      preview.onAction = done;
+      return {
+        render: (width: number) => preview.render(width),
+        invalidate: () => preview.invalidate(),
+        handleInput: (data: string) => {
+          preview.handleInput(data);
+          tui.requestRender();
+        },
+      };
+    });
+
+    if (action === "cancel") return undefined;
+    if (action === "run") return { prompt: currentPrompt, deliverAs: "normal" };
+    if (action === "queue") return { prompt: currentPrompt, deliverAs: "followUp" };
+
+    const edited = await ctx.ui.custom<{ text: string; deliverAs: "normal" | "followUp" } | null>((tui, theme, keybindings, done) => {
+      const editor = new FixPromptEditor(currentPrompt, theme, job.name, keybindings as CiKeybindings);
+      editor.onDone = (text, deliverAs) => done({ text, deliverAs });
+      editor.onCancel = () => done(null);
+      return {
+        render: (width: number) => editor.render(width),
+        invalidate: () => editor.invalidate(),
+        handleInput: (data: string) => {
+          editor.handleInput(data);
+          tui.requestRender();
+        },
+      };
+    });
+
+    if (!edited) continue;
+    currentPrompt = edited.text;
+    return edited;
+  }
+}
+
+async function runFixFlow(pi: ExtensionAPI, ctx: ExtensionContext, summary: CiSummary, job: CiJob): Promise<void> {
+  const model = await selectFixModel(ctx);
+  if (!model) return;
+
+  const success = await pi.setModel(model as any);
+  if (!success) {
+    ctx.ui.notify(`No API key available for ${modelLabel(model)}.`, "error");
+    return;
+  }
+
+  ctx.ui.notify(`Preparing fix prompt for ${job.name}…`, "info");
+  const prompt = await buildFixPrompt(pi, ctx.cwd, summary, job);
+  const action = await choosePromptAction(ctx, job, model, prompt);
+  if (!action) return;
+
+  const isIdle = ctx.isIdle();
+  const options = isIdle ? undefined : { deliverAs: action.deliverAs === "followUp" ? "followUp" as const : "steer" as const };
+  const willQueue = !isIdle && action.deliverAs === "followUp";
+  ctx.ui.notify(`${willQueue ? "Queueing" : "Running"} CI fix prompt with ${modelLabel(model)}…`, "info");
+  pi.sendUserMessage(action.prompt, options);
+}
+
 // ===========================================================================
 // Extension entry point
 // ===========================================================================
@@ -1853,10 +2419,22 @@ export default function (pi: ExtensionAPI) {
 
       // Replace the editor instead of using a transparent overlay so old message
       // labels and terminal chrome do not bleed through the CI UI.
-      await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-        const component = new CiDetailComponent(summary, pi, ctx.cwd, theme, done, () => tui.requestRender());
+      const result = await ctx.ui.custom<CiDetailResult>((tui, theme, _kb, done) => {
+        const component = new CiDetailComponent(
+          summary,
+          pi,
+          ctx.cwd,
+          theme,
+          done,
+          () => tui.requestRender(),
+          (job, currentSummary) => done({ action: "fix", job, summary: currentSummary }),
+        );
         return component;
       });
+
+      if (result?.action === "fix") {
+        await runFixFlow(pi, ctx, result.summary, result.job);
+      }
     },
   });
 

@@ -9,7 +9,8 @@ when command files change.
 - `ci-status` (pi package)
   - Purpose: pi-native CI status extension with GitHub Actions and CircleCI
     status discovery, auto-watch after pushes, widget/status rendering,
-    notifications, CI-provider/workflow-cycle TUI job details, and log access.
+    notifications, CI-provider/workflow-cycle TUI job details, failed-job reruns,
+    guided fix prompts, and log access.
   - Pi install from repo checkout: `pi install -l ./pi-packages/ci-status`
   - Package path: `pi-packages/ci-status`
   - Extension path: `pi-packages/ci-status/extensions/ci-status`
