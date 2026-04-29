@@ -53,8 +53,8 @@ Then `/reload` in any pi session.
 | `/workflow:flow` | Text overview of the full workflow |
 | `/workflow:run <code>` | Run a core, project, or user prompt by stable code |
 | `/workflow:prompts` or `/workflow:prompts studio` | Open native TUI Prompt Studio for adding user prompts or overriding core prompts |
-| `/workflow:prompts add` | Open a JSON form to add/update a `user.*` prompt |
-| `/workflow:prompts override [workflow.code]` | Pick or directly override a core `workflow.*` prompt |
+| `/workflow:prompts add` | Open a field-based form to add/update a `user.*` prompt |
+| `/workflow:prompts override [workflow.code]` | Pick or directly override a core `workflow.*` prompt with a field-based form |
 | `/workflow:prompts list` | List loaded prompts with source labels |
 | `/workflow:prompts paths` | Show project/user/legacy config paths |
 | `/workflow:prompts validate` | Validate prompt config and show warnings |
@@ -72,6 +72,8 @@ Then `/reload` in any pi session.
 - In edit mode: **Ctrl+Y** copy, configured **`app.message.followUp`** queues the edited prompt, configured `tui.input.newLine` inserts a newline, **Esc** close/back
 
 Rows show source labels such as `[core]`, `[project]`, `[user]`, `[override:project]`, and `[override:user]`.
+
+Prompt Studio uses native Pi TUI forms: short metadata fields are single-line inputs, while the prompt body opens a multi-line editor so prompts can be formatted with readable sections and newlines. The form validates before saving, including required fields, `user.*` code format, and duplicate code collisions.
 
 ## Prompt customization
 

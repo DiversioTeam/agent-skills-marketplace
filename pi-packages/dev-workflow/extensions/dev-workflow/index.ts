@@ -1,6 +1,6 @@
 import { DynamicBorder, type ExtensionAPI, type Theme } from "@mariozechner/pi-coding-agent";
 import { HelpPanel, PromptEditor, type WorkflowHelpCommand, type WorkflowPromptCategory, type WorkflowPromptSource } from "./help-panel";
-import { Container, SelectList, Spacer, Text, type SelectItem } from "@mariozechner/pi-tui";
+import { Container, Input, Key, matchesKey, SelectList, Spacer, Text, truncateToWidth, type SelectItem } from "@mariozechner/pi-tui";
 import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -714,21 +714,30 @@ function configTemplate(): string {
 }
 
 
-function customPromptTemplate(seed?: { code?: string; label?: string; short?: string; prompt?: string }): string {
-  return JSON.stringify({
-    code: seed?.code || "user.my-workflow-prompt",
-    label: seed?.label || "My workflow prompt",
-    short: seed?.short || "Short description shown in /workflow:help",
-    category: "user",
-    prompt: seed?.prompt || "Write the full prompt here. Keep it specific and actionable."
-  }, null, 2);
+function defaultUserPromptData(): UserPromptFormData {
+  return {
+    code: "user.my-workflow-prompt",
+    label: "My workflow prompt",
+    short: "Short description shown in /workflow:help",
+    prompt: "Write the full prompt here. Keep it specific and actionable.",
+  };
 }
 
-function overrideTemplate(): string {
-  return JSON.stringify({
-    append: "Add your extra local guidance here."
-  }, null, 2);
-}
+type UserPromptFormData = {
+  code: string;
+  label: string;
+  short: string;
+  prompt: string;
+};
+
+type OverrideMode = "append" | "prepend" | "replace";
+
+type OverrideFormData = {
+  mode: OverrideMode;
+  text: string;
+  label?: string;
+  short?: string;
+};
 
 async function ensureUserConfigFile(path: string): Promise<void> {
   if (!(await fileExists(path))) {
@@ -771,60 +780,355 @@ async function setUserOverride(path: string, code: string, override: Record<stri
   });
 }
 
-function promptConfigObject(prompt: WorkflowPrompt): Record<string, unknown> {
+function userPromptToConfig(data: UserPromptFormData): Record<string, unknown> {
+  return {
+    code: data.code.trim(),
+    label: data.label.trim(),
+    short: data.short.trim(),
+    category: "user",
+    prompt: data.prompt.trim(),
+    whatItDoes: [data.short.trim()],
+    whenToUse: data.short.trim(),
+    example: `/workflow:run ${data.code.trim()}`,
+  };
+}
+
+function workflowPromptToUserFormData(prompt: WorkflowPrompt): UserPromptFormData {
   return {
     code: prompt.code,
     label: prompt.label,
     short: prompt.short,
-    category: prompt.category,
     prompt: prompt.prompt,
-    whatItDoes: prompt.whatItDoes,
-    whenToUse: prompt.whenToUse,
-    example: prompt.example,
   };
 }
 
-function overrideConfigObject(prompt: WorkflowPrompt): Record<string, unknown> {
-  return {
-    label: prompt.label,
-    short: prompt.short,
-    whatItDoes: prompt.whatItDoes,
-    whenToUse: prompt.whenToUse,
-    example: prompt.example,
-    replace: prompt.prompt,
-  };
+function overrideToConfig(data: OverrideFormData): Record<string, unknown> {
+  const config: Record<string, unknown> = { [data.mode]: data.text.trim() };
+  if (data.label?.trim()) config.label = data.label.trim();
+  if (data.short?.trim()) config.short = data.short.trim();
+  return config;
 }
 
-async function editJsonObject(ctx: WorkflowContext, title: string, initialJson: string): Promise<Record<string, unknown> | undefined> {
-  let current = initialJson;
-  while (true) {
-    const text = await ctx.ui.custom<string | null>((tui, theme, keybindings, done) => {
-      const editor = new PromptEditor(current, theme, title, keybindings);
-      editor.onDone = done;
-      editor.onQueue = done;
-      editor.onCancel = () => done(null);
-      return {
-        render: (width: number) => [
-          ...new DynamicBorder((s: string) => theme.fg("accent", s)).render(width),
-          ...new Spacer(1).render(width),
-          ...new Text(theme.fg("accent", theme.bold(title)), 1, 0).render(width),
-          ...new Text(theme.fg("dim", "Edit the JSON form below. Enter saves; Shift+Enter inserts a newline; Esc cancels."), 1, 0).render(width),
-          ...new Spacer(1).render(width),
-          ...editor.render(width),
-          ...new DynamicBorder((s: string) => theme.fg("accent", s)).render(width),
-        ],
-        invalidate: () => editor.invalidate(),
-        handleInput: (data: string) => { editor.handleInput(data); tui.requestRender(); },
-      };
-    });
-    if (text === null) return undefined;
-    try {
-      return parseJsonObject(text, title);
-    } catch (error) {
-      ctx.ui.notify(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`, "warning");
-      current = text;
+function validationMessageForUserPrompt(data: UserPromptFormData, existingCodes = new Set<string>(), originalCode?: string): string | undefined {
+  const code = data.code.trim();
+  if (!code) return "Code is required.";
+  if (!code.startsWith("user.")) return "User prompt code must start with user.";
+  if (!/^user\.[a-z0-9][a-z0-9._-]*$/i.test(code)) return "Code must look like user.my-prompt, using letters, numbers, dot, underscore, or dash.";
+  if (existingCodes.has(code) && code !== originalCode) return `Code ${code} already exists. Choose a unique code.`;
+  if (!data.label.trim()) return "Label is required.";
+  if (!data.short.trim()) return "Short description is required.";
+  if (!data.prompt.trim()) return "Prompt body is required.";
+  return undefined;
+}
+
+function validationMessageForOverride(data: OverrideFormData): string | undefined {
+  if (!data.text.trim()) return `${data.mode} text is required.`;
+  return undefined;
+}
+
+class UserPromptForm {
+  private fields: Array<keyof UserPromptFormData> = ["code", "label", "short", "prompt"];
+  private selected = 0;
+  private input: Input | undefined;
+  private inputField: keyof UserPromptFormData | undefined;
+  private promptEditor: PromptEditor | undefined;
+  private mode: "form" | "input" | "prompt" = "form";
+  private message = "";
+  private cachedWidth?: number;
+  private cachedLines?: string[];
+
+  public onSave?: (data: UserPromptFormData) => void;
+  public onCancel?: () => void;
+
+  constructor(
+    private theme: Theme,
+    private title: string,
+    private data: UserPromptFormData,
+    private keybindings?: { matches(data: string, keybinding: string): boolean; getKeys?(keybinding: string): string[] },
+    private existingCodes = new Set<string>(),
+    private originalCode?: string,
+  ) {}
+
+  handleInput(data: string): void {
+    if (this.mode === "input") {
+      this.input?.handleInput(data);
+      this.invalidate();
+      return;
     }
+    if (this.mode === "prompt") {
+      this.promptEditor?.handleInput(data);
+      this.invalidate();
+      return;
+    }
+
+    if (matchesKey(data, Key.up)) this.move(-1);
+    else if (matchesKey(data, Key.down) || matchesKey(data, Key.tab)) this.move(1);
+    else if (matchesKey(data, Key.enter)) this.editSelected();
+    else if (data === "s" || data === "S") this.save();
+    else if (matchesKey(data, Key.escape)) this.onCancel?.();
   }
+
+  private move(delta: number): void {
+    this.selected = Math.max(0, Math.min(this.fields.length - 1, this.selected + delta));
+    this.invalidate();
+  }
+
+  private editSelected(): void {
+    const field = this.fields[this.selected];
+    if (field === "prompt") {
+      this.mode = "prompt";
+      this.promptEditor = new PromptEditor(this.data.prompt, this.theme, "Prompt body", this.keybindings);
+      this.promptEditor.onDone = (text) => { this.data.prompt = text; this.mode = "form"; this.promptEditor = undefined; this.invalidate(); };
+      this.promptEditor.onQueue = this.promptEditor.onDone;
+      this.promptEditor.onCancel = () => { this.mode = "form"; this.promptEditor = undefined; this.invalidate(); };
+    } else {
+      this.mode = "input";
+      this.inputField = field;
+      this.input = new Input();
+      this.input.focused = true;
+      this.input.setValue(this.data[field]);
+      this.input.onSubmit = (value) => {
+        if (this.inputField) this.data[this.inputField] = value;
+        this.mode = "form";
+        this.input = undefined;
+        this.inputField = undefined;
+        this.invalidate();
+      };
+      this.input.onEscape = () => { this.mode = "form"; this.input = undefined; this.inputField = undefined; this.invalidate(); };
+    }
+    this.invalidate();
+  }
+
+  private save(): void {
+    const message = validationMessageForUserPrompt(this.data, this.existingCodes, this.originalCode);
+    if (message) {
+      this.message = message;
+      this.invalidate();
+      return;
+    }
+    this.onSave?.({ ...this.data });
+  }
+
+  render(width: number): string[] {
+    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+    this.cachedWidth = width;
+    if (this.mode === "input") this.cachedLines = this.renderInput(width);
+    else if (this.mode === "prompt") this.cachedLines = this.promptEditor?.render(width) ?? [];
+    else this.cachedLines = this.renderForm(width);
+    return this.cachedLines;
+  }
+
+  private renderInput(width: number): string[] {
+    const field = this.inputField ?? "code";
+    return [
+      ...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width),
+      ...new Spacer(1).render(width),
+      ...new Text(this.theme.fg("accent", this.theme.bold(`Edit ${this.fieldLabel(field)}`)), 2, 0).render(width),
+      ...new Spacer(1).render(width),
+      ...(this.input?.render(width) ?? []),
+      ...new Spacer(1).render(width),
+      ...new Text(this.theme.fg("dim", "Enter save field · Esc back"), 2, 0).render(width),
+      ...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width),
+    ];
+  }
+
+  private renderForm(width: number): string[] {
+    const lines: string[] = [];
+    lines.push(...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width));
+    lines.push(...new Spacer(1).render(width));
+    lines.push(...new Text(this.theme.fg("accent", this.theme.bold(this.title)), 2, 0).render(width));
+    lines.push(...new Text(this.theme.fg("dim", "Fill the form. JSON is written behind the scenes."), 2, 0).render(width));
+    lines.push(...new Spacer(1).render(width));
+    for (let i = 0; i < this.fields.length; i++) {
+      lines.push(this.renderRow(width, this.fields[i], i === this.selected));
+    }
+    lines.push(...new Spacer(1).render(width));
+    if (this.message) lines.push(...new Text(this.theme.fg("warning", this.message), 2, 0).render(width));
+    lines.push(...new Text(this.theme.fg("dim", "↑↓ select · Enter edit field · s save prompt · Esc cancel"), 2, 0).render(width));
+    lines.push(...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width));
+    return lines;
+  }
+
+  private renderRow(width: number, field: keyof UserPromptFormData, selected: boolean): string {
+    const label = this.fieldLabel(field).padEnd(8, " ");
+    const raw = field === "prompt" ? this.promptPreview() : this.data[field];
+    const prefix = selected ? "▶" : " ";
+    const line = `  ${prefix} ${this.theme.fg("accent", label)} ${raw || this.theme.fg("dim", "(empty)")}`;
+    const rendered = truncateToWidth(line, width - 2);
+    return "  " + (selected ? this.theme.bg("selectedBg", rendered) : rendered);
+  }
+
+  private fieldLabel(field: keyof UserPromptFormData): string {
+    return field === "short" ? "Short" : field === "prompt" ? "Prompt" : field.charAt(0).toUpperCase() + field.slice(1);
+  }
+
+  private promptPreview(): string {
+    const lines = this.data.prompt.split("\n");
+    return `${lines[0] || "(empty)"}${lines.length > 1 ? ` · ${lines.length} lines` : ""}`;
+  }
+
+  invalidate(): void {
+    this.cachedWidth = undefined;
+    this.cachedLines = undefined;
+    this.input?.invalidate();
+    this.promptEditor?.invalidate();
+  }
+}
+
+class OverridePromptForm {
+  private fields: Array<"mode" | "text" | "label" | "short"> = ["mode", "text", "label", "short"];
+  private selected = 0;
+  private input: Input | undefined;
+  private inputField: "label" | "short" | undefined;
+  private promptEditor: PromptEditor | undefined;
+  private mode: "form" | "input" | "text" = "form";
+  private message = "";
+  private cachedWidth?: number;
+  private cachedLines?: string[];
+
+  public onSave?: (data: OverrideFormData) => void;
+  public onCancel?: () => void;
+
+  constructor(
+    private theme: Theme,
+    private title: string,
+    private data: OverrideFormData,
+    private keybindings?: { matches(data: string, keybinding: string): boolean; getKeys?(keybinding: string): string[] },
+  ) {}
+
+  handleInput(data: string): void {
+    if (this.mode === "input") { this.input?.handleInput(data); this.invalidate(); return; }
+    if (this.mode === "text") { this.promptEditor?.handleInput(data); this.invalidate(); return; }
+    if (matchesKey(data, Key.up)) this.move(-1);
+    else if (matchesKey(data, Key.down) || matchesKey(data, Key.tab)) this.move(1);
+    else if (matchesKey(data, Key.enter)) this.editSelected();
+    else if (data === "s" || data === "S") this.save();
+    else if (matchesKey(data, Key.escape)) this.onCancel?.();
+  }
+
+  private move(delta: number): void {
+    this.selected = Math.max(0, Math.min(this.fields.length - 1, this.selected + delta));
+    this.invalidate();
+  }
+
+  private editSelected(): void {
+    const field = this.fields[this.selected];
+    if (field === "mode") {
+      const modes: OverrideMode[] = ["append", "prepend", "replace"];
+      this.data.mode = modes[(modes.indexOf(this.data.mode) + 1) % modes.length];
+    } else if (field === "text") {
+      this.mode = "text";
+      this.promptEditor = new PromptEditor(this.data.text, this.theme, `${this.data.mode} text`, this.keybindings);
+      this.promptEditor.onDone = (text) => { this.data.text = text; this.mode = "form"; this.promptEditor = undefined; this.invalidate(); };
+      this.promptEditor.onQueue = this.promptEditor.onDone;
+      this.promptEditor.onCancel = () => { this.mode = "form"; this.promptEditor = undefined; this.invalidate(); };
+    } else {
+      this.mode = "input";
+      this.inputField = field;
+      this.input = new Input();
+      this.input.focused = true;
+      this.input.setValue(this.data[field] ?? "");
+      this.input.onSubmit = (value) => {
+        if (this.inputField) this.data[this.inputField] = value;
+        this.mode = "form";
+        this.input = undefined;
+        this.inputField = undefined;
+        this.invalidate();
+      };
+      this.input.onEscape = () => { this.mode = "form"; this.input = undefined; this.inputField = undefined; this.invalidate(); };
+    }
+    this.invalidate();
+  }
+
+  private save(): void {
+    const message = validationMessageForOverride(this.data);
+    if (message) { this.message = message; this.invalidate(); return; }
+    this.onSave?.({ ...this.data });
+  }
+
+  render(width: number): string[] {
+    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+    this.cachedWidth = width;
+    if (this.mode === "input") this.cachedLines = this.renderInput(width);
+    else if (this.mode === "text") this.cachedLines = this.promptEditor?.render(width) ?? [];
+    else this.cachedLines = this.renderForm(width);
+    return this.cachedLines;
+  }
+
+  private renderInput(width: number): string[] {
+    return [
+      ...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width),
+      ...new Spacer(1).render(width),
+      ...new Text(this.theme.fg("accent", this.theme.bold(`Edit ${this.inputField ?? "field"}`)), 2, 0).render(width),
+      ...new Spacer(1).render(width),
+      ...(this.input?.render(width) ?? []),
+      ...new Spacer(1).render(width),
+      ...new Text(this.theme.fg("dim", "Enter save field · Esc back"), 2, 0).render(width),
+      ...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width),
+    ];
+  }
+
+  private renderForm(width: number): string[] {
+    const lines: string[] = [];
+    lines.push(...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width));
+    lines.push(...new Spacer(1).render(width));
+    lines.push(...new Text(this.theme.fg("accent", this.theme.bold(this.title)), 2, 0).render(width));
+    lines.push(...new Text(this.theme.fg("dim", "Choose how to override the prompt. JSON is written behind the scenes."), 2, 0).render(width));
+    lines.push(...new Spacer(1).render(width));
+    for (let i = 0; i < this.fields.length; i++) lines.push(this.renderRow(width, this.fields[i], i === this.selected));
+    lines.push(...new Spacer(1).render(width));
+    if (this.message) lines.push(...new Text(this.theme.fg("warning", this.message), 2, 0).render(width));
+    lines.push(...new Text(this.theme.fg("dim", "↑↓ select · Enter edit/cycle · s save override · Esc cancel"), 2, 0).render(width));
+    lines.push(...new DynamicBorder((s: string) => this.theme.fg("accent", s)).render(width));
+    return lines;
+  }
+
+  private renderRow(width: number, field: "mode" | "text" | "label" | "short", selected: boolean): string {
+    const labels = { mode: "Mode", text: "Text", label: "Label", short: "Short" };
+    const value = field === "text" ? this.textPreview() : (this.data[field] || (field === "label" || field === "short" ? "(optional)" : ""));
+    const prefix = selected ? "▶" : " ";
+    const line = `  ${prefix} ${this.theme.fg("accent", labels[field].padEnd(6, " "))} ${value}`;
+    const rendered = truncateToWidth(line, width - 2);
+    return "  " + (selected ? this.theme.bg("selectedBg", rendered) : rendered);
+  }
+
+  private textPreview(): string {
+    const lines = this.data.text.split("\n");
+    return `${lines[0] || "(empty)"}${lines.length > 1 ? ` · ${lines.length} lines` : ""}`;
+  }
+
+  invalidate(): void {
+    this.cachedWidth = undefined;
+    this.cachedLines = undefined;
+    this.input?.invalidate();
+    this.promptEditor?.invalidate();
+  }
+}
+
+async function editUserPromptForm(ctx: WorkflowContext, title: string, initial: UserPromptFormData, existingCodes = new Set<string>(), originalCode?: string): Promise<UserPromptFormData | undefined> {
+  return ctx.ui.custom<UserPromptFormData | undefined>((tui, theme, keybindings, done) => {
+    const form = new UserPromptForm(theme, title, { ...initial }, keybindings, existingCodes, originalCode);
+    form.onSave = done;
+    form.onCancel = () => done(undefined);
+    return {
+      render: (width: number) => form.render(width),
+      invalidate: () => form.invalidate(),
+      handleInput: (data: string) => { form.handleInput(data); tui.requestRender(); },
+    };
+  });
+}
+
+async function editOverrideForm(ctx: WorkflowContext, title: string, initial: OverrideFormData): Promise<OverrideFormData | undefined> {
+  return ctx.ui.custom<OverrideFormData | undefined>((tui, theme, keybindings, done) => {
+    const form = new OverridePromptForm(theme, title, { ...initial }, keybindings);
+    form.onSave = done;
+    form.onCancel = () => done(undefined);
+    return {
+      render: (width: number) => form.render(width),
+      invalidate: () => form.invalidate(),
+      handleInput: (data: string) => { form.handleInput(data); tui.requestRender(); },
+    };
+  });
 }
 
 async function pickPrompt(ctx: WorkflowContext, registry: PromptRegistry, title: string, onlyCore = false): Promise<WorkflowPrompt | undefined> {
@@ -864,19 +1168,20 @@ async function pickPrompt(ctx: WorkflowContext, registry: PromptRegistry, title:
 }
 
 async function addPromptWithForm(pi: ExtensionAPI, ctx: WorkflowContext, registry: PromptRegistry): Promise<void> {
-  const prompt = await editJsonObject(ctx, "Add user workflow prompt", customPromptTemplate());
-  if (!prompt) return;
-  await addUserPrompt(registry.paths.user, prompt);
+  const existingCodes = new Set(registry.prompts.map((prompt) => prompt.code));
+  const data = await editUserPromptForm(ctx, "Add user workflow prompt", defaultUserPromptData(), existingCodes);
+  if (!data) return;
+  await addUserPrompt(registry.paths.user, userPromptToConfig(data));
   const updated = await loadPromptRegistry(pi, ctx.cwd).catch(() => undefined);
-  ctx.ui.notify(`Saved user prompt ${(prompt.code as string) || ""} to ${registry.paths.user}${updated?.warnings.length ? `\nWarnings:\n- ${updated.warnings.join("\n- ")}` : ""}`, updated?.warnings.length ? "warning" : "info");
+  ctx.ui.notify(`Saved user prompt ${data.code} to ${registry.paths.user}${updated?.warnings.length ? `\nWarnings:\n- ${updated.warnings.join("\n- ")}` : ""}`, updated?.warnings.length ? "warning" : "info");
 }
 
 async function overridePromptWithForm(ctx: WorkflowContext, registry: PromptRegistry, code?: string): Promise<void> {
   const selected = code ? registry.prompts.find((prompt) => prompt.code === code) : await pickPrompt(ctx, registry, "Override core workflow prompt", true);
   if (!selected) return;
-  const override = await editJsonObject(ctx, `Override ${selected.code}`, overrideTemplate());
-  if (!override) return;
-  await setUserOverride(registry.paths.user, selected.code, override);
+  const data = await editOverrideForm(ctx, `Override ${selected.code}`, { mode: "append", text: "Add your extra local guidance here." });
+  if (!data) return;
+  await setUserOverride(registry.paths.user, selected.code, overrideToConfig(data));
   ctx.ui.notify(`Saved override for ${selected.code} to ${registry.paths.user}`, "info");
 }
 
@@ -885,21 +1190,18 @@ async function editCustomPromptWithForm(pi: ExtensionAPI, ctx: WorkflowContext, 
   if (!selected) return;
 
   if (selected.sourceLabel === "user" && selected.sourcePath === registry.paths.user && selected.code.startsWith("user.")) {
-    const prompt = await editJsonObject(ctx, `Edit saved user prompt ${selected.code}`, JSON.stringify(promptConfigObject(selected), null, 2));
-    if (!prompt) return;
-    await addUserPrompt(registry.paths.user, prompt);
+    const existingCodes = new Set(registry.prompts.map((prompt) => prompt.code));
+    const data = await editUserPromptForm(ctx, `Edit saved user prompt ${selected.code}`, workflowPromptToUserFormData(selected), existingCodes, selected.code);
+    if (!data) return;
+    await addUserPrompt(registry.paths.user, userPromptToConfig(data));
     const updated = await loadPromptRegistry(pi, ctx.cwd).catch(() => undefined);
-    ctx.ui.notify(`Updated ${selected.code} in ${registry.paths.user}${updated?.warnings.length ? `\nWarnings:\n- ${updated.warnings.join("\n- ")}` : ""}`, updated?.warnings.length ? "warning" : "info");
+    ctx.ui.notify(`Updated ${data.code} in ${registry.paths.user}${updated?.warnings.length ? `\nWarnings:\n- ${updated.warnings.join("\n- ")}` : ""}`, updated?.warnings.length ? "warning" : "info");
     return;
   }
 
-  const override = await editJsonObject(
-    ctx,
-    `Edit ${selected.code} via user override`,
-    JSON.stringify(overrideConfigObject(selected), null, 2),
-  );
-  if (!override) return;
-  await setUserOverride(registry.paths.user, selected.code, override);
+  const data = await editOverrideForm(ctx, `Edit ${selected.code} via user override`, { mode: "replace", text: selected.prompt, label: selected.label, short: selected.short });
+  if (!data) return;
+  await setUserOverride(registry.paths.user, selected.code, overrideToConfig(data));
   ctx.ui.notify(`Saved user override for ${selected.code} to ${registry.paths.user}`, "info");
 }
 
