@@ -66,7 +66,9 @@ Then `/reload` in any pi session.
 `/workflow:help` opens a tabbed TUI panel:
 
 - **↑↓** navigate prompts · **←→/Tab** switch tabs
-- **↵** run prompt · configured **`app.message.followUp`** key (default Alt+Enter / Option+Enter) queues the selected prompt · **d** details · **e** edit · **n** add a user prompt · **o** override selected prompt
+- **↵** run prompt · configured **`app.message.followUp`** key (default Alt+Enter / Option+Enter) queues the selected prompt · **d** details
+- **e** edits the prompt before running on core tabs, but edits the saved prompt/config on the **CUSTOM** tab
+- **n** adds a user prompt · **o** overrides the selected prompt
 - In edit mode: **Ctrl+Y** copy, configured **`app.message.followUp`** queues the edited prompt, configured `tui.input.newLine` inserts a newline, **Esc** close/back
 
 Rows show source labels such as `[core]`, `[project]`, `[user]`, `[override:project]`, and `[override:user]`.

@@ -78,6 +78,7 @@ export class HelpPanel {
   public onSelect?: (code: string) => void;
   public onQueue?: (code: string) => void;
   public onEdit?: (code: string) => void;
+  public onEditCustomPrompt?: (code: string) => void;
   public onAddPrompt?: () => void;
   public onOverridePrompt?: (code: string) => void;
   public onCancel?: () => void;
@@ -165,7 +166,8 @@ export class HelpPanel {
       }
     } else if (data === "e" || data === "E") {
       const cmd = cmds[this.selectedIdx];
-      if (cmd) this.onEdit?.(cmd.code);
+      if (cmd && this.activeCategory() === "custom") this.onEditCustomPrompt?.(cmd.code);
+      else if (cmd) this.onEdit?.(cmd.code);
     } else if (data === "n" || data === "N") {
       this.onAddPrompt?.();
     } else if (data === "o" || data === "O") {
@@ -189,7 +191,8 @@ export class HelpPanel {
       if (cmd) this.onSelect?.(cmd.code);
     } else if (data === "e" || data === "E") {
       const cmd = this.commands[this.detailIdx];
-      if (cmd) this.onEdit?.(cmd.code);
+      if (cmd && (cmd.category === "project" || cmd.category === "user")) this.onEditCustomPrompt?.(cmd.code);
+      else if (cmd) this.onEdit?.(cmd.code);
     } else if (matchesKey(data, Key.escape)) {
       this.mode = "list";
       const cat = this.activeCategory();
@@ -249,7 +252,8 @@ export class HelpPanel {
 
     lines.push(...new Spacer(1).render(width));
     const queueKey = this.keyLabel("app.message.followUp", "Alt+Enter");
-    lines.push(...new Text(t.fg("dim", `↑↓ navigate    ←→/Tab switch tabs    ↵ run    ${queueKey} queue    d details    e edit    n new    o override    Esc close`), pad, 0).render(width));
+    const editLabel = this.activeCategory() === "custom" ? "e edit saved" : "e edit run";
+    lines.push(...new Text(t.fg("dim", `↑↓ navigate    ←→/Tab switch tabs    ↵ run    ${queueKey} queue    d details    ${editLabel}    n new    o override    Esc close`), pad, 0).render(width));
     lines.push(...new DynamicBorder((s: string) => t.fg("accent", s)).render(width));
     return lines;
   }
@@ -306,7 +310,8 @@ export class HelpPanel {
     lines.push(...this.renderDetailExample(width, pad, innerW, t, "Example", cmd.example));
     lines.push(...new Spacer(1).render(width));
     const queueKey = this.keyLabel("app.message.followUp", "Alt+Enter");
-    lines.push(...new Text(t.fg("dim", `↵ run    ${queueKey} queue    e edit first    ←→ prev/next prompt    Esc back to list`), pad, 0).render(width));
+    const editLabel = cmd.category === "project" || cmd.category === "user" ? "e edit saved" : "e edit first";
+    lines.push(...new Text(t.fg("dim", `↵ run    ${queueKey} queue    ${editLabel}    ←→ prev/next prompt    Esc back to list`), pad, 0).render(width));
     lines.push(...new DynamicBorder((s: string) => t.fg(color, s)).render(width));
     return lines;
   }

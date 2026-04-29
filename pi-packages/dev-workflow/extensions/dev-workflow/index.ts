@@ -771,6 +771,30 @@ async function setUserOverride(path: string, code: string, override: Record<stri
   });
 }
 
+function promptConfigObject(prompt: WorkflowPrompt): Record<string, unknown> {
+  return {
+    code: prompt.code,
+    label: prompt.label,
+    short: prompt.short,
+    category: prompt.category,
+    prompt: prompt.prompt,
+    whatItDoes: prompt.whatItDoes,
+    whenToUse: prompt.whenToUse,
+    example: prompt.example,
+  };
+}
+
+function overrideConfigObject(prompt: WorkflowPrompt): Record<string, unknown> {
+  return {
+    label: prompt.label,
+    short: prompt.short,
+    whatItDoes: prompt.whatItDoes,
+    whenToUse: prompt.whenToUse,
+    example: prompt.example,
+    replace: prompt.prompt,
+  };
+}
+
 async function editJsonObject(ctx: WorkflowContext, title: string, initialJson: string): Promise<Record<string, unknown> | undefined> {
   let current = initialJson;
   while (true) {
@@ -854,6 +878,29 @@ async function overridePromptWithForm(ctx: WorkflowContext, registry: PromptRegi
   if (!override) return;
   await setUserOverride(registry.paths.user, selected.code, override);
   ctx.ui.notify(`Saved override for ${selected.code} to ${registry.paths.user}`, "info");
+}
+
+async function editCustomPromptWithForm(pi: ExtensionAPI, ctx: WorkflowContext, registry: PromptRegistry, code: string): Promise<void> {
+  const selected = registry.prompts.find((prompt) => prompt.code === code);
+  if (!selected) return;
+
+  if (selected.sourceLabel === "user" && selected.sourcePath === registry.paths.user && selected.code.startsWith("user.")) {
+    const prompt = await editJsonObject(ctx, `Edit saved user prompt ${selected.code}`, JSON.stringify(promptConfigObject(selected), null, 2));
+    if (!prompt) return;
+    await addUserPrompt(registry.paths.user, prompt);
+    const updated = await loadPromptRegistry(pi, ctx.cwd).catch(() => undefined);
+    ctx.ui.notify(`Updated ${selected.code} in ${registry.paths.user}${updated?.warnings.length ? `\nWarnings:\n- ${updated.warnings.join("\n- ")}` : ""}`, updated?.warnings.length ? "warning" : "info");
+    return;
+  }
+
+  const override = await editJsonObject(
+    ctx,
+    `Edit ${selected.code} via user override`,
+    JSON.stringify(overrideConfigObject(selected), null, 2),
+  );
+  if (!override) return;
+  await setUserOverride(registry.paths.user, selected.code, override);
+  ctx.ui.notify(`Saved user override for ${selected.code} to ${registry.paths.user}`, "info");
 }
 
 async function openPromptStudio(pi: ExtensionAPI, ctx: WorkflowContext): Promise<void> {
@@ -1004,6 +1051,7 @@ export default function (pi: ExtensionAPI) {
   const showHelp = async (ctx: WorkflowContext) => {
     const registry = await loadPromptRegistry(pi, ctx.cwd);
     let editRequested: string | null = null;
+    let editCustomRequested: string | null = null;
     let queueRequested: string | null = null;
     let addRequested = false;
     let overrideRequested: string | null = null;
@@ -1013,6 +1061,7 @@ export default function (pi: ExtensionAPI) {
       panel.onSelect = (code) => done(code);
       panel.onQueue = (code) => { queueRequested = code; done(null); };
       panel.onEdit = (code) => { editRequested = code; done(null); };
+      panel.onEditCustomPrompt = (code) => { editCustomRequested = code; done(null); };
       panel.onAddPrompt = () => { addRequested = true; done(null); };
       panel.onOverridePrompt = (code) => { overrideRequested = code; done(null); };
       panel.onCancel = () => done(null);
@@ -1030,6 +1079,8 @@ export default function (pi: ExtensionAPI) {
       await addPromptWithForm(pi, ctx, registry);
     } else if (overrideRequested) {
       await overridePromptWithForm(ctx, registry, overrideRequested);
+    } else if (editCustomRequested) {
+      await editCustomPromptWithForm(pi, ctx, registry, editCustomRequested);
     } else if (queueRequested) {
       const prompt = promptForInput(registry, queueRequested);
       if (prompt) await runPrompt(ctx, prompt, undefined, "followUp");
