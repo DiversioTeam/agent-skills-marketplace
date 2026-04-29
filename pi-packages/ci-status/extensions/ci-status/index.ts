@@ -476,8 +476,8 @@ async function fetchCiSummary(pi: ExtensionAPI, cwd: string): Promise<CiSummary>
 // Log fetching
 // ---------------------------------------------------------------------------
 
-async function fetchGitHubRunLog(pi: ExtensionAPI, cwd: string, runId: number, failedOnly: boolean): Promise<string> {
-  const args = ["run", "view", String(runId)];
+async function fetchGitHubRunLog(pi: ExtensionAPI, cwd: string, runId: number, githubJobId: number, failedOnly: boolean): Promise<string> {
+  const args = ["run", "view", String(runId), "--job", String(githubJobId)];
   if (failedOnly) args.push("--log-failed");
   else args.push("--log");
   const result = await pi.exec("gh", args, { cwd, timeout: LOG_FETCH_TIMEOUT });
@@ -520,7 +520,8 @@ async function fetchCircleCIJobOutput(_cwd: string, job: CiJob): Promise<string>
 async function fetchJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<string> {
   const githubRunId = job.runId ?? githubRunIdFromUrl(job.url);
   if (job.provider === "github" && githubRunId) {
-    return fetchGitHubRunLog(pi, cwd, githubRunId, job.state === "failed");
+    const githubJobId = await githubJobIdForSelectedJob(pi, cwd, githubRunId, job);
+    return fetchGitHubRunLog(pi, cwd, githubRunId, githubJobId, job.state === "failed");
   }
   if (job.provider === "circleci") {
     return await fetchCircleCIJobOutput(cwd, job);
