@@ -15,6 +15,9 @@
 - `plugins/<plugin>/commands/*.md`
   - Thin wrappers that surface skills as `/plugin:command` entries in Claude
     Code.
+- `pi-packages/<package>/`
+  - Pi-native packages for workflows that need pi extensions, TUI components,
+    or pi-local skills outside the Claude Code marketplace shape.
 - `scripts/validate-skills.sh`
   - Local and CI guardrail for the `SKILL.md` line-count budget.
 - `.github/workflows/validate-marketplace.yml`
@@ -31,6 +34,9 @@
   version, and source path.
 - Slash-command files should stay thin. The real behavior belongs in
   `SKILL.md`, `references/`, and helper scripts.
+- Pi packages may include TypeScript extensions under `pi-packages/**/extensions/`;
+  keep package READMEs and distribution docs accurate because these are not
+  Claude Code marketplace plugins.
 - `README.md` stays human-first, `AGENTS.md` stays as the agent routing map,
   and detailed guidance lives under `docs/`.
 
@@ -42,14 +48,20 @@
    - Sync the matching `.claude-plugin/marketplace.json` entry.
    - Update the catalog or distribution docs if the user-facing inventory
      changed.
-2. Validate locally
-   - Run `bash scripts/validate-skills.sh` for changed skills.
+2. Add or change a pi package
+   - Update package resources under `pi-packages/<package>/`.
+   - Keep `package.json`, package README, repo README, and distribution docs in
+     sync with install commands and command inventory.
+   - If the package includes a pi extension, validate it against the pi docs and
+     examples before publishing.
+3. Validate locally
+   - Run `bash scripts/validate-skills.sh` for changed Claude marketplace skills.
    - Validate edited JSON with `jq -e .`.
-3. CI verification
+4. CI verification
    - `Validate Marketplace` checks JSON validity, unique plugin names,
      directory/manifest consistency, version sync, presence of skills, and the
      `SKILL.md` size budget.
-4. Post-merge notification
+5. Post-merge notification
    - Pushes to `main` that touch `plugins/**` trigger Slack update messages with
      plugin names, versions, and changelog snippets.
 

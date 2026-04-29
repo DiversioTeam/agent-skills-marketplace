@@ -17,9 +17,9 @@ SKILL_FILES=()
 if [[ "${SCOPE}" == "--all" ]]; then
   while IFS= read -r skill_file; do
     SKILL_FILES+=("${skill_file}")
-  done < <(find plugins -type f -name 'SKILL.md' | sort)
+  done < <(find plugins pi-packages -type f -name 'SKILL.md' 2>/dev/null | sort)
 else
-  skill_path_regex='^plugins/.+/SKILL\.md$'
+  skill_path_regex='^(plugins|pi-packages)/.+/SKILL\.md$'
   changed_candidates=""
   if [[ "${CI:-}" == "true" && -n "${GITHUB_BASE_REF:-}" ]]; then
     base_ref="origin/${GITHUB_BASE_REF}"
@@ -58,7 +58,7 @@ fi
 
 if [[ "${#SKILL_FILES[@]}" -eq 0 ]]; then
   if [[ "${SCOPE}" == "--all" ]]; then
-    echo "No SKILL.md files found under plugins/."
+    echo "No SKILL.md files found under plugins/ or pi-packages/."
   else
     echo "No changed SKILL.md files detected."
   fi

@@ -6,6 +6,55 @@ when command files change.
 
 ## Review And Workflow
 
+- `ci-status` (pi package)
+  - Purpose: pi-native CI status extension with GitHub Actions and CircleCI
+    status discovery, auto-watch after pushes, widget/status rendering,
+    notifications, CI-provider/workflow-cycle TUI job details, failed-job reruns,
+    guided fix prompts, and log access.
+  - Pi install from repo checkout: `pi install -l ./pi-packages/ci-status`
+  - Package path: `pi-packages/ci-status`
+  - Extension path: `pi-packages/ci-status/extensions/ci-status`
+  - Slash commands: `/ci`, `/ci-detail`, `/ci-logs`, `/ci-refresh`,
+    `/ci-watch`, `/ci-unwatch`, `/ci-clear`
+  - Shortcut: `Ctrl+Shift+.` opens `/ci-detail` by default; override with
+    `PI_CI_DETAIL_SHORTCUT`.
+  - LLM tools: `get_ci_status`, `ci_fetch_job_logs`
+  - Environment: uses `gh` CLI for GitHub; set `CIRCLECI_TOKEN` for CircleCI
+    enrichment.
+- `dev-workflow` (pi package)
+  - Purpose: pi-native daily developer workflow with TypeScript extension
+    commands, stable workflow prompt codes, XDG/project prompt config,
+    interactive TUI help panel, CI analysis, PR review feedback handling,
+    release PR prep prompts, local skills, and optional pi-subagents chain.
+  - Pi install from repo checkout:
+    `pi install -l ./pi-packages/dev-workflow`
+  - Package path: `pi-packages/dev-workflow`
+  - Extension path:
+    `pi-packages/dev-workflow/extensions/dev-workflow`
+  - Skill paths: `pi-packages/dev-workflow/skills/dev-workflow`,
+    `pi-packages/dev-workflow/skills/ci`
+  - Chain path: `pi-packages/dev-workflow/agents/workflow-pipeline.chain.md`
+  - Slash commands: `/workflow:plan`, `/workflow:self`, `/workflow:standards`,
+    `/workflow:ci`, `/workflow:docs`, `/workflow:ship`,
+    `/workflow:pr-review-comments`, `/workflow:release-prs`,
+    `/workflow:context`, `/workflow:handoff`, `/workflow:onboard`,
+    `/workflow:scout`, `/workflow:oracle`, `/workflow:reviewer`,
+    `/workflow:parallel`, `/workflow:help`, `/workflow:flow`, `/workflow:run`,
+    `/workflow:prompts`
+  - Prompt config: core `workflow.*` prompt codes can be overridden from
+    `<git-root>/.pi/dev-workflow/prompts.json` or
+    `${XDG_CONFIG_HOME:-~/.config}/pi/dev-workflow/prompts.json`; custom prompts
+    use `project.*` or `user.*` codes and can run via `/workflow:run <code>`.
+    `/workflow:prompts` opens a native TUI Prompt Studio with field-based forms,
+    early validation, confirmed deletion/restoration, and a multi-line prompt
+    editor so users do not hand-write JSON.
+  - TUI behavior: `/workflow:help` uses the user's configured
+    `app.message.followUp` keybinding (default `Alt+Enter`, often
+    `Option+Enter` on macOS) to queue the selected prompt or edited prompt as a
+    follow-up while pi is streaming.
+  - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
+    `/ci-logs`; workflow prompts fall back to `get_ci_status` /
+    `ci_fetch_job_logs` only when the current harness exposes those tools.
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
     deterministic worktree reuse/bootstrap, persistent review context across

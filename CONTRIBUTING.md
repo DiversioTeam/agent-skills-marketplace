@@ -21,10 +21,12 @@ Contributions should generally be limited to:
 - `plugins/**/.claude-plugin/plugin.json`
 - `plugins/**/skills/*/SKILL.md`
 - `plugins/**/commands/*.md`
+- `pi-packages/**` for pi-native packages
 - `docs/**`
 - `scripts/**`
 
-Do not add application logic here.
+Do not add Diversio product application logic here. Pi extension code is allowed
+only inside `pi-packages/**` and should stay harness-focused.
 
 ## Adding Or Updating A Plugin
 
@@ -76,6 +78,20 @@ Do not add application logic here.
    - If the plugin touches code-oriented Python workflows, reflect the typing
      policy in `docs/python-typing-and-ty-best-practices.md`.
 
+## Adding Or Updating A Pi Package
+
+Pi-native packages live under `pi-packages/<package>/` when the workflow needs a
+pi extension, TUI component, or pi-local skill that does not fit the Claude Code
+marketplace plugin shape.
+
+Keep the package `README.md`, `package.json`, `docs/runbooks/distribution.md`,
+`docs/plugins/catalog.md`, and the top-level `README.md` in sync when commands,
+shortcuts, install paths, or packaged resources change. If a package exposes an
+interactive TUI, document its keybindings in terms of Pi keybinding ids when
+possible (for example, `app.message.followUp`) so custom user bindings still
+make sense. Bump the package version when publishing an update rather than only
+editing source files.
+
 ## Validation
 
 Run the guardrails that match your change:
@@ -85,6 +101,8 @@ bash scripts/validate-skills.sh
 bash scripts/validate-skills.sh --all
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
+jq -e . pi-packages/<package>/package.json >/dev/null
+printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
 ```
 
 The `Validate Marketplace` GitHub workflow also checks:
