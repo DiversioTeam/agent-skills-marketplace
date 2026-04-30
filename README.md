@@ -280,6 +280,7 @@ agent-skills-marketplace/
 |---------|-------------|---------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools | `pi install "$PWD/pi-packages/ci-status"` |
 | `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain | `pi install "$PWD/pi-packages/dev-workflow"` |
+| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi | `pi install "$PWD/pi-packages/skills-bridge"` |
 
 ## Installation
 
@@ -311,6 +312,7 @@ absolute local path:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/skills-bridge"
 ```
 
 Plain `pi install` writes to global user settings. Use `pi -e ./pi-packages/<package>`

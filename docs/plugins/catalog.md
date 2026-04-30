@@ -55,6 +55,31 @@ when command files change.
   - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /
     `ci_fetch_job_logs` only when the current harness exposes those tools.
+- `skills-bridge` (pi package)
+  - Purpose: auto-discovers Claude Code plugin skills from
+    `plugins/*/skills/` directories and registers them as pi
+    skills via the `resources_discover` extension hook. One install makes all
+    21 plugin skills available in pi without restructuring the
+    repo.
+  - Pi install from repo checkout:
+    `pi install "$PWD/pi-packages/skills-bridge"`
+  - Package path: `pi-packages/skills-bridge`
+  - Extension path:
+    `pi-packages/skills-bridge/extensions/skills-bridge`
+  - Discovery: three-tier resolution — `PI_SKILLS_PATH` env var,
+    `~/.config/pi/skills-bridge.json` config file, cwd walk-up
+    (repo-agnostic: checks for `plugins/` at each ancestor, plus
+    `agent-skills-marketplace/plugins/` for the monolith submodule).
+  - Skills bridged: `release-manager`, `monty-code-review`,
+    `backend-atomic-commit`, `backend-pr-workflow`, `plan-directory`,
+    `backend-ralph-plan`, `pr-description-writer`, `process-code-review`,
+    `bruno-api`, `code-review-digest-writer`, `mixpanel-analytics`,
+    `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
+    `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
+    `terraform-pr-workflow`, `login-cta-attribution-skill`,
+    `monolith-review-orchestrator`, `frontend` (21 total).
+  - Context safe: only skill names + descriptions enter context at startup
+    (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
     deterministic worktree reuse/bootstrap, persistent review context across
