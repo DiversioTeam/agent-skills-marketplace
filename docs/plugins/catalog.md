@@ -6,6 +6,80 @@ when command files change.
 
 ## Review And Workflow
 
+- `ci-status` (pi package)
+  - Purpose: pi-native CI status extension with GitHub Actions and CircleCI
+    status discovery, auto-watch after pushes, widget/status rendering,
+    notifications, CI-provider/workflow-cycle TUI job details, failed-job reruns,
+    guided fix prompts, and log access.
+  - Pi install from repo checkout: `pi install "$PWD/pi-packages/ci-status"`
+  - Package path: `pi-packages/ci-status`
+  - Extension path: `pi-packages/ci-status/extensions/ci-status`
+  - Slash commands: `/ci`, `/ci-detail`, `/ci-logs`, `/ci-refresh`,
+    `/ci-watch`, `/ci-unwatch`, `/ci-clear`
+  - Shortcut: `Ctrl+Shift+.` opens `/ci-detail` by default; override with
+    `PI_CI_DETAIL_SHORTCUT`.
+  - LLM tools: `get_ci_status`, `ci_fetch_job_logs`
+  - Environment: uses `gh` CLI for GitHub; set `CIRCLECI_TOKEN` for CircleCI
+    enrichment.
+- `dev-workflow` (pi package)
+  - Purpose: pi-native daily developer workflow with TypeScript extension
+    commands, stable workflow prompt codes, XDG/project prompt config,
+    interactive TUI help panel, CI analysis, PR review feedback handling,
+    release PR prep prompts, local skills, and optional pi-subagents chain.
+  - Pi install from repo checkout:
+    `pi install "$PWD/pi-packages/dev-workflow"`
+  - Package path: `pi-packages/dev-workflow`
+  - Extension path:
+    `pi-packages/dev-workflow/extensions/dev-workflow`
+  - Skill paths: `pi-packages/dev-workflow/skills/dev-workflow`,
+    `pi-packages/dev-workflow/skills/ci`
+  - Chain path: `pi-packages/dev-workflow/agents/workflow-pipeline.chain.md`
+  - Slash commands: `/workflow:plan`, `/workflow:self`, `/workflow:standards`,
+    `/workflow:ci`, `/workflow:docs`, `/workflow:ship`,
+    `/workflow:pr-review-comments`, `/workflow:release-prs`,
+    `/workflow:context`, `/workflow:handoff`, `/workflow:onboard`,
+    `/workflow:scout`, `/workflow:oracle`, `/workflow:reviewer`,
+    `/workflow:parallel`, `/workflow:help`, `/workflow:flow`, `/workflow:run`,
+    `/workflow:prompts`
+  - Prompt config: core `workflow.*` prompt codes can be overridden from
+    `<git-root>/.pi/dev-workflow/prompts.json` or
+    `${XDG_CONFIG_HOME:-~/.config}/pi/dev-workflow/prompts.json`; custom prompts
+    use `project.*` or `user.*` codes and can run via `/workflow:run <code>`.
+    `/workflow:prompts` opens a native TUI Prompt Studio with field-based forms,
+    early validation, confirmed deletion/restoration, and a multi-line prompt
+    editor so users do not hand-write JSON.
+  - TUI behavior: `/workflow:help` uses the user's configured
+    `app.message.followUp` keybinding (default `Alt+Enter`, often
+    `Option+Enter` on macOS) to queue the selected prompt or edited prompt as a
+    follow-up while pi is streaming.
+  - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
+    `/ci-logs`; workflow prompts fall back to `get_ci_status` /
+    `ci_fetch_job_logs` only when the current harness exposes those tools.
+- `skills-bridge` (pi package)
+  - Purpose: auto-discovers Claude Code plugin skills from
+    `plugins/*/skills/` directories and registers them as pi
+    skills via the `resources_discover` extension hook. One install makes all
+    21 plugin skills available in pi without restructuring the
+    repo.
+  - Pi install from repo checkout:
+    `pi install "$PWD/pi-packages/skills-bridge"`
+  - Package path: `pi-packages/skills-bridge`
+  - Extension path:
+    `pi-packages/skills-bridge/extensions/skills-bridge`
+  - Discovery: three-tier resolution — `PI_SKILLS_PATH` env var,
+    `~/.config/pi/skills-bridge.json` config file, cwd walk-up
+    (repo-agnostic: checks for `plugins/` at each ancestor, plus
+    `agent-skills-marketplace/plugins/` for the monolith submodule).
+  - Skills bridged: `release-manager`, `monty-code-review`,
+    `backend-atomic-commit`, `backend-pr-workflow`, `plan-directory`,
+    `backend-ralph-plan`, `pr-description-writer`, `process-code-review`,
+    `bruno-api`, `code-review-digest-writer`, `mixpanel-analytics`,
+    `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
+    `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
+    `terraform-pr-workflow`, `login-cta-attribution-skill`,
+    `monolith-review-orchestrator`, `frontend` (21 total).
+  - Context safe: only skill names + descriptions enter context at startup
+    (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
     deterministic exact-head worktree reuse/bootstrap, persistent review context
@@ -164,3 +238,26 @@ when command files change.
   - Skill path:
     `plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill`
   - Slash commands: `/login-cta-attribution-skill:implement`
+
+## Frontend
+
+- `frontend`
+  - Purpose: digest-first frontend skill with repo classification, dynamic
+    detection, and internal lane routing for review, API, testing, analytics,
+    observability, CI/CD, planning, and commit workflows.
+  - Claude install: `claude plugin install frontend@diversiotech`
+  - Skill path: `plugins/frontend/skills/frontend`
+  - References:
+    `plugins/frontend/skills/frontend/references/digest-schema.md`,
+    `plugins/frontend/skills/frontend/references/review-taste.md`,
+    `plugins/frontend/skills/frontend/references/review.md`,
+    `plugins/frontend/skills/frontend/references/api-integration.md`,
+    `plugins/frontend/skills/frontend/references/testing.md`,
+    `plugins/frontend/skills/frontend/references/analytics.md`,
+    `plugins/frontend/skills/frontend/references/observability.md`,
+    `plugins/frontend/skills/frontend/references/cicd.md`,
+    `plugins/frontend/skills/frontend/references/planning.md`,
+    `plugins/frontend/skills/frontend/references/commit-hygiene.md`,
+    `plugins/frontend/skills/frontend/references/pr-workflow.md`
+  - Slash commands: `/frontend:work`, `/frontend:refresh-digest`,
+    `/frontend:review`, `/frontend:commit`, `/frontend:new-branch`

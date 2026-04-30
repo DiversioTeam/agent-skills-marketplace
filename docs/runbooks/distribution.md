@@ -60,6 +60,7 @@ PLUGINS=(
   dependabot-remediation
   terraform
   login-cta-attribution-skill
+  frontend
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -99,6 +100,7 @@ PLUGINS=(
   dependabot-remediation
   terraform
   login-cta-attribution-skill
+  frontend
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -120,6 +122,102 @@ Troubleshooting:
 - If a plugin is disabled, re-enable it before uninstalling.
 - If cleanup is still required, inspect the repo-local `.claude/` directory and
   your user-level Claude Code config location before deleting anything.
+
+## Pi Package Installation
+
+Pi-native packages live under `pi-packages/` and are installed with the pi CLI,
+not the Claude Code marketplace.
+
+### Git-based install (recommended)
+
+The root `package.json` at the top of this repo declares every sub-package so pi
+can discover all three from a single clone. One command replaces three:
+
+```bash
+pi install git:github.com/DiversioTeam/agent-skills-marketplace
+```
+
+Run `/reload` in pi after installation. To pull the latest updates later:
+
+```bash
+pi update --extensions
+```
+
+This does a `git pull` on the cloned repo and reloads all extensions and
+skills. Versions are not pinned, so `pi update --extensions` always fetches
+the latest `main`. If you want to freeze at a known version, pin the install
+with a tag:
+
+```bash
+pi install git:github.com/DiversioTeam/agent-skills-marketplace@v0.0.1
+```
+
+Pinned refs are skipped by `pi update --extensions`.
+
+**How it works.** When you `pi install` a git URL, pi clones the repo to
+`~/.pi/agent/git/github.com/DiversioTeam/agent-skills-marketplace`, runs
+`npm install` if a `package.json` exists, and then reads the `pi` manifest to
+discover extensions, skills, prompts, and themes. The root manifest points into
+the `pi-packages/` subdirectories so pi finds `ci-status`, `dev-workflow`, and
+`skills-bridge` without any extra configuration.
+
+**Migrating from local-path installs.** If you previously installed packages
+via local paths (e.g. `pi install "$PWD/pi-packages/ci-status"`), remove those
+entries from `~/.pi/agent/settings.json` before switching to the git install.
+Otherwise pi loads both copies and you get duplicate extensions.
+
+### Local-path install (legacy / local dev)
+
+From a checkout of this repo:
+
+```bash
+pi install "$PWD/pi-packages/ci-status"
+pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/skills-bridge"
+```
+
+From the Diversio monolith root, include the submodule path:
+
+```bash
+pi install "$PWD/agent-skills-marketplace/pi-packages/ci-status"
+pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
+pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
+```
+
+Plain `pi install` writes to global user settings (`~/.pi/agent/settings.json`).
+For one-off extension testing, prefer `-e` so Pi loads the package for the
+current run without changing settings:
+
+```bash
+pi -e ./pi-packages/ci-status
+pi -e ./pi-packages/dev-workflow
+pi -e ./pi-packages/skills-bridge
+```
+
+Use `-l` only when you need to test project-local install, reload, or
+persistence behavior that writes to `.pi/settings.json`:
+
+```bash
+pi install -l ./pi-packages/ci-status
+pi install -l ./pi-packages/dev-workflow
+pi install -l ./pi-packages/skills-bridge
+```
+
+Install a pi package in one scope at a time. Pi deduplicates the same package
+identity across user and project settings, but different local paths can still
+resolve as different packages. For `ci-status`, duplicate loads can produce
+tool registration conflicts for `get_ci_status` and `ci_fetch_job_logs`. Remove
+the duplicate project package entry or uninstall the global copy before
+restarting or running `/reload`.
+
+After install, restart pi or run `/reload`. The `ci-status` package provides
+`/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch, UI widgets, notifications, and
+LLM tools (`get_ci_status`, `ci_fetch_job_logs`). The `dev-workflow`
+package provides `/workflow:*` commands, `/workflow:help`, `/workflow:run`,
+`/workflow:prompts`, `/workflow:flow`, the `dev-workflow` and `ci` skills,
+XDG/project prompt config, and a bundled `agents/workflow-pipeline.chain.md`
+file for pi-subagents. If your pi-subagents setup only scans `.pi/agents/`, copy
+that chain file there manually.
 
 ## Codex Skill Installation
 
@@ -201,6 +299,7 @@ SKILLS=(
   terraform-atomic-commit
   terraform-pr-workflow
   login-cta-attribution-skill
+  frontend
 )
 
 for skill in "${SKILLS[@]}"; do

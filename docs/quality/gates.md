@@ -9,6 +9,9 @@ bash scripts/validate-skills.sh
 bash scripts/validate-skills.sh --all
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
+jq -e . pi-packages/<package>/package.json >/dev/null
+(cd pi-packages/<package> && npm pack --dry-run --json >/tmp/<package>-pack.json)
+printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
 ```
 
 `bash scripts/validate-skills.sh` checks changed and untracked `SKILL.md`
@@ -40,6 +43,8 @@ skills target:
 - `CLAUDE.md` accumulates unique behavior instead of remaining a pointer to
   `AGENTS.md`.
 - Docs mention install or maintenance behavior that no longer matches the repo.
+- Pi package command counts, shortcut names, local install paths, or documented
+  TUI keybindings drift from `pi-packages/<package>/README.md`.
 
 ## CI Notes
 

@@ -5,6 +5,7 @@ on:
     paths:
       - ".claude-plugin/**"
       - "plugins/**"
+      - "pi-packages/**"
       - "scripts/**"
       - ".github/workflows/validate-marketplace.yml"
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - ".claude-plugin/**"
       - "plugins/**"
+      - "pi-packages/**"
       - "scripts/**"
       - ".github/workflows/validate-marketplace.yml"
 
@@ -105,6 +107,64 @@ jobs:
           done
 
           echo "All marketplace validation checks passed."
+
+      - name: Validate Pi package manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -d pi-packages ]]; then
+            echo "No pi-packages directory found."
+            exit 0
+          fi
+
+          for PACKAGE_DIR in pi-packages/*; do
+            [[ -d "${PACKAGE_DIR}" ]] || continue
+            PACKAGE_JSON="${PACKAGE_DIR}/package.json"
+            if [[ ! -f "${PACKAGE_JSON}" ]]; then
+              echo "::error file=${PACKAGE_DIR}::Missing package.json for Pi package."
+              exit 1
+            fi
+
+            jq -e . "${PACKAGE_JSON}" >/dev/null
+            NAME="$(jq -r '.name // empty' "${PACKAGE_JSON}")"
+            VERSION="$(jq -r '.version // empty' "${PACKAGE_JSON}")"
+            if [[ -z "${NAME}" || -z "${VERSION}" ]]; then
+              echo "::error file=${PACKAGE_JSON}::Pi package package.json must include name and version."
+              exit 1
+            fi
+            if [[ "${NAME}" != "$(basename "${PACKAGE_DIR}")" ]]; then
+              echo "::error file=${PACKAGE_JSON}::Pi package name must match directory name."
+              exit 1
+            fi
+          done
+
+      - name: Install Pi CLI for package discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @mariozechner/pi-coding-agent@0.70.6
+          pi --version
+
+      - name: Validate Pi package command discovery and npm packs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for PACKAGE_DIR in pi-packages/*; do
+            [[ -d "${PACKAGE_DIR}" ]] || continue
+            NAME="$(jq -r '.name' "${PACKAGE_DIR}/package.json")"
+            echo "Validating Pi package ${NAME}..."
+            (cd "${PACKAGE_DIR}" && npm pack --dry-run --json >/tmp/${NAME}-pack.json)
+
+            if [[ -d "${PACKAGE_DIR}/extensions" ]]; then
+              printf '{"id":"cmds","type":"get_commands"}\n' | \
+                PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files \
+                  --no-extensions -e "./${PACKAGE_DIR}" \
+                  --no-prompt-templates --no-skills >/tmp/${NAME}-commands.json
+              jq -e '.success == true' "/tmp/${NAME}-commands.json" >/dev/null
+            fi
+          done
 
       - name: Validate SKILL.md size budgets
         shell: bash

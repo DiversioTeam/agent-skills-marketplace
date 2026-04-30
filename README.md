@@ -83,6 +83,9 @@ The practical takeaway for this repo is:
 agent-skills-marketplace/
 ├── .claude-plugin/
 │   └── marketplace.json               # Marketplace definition
+├── pi-packages/
+│   ├── ci-status/                     # Pi-native CI status extension
+│   └── dev-workflow/                  # Pi-native daily developer workflow extension + skills
 ├── plugins/
 │   ├── monty-code-review/             # Monty backend code review plugin
 │   │   ├── .claude-plugin/plugin.json
@@ -229,6 +232,17 @@ agent-skills-marketplace/
 │   │   │   ├── SKILL.md
 │   │   │   └── references/
 │   │   └── commands/implement.md
+│   ├── frontend/                      # Digest-first frontend skill (all lanes)
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/frontend/
+│   │   │   ├── SKILL.md
+│   │   │   └── references/
+│   │   └── commands/
+│   │       ├── work.md
+│   │       ├── refresh-digest.md
+│   │       ├── review.md
+│   │       ├── commit.md
+│   │       └── new-branch.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -258,288 +272,20 @@ agent-skills-marketplace/
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
+| `frontend` | Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows |
 
-## Monolith Review Orchestrator
+## Available Pi Packages
 
-This plugin exists because deep PR review in the Diversio monolith has a few
-failure-prone steps that should not be re-derived from scratch every run:
+All three packages are installable together from one git URL (recommended) or
+individually from a local checkout. The root `package.json` declares every
+sub-package so pi can discover them from a single clone — see
+[Git-based install](#git-based-install-recommended) for the one-liner.
 
-- deciding whether the machine is even in a valid monolith environment
-- turning one PR or one linked cross-repo PR pair into one stable review identity
-- creating or reusing the right detached review worktree
-- fetching thread-aware review history, including resolved and outdated threads
-- remembering durable review context across multiple passes, including prior
-  findings and resolved-comment history
-
-The basic shape is:
-
-```text
-preflight -> resolve batch -> fetch live PR context -> prepare exact-head worktree -> persist review context -> write review artifact
-```
-
-Recent helper-layer additions:
-
-- monolith PRs can resolve without a submodule path
-- batch resolution can place review artifacts and deterministic worktrees under
-  external roots
-- worker-owned dirty deterministic worktrees can be repaired by recreate-and-reuse
-  instead of wedging the automation loop
-
-Why we added helper scripts:
-
-- prose is good for policy, but bad for deterministic naming and state
-- reassessment needs structured identity, not just markdown files
-- thread-aware GitHub review history should come from one deterministic helper,
-  not ad hoc GraphQL commands
-- resolved comments and prior findings need a compact local memory, not a fresh
-  reconstruction every pass
-- review prep should stay narrow and avoid monolith-wide mutation helpers
-
-Where to read more:
-
-- plugin README: `plugins/monolith-review-orchestrator/README.md`
-- skill: `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/SKILL.md`
-- worktree protocol:
-  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
-- review context protocol:
-  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/review-context-protocol.md`
-- helper explainer:
-  `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/workflow-helpers.md`
-
-Example helper usage:
-
-```bash
-uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py \
-  --mode review \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779
-
-uv run --script plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
-  --mode review \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389 \
-  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
-  --authoritative-pr Django4Lyfe:2779
-```
-
-### Copy-Paste Workflow
-
-Use this when you want the deterministic local workflow without re-reading the
-full skill docs.
-
-#### 1. Preflight the machine and checkout
-
-Why:
-- fail early if this is not a real monolith checkout
-- avoid discovering missing tools after worktree or review state steps
-- allow an explicit `--monolith-root` override when you are invoking the helper
-  from outside the monolith checkout
-
-```bash
-export MONOLITH_ROOT="/path/to/monolith"
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/preflight_review_env.py \
-  --mode review \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779
-```
-
-#### 2. Resolve one stable review batch identity
-
-Why:
-- one PR or one linked cross-repo PR pair should always map to the same batch key,
-  worktree path, markdown artifact path, and state path
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/resolve_review_batch.py \
-  --mode review \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389 \
-  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
-  --authoritative-pr Django4Lyfe:2779
-```
-
-Expected shape:
-
-This is a partial excerpt of the JSON you should expect. The actual command
-also includes keys such as `monolith_root`, `review_dir`,
-`reassess_artifact_path`, and `prs`.
-
-```json
-{
-  "batch_key": "bk2779-of389",
-  "worktree_path": "/path/to/monolith-review-bk2779-of389",
-  "artifact_path": "/path/to/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
-  "state_path": "/path/to/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
-}
-```
-
-#### 3. Fetch thread-aware GitHub review history
-
-Why:
-- resolved and outdated threads carry important review context
-- the fetch helper also gives you the live PR head SHAs you need for exact local
-  checkout
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/fetch_review_threads.py \
-  --pr-url https://github.com/DiversioTeam/Django4Lyfe/pull/2779 \
-  --pr-url https://github.com/DiversioTeam/Optimo-Frontend/pull/389
-```
-
-#### 4. Create or reuse the detached review worktree
-
-Why:
-- keep the review run isolated
-- avoid attached-branch worktree lock pain
-- initialize only this worktree instead of broad monolith mutation
-- fail closed unless each review submodule lands on the exact PR head SHA being
-  reviewed
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/prepare_review_worktree.py \
-  --monolith-root "$MONOLITH_ROOT" \
-  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
-  --review-target "backend:2779:<backend-head-sha>:<backend-head-ref-name>" \
-  --review-target "optimo-frontend:389:<optimo-head-sha>:<optimo-head-ref-name>" \
-  --start-ref HEAD
-```
-
-Important:
-- this helper intentionally does **not** run `scripts/update_submodules.py`
-- review prep should stay narrow and not normalize unrelated submodules
-- do not continue unless every reported review target is `status=matched`
-
-#### 5. Initialize structured review state
-
-Why:
-- markdown is for humans
-- JSON state is for reassessment identity and compact review context
-- follow-up passes should update the same batch state, not invent a new one
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py init \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
-  --batch-key bk2779-of389 \
-  --worktree-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389" \
-  --artifact-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md" \
-  --pr Django4Lyfe:2779 \
-  --pr Optimo-Frontend:389 \
-  --link-type explicit_cross_repo_pair \
-  --linked-pair-reason "Backend and frontend must ship together for the end-to-end behavior to work." \
-  --authoritative-pr Django4Lyfe:2779
-```
-
-If the state file already exists and you intentionally want to replace it, add
-`--force`. The default behavior is to refuse overwrite so reassessment history
-is not destroyed accidentally.
-
-#### 6. Reassessment and context reuse
-
-Why:
-- load the durable local identity first
-- reuse prior findings, comment-history notes, and teaching points before
-  comparing deltas
-- preserve repo-scoped findings and thread context across passes instead of
-  replacing them with the latest pass only
-- prefer recent active findings in the compact summary instead of surfacing the
-  oldest still-open issues first
-- compare deltas against stored state instead of guessing from the latest
-  markdown file alone
-
-```bash
-cd "$MONOLITH_ROOT"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py summarize-context \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
-
-uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py report-live-drift \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json" \
-  --pr-context-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/pr-context-bk2779-of389.json"
-```
-
-Then record the new pass after reviewing. Reserve `validate-live-state` for the
-final posting gate, when the recorded pass should already match the live PR
-heads:
-
-```bash
-cd "$MONOLITH_ROOT"
-
-cat <<EOF | uv run --script agent-skills-marketplace/plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/scripts/review_state.py \
-  record-review \
-  --state-path "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/.state/review-bk2779-of389.json"
-{
-  "mode": "reassess",
-  "artifact_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389/reviews/review-bk2779-of389.md",
-  "posting_status": "not_posted",
-  "recommendation": "request_changes",
-  "scope_summary": "Reassessed the linked backend and Optimo frontend PRs after follow-up commits.",
-  "entries": [
-    {
-      "repo": "Django4Lyfe",
-      "pr_number": 2779,
-      "base_branch": "main",
-      "head_sha": "<backend-head-sha>",
-      "merge_base": "<backend-merge-base-sha>",
-      "pr_state": "OPEN",
-      "is_draft": false
-    },
-    {
-      "repo": "Optimo-Frontend",
-      "pr_number": 389,
-      "base_branch": "main",
-      "head_sha": "<optimo-head-sha>",
-      "merge_base": "<optimo-merge-base-sha>",
-      "pr_state": "OPEN",
-      "is_draft": false
-    }
-  ],
-  "backend_handoff": {
-    "repo": "Django4Lyfe",
-    "pr_number": 2779,
-    "worktree_path": "${MONOLITH_ROOT%/*}/monolith-review-bk2779-of389",
-    "pr_url": "https://github.com/DiversioTeam/Django4Lyfe/pull/2779",
-    "head_sha": "<backend-head-sha>",
-    "prior_open_finding_ids": [],
-    "thread_context_summary": "Fetched full GitHub thread history before invoking monty."
-  },
-  "no_author_claims": true,
-  "no_findings_after_full_review": true,
-  "comment_context": {
-    "thread_source": "gh_graphql",
-    "summary": "Read existing review threads, including resolved ones, before reassessing."
-  },
-  "findings": {
-    "new": [],
-    "carried_forward": [],
-    "resolved": [],
-    "moot": []
-  }
-}
-EOF
-```
-
-Important:
-- `entries` must include every PR in the batch
-- findings and inline targets should stay repo-scoped inside linked PR batches
-- inline comment targets should reference active findings, not free-form IDs
-- `summarize-context` is intentionally compact and trims at the item level while
-  still merging durable context across all passes
-
-#### Visual summary
-
-There is also a presentation-style explainer at:
-
-```text
-~/.agent/diagrams/monolith-review-orchestrator-visual-explainer.html
-```
+| Package | Description |
+|---------|-------------|
+| `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
+| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain |
+| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 ## Installation
 
@@ -562,18 +308,75 @@ Or from within a Claude Code session:
 **Recommended:** Install at user scope (default) for compatibility with git worktrees.
 Project-scope plugins don't persist across worktrees.
 
-### Monolith-Only Prerequisites
+### Pi-native packages
 
-`monolith-review-orchestrator` is not a generic marketplace-style review plugin.
-It assumes:
+Pi-native packages live under `pi-packages/` and install with the pi CLI instead
+of the Claude Code marketplace.
 
-- a Diversio monolith checkout or sibling monolith review worktree
-- the monolith `scripts/` helpers and docs are present
-- `uv`, `git`, and `git worktree` are installed
-- GitHub auth is available if PR metadata or posting is required
-- local permission to create sibling worktrees
+#### Git-based install (recommended)
 
-Treat it as a harness-local workflow plugin.
+A root `package.json` at the top of this repo declares every sub-package so pi
+can discover `ci-status`, `dev-workflow`, and `skills-bridge` from one clone:
+
+```bash
+pi install git:github.com/DiversioTeam/agent-skills-marketplace
+```
+
+Run `/reload` in pi after installation. To pull the latest updates later:
+
+```bash
+pi update --extensions
+```
+
+**Why this exists.** Before this root manifest, each package needed its own
+`pi install "$PWD/pi-packages/<pkg>"` command. Those local paths were relative to
+whichever worktree you happened to be in. Two problems emerged:
+
+1. **Duplicate extensions.** If the same package was installed from two different
+   worktrees (e.g. `monolith/agent-skills-marketplace` and
+   `monolith-for-release/agent-skills-marketplace`), pi saw them as distinct
+   packages because their resolved absolute paths differed. Both copies loaded,
+   producing duplicate tool registrations and confusing `[Extensions]` output.
+2. **Fragile paths.** When a worktree was deleted, pi failed to find the package
+   at the old path. Team members on different machines or worktrees inevitably
+   had different paths.
+
+The git-based install solves both: one stable URL that works on any machine,
+any worktree, and always loads exactly one copy of each extension.
+
+#### Local-path install (legacy)
+
+If you need to install from a local checkout — for example, when testing a
+local change before pushing:
+
+```bash
+pi install "$PWD/pi-packages/ci-status"
+pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/skills-bridge"
+```
+
+Plain `pi install` writes to global user settings. Use `pi -e ./pi-packages/<package>`
+for one-off extension testing without changing settings. Use `pi install -l`
+only when you need to test project-local install, reload, or persistence
+behavior.
+
+Install each pi package in one scope at a time. If `ci-status` is installed
+globally and also from a different project-local path, Pi can load both copies
+and duplicate `get_ci_status` / `ci_fetch_job_logs` tool registration. Remove
+the duplicate project package entry from `.pi/settings.json` or uninstall the
+global copy before reloading.
+
+Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`
+and `pi-packages/dev-workflow/README.md` for command inventory, contribution
+workflow, and local testing commands.
+
+### Monolith Review Orchestrator
+
+`monolith-review-orchestrator` is a harness-local workflow for Diversio
+monolith review work. Read `plugins/monolith-review-orchestrator/README.md`
+for prerequisites, helper commands, and usage examples. Reassessment guidance
+uses `report-live-drift`, while `validate-live-state` is reserved for the final
+posting gate.
 
 If you already use the upstream `visual-explainer` plugin, uninstall it before
 installing this marketplace version:
@@ -606,6 +409,7 @@ claude plugin install backend-release@diversiotech
 claude plugin install dependabot-remediation@diversiotech
 claude plugin install terraform@diversiotech
 claude plugin install login-cta-attribution-skill@diversiotech
+claude plugin install frontend@diversiotech
 ```
 
 For project-scoped installation (shared with collaborators via `.claude/settings.json`):
@@ -640,6 +444,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Dependabot remediation (backend/frontend) | `claude plugin install dependabot-remediation@diversiotech` |
 | Terraform workflows | `claude plugin install terraform@diversiotech` |
 | Login CTA attribution | `claude plugin install login-cta-attribution-skill@diversiotech` |
+| Frontend (all lanes) | `claude plugin install frontend@diversiotech` |
 
 </details>
 
@@ -697,6 +502,11 @@ Once plugins are installed:
    /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
    /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
    /login-cta-attribution-skill:implement   # Add new CTA login attribution source
+   /frontend:work                          # Main frontend entrypoint — routes to the correct lane based on arguments
+   /frontend:refresh-digest                # Persist a full frontend project digest to docs/frontend-skill-digest/
+   /frontend:review                        # Review a frontend PR using the repo-local digest and Bumang-style priorities
+   /frontend:commit                        # Create a digest-aware atomic frontend commit with quality gates
+   /frontend:new-branch                    # Create a frontend branch using the repo's detected branch model
    ```
 
 ## Monty Review Memory
@@ -806,6 +616,7 @@ claude plugin uninstall backend-release@diversiotech
 claude plugin uninstall dependabot-remediation@diversiotech
 claude plugin uninstall terraform@diversiotech
 claude plugin uninstall login-cta-attribution-skill@diversiotech
+claude plugin uninstall frontend@diversiotech
 ```
 
 **Step 3: Uninstall project-scoped plugins (if any)**
@@ -831,6 +642,7 @@ claude plugin uninstall backend-release@diversiotech --scope project
 claude plugin uninstall dependabot-remediation@diversiotech --scope project
 claude plugin uninstall terraform@diversiotech --scope project
 claude plugin uninstall login-cta-attribution-skill@diversiotech --scope project
+claude plugin uninstall frontend@diversiotech --scope project
 ```
 
 </details>
@@ -883,7 +695,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/dependabot-remediation/skills/dependabot-remediation \
     plugins/terraform/skills/terraform-atomic-commit \
     plugins/terraform/skills/terraform-pr-workflow \
-    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
+    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+    plugins/frontend/skills/frontend
 ```
 
 **Codex console alternative:**
@@ -909,7 +722,8 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/dependabot-remediation/skills/dependabot-remediation \
   path=plugins/terraform/skills/terraform-atomic-commit \
   path=plugins/terraform/skills/terraform-pr-workflow \
-  path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill
+  path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+  path=plugins/frontend/skills/frontend
 ```
 
 </details>
@@ -957,7 +771,8 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/dependabot-remediation" \
        "$CODEX_HOME/skills/terraform-atomic-commit" \
        "$CODEX_HOME/skills/terraform-pr-workflow" \
-       "$CODEX_HOME/skills/login-cta-attribution-skill"
+       "$CODEX_HOME/skills/login-cta-attribution-skill" \
+       "$CODEX_HOME/skills/frontend"
 echo "Done. Restart Codex and reinstall skills."
 ```
 

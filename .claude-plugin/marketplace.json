@@ -204,6 +204,17 @@
       "source": "./plugins/login-cta-attribution-skill",
       "category": "code-analysis",
       "keywords": ["django", "cta", "attribution", "login", "tracking", "slack", "teams", "email", "optimo", "diversio"]
+    },
+    {
+      "name": "frontend",
+      "description": "Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows.",
+      "version": "0.0.1",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/frontend",
+      "category": "process",
+      "keywords": ["frontend", "digest", "react", "monorepo", "design-system", "review", "testing", "api", "cicd", "workflow", "diversio"]
     }
   ]
 }
