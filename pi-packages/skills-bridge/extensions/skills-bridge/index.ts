@@ -28,7 +28,9 @@
  *     │     ├─ 1. RESOLVE skills roots        (where are the skills?)
  *     │     │     ├─ env var PI_SKILLS_PATH? → use it, skip everything else
  *     │     │     ├─ ~/.config/pi/skills-bridge.json? → use skillsPath
- *     │     │     └─ neither → walk up from cwd scanning for plugins/ dirs
+ *     │     │     └─ neither → walk up from cwd looking for a plugins/ dir
+ *     │     │                   (repo-agnostic: checks for plugins/ directly
+ *     │     │                    AND for agent-skills-marketplace/plugins/)
  *     │     │
  *     │     ├─ 2. DISCOVER skills under each root
  *     │     │     └─ scan plugins/* /skills/ recursively for SKILL.md dirs
@@ -283,11 +285,11 @@ function loadConfig(): BridgeConfig | null {
  *     a stale config entry shouldn't leave you with no skills.
  *
  *   Tier 3 — Cwd walk-up
- *     The automatic fallback. Walk up from the current directory looking
- *     for a directory that contains agent-skills-marketplace/plugins/.
- *     In a monolith checkout with the submodule initialized, this finds
- *     the skills root on the first try. Works from any depth inside the
- *     monolith (backend/, frontend/, any subdirectory).
+ *     The automatic fallback. Walks up from the current directory checking
+ *     two things at each ancestor: (a) does this directory itself have a
+ *     plugins/ subdirectory? (b) does it have an agent-skills-marketplace/
+ *     child with plugins/? This makes no-config discovery work for any
+ *     checkout with the right layout, not just the monolith submodule.
  *
  * DEDUPLICATION:
  *   Identical resolved paths only appear once. Node's path.resolve()
@@ -376,22 +378,37 @@ function findSkillRoots(cwd: string): string[] {
 }
 
 /**
- * Walk up the directory tree looking for agent-skills-marketplace/plugins/.
+ * Walk up the directory tree looking for a skills root.
+ *
+ * A "skills root" is any directory that contains a `plugins/` subdirectory
+ * (the Claude Code plugin layout). We check two things at each ancestor:
+ *
+ *   1. Does this directory itself have a plugins/ subdirectory?
+ *      → repo-agnostic: works for any checkout with the right layout.
+ *      If you run pi inside agent-skills-marketplace/ itself, it's found
+ *      immediately.
+ *
+ *   2. Does this directory have an agent-skills-marketplace/ child with
+ *      a plugins/ subdirectory inside it?
+ *      → monolith submodule convenience: the team's primary layout where
+ *      agent-skills-marketplace is a git submodule at the monolith root.
+ *
+ * Check 1 runs first so that a direct match (the cwd IS a skills root)
+ * wins over an indirect match via a submodule path.
  *
  * HOW IT WORKS — visual trace from a monolith checkout:
  *
  *   cwd = /work/monolith/backend/
  *
- *   iteration 0: check /work/monolith/backend/agent-skills-marketplace/plugins/
- *                → doesn't exist (backend/ is not the monolith root)
+ *   iteration 0: check /work/monolith/backend/plugins/ → no
+ *                check /work/monolith/backend/agent-skills-marketplace/plugins/ → no
  *                → go up to /work/monolith/
  *
- *   iteration 1: check /work/monolith/agent-skills-marketplace/plugins/
- *                → EXISTS! (submodule is at monolith root)
+ *   iteration 1: check /work/monolith/plugins/ → no
+ *                check /work/monolith/agent-skills-marketplace/plugins/ → YES!
  *                → return /work/monolith/agent-skills-marketplace
  *
- * This works from ANY depth inside the monolith — frontend/, backend/,
- * agent-skills-marketplace/plugins/, any subdirectory.
+ * This works from ANY depth inside the monolith.
  *
  * WHY WALK UP AND NOT JUST CHECK <cwd>/agent-skills-marketplace?
  *   A developer might start pi from backend/ or frontend/. Checking only
@@ -404,25 +421,34 @@ function findSkillRoots(cwd: string): string[] {
  *   we've reached the root (resolve("/..") === "/").
  *
  * WHAT IT RETURNS:
- *   The absolute path to the agent-skills-marketplace directory (NOT the
- *   plugins/ directory inside it). We return the skills root so that
- *   discoverSkills() can find plugins/ under it. This keeps the concern
- *   boundaries clean: walkUp finds the root, discoverSkills finds
- *   the skills inside it.
+ *   The absolute path to the skills root (the directory that contains the
+ *   plugins/ directory, either directly or via agent-skills-marketplace/).
+ *   This is NOT the plugins/ directory itself — discoverSkills() finds
+ *   plugins/ under the returned root.
  *
  * RETURN: Absolute path to skills root, or null if not found.
  */
 function walkUpFindSkillRoot(startDir: string): string | null {
-  const wanted = "agent-skills-marketplace";
+  const monolithSubmodule = "agent-skills-marketplace";
   let current = resolve(startDir);
 
   for (let depth = 0; depth < 64; depth++) {
-    // Does <current>/agent-skills-marketplace/plugins/ exist?
-    const candidate = join(current, wanted);
-    const pluginsDir = join(candidate, "plugins");
+    // ---- Check 1: does <current>/plugins/ exist? (repo-agnostic) ----
+    // The current directory IS a skills root if it directly contains
+    // a plugins/ subdirectory with the Claude Code plugin layout.
+    const directPlugins = join(current, "plugins");
+    if (existsSync(directPlugins) && statSync(directPlugins).isDirectory()) {
+      return current;
+    }
 
-    if (existsSync(pluginsDir) && statSync(pluginsDir).isDirectory()) {
-      return candidate;
+    // ---- Check 2: does <current>/agent-skills-marketplace/plugins/ exist? ----
+    // The monolith keeps agent-skills-marketplace as a git submodule.
+    // This is the team's most common layout, so we check for it as a
+    // convenience. Other submodule/repo names work via env var or config.
+    const submoduleDir = join(current, monolithSubmodule);
+    const subPluginsDir = join(submoduleDir, "plugins");
+    if (existsSync(subPluginsDir) && statSync(subPluginsDir).isDirectory()) {
+      return submoduleDir;
     }
 
     // Go up one level. resolve("..") on the root returns the root,
@@ -456,14 +482,25 @@ function walkUpFindSkillRoot(startDir: string): string | null {
  *       └── SKILL.md              ← FOUND
  *
  * A directory IS a skill directory if it directly contains a SKILL.md file.
- * The function continues recursing into subdirectories even after finding a
- * skill, because some plugins have nested skills (see plan-directory above).
+ * Once a skill directory is found, recursion STOPS at that boundary — Pi's
+ * skill loader treats that directory as the skill root, so we must not
+ * expose subdirectories (fixtures, templates, examples, vendored data) as
+ * separate top-level skills. Sibling skills (like plan-directory and
+ * backend-ralph-plan under the same skills/ directory) are still discovered
+ * because the parent directory is not a skill directory itself.
  *
  * WHY RECURSIVE AND NOT FLAT?
  *   A flat read of the skills/ directory would only find plan-directory/.
- *   It would miss backend-ralph-plan/ nested inside it. Recursive scanning
- *   catches both. This is necessary because the agentskills.io standard
- *   allows skill directories anywhere under skills/, not just at the top level.
+ *   It would miss backend-ralph-plan/ which is a sibling skill directory
+ *   (not nested inside plan-directory/). Recursive scanning catches all
+ *   sibling skills under plugins/<plugin>/skills/. This is necessary
+ *   because the agentskills.io standard allows skill directories anywhere
+ *   under skills/, not just at the top level.
+ *
+ * BUT: recursion STOPS at a discovered skill boundary. Subdirectories
+ *   inside a skill (references/, templates/, examples/) are never
+ *   descended into. This prevents accidental registration of fixture
+ *   or vendored SKILL.md files as separate top-level skills.
  *
  * WHY DEPTH LIMIT OF 5?
  *   The current plugin layout is:
@@ -516,10 +553,16 @@ function findSkillDirs(root: string, depth = 0): string[] {
     // named exactly "SKILL.md" (case-sensitive).
     if (existsSync(join(full, "SKILL.md"))) {
       results.push(full);
+      // Skill root boundary — Pi's skill loader treats a SKILL.md directory
+      // as the skill root and stops there. Do not recurse inside a discovered
+      // skill: fixtures, templates, examples, or vendored content with their
+      // own SKILL.md files must not be exposed as separate top-level skills.
+      continue;
     }
 
-    // Continue recursing. Even if we found SKILL.md here, there might be
-    // nested skills inside (e.g., plan-directory/skills/backend-ralph-plan/).
+    // Recurse into non-skill directories to discover nested skills.
+    // This handles sibling skills under plugins/<plugin>/skills/ (e.g.,
+    // plan-directory and backend-ralph-plan are siblings, not nested).
     results.push(...findSkillDirs(full, depth + 1));
   }
 

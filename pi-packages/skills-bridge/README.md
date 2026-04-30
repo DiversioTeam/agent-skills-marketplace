@@ -34,7 +34,9 @@ The extension uses three-tier resolution to find the `agent-skills-marketplace` 
 
 1. **`PI_SKILLS_PATH` env var** (highest priority) — explicit session-level override. The extension uses this path and skips everything else.
 2. **`~/.config/pi/skills-bridge.json` config file** — persistent per-developer config with `skillsPath` and optional `additionalPaths`.
-3. **Cwd walk-up** (fallback) — walks up from the working directory looking for `agent-skills-marketplace/plugins/`.
+3. **Cwd walk-up** (fallback) — walks up from the working directory looking
+   for a `plugins/` directory (repo-agnostic) or an
+   `agent-skills-marketplace/plugins/` child (monolith submodule convenience).
 
 For most developers in the monolith, tier 3 works automatically. No config needed.
 

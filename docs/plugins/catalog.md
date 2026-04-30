@@ -67,7 +67,9 @@ when command files change.
   - Extension path:
     `pi-packages/skills-bridge/extensions/skills-bridge`
   - Discovery: three-tier resolution — `PI_SKILLS_PATH` env var,
-    `~/.config/pi/skills-bridge.json` config file, cwd walk-up.
+    `~/.config/pi/skills-bridge.json` config file, cwd walk-up
+    (repo-agnostic: checks for `plugins/` at each ancestor, plus
+    `agent-skills-marketplace/plugins/` for the monolith submodule).
   - Skills bridged: `release-manager`, `monty-code-review`,
     `backend-atomic-commit`, `backend-pr-workflow`, `plan-directory`,
     `backend-ralph-plan`, `pr-description-writer`, `process-code-review`,

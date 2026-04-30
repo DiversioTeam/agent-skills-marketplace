@@ -134,6 +134,7 @@ From a checkout of this repo:
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
 pi install "$PWD/pi-packages/skills-bridge"
+```
 
 From the Diversio monolith root, include the submodule path:
 
