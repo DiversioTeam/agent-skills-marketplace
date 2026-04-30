@@ -1,4 +1,4 @@
-import { DynamicBorder, SessionManager, type ExtensionAPI, type Theme } from "@mariozechner/pi-coding-agent";
+import { DynamicBorder, SessionManager, type ExtensionAPI, type SessionEntry, type SessionHeader, type Theme } from "@mariozechner/pi-coding-agent";
 import { HelpPanel, PromptEditor, type WorkflowHelpCommand, type WorkflowPromptCategory, type WorkflowPromptSource } from "./help-panel";
 import { Container, Input, Key, matchesKey, SelectList, Spacer, Text, truncateToWidth, type SelectItem } from "@mariozechner/pi-tui";
 import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
@@ -1766,6 +1766,45 @@ ${extraContext}
 - End with a concise, actionable summary.`;
 }
 
+/**
+ * Force a seeded child session onto disk before launching `pi --session <file>`.
+ *
+ * Why this exists:
+ * - `SessionManager.create()` gives us a future session file path immediately.
+ * - But Pi intentionally delays writing a brand-new session file until it sees
+ *   an assistant message, to avoid duplicate-header edge cases during normal
+ *   interactive use.
+ * - Our cmux lane flow is different: we launch a brand-new Pi process against
+ *   that path immediately after seeding only user-side context.
+ *
+ * Without this helper, the new split can start from an empty session file path
+ * and lose the seeded branch / git / conversation context that makes the lane
+ * useful in the first place.
+ */
+async function persistSeededWorkflowSession(session: {
+  getHeader(): SessionHeader | null;
+  getEntries(): SessionEntry[];
+  getSessionFile(): string | undefined;
+}): Promise<string> {
+  const sessionFile = session.getSessionFile();
+  const header = session.getHeader();
+
+  if (!sessionFile) {
+    throw new Error("Child workflow session has no session file path");
+  }
+  if (!header) {
+    throw new Error("Child workflow session has no session header");
+  }
+
+  const lines = [header, ...session.getEntries()]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+
+  await mkdir(dirname(sessionFile), { recursive: true });
+  await writeFile(sessionFile, `${lines}\n`, "utf8");
+  return sessionFile;
+}
+
 export default function (pi: ExtensionAPI) {
   const detectSubagents = (): boolean => {
     try {
@@ -1889,11 +1928,11 @@ export default function (pi: ExtensionAPI) {
         timestamp: Date.now(),
       });
 
-      childSessionFile = childSession.getSessionFile();
-      if (!childSessionFile) {
-        ctx.ui.notify(`Could not create child session for ${prompt.code}; running inline instead.`, "warning");
-        return false;
-      }
+      // Persist the seeded user-only session before launching the child Pi
+      // process. Pi's SessionManager intentionally defers flushes for brand-new
+      // sessions until an assistant message exists, but our split launcher needs
+      // the file to exist immediately.
+      childSessionFile = await persistSeededWorkflowSession(childSession);
 
       const direction = getWorkflowSplitDirection();
       const splitResult = await openWorkflowSplit(
