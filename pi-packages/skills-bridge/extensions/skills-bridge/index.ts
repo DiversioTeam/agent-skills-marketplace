@@ -381,20 +381,20 @@ function findSkillRoots(cwd: string): string[] {
  * Walk up the directory tree looking for a skills root.
  *
  * A "skills root" is any directory that contains a `plugins/` subdirectory
- * (the Claude Code plugin layout). We check two things at each ancestor:
+ * (the Claude Code plugin layout). We check two things at each ancestor,
+ * with the submodule path checked FIRST to avoid the monolith root's own
+ * `plugins/` directory shadowing the marketplace submodule:
  *
- *   1. Does this directory itself have a plugins/ subdirectory?
- *      → repo-agnostic: works for any checkout with the right layout.
- *      If you run pi inside agent-skills-marketplace/ itself, it's found
- *      immediately.
- *
- *   2. Does this directory have an agent-skills-marketplace/ child with
+ *   1. Does this directory have an agent-skills-marketplace/ child with
  *      a plugins/ subdirectory inside it?
- *      → monolith submodule convenience: the team's primary layout where
+ *      → monolith submodule: the team's primary layout where
  *      agent-skills-marketplace is a git submodule at the monolith root.
+ *      Checked first so it wins when both exist at the same ancestor.
  *
- * Check 1 runs first so that a direct match (the cwd IS a skills root)
- * wins over an indirect match via a submodule path.
+ *   2. Does this directory itself have a plugins/ subdirectory?
+ *      → repo-agnostic fallback: works for any checkout with the right
+ *      layout. Only reached when no agent-skills-marketplace submodule
+ *      exists at this ancestor.
  *
  * HOW IT WORKS — visual trace from a monolith checkout:
  *
@@ -433,22 +433,25 @@ function walkUpFindSkillRoot(startDir: string): string | null {
   let current = resolve(startDir);
 
   for (let depth = 0; depth < 64; depth++) {
-    // ---- Check 1: does <current>/plugins/ exist? (repo-agnostic) ----
-    // The current directory IS a skills root if it directly contains
-    // a plugins/ subdirectory with the Claude Code plugin layout.
-    const directPlugins = join(current, "plugins");
-    if (existsSync(directPlugins) && statSync(directPlugins).isDirectory()) {
-      return current;
-    }
-
-    // ---- Check 2: does <current>/agent-skills-marketplace/plugins/ exist? ----
-    // The monolith keeps agent-skills-marketplace as a git submodule.
-    // This is the team's most common layout, so we check for it as a
-    // convenience. Other submodule/repo names work via env var or config.
+    // ---- Check 1: does <current>/agent-skills-marketplace/plugins/ exist? ----
+    // The monolith keeps agent-skills-marketplace as a git submodule. When
+    // both <current>/plugins/ and <current>/agent-skills-marketplace/plugins/
+    // exist (e.g., the monolith root), we prefer the submodule path because
+    // that's where the team's 21 marketplace skills live. The direct plugins/
+    // check below is the fallback for repo-agnostic checkouts.
     const submoduleDir = join(current, monolithSubmodule);
     const subPluginsDir = join(submoduleDir, "plugins");
     if (existsSync(subPluginsDir) && statSync(subPluginsDir).isDirectory()) {
       return submoduleDir;
+    }
+
+    // ---- Check 2: does <current>/plugins/ exist? (generic fallback) ----
+    // Only reached when no agent-skills-marketplace/ submodule exists at this
+    // ancestor. This handles repo-agnostic checkouts where the current
+    // directory IS a skills root with a plugins/ subdirectory.
+    const directPlugins = join(current, "plugins");
+    if (existsSync(directPlugins) && statSync(directPlugins).isDirectory()) {
+      return current;
     }
 
     // Go up one level. resolve("..") on the root returns the root,

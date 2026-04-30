@@ -90,7 +90,7 @@ function findSkillDirs(root, depth=0) {
     let isDir;
     try { isDir = statSync(full).isDirectory(); } catch { continue; }
     if (!isDir) continue;
-    if (existsSync(join(full, 'SKILL.md'))) results.push(full);
+    if (existsSync(join(full, 'SKILL.md'))) { results.push(full); continue; }
     results.push(...findSkillDirs(full, depth+1));
   }
   return results;
