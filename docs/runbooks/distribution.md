@@ -131,7 +131,7 @@ not the Claude Code marketplace.
 ### Git-based install (recommended)
 
 The root `package.json` at the top of this repo declares every sub-package so pi
-can discover all three from a single clone. One command replaces three:
+can discover all four from a single clone. One command replaces four:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -158,8 +158,8 @@ Pinned refs are skipped by `pi update --extensions`.
 `~/.pi/agent/git/github.com/DiversioTeam/agent-skills-marketplace`, runs
 `npm install` if a `package.json` exists, and then reads the `pi` manifest to
 discover extensions, skills, prompts, and themes. The root manifest points into
-the `pi-packages/` subdirectories so pi finds `ci-status`, `dev-workflow`, and
-`skills-bridge` without any extra configuration.
+the `pi-packages/` subdirectories so pi finds `ci-status`, `dev-workflow`,
+`oh-my-pi`, and `skills-bridge` without any extra configuration.
 
 **Migrating from local-path installs.** If you previously installed packages
 via local paths (e.g. `pi install "$PWD/pi-packages/ci-status"`), remove those
@@ -173,6 +173,7 @@ From a checkout of this repo:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/oh-my-pi"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
 
@@ -181,17 +182,20 @@ From the Diversio monolith root, include the submodule path:
 ```bash
 pi install "$PWD/agent-skills-marketplace/pi-packages/ci-status"
 pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
+pi install "$PWD/agent-skills-marketplace/pi-packages/oh-my-pi"
 pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
 ```
 
 Plain `pi install` writes to global user settings (`~/.pi/agent/settings.json`).
-For one-off extension testing, prefer `-e` so Pi loads the package for the
-current run without changing settings:
+For one-off extension testing from the repo root, prefer `--no-extensions -e`
+so Pi loads only the target package and does not also load the same package a
+second time from the root marketplace manifest:
 
 ```bash
-pi -e ./pi-packages/ci-status
-pi -e ./pi-packages/dev-workflow
-pi -e ./pi-packages/skills-bridge
+pi --no-extensions -e ./pi-packages/ci-status
+pi --no-extensions -e ./pi-packages/dev-workflow
+pi --no-extensions -e ./pi-packages/oh-my-pi
+pi --no-extensions -e ./pi-packages/skills-bridge
 ```
 
 Use `-l` only when you need to test project-local install, reload, or
@@ -200,6 +204,7 @@ persistence behavior that writes to `.pi/settings.json`:
 ```bash
 pi install -l ./pi-packages/ci-status
 pi install -l ./pi-packages/dev-workflow
+pi install -l ./pi-packages/oh-my-pi
 pi install -l ./pi-packages/skills-bridge
 ```
 
@@ -210,14 +215,36 @@ tool registration conflicts for `get_ci_status` and `ci_fetch_job_logs`. Remove
 the duplicate project package entry or uninstall the global copy before
 restarting or running `/reload`.
 
-After install, restart pi or run `/reload`. The `ci-status` package provides
-`/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch, UI widgets, notifications, and
-LLM tools (`get_ci_status`, `ci_fetch_job_logs`). The `dev-workflow`
-package provides `/workflow:*` commands, `/workflow:help`, `/workflow:run`,
-`/workflow:prompts`, `/workflow:flow`, the `dev-workflow` and `ci` skills,
-XDG/project prompt config, and a bundled `agents/workflow-pipeline.chain.md`
-file for pi-subagents. If your pi-subagents setup only scans `.pi/agents/`, copy
-that chain file there manually.
+After install, restart pi or run `/reload`.
+
+Quick mental model:
+
+```text
+ci-status    -> CI visibility and job logs
+
+dev-workflow -> workflow prompts, review passes, shipping, and
+                automatic seeded cmux splits for subagent-style prompts
+                when Pi is inside cmux and the parent session is idle
+
+oh-my-pi     -> explicit cmux notifications, split-pane commands,
+                and workspace-tab commands
+
+skills-bridge -> exposes marketplace plugin skills inside Pi
+```
+
+The `ci-status` package provides `/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch,
+UI widgets, notifications, and LLM tools (`get_ci_status`,
+`ci_fetch_job_logs`).
+
+The `dev-workflow` package provides `/workflow:*` commands,
+`/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, the
+`dev-workflow` and `ci` skills, XDG/project prompt config, and a bundled
+`agents/workflow-pipeline.chain.md` file for pi-subagents. If your
+pi-subagents setup only scans `.pi/agents/`, copy that chain file there
+manually.
+
+The `oh-my-pi` package provides explicit `/omp-split-*` and
+`/omp-workspace*` cmux commands plus native cmux notifications.
 
 ## Codex Skill Installation
 

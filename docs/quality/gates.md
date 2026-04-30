@@ -53,10 +53,10 @@ skills target:
     or the workflow file itself.
   - Validates JSON, unique plugin names, plugin directory coverage, manifest
     name and version sync, skill presence, and changed-skill size budgets.
-- `Notify Plugin Updates`
-  - Triggered by pushes to `main` that touch `plugins/**`.
-  - Diffs the previous commit, extracts changed plugin versions and top
-    changelog snippets, and posts a Slack message.
+- `Notify Marketplace Updates`
+  - Triggered by pushes to `main` that touch `plugins/**` or `pi-packages/**`.
+  - Diffs the full pushed range, groups changes by marketplace item, and posts
+    one Slack message with separate `Plugin items` and `Pi items` sections.
 
 Docs-only changes do not currently trigger the marketplace validation workflow,
 so run the local checks manually when you touch shared instructions.

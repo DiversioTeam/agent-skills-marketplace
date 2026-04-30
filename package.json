@@ -2,13 +2,16 @@
   "name": "agent-skills-marketplace",
   "version": "0.0.1",
   "private": true,
-  "description": "Root pi manifest for the Diversio Team agent-skills-marketplace. This file lets pi discover every sub-package (ci-status, dev-workflow, skills-bridge) from a single git clone. Without it, each sub-package needs its own fragile local-path install — which breaks across worktrees and causes duplicate extensions. One pi install git:github.com/DiversioTeam/agent-skills-marketplace now replaces three separate pi install $PWD/pi-packages/<pkg> commands.",
-  "keywords": ["pi-package"],
+  "description": "Root pi manifest for the Diversio Team agent-skills-marketplace. This file lets pi discover every sub-package (ci-status, dev-workflow, oh-my-pi, skills-bridge) from a single git clone. Without it, each sub-package needs its own fragile local-path install — which breaks across worktrees and causes duplicate extensions. One pi install git:github.com/DiversioTeam/agent-skills-marketplace now replaces four separate pi install $PWD/pi-packages/<pkg> commands.",
+  "keywords": [
+    "pi-package"
+  ],
   "pi": {
     "extensions": [
       "pi-packages/ci-status/extensions",
       "pi-packages/dev-workflow/extensions",
-      "pi-packages/skills-bridge/extensions"
+      "pi-packages/skills-bridge/extensions",
+      "pi-packages/oh-my-pi/extensions"
     ],
     "skills": [
       "pi-packages/dev-workflow/skills"
