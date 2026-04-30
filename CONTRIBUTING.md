@@ -86,7 +86,14 @@ marketplace plugin shape.
 
 Keep the package `README.md`, `package.json`, `docs/runbooks/distribution.md`,
 `docs/plugins/catalog.md`, and the top-level `README.md` in sync when commands,
-shortcuts, install paths, or packaged resources change. If a package exposes an
+shortcuts, install paths, or packaged resources change.
+
+**When adding or removing a pi package**, update the root `package.json`
+`pi.extensions` and `pi.skills` arrays so the git-based install stays accurate.
+The root manifest is the single entrypoint that lets `pi install
+git:github.com/DiversioTeam/agent-skills-marketplace` discover every
+sub-package. If you add a package without updating the root manifest, git
+install users won't see it. If a package exposes an
 interactive TUI, document its keybindings in terms of Pi keybinding ids when
 possible (for example, `app.message.followUp`) so custom user bindings still
 make sense. Bump the package version when publishing an update rather than only

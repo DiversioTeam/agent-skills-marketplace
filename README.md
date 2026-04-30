@@ -276,11 +276,16 @@ agent-skills-marketplace/
 
 ## Available Pi Packages
 
-| Package | Description | Install |
-|---------|-------------|---------|
-| `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools | `pi install "$PWD/pi-packages/ci-status"` |
-| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain | `pi install "$PWD/pi-packages/dev-workflow"` |
-| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi | `pi install "$PWD/pi-packages/skills-bridge"` |
+All three packages are installable together from one git URL (recommended) or
+individually from a local checkout. The root `package.json` declares every
+sub-package so pi can discover them from a single clone — see
+[Git-based install](#git-based-install-recommended) for the one-liner.
+
+| Package | Description |
+|---------|-------------|
+| `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
+| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain |
+| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 ## Installation
 
@@ -306,8 +311,43 @@ Project-scope plugins don't persist across worktrees.
 ### Pi-native packages
 
 Pi-native packages live under `pi-packages/` and install with the pi CLI instead
-of the Claude Code marketplace. For normal use, install them globally from an
-absolute local path:
+of the Claude Code marketplace.
+
+#### Git-based install (recommended)
+
+A root `package.json` at the top of this repo declares every sub-package so pi
+can discover `ci-status`, `dev-workflow`, and `skills-bridge` from one clone:
+
+```bash
+pi install git:github.com/DiversioTeam/agent-skills-marketplace
+```
+
+Run `/reload` in pi after installation. To pull the latest updates later:
+
+```bash
+pi update --extensions
+```
+
+**Why this exists.** Before this root manifest, each package needed its own
+`pi install "$PWD/pi-packages/<pkg>"` command. Those local paths were relative to
+whichever worktree you happened to be in. Two problems emerged:
+
+1. **Duplicate extensions.** If the same package was installed from two different
+   worktrees (e.g. `monolith/agent-skills-marketplace` and
+   `monolith-for-release/agent-skills-marketplace`), pi saw them as distinct
+   packages because their resolved absolute paths differed. Both copies loaded,
+   producing duplicate tool registrations and confusing `[Extensions]` output.
+2. **Fragile paths.** When a worktree was deleted, pi failed to find the package
+   at the old path. Team members on different machines or worktrees inevitably
+   had different paths.
+
+The git-based install solves both: one stable URL that works on any machine,
+any worktree, and always loads exactly one copy of each extension.
+
+#### Local-path install (legacy)
+
+If you need to install from a local checkout — for example, when testing a
+local change before pushing:
 
 ```bash
 pi install "$PWD/pi-packages/ci-status"
