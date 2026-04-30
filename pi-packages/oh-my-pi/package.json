@@ -1,0 +1,10 @@
+{
+  "name": "oh-my-pi",
+  "version": "0.0.1",
+  "description": "Pi-native cmux integration: notifications, split panes, and workspace tabs via native cmux CLI. No tmux-compat shims.",
+  "keywords": ["pi-package", "cmux", "notifications", "split-panes", "workspace-tabs"],
+  "files": ["extensions/", "README.md"],
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  }
+}

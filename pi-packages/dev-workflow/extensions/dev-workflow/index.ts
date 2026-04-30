@@ -1,4 +1,4 @@
-import { DynamicBorder, type ExtensionAPI, type Theme } from "@mariozechner/pi-coding-agent";
+import { DynamicBorder, SessionManager, type ExtensionAPI, type SessionEntry, type SessionHeader, type Theme } from "@mariozechner/pi-coding-agent";
 import { HelpPanel, PromptEditor, type WorkflowHelpCommand, type WorkflowPromptCategory, type WorkflowPromptSource } from "./help-panel";
 import { Container, Input, Key, matchesKey, SelectList, Spacer, Text, truncateToWidth, type SelectItem } from "@mariozechner/pi-tui";
 import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
@@ -1448,6 +1448,363 @@ interface WorkflowContext {
   isIdle?: () => boolean;
 }
 
+/**
+ * cmux workflow-lane helpers
+ *
+ * Why this logic lives inside `dev-workflow` instead of depending on
+ * `oh-my-pi` command names:
+ * - `dev-workflow` should stay useful when installed by itself.
+ * - Workflow commands need behavior, not a second command the user must remember.
+ * - Calling cmux directly keeps the default workflow low-friction.
+ *
+ * Mental model:
+ *
+ * ```text
+ * current workflow session
+ *   ├─ decide whether this prompt deserves a fresh adjacent lane
+ *   ├─ if yes: create a seeded child Pi session on disk
+ *   ├─ open a cmux split beside the parent
+ *   └─ launch Pi in that child session with the workflow prompt
+ * ```
+ */
+type WorkflowSplitDirection = "right" | "down";
+
+type WorkflowSessionMessage = {
+  role?: string;
+  content?: unknown;
+};
+
+type WorkflowSessionEntry = {
+  type?: string;
+  message?: WorkflowSessionMessage;
+};
+
+/**
+ * Cheap environment check for "should we even consider cmux behavior?"
+ *
+ * We still ask cmux for authoritative workspace/surface refs later before
+ * opening a split. This helper is only the fast first gate.
+ */
+function isInsideCmux(): boolean {
+  return Boolean(
+    process.env.CMUX_SOCKET_PATH &&
+    process.env.CMUX_WORKSPACE_ID &&
+    process.env.CMUX_SURFACE_ID,
+  );
+}
+
+function getWorkflowCmuxMode(): "auto" | "inline" {
+  const value = process.env.PI_WORKFLOW_CMUX_MODE?.trim().toLowerCase();
+  return value === "inline" ? "inline" : "auto";
+}
+
+function getWorkflowSplitDirection(): WorkflowSplitDirection {
+  const value = process.env.PI_WORKFLOW_CMUX_SPLIT_DIRECTION?.trim().toLowerCase();
+  return value === "down" ? "down" : "right";
+}
+
+/**
+ * Escape one shell argument for `sh -lc`-style command composition.
+ *
+ * We keep this tiny and local because the spawned cmux lane receives free-form
+ * prompt text. A single quote bug here would launch the wrong command.
+ */
+function shellEscape(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Build the exact command cmux should run inside the child split.
+ *
+ * Important details:
+ * - `--session <file>` points Pi at the seeded child session we created.
+ * - `--` before the prompt prevents prompts starting with `-` from being
+ *   misread as CLI flags.
+ * - `exec pi` replaces the temporary shell with Pi itself.
+ */
+function buildPiSessionCommand(cwd: string, sessionFile: string, prompt: string): string {
+  return [
+    "cd",
+    shellEscape(cwd),
+    "&&",
+    "exec",
+    "pi",
+    "--session",
+    shellEscape(sessionFile),
+    "--",
+    shellEscape(prompt),
+  ].join(" ");
+}
+
+function truncateForWorkflow(text: string, max = 320): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 1)}…`;
+}
+
+function messageTextForWorkflow(message: WorkflowSessionMessage | undefined): string | undefined {
+  if (!message) return undefined;
+  const content = message.content;
+
+  if (typeof content === "string") {
+    return truncateForWorkflow(content);
+  }
+
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const parts = content.flatMap((part) => {
+    if (!part || typeof part !== "object") return [] as string[];
+    const item = part as { type?: unknown; text?: unknown };
+    if (item.type === "text" && typeof item.text === "string" && item.text.trim().length > 0) {
+      return [item.text.trim()];
+    }
+    return [] as string[];
+  });
+
+  if (parts.length === 0) return undefined;
+  return truncateForWorkflow(parts.join("\n"));
+}
+
+/**
+ * Build a tiny, human-readable snapshot of the most recent conversation.
+ *
+ * Why only a few messages?
+ * - The child lane needs enough context to orient itself.
+ * - Copying the whole session would be noisy and defeat the point of a focused
+ *   adjacent lane.
+ */
+function recentConversationSnapshot(entries: WorkflowSessionEntry[]): string {
+  const lines = entries
+    .filter((entry): entry is WorkflowSessionEntry & { type: "message"; message: WorkflowSessionMessage } => entry.type === "message" && !!entry.message)
+    .filter((entry) => entry.message.role === "user" || entry.message.role === "assistant")
+    .slice(-4)
+    .flatMap((entry) => {
+      const text = messageTextForWorkflow(entry.message);
+      if (!text) return [] as string[];
+      return [`- ${entry.message.role}: ${text}`];
+    });
+
+  return lines.length > 0 ? lines.join("\n") : "- (no recent text conversation found)";
+}
+
+async function execTextOptional(pi: ExtensionAPI, command: string, args: string[], cwd: string, timeout = 5_000): Promise<string | undefined> {
+  try {
+    return await execText(pi, command, args, cwd, timeout);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Execute one cmux command with normalized error handling.
+ *
+ * This keeps the workflow code readable: higher-level logic can think in terms
+ * of "open a split" instead of child-process edge cases.
+ */
+async function execCmux(pi: ExtensionAPI, args: string[], timeout = 5_000) {
+  const result = await pi.exec("cmux", args, { timeout });
+  if (result.killed) {
+    return { ok: false as const, error: "cmux command timed out", stdout: result.stdout };
+  }
+  if (result.code !== 0) {
+    return {
+      ok: false as const,
+      error: result.stderr.trim() || result.stdout.trim() || `cmux exited with code ${result.code}`,
+      stdout: result.stdout,
+    };
+  }
+  return { ok: true as const, stdout: result.stdout };
+}
+
+/**
+ * Ask cmux which workspace/surface launched the current session.
+ *
+ * We use cmux itself as the source of truth instead of trusting environment
+ * variables for split targeting.
+ */
+async function identifyCmuxCaller(pi: ExtensionAPI): Promise<{ ok: true; workspaceRef: string; surfaceRef: string } | { ok: false; error: string }> {
+  const result = await execCmux(pi, ["--json", "identify"]);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout) as {
+      caller?: { workspace_ref?: string; surface_ref?: string };
+    };
+    const workspaceRef = parsed?.caller?.workspace_ref;
+    const surfaceRef = parsed?.caller?.surface_ref;
+    if (!workspaceRef || !surfaceRef) {
+      return { ok: false, error: "Could not determine cmux workspace/surface for this session" };
+    }
+    return { ok: true, workspaceRef, surfaceRef };
+  } catch {
+    return { ok: false, error: "Failed to parse cmux identify output" };
+  }
+}
+
+/**
+ * Open a new cmux split beside the parent workflow session and run one command.
+ *
+ * Two-step flow:
+ * 1. `new-split` creates the new surface and returns its surface ref.
+ * 2. `respawn-pane` replaces the placeholder shell with the real Pi command.
+ *
+ * This matches how `oh-my-pi` launches splits, but is duplicated locally so
+ * `dev-workflow` remains independently installable.
+ */
+async function openWorkflowSplit(
+  pi: ExtensionAPI,
+  direction: WorkflowSplitDirection,
+  command: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const caller = await identifyCmuxCaller(pi);
+  if (!caller.ok) return caller;
+
+  const created = await execCmux(pi, [
+    "--json",
+    "new-split",
+    direction,
+    "--workspace",
+    caller.workspaceRef,
+    "--surface",
+    caller.surfaceRef,
+  ]);
+  if (!created.ok) {
+    return { ok: false, error: created.error };
+  }
+
+  let newSurfaceRef: string | undefined;
+  try {
+    const parsed = JSON.parse(created.stdout) as { surface_ref?: string };
+    newSurfaceRef = parsed.surface_ref;
+  } catch {
+    return { ok: false, error: "Failed to parse cmux split response" };
+  }
+
+  if (!newSurfaceRef) {
+    return { ok: false, error: "cmux did not return a new split surface ref" };
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const respawned = await execCmux(pi, [
+    "respawn-pane",
+    "--workspace",
+    caller.workspaceRef,
+    "--surface",
+    newSurfaceRef,
+    "--command",
+    command,
+  ]);
+  if (!respawned.ok) {
+    return { ok: false, error: respawned.error };
+  }
+
+  return { ok: true };
+}
+
+function workflowSessionName(prompt: WorkflowPrompt, extra?: string): string {
+  const suffix = extra?.trim();
+  if (!suffix) return prompt.label;
+  return truncateForWorkflow(`${prompt.label} — ${suffix}`, 80);
+}
+
+/**
+ * Build the first user message stored in the child session.
+ *
+ * This is the bridge between the parent lane and the new split. It explains:
+ * - why the child lane exists
+ * - what repo state it should care about
+ * - enough recent context to start intelligently
+ */
+function buildWorkflowLaneContext(options: {
+  prompt: WorkflowPrompt;
+  cwd: string;
+  gitBranch?: string;
+  gitStatus?: string;
+  recentConversation: string;
+  extra?: string;
+}): string {
+  const gitStatus = options.gitStatus?.trim()
+    ? options.gitStatus.trim().split("\n").slice(0, 12).join("\n")
+    : "(working tree clean or unavailable)";
+  const extraContext = options.extra?.trim() ? options.extra.trim() : "(none)";
+
+  return `## Why this session exists
+This Pi session was opened automatically in a fresh cmux split for ${options.prompt.code}.
+
+Why:
+- keep the parent workflow session uncluttered
+- give this review / recon / oracle lane its own focused workspace
+- reduce developer overhead by making the extra lane the default when cmux is available
+
+Treat this message as background context for the next user instruction in this session.
+Do not answer this message directly.
+
+## Working directory
+${options.cwd}
+
+## Git context
+- branch: ${options.gitBranch ?? "(unavailable)"}
+
+## Current git status
+${gitStatus}
+
+## Recent parent-session conversation
+${options.recentConversation}
+
+## Extra context from the command invocation
+${extraContext}
+
+## Ground rules for this lane
+- Use the current repository state as source of truth.
+- Read git diff, changed files, and surrounding code as needed.
+- Assume the parent session may have in-progress local changes.
+- End with a concise, actionable summary.`;
+}
+
+/**
+ * Force a seeded child session onto disk before launching `pi --session <file>`.
+ *
+ * Why this exists:
+ * - `SessionManager.create()` gives us a future session file path immediately.
+ * - But Pi intentionally delays writing a brand-new session file until it sees
+ *   an assistant message, to avoid duplicate-header edge cases during normal
+ *   interactive use.
+ * - Our cmux lane flow is different: we launch a brand-new Pi process against
+ *   that path immediately after seeding only user-side context.
+ *
+ * Without this helper, the new split can start from an empty session file path
+ * and lose the seeded branch / git / conversation context that makes the lane
+ * useful in the first place.
+ */
+async function persistSeededWorkflowSession(session: {
+  getHeader(): SessionHeader | null;
+  getEntries(): SessionEntry[];
+  getSessionFile(): string | undefined;
+}): Promise<string> {
+  const sessionFile = session.getSessionFile();
+  const header = session.getHeader();
+
+  if (!sessionFile) {
+    throw new Error("Child workflow session has no session file path");
+  }
+  if (!header) {
+    throw new Error("Child workflow session has no session header");
+  }
+
+  const lines = [header, ...session.getEntries()]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+
+  await mkdir(dirname(sessionFile), { recursive: true });
+  await writeFile(sessionFile, `${lines}\n`, "utf8");
+  return sessionFile;
+}
+
 export default function (pi: ExtensionAPI) {
   const detectSubagents = (): boolean => {
     try {
@@ -1513,9 +1870,111 @@ export default function (pi: ExtensionAPI) {
     pi.sendUserMessage(text, options);
   };
 
+  /**
+   * Try to run one workflow prompt in a fresh cmux split.
+   *
+   * Returns `true` only when the split was launched successfully and the caller
+   * should stop. Returns `false` to mean "fall back to normal inline workflow
+   * behavior".
+   */
+  const maybeRunPromptInCmuxLane = async (
+    ctx: WorkflowContext,
+    prompt: WorkflowPrompt,
+    extra?: string,
+  ): Promise<boolean> => {
+    if (prompt.category !== "subagent") return false;
+    if (getWorkflowCmuxMode() !== "auto") return false;
+    if (!isInsideCmux()) return false;
+
+    const commandCtx = ctx as WorkflowContext & {
+      sessionManager?: { getBranch: () => WorkflowSessionEntry[]; getSessionFile: () => string | undefined };
+      model?: { provider: string; id: string };
+    };
+    const sessionManager = commandCtx.sessionManager;
+    if (!sessionManager) return false;
+
+    let childSessionFile: string | undefined;
+    try {
+      const taskPrompt = appendExtra(prompt.prompt, extra);
+      const gitBranch = await execTextOptional(pi, "git", ["branch", "--show-current"], ctx.cwd, 5_000);
+      const gitStatus = await execTextOptional(pi, "git", ["status", "--short", "--untracked-files=normal"], ctx.cwd, 5_000);
+      const recentConversation = recentConversationSnapshot(sessionManager.getBranch());
+      const parentSession = sessionManager.getSessionFile();
+
+      // Create a real persisted child session first, then point the new split
+      // at it. This gives the new lane a stable session file, inherited model
+      // choice, and a seeded context message before Pi ever starts rendering.
+      const childSession = SessionManager.create(ctx.cwd);
+      if (commandCtx.model) {
+        childSession.appendModelChange(commandCtx.model.provider, commandCtx.model.id);
+      }
+      childSession.appendSessionInfo(workflowSessionName(prompt, extra));
+      childSession.appendMessage({
+        role: "user",
+        content: [{
+          type: "text",
+          text: buildWorkflowLaneContext({
+            prompt,
+            cwd: ctx.cwd,
+            gitBranch,
+            gitStatus,
+            recentConversation,
+            extra: [
+              parentSession ? `parent session: ${parentSession}` : undefined,
+              extra?.trim() ? extra.trim() : undefined,
+            ].filter(Boolean).join("\n"),
+          }),
+        }],
+        timestamp: Date.now(),
+      });
+
+      // Persist the seeded user-only session before launching the child Pi
+      // process. Pi's SessionManager intentionally defers flushes for brand-new
+      // sessions until an assistant message exists, but our split launcher needs
+      // the file to exist immediately.
+      childSessionFile = await persistSeededWorkflowSession(childSession);
+
+      const direction = getWorkflowSplitDirection();
+      const splitResult = await openWorkflowSplit(
+        pi,
+        direction,
+        buildPiSessionCommand(ctx.cwd, childSessionFile, taskPrompt),
+      );
+      if (!splitResult.ok) {
+        await unlink(childSessionFile).catch(() => undefined);
+        ctx.ui.notify(`cmux lane launch failed for ${prompt.code}; running inline instead. ${splitResult.error}`, "warning");
+        return false;
+      }
+
+      ctx.ui.notify(
+        `Opened ${prompt.code} in a ${direction === "right" ? "right-side" : "down-side"} cmux split with a seeded child session.`,
+        "info",
+      );
+      return true;
+    } catch (error) {
+      if (childSessionFile) {
+        await unlink(childSessionFile).catch(() => undefined);
+      }
+      ctx.ui.notify(
+        `cmux lane launch failed for ${prompt.code}; running inline instead. ${error instanceof Error ? error.message : String(error)}`,
+        "warning",
+      );
+      return false;
+    }
+  };
+
   const runPrompt = async (ctx: WorkflowContext, prompt: WorkflowPrompt, extra?: string, deliverAs: "normal" | "followUp" = "normal") => {
     const text = appendExtra(prompt.prompt, extra);
-    const willQueue = deliverAs === "followUp" && !(ctx.isIdle?.() ?? true);
+    const isIdle = ctx.isIdle?.() ?? true;
+    const willQueue = deliverAs === "followUp" && !isIdle;
+
+    // Only attempt cmux lane launching when the prompt is being run directly,
+    // immediately, from an idle session. Follow-up/queue flows should preserve
+    // their existing semantics instead of unexpectedly opening a new split.
+    if (deliverAs === "normal" && isIdle && (await maybeRunPromptInCmuxLane(ctx, prompt, extra))) {
+      return;
+    }
+
     ctx.ui.notify(`${willQueue ? "Queueing" : "Running"} ${prompt.code}${willQueue ? " as follow-up" : ""}…`, "info");
     sendWorkflowMessage(ctx, text, deliverAs);
   };

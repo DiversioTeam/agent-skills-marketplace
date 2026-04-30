@@ -24,7 +24,8 @@
   - Structure and consistency checks for marketplace metadata and changed
     skills.
 - `.github/workflows/notify-plugin-updates.yml`
-  - Post-merge notification flow for plugin changes pushed to `main`.
+  - Post-merge notification flow for plugin and pi-package changes pushed to
+    `main`, rendered in separate Plugin items and Pi items Slack sections.
 
 ## Boundaries
 
@@ -62,8 +63,10 @@
      directory/manifest consistency, version sync, presence of skills, and the
      `SKILL.md` size budget.
 5. Post-merge notification
-   - Pushes to `main` that touch `plugins/**` trigger Slack update messages with
-     plugin names, versions, and changelog snippets.
+   - Pushes to `main` that touch `plugins/**` or `pi-packages/**` trigger Slack
+     update messages.
+   - Plugin changes render under a dedicated `Plugin items` section.
+   - Pi package changes render under a dedicated `Pi items` section.
 
 ## Useful References
 
