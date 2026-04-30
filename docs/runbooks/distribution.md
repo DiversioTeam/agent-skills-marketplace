@@ -133,13 +133,14 @@ From a checkout of this repo:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
-```
+pi install "$PWD/pi-packages/skills-bridge"
 
 From the Diversio monolith root, include the submodule path:
 
 ```bash
 pi install "$PWD/agent-skills-marketplace/pi-packages/ci-status"
 pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
+pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
 ```
 
 Plain `pi install` writes to global user settings (`~/.pi/agent/settings.json`).
@@ -149,6 +150,7 @@ current run without changing settings:
 ```bash
 pi -e ./pi-packages/ci-status
 pi -e ./pi-packages/dev-workflow
+pi -e ./pi-packages/skills-bridge
 ```
 
 Use `-l` only when you need to test project-local install, reload, or
@@ -157,6 +159,7 @@ persistence behavior that writes to `.pi/settings.json`:
 ```bash
 pi install -l ./pi-packages/ci-status
 pi install -l ./pi-packages/dev-workflow
+pi install -l ./pi-packages/skills-bridge
 ```
 
 Install a pi package in one scope at a time. Pi deduplicates the same package

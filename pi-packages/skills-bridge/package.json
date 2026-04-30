@@ -1,0 +1,13 @@
+{
+  "name": "skills-bridge",
+  "version": "0.1.0",
+  "description": "Pi extension that auto-discovers Claude Code plugin skills from plugins/*/skills/ directories and registers them as pi skills via the resources_discover hook. One install bridges all 21 plugin skills into pi.",
+  "keywords": ["pi-package", "skills", "bridge"],
+  "files": ["extensions/", "README.md"],
+  "pi": {
+    "extensions": ["./extensions/skills-bridge/index.ts"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  }
+}
