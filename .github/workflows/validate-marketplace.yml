@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   validate:
@@ -138,6 +139,15 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Install root package dependencies for Pi package discovery
+        shell: bash
+        env:
+          NPM_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          npm install --package-lock=false
 
       - name: Install Pi CLI for package discovery
         shell: bash
