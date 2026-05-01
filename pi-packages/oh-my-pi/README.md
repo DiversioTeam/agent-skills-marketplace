@@ -49,6 +49,43 @@ cmux-workspace.ts
 
 `oh-my-pi` is the **explicit** cmux command surface.
 
+### Why `@diversioteam/pi-cmux` exists
+
+This package used to carry all of the low-level cmux mechanics itself.
+
+That worked until the same mechanics also existed somewhere else.
+
+From first principles, split launching is exactly the kind of code that should
+have one shared implementation:
+
+```text
+open pane
+  -> build command string
+  -> preserve PATH
+  -> start Pi or a shell command
+  -> keep the pane readable if startup fails
+```
+
+If two packages each implement that flow, they will eventually diverge.
+When they diverge, one package gets the hardening and the other keeps the old
+failure mode.
+
+So the new architecture is:
+
+```text
+oh-my-pi
+  ├─ owns the user-facing slash commands
+  └─ delegates the brittle cmux mechanics to @diversioteam/pi-cmux
+
+@diversioteam/pi-cmux
+  ├─ owns split/workspace/notify primitives
+  ├─ owns hardened shell and Pi command building
+  └─ is shared by oh-my-pi and dev-workflow
+```
+
+That separation keeps `oh-my-pi` easier to reason about: command UX lives here,
+terminal mechanics live in the shared library.
+
 That means if you want to manually say:
 
 - "open a split to the right"

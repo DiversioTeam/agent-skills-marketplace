@@ -138,6 +138,44 @@ who want manual control.
 - does not require users to remember a second command
 - keeps the common workflow as one obvious action
 
+### Why we extracted `@diversioteam/pi-cmux`
+
+This is easiest to understand from first principles:
+
+```text
+workflow command wants a helper lane
+  -> helper lane usually means "open a split and run Pi there"
+  -> split launching is fragile terminal/process code
+  -> fragile code should have one source of truth, not two
+```
+
+Before the extraction, `dev-workflow` and `oh-my-pi` both knew how to launch
+cmux splits.
+
+That sounds harmless, but it creates drift:
+
+```text
+package A hardens the launcher
+package B still has the old copy
+  -> one flow works
+  -> the other opens a pane that immediately closes
+```
+
+`@diversioteam/pi-cmux` fixes that by moving the brittle mechanics into one
+shared package.
+
+Mental model now:
+
+```text
+dev-workflow
+  ├─ decides when opening a new lane is helpful
+  ├─ seeds context for that lane
+  └─ asks @diversioteam/pi-cmux to perform the actual split launch
+```
+
+So `dev-workflow` owns the workflow UX, while `@diversioteam/pi-cmux` owns the
+terminal reliability details.
+
 ### Examples
 
 ```text
