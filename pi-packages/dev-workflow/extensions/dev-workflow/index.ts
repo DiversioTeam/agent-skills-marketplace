@@ -1,4 +1,5 @@
 import { DynamicBorder, SessionManager, type ExtensionAPI, type SessionEntry, type SessionHeader, type Theme } from "@mariozechner/pi-coding-agent";
+import { buildPiCommand, isInsideCmux, openSplit, type SplitDirection } from "@diversioteam/pi-cmux";
 import { HelpPanel, PromptEditor, type WorkflowHelpCommand, type WorkflowPromptCategory, type WorkflowPromptSource } from "./help-panel";
 import { Container, Input, Key, matchesKey, SelectList, Spacer, Text, truncateToWidth, type SelectItem } from "@mariozechner/pi-tui";
 import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
@@ -1455,7 +1456,8 @@ interface WorkflowContext {
  * `oh-my-pi` command names:
  * - `dev-workflow` should stay useful when installed by itself.
  * - Workflow commands need behavior, not a second command the user must remember.
- * - Calling cmux directly keeps the default workflow low-friction.
+ * - Low-level cmux primitives live in `@diversioteam/pi-cmux`, while this
+ *   package decides when to open a lane and what context to seed into it.
  *
  * Mental model:
  *
@@ -1467,8 +1469,6 @@ interface WorkflowContext {
  *   └─ launch Pi in that child session with the workflow prompt
  * ```
  */
-type WorkflowSplitDirection = "right" | "down";
-
 type WorkflowSessionMessage = {
   role?: string;
   content?: unknown;
@@ -1479,61 +1479,14 @@ type WorkflowSessionEntry = {
   message?: WorkflowSessionMessage;
 };
 
-/**
- * Cheap environment check for "should we even consider cmux behavior?"
- *
- * We still ask cmux for authoritative workspace/surface refs later before
- * opening a split. This helper is only the fast first gate.
- */
-function isInsideCmux(): boolean {
-  return Boolean(
-    process.env.CMUX_SOCKET_PATH &&
-    process.env.CMUX_WORKSPACE_ID &&
-    process.env.CMUX_SURFACE_ID,
-  );
-}
-
 function getWorkflowCmuxMode(): "auto" | "inline" {
   const value = process.env.PI_WORKFLOW_CMUX_MODE?.trim().toLowerCase();
   return value === "inline" ? "inline" : "auto";
 }
 
-function getWorkflowSplitDirection(): WorkflowSplitDirection {
+function getWorkflowSplitDirection(): SplitDirection {
   const value = process.env.PI_WORKFLOW_CMUX_SPLIT_DIRECTION?.trim().toLowerCase();
   return value === "down" ? "down" : "right";
-}
-
-/**
- * Escape one shell argument for `sh -lc`-style command composition.
- *
- * We keep this tiny and local because the spawned cmux lane receives free-form
- * prompt text. A single quote bug here would launch the wrong command.
- */
-function shellEscape(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-/**
- * Build the exact command cmux should run inside the child split.
- *
- * Important details:
- * - `--session <file>` points Pi at the seeded child session we created.
- * - `--` before the prompt prevents prompts starting with `-` from being
- *   misread as CLI flags.
- * - `exec pi` replaces the temporary shell with Pi itself.
- */
-function buildPiSessionCommand(cwd: string, sessionFile: string, prompt: string): string {
-  return [
-    "cd",
-    shellEscape(cwd),
-    "&&",
-    "exec",
-    "pi",
-    "--session",
-    shellEscape(sessionFile),
-    "--",
-    shellEscape(prompt),
-  ].join(" ");
 }
 
 function truncateForWorkflow(text: string, max = 320): string {
@@ -1595,115 +1548,6 @@ async function execTextOptional(pi: ExtensionAPI, command: string, args: string[
   } catch {
     return undefined;
   }
-}
-
-/**
- * Execute one cmux command with normalized error handling.
- *
- * This keeps the workflow code readable: higher-level logic can think in terms
- * of "open a split" instead of child-process edge cases.
- */
-async function execCmux(pi: ExtensionAPI, args: string[], timeout = 5_000) {
-  const result = await pi.exec("cmux", args, { timeout });
-  if (result.killed) {
-    return { ok: false as const, error: "cmux command timed out", stdout: result.stdout };
-  }
-  if (result.code !== 0) {
-    return {
-      ok: false as const,
-      error: result.stderr.trim() || result.stdout.trim() || `cmux exited with code ${result.code}`,
-      stdout: result.stdout,
-    };
-  }
-  return { ok: true as const, stdout: result.stdout };
-}
-
-/**
- * Ask cmux which workspace/surface launched the current session.
- *
- * We use cmux itself as the source of truth instead of trusting environment
- * variables for split targeting.
- */
-async function identifyCmuxCaller(pi: ExtensionAPI): Promise<{ ok: true; workspaceRef: string; surfaceRef: string } | { ok: false; error: string }> {
-  const result = await execCmux(pi, ["--json", "identify"]);
-  if (!result.ok) {
-    return { ok: false, error: result.error };
-  }
-
-  try {
-    const parsed = JSON.parse(result.stdout) as {
-      caller?: { workspace_ref?: string; surface_ref?: string };
-    };
-    const workspaceRef = parsed?.caller?.workspace_ref;
-    const surfaceRef = parsed?.caller?.surface_ref;
-    if (!workspaceRef || !surfaceRef) {
-      return { ok: false, error: "Could not determine cmux workspace/surface for this session" };
-    }
-    return { ok: true, workspaceRef, surfaceRef };
-  } catch {
-    return { ok: false, error: "Failed to parse cmux identify output" };
-  }
-}
-
-/**
- * Open a new cmux split beside the parent workflow session and run one command.
- *
- * Two-step flow:
- * 1. `new-split` creates the new surface and returns its surface ref.
- * 2. `respawn-pane` replaces the placeholder shell with the real Pi command.
- *
- * This matches how `oh-my-pi` launches splits, but is duplicated locally so
- * `dev-workflow` remains independently installable.
- */
-async function openWorkflowSplit(
-  pi: ExtensionAPI,
-  direction: WorkflowSplitDirection,
-  command: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const caller = await identifyCmuxCaller(pi);
-  if (!caller.ok) return caller;
-
-  const created = await execCmux(pi, [
-    "--json",
-    "new-split",
-    direction,
-    "--workspace",
-    caller.workspaceRef,
-    "--surface",
-    caller.surfaceRef,
-  ]);
-  if (!created.ok) {
-    return { ok: false, error: created.error };
-  }
-
-  let newSurfaceRef: string | undefined;
-  try {
-    const parsed = JSON.parse(created.stdout) as { surface_ref?: string };
-    newSurfaceRef = parsed.surface_ref;
-  } catch {
-    return { ok: false, error: "Failed to parse cmux split response" };
-  }
-
-  if (!newSurfaceRef) {
-    return { ok: false, error: "cmux did not return a new split surface ref" };
-  }
-
-  await new Promise((resolve) => setTimeout(resolve, 250));
-
-  const respawned = await execCmux(pi, [
-    "respawn-pane",
-    "--workspace",
-    caller.workspaceRef,
-    "--surface",
-    newSurfaceRef,
-    "--command",
-    command,
-  ]);
-  if (!respawned.ok) {
-    return { ok: false, error: respawned.error };
-  }
-
-  return { ok: true };
 }
 
 function workflowSessionName(prompt: WorkflowPrompt, extra?: string): string {
@@ -1935,10 +1779,10 @@ export default function (pi: ExtensionAPI) {
       childSessionFile = await persistSeededWorkflowSession(childSession);
 
       const direction = getWorkflowSplitDirection();
-      const splitResult = await openWorkflowSplit(
+      const splitResult = await openSplit(
         pi,
         direction,
-        buildPiSessionCommand(ctx.cwd, childSessionFile, taskPrompt),
+        buildPiCommand(ctx.cwd, { sessionFile: childSessionFile, prompt: taskPrompt }),
       );
       if (!splitResult.ok) {
         await unlink(childSessionFile).catch(() => undefined);

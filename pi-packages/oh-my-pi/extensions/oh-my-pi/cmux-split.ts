@@ -5,7 +5,7 @@ import {
   isInsideCmux,
   openSplit,
   type SplitDirection,
-} from "./cmux-core.ts";
+} from "@diversioteam/pi-cmux";
 
 /**
  * Split pane commands
@@ -22,8 +22,8 @@ import {
  *   then launch either Pi or one shell command.
  *
  * We intentionally keep "fancy" behavior out of this file. Things like shell
- * escaping, caller detection, and split creation live in `cmux-core.ts` so this
- * file reads more like a command catalog than a process-management script.
+ * escaping, caller detection, and split creation live in `@diversioteam/pi-cmux`
+ * so this file reads more like a command catalog than a process-management script.
  */
 
 // ---------------------------------------------------------------------------

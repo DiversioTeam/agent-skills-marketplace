@@ -355,6 +355,11 @@ can discover `ci-status`, `dev-workflow`, `oh-my-pi`, and `skills-bridge` from o
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
 ```
 
+If your environment is not already configured for other `@diversioteam`
+GitHub Packages, export `NPM_TOKEN` with GitHub Packages read access before the
+first install. `dev-workflow` and `oh-my-pi` install the shared
+`@diversioteam/pi-cmux` dependency from `npm.pkg.github.com`.
+
 Run `/reload` in pi after installation. To pull the latest updates later:
 
 ```bash
@@ -388,6 +393,11 @@ pi install "$PWD/pi-packages/dev-workflow"
 pi install "$PWD/pi-packages/oh-my-pi"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
+
+Before local-path installs or `-e` smoke tests of `dev-workflow` or `oh-my-pi`,
+make sure your environment is already configured for `@diversioteam` GitHub
+Packages, then run `npm install` either at the repo root or inside the target
+package directory so `@diversioteam/pi-cmux` is available.
 
 Plain `pi install` writes to global user settings. Use `pi --no-extensions -e ./pi-packages/<package>`
 for one-off extension testing from the repo root without loading a duplicate copy
