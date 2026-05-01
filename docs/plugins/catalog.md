@@ -77,6 +77,15 @@ when command files change.
   - Short aliases: `/ompv`, `/ompr`, `/omph`, `/omphr`, `/ompw`, `/ompwr`
   - Recommendation: prefer split-pane commands by default; use workspace tabs
     for stronger isolation or named long-lived lanes.
+  - Launch behavior: split/workspace commands restore the current Pi session's
+    PATH before running shell commands; fresh Pi lanes launch through the same
+    underlying Node/Pi install as the current session so panes do not die from
+    `command not found: pi` in stripped respawn environments. Mental model:
+    Pi split commands open adjacent AI lanes; shell split commands open adjacent
+    terminal-program lanes. Short successful shell commands still exit when
+    done; long-running or interactive commands are the best fit for persistent
+    helper lanes. `PI_CLI_PATH` can override the spawned Pi launcher when
+    needed.
   - Relationship to `dev-workflow`: `oh-my-pi` is the explicit user-facing cmux
     command surface, while `dev-workflow` uses a small amount of direct cmux
     logic for automatic seeded split launching on subagent-style workflow
