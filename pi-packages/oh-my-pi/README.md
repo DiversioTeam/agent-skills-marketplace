@@ -130,22 +130,73 @@ Escalate to a workspace tab when the work deserves its own lane
 | `/omp-split-down` | `/omph` | Down | Fresh Pi session in current cwd |
 | `/omp-split-down-command` | `/omphr` | Down | Arbitrary shell command in current cwd |
 
+Launch behavior:
+
+- Fresh Pi splits now launch Pi using the same Node/Pi install that is already
+  running the current session, instead of trusting the respawned pane's PATH.
+  This avoids the classic `command not found: pi` fast-close failure.
+- Shell-command splits restore the current session's PATH before running the
+  command. That means commands like `npm run dev` or `npm test` can find the
+  same tools you have in the current Pi session.
+- If a shell command fails immediately, the pane stays open in a shell with the
+  error visible so the lane does not blink shut before you can read it.
+- Short successful shell commands still exit when they are done. Long-running or
+  interactive commands like `top`, `npm run dev`, or `lazygit` naturally stay
+  open.
+
+Mental model:
+
+```text
+Pi split command
+  └─ open a new adjacent AI lane
+       └─ same cwd
+       └─ same working Pi install
+       └─ optional prompt handed to Pi
+
+Shell split command
+  └─ open a new adjacent terminal lane
+       └─ same cwd
+       └─ restored PATH from the current Pi session
+       ├─ success + short command -> lane may exit normally
+       ├─ success + interactive command -> lane stays open naturally
+       └─ failure -> lane stays open so you can debug it
+```
+
+Why this design exists:
+
+- a new cmux pane is a weaker environment than the current running Pi session
+- reusing the current session's launcher and PATH is more reliable than hoping a
+  fresh shell will rebuild them the same way
+- the main UX bug we are solving is "pane opens and disappears before I can see
+  what went wrong"
+
 Examples:
 
-```
+```text
+# Open an adjacent AI lane
 /omp-split-right
 /omp-split-right fix the user auth module
-/omp-split-right-command htop
-/omp-split-down-command npm run test
+
+# Open an adjacent terminal lane that naturally stays open
+/omp-split-right-command top
+/omp-split-down-command npm run dev
 ```
 
 Short aliases still work if you prefer them:
 
-```
+```text
 /ompv
-/ompr htop
+/ompr top
 /omph
-/omphr npm run test
+/omphr npm run dev
+```
+
+A simple rule of thumb:
+
+```text
+Want another Pi lane?                -> /omp-split-right or /omp-split-down
+Want another terminal program lane?  -> /omp-split-*-command
+Want the lane to stay visible?       -> use an interactive or long-running command
 ```
 
 ### Workspace Tabs
@@ -247,6 +298,7 @@ They are silent when running outside cmux.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `PI_CLI_PATH` | auto-detect | Optional absolute path override for the Pi launcher used in spawned cmux panes. Usually unnecessary because `oh-my-pi` reuses the current session's Node/Pi install automatically. |
 | `PI_CMUX_NOTIFY_LEVEL` | `all` | `all`, `medium` (skip "Waiting"), `low` (errors only), `disabled` |
 | `PI_CMUX_NOTIFY_THRESHOLD_MS` | `15000` | Duration in ms above which a success run becomes "Task Complete" |
 | `PI_CMUX_NOTIFY_DEBOUNCE_MS` | `3000` | Minimum ms between duplicate notifications |
@@ -261,6 +313,12 @@ A few choices in this package are intentionally conservative:
 - **Shell escaping is centralized** because prompts and commands can contain
   spaces and quotes, and split/tab launches are painful to debug when escaping
   is wrong.
+- **Spawned panes restore the current PATH explicitly** because respawned cmux
+  surfaces may not inherit the same shell initialization as the current Pi
+  session. Without that, commands can work here and fail there.
+- **Fresh Pi panes launch through the current Node binary + Pi CLI entrypoint**
+  instead of blindly running `pi`. This avoids `#!/usr/bin/env node` wrapper
+  failures in stripped respawn environments.
 - **`new-workspace` is parsed as plain text** because cmux currently returns
   `OK workspace:<n>` in real usage, even when JSON might be expected.
 - **Pi prompts are passed after `--`** so prompts that start with `-` are not

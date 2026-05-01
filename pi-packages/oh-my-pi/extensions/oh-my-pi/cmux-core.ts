@@ -1,3 +1,6 @@
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
+
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 /**
@@ -93,20 +96,137 @@ export function shellEscape(value: string): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve the Pi launcher we should use inside spawned cmux surfaces.
+ *
+ * Why not just run `pi` and trust PATH?
+ * - The current interactive shell usually has Pi on PATH.
+ * - A newly respawned cmux pane may not inherit the same shell initialization.
+ * - In practice that means `pi` can be available *here* while failing with
+ *   `command not found: pi` inside the new split.
+ *
+ * The most reliable default is: if Pi is running right now, use the `pi`
+ * executable sitting next to the current Node binary.
+ *
+ * Visual model:
+ *
+ * ```text
+ * current Pi session
+ *   └─ knows exactly which Node + Pi install is working now
+ *        └─ spawned cmux pane should reuse that exact launcher
+ *             └─ do not rediscover it from scratch in a weaker environment
+ * ```
+ *
+ * Advanced escape hatch:
+ * - `PI_CLI_PATH=/absolute/path/to/pi` forces a specific launcher when needed.
+ */
+function resolvePiLauncher(): string {
+  const explicit = process.env.PI_CLI_PATH?.trim();
+  if (explicit) {
+    try {
+      if (!existsSync(explicit)) {
+        return shellEscape(explicit);
+      }
+
+      const resolvedExplicit = realpathSync(explicit);
+      if (resolvedExplicit.endsWith(".js")) {
+        return `${shellEscape(process.execPath)} ${shellEscape(resolvedExplicit)}`;
+      }
+
+      return shellEscape(explicit);
+    } catch {
+      return shellEscape(explicit);
+    }
+  }
+
+  const siblingCandidate = join(dirname(process.execPath), "pi");
+  if (!existsSync(siblingCandidate)) {
+    return "pi";
+  }
+
+  try {
+    const resolvedSibling = realpathSync(siblingCandidate);
+
+    // The common Pi install path is a small `#!/usr/bin/env node` wrapper
+    // script. Launching that wrapper can still fail in respawned panes if PATH
+    // no longer contains `node`. When the wrapper resolves to a JS entrypoint,
+    // call it through the currently running Node binary directly.
+    if (resolvedSibling.endsWith(".js")) {
+      return `${shellEscape(process.execPath)} ${shellEscape(resolvedSibling)}`;
+    }
+
+    return shellEscape(siblingCandidate);
+  } catch {
+    return "pi";
+  }
+}
+
+/**
+ * Wrap one command in a tiny shell trampoline.
+ *
+ * Why this helper exists:
+ * - cmux panes disappearing instantly feels broken when a launch fails before
+ *   the user can read the error.
+ * - Respawned cmux panes may not inherit the same PATH as the current Pi
+ *   session, so we restore it explicitly before running the real command.
+ *
+ * Current policy:
+ * - normal clean exits are allowed to close the pane
+ * - failed launches drop into an interactive shell so the error stays visible
+ *
+ * We intentionally do not try to keep every successful short-lived command open.
+ * Interactive tools already stay open naturally, and forcing a post-success
+ * shell fallback was flaky in respawned cmux panes during local testing.
+ *
+ * Visual model:
+ *
+ * ```text
+ * restore PATH
+ *   └─ run real command
+ *        ├─ success -> exit normally
+ *        └─ failure -> show error -> drop into shell -> let the user inspect it
+ * ```
+ */
+function wrapSpawnedCommand(command: string, notice: string): string {
+  const lines = [
+    `PATH=${shellEscape(process.env.PATH ?? "")}`,
+    "export PATH",
+    command,
+    "status=$?",
+    'if [ "$status" -ne 0 ]; then printf "\\n[oh-my-pi] %s\\n[oh-my-pi] Exit status: %s\\n" ' + shellEscape(notice) + ' "$status"; exec "${SHELL:-/bin/sh}" -i; fi',
+    'exit "$status"',
+  ];
+
+  return ["exec", "sh", "-lc", shellEscape(lines.join("; "))].join(" ");
+}
+
+/**
  * Build the exact shell command we want cmux to run for a fresh Pi session.
  *
  * Design choices:
  * - `cd <cwd>` makes the new pane/tab start in the same directory as the
  *   current Pi session.
- * - `exec pi` replaces the temporary shell with Pi itself.
+ * - We launch Pi by absolute path instead of relying on PATH inside the new
+ *   cmux surface.
  * - `--` before the prompt prevents prompts that start with `-` from being
  *   misread as Pi CLI flags.
+ * - If Pi fails to start, keep the pane open in a shell so the error is visible
+ *   instead of the pane disappearing instantly.
+ *
+ * Visual model:
+ *
+ * ```text
+ * /omp-split-right review this diff
+ *   └─ open split
+ *        └─ cd into same cwd
+ *             └─ launch Pi with same Node/Pi install as parent session
+ *                  └─ pass prompt after `--`
+ * ```
  */
 export function buildPiCommand(
   cwd: string,
   options?: { sessionFile?: string; prompt?: string },
 ): string {
-  const parts = ["cd", shellEscape(cwd), "&&", "exec", "pi"];
+  const parts = [resolvePiLauncher()];
   if (options?.sessionFile) {
     parts.push("--session", shellEscape(options.sessionFile));
   }
@@ -114,7 +234,16 @@ export function buildPiCommand(
   if (prompt) {
     parts.push("--", shellEscape(prompt));
   }
-  return parts.join(" ");
+
+  return [
+    "cd",
+    shellEscape(cwd),
+    "&&",
+    wrapSpawnedCommand(
+      parts.join(" "),
+      "Pi failed to stay open. Keeping this pane open for debugging.",
+    ),
+  ].join(" ");
 }
 
 /**
@@ -123,9 +252,30 @@ export function buildPiCommand(
  * We intentionally route through `sh -lc` instead of trying to split the user's
  * command into argv pieces ourselves. The user asked for "run this shell text",
  * so we preserve normal shell behavior.
+ *
+ * We currently keep the pane open only on error.
+ *
+ * Why not keep it open after every successful command?
+ * - interactive programs like `top`, `lazygit`, or `npm run dev` naturally stay
+ *   open already
+ * - some shells launched after a successful non-interactive command immediately
+ *   exit again in respawned cmux panes, which creates a flaky UX
+ * - the high-value fix is preserving PATH and surfacing failures instead of
+ *   pretending every short-lived command should become a persistent shell lane
+ *
+ * First-principles rule:
+ * - use Pi split commands for "open an adjacent AI work lane"
+ * - use shell split commands for "run a real terminal program beside me"
+ * - prefer long-running or interactive commands when you want the lane to stay
+ *   visible after launch
  */
 export function buildShellCommand(cwd: string, command: string): string {
-  return ["cd", shellEscape(cwd), "&&", "exec", "sh", "-lc", shellEscape(command)].join(" ");
+  return [
+    "cd",
+    shellEscape(cwd),
+    "&&",
+    wrapSpawnedCommand(command, "Command failed. Keeping this pane open for debugging."),
+  ].join(" ");
 }
 
 // ---------------------------------------------------------------------------
