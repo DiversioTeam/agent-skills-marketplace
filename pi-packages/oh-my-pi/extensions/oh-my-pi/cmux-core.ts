@@ -121,23 +121,43 @@ export function shellEscape(value: string): string {
  */
 function resolvePiLauncher(): string {
   const explicit = process.env.PI_CLI_PATH?.trim();
-  const candidate = explicit || join(dirname(process.execPath), "pi");
+  if (explicit) {
+    try {
+      if (!existsSync(explicit)) {
+        return shellEscape(explicit);
+      }
 
-  if (!existsSync(candidate)) {
-    return shellEscape(candidate);
+      const resolvedExplicit = realpathSync(explicit);
+      if (resolvedExplicit.endsWith(".js")) {
+        return `${shellEscape(process.execPath)} ${shellEscape(resolvedExplicit)}`;
+      }
+
+      return shellEscape(explicit);
+    } catch {
+      return shellEscape(explicit);
+    }
   }
 
-  const resolved = realpathSync(candidate);
-
-  // The common Pi install path is a small `#!/usr/bin/env node` wrapper script.
-  // Launching that wrapper can still fail in respawned panes if PATH no longer
-  // contains `node`. When the wrapper resolves to a JS entrypoint, call it
-  // through the currently running Node binary directly.
-  if (resolved.endsWith(".js")) {
-    return `${shellEscape(process.execPath)} ${shellEscape(resolved)}`;
+  const siblingCandidate = join(dirname(process.execPath), "pi");
+  if (!existsSync(siblingCandidate)) {
+    return "pi";
   }
 
-  return shellEscape(candidate);
+  try {
+    const resolvedSibling = realpathSync(siblingCandidate);
+
+    // The common Pi install path is a small `#!/usr/bin/env node` wrapper
+    // script. Launching that wrapper can still fail in respawned panes if PATH
+    // no longer contains `node`. When the wrapper resolves to a JS entrypoint,
+    // call it through the currently running Node binary directly.
+    if (resolvedSibling.endsWith(".js")) {
+      return `${shellEscape(process.execPath)} ${shellEscape(resolvedSibling)}`;
+    }
+
+    return shellEscape(siblingCandidate);
+  } catch {
+    return "pi";
+  }
 }
 
 /**
