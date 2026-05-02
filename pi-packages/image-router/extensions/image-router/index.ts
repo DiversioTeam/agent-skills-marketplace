@@ -28,11 +28,11 @@
  * ### Three entry points for images
  *
  * 1. **User input**   – pasted images, `@path/to/file.png` references
- *    → intercepted via [pi's `input` event](https://...)
+ *    → intercepted via pi's `input` event
  * 2. **Tool results** – the `read` tool returns image data for a file
- *    → intercepted via [pi's `tool_result` event](https://...)
+ *    → intercepted via pi's `tool_result` event
  * 3. **Model response** – the model replies *"I can't see images"*
- *    → detected via [pi's `agent_end` event](https://...) and flagged
+ *    → detected via pi's `agent_end` event and flagged
  *
  * ### Routing modes per model
  *
@@ -80,7 +80,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { DynamicBorder, getAgentDir } from "@mariozechner/pi-coding-agent";
+import { DynamicBorder, getAgentDir, getSettingsListTheme } from "@mariozechner/pi-coding-agent";
 import {
 	complete,
 	type ImageContent,
@@ -90,9 +90,10 @@ import {
 } from "@mariozechner/pi-ai";
 import {
 	Container,
-	matchesKey,
 	type SelectItem,
 	SelectList,
+	type SettingItem,
+	SettingsList,
 	Text,
 } from "@mariozechner/pi-tui";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -141,7 +142,8 @@ interface ModelPreference {
  * ├── modelPrefs           per-model routing decisions
  * ├── defaultVision*       fallback vision model when per-model is unset
  * ├── detectResponses      whether to scan for "I can't see images" replies
- * └── version              schema version for forward-compatible migration
+ * └── version              schema version (written for future migrations;
+ *                          ignored on read — loader accepts any version)
  * ```
  */
 interface RouterPreferences {
@@ -373,19 +375,31 @@ function savePreferences(): void {
  * Load preferences from the JSON file.
  *
  * Called once when the extension starts (synchronous in the async factory).
- * If the file doesn't exist or is corrupt, falls back to `DEFAULTS`.
+ *
+ * ## Upgrade compatibility
+ *
+ * The `version` field exists for future schema migrations but the loader
+ * does NOT gate on it.  It always loads whatever JSON is on disk, fills
+ * in `DEFAULTS` for any missing fields, and only falls back to defaults
+ * when the file is completely unparseable (corrupt, not JSON, etc.).
+ *
+ * This means:
+ * - Adding a new optional field → old files load fine (spread + defaults)
+ * - Bumping the version number → old files still load (version is ignored
+ *   on read; only used if we add explicit migration logic later)
+ * - File is corrupt → safe fallback to defaults, no crash
  */
 function loadPreferencesSync(): RouterPreferences {
 	try {
 		const data = readFileSync(PREFS_FILE, "utf-8");
 		const parsed = JSON.parse(data);
-		if (parsed?.version === 1) {
-			return {
-				...DEFAULTS,
-				...parsed,
-				modelPrefs: { ...parsed.modelPrefs },
-			};
-		}
+		// Merge whatever we got with defaults — missing fields get default
+		// values, unknown future fields are silently preserved via the spread.
+		return {
+			...DEFAULTS,
+			...parsed,
+			modelPrefs: parsed.modelPrefs ? { ...parsed.modelPrefs } : {},
+		};
 	} catch {
 		// File doesn't exist (first run) or is corrupt — use defaults
 	}
@@ -990,47 +1004,37 @@ async function showRoutingPrompt(
 /**
  * Open the settings panel via `/image-router`.
  *
- * ## Why a custom component instead of `SettingsList`?
+ * ## Why `SettingsList`?
  *
- * Pi's built-in `SettingsList` component has two UX issues:
+ * Pi's built-in `SettingsList` component handles ALL keyboard input
+ * correctly across terminals — arrow keys, Enter, Escape, everything.
+ * Earlier versions of this extension tried custom TUI components with
+ * manual keyboard handling and consistently broke on different terminals.
+ * `SettingsList` just works.
  *
- * 1. **Enter cycles values** — Enter should mean "confirm/close",
- *    not "change the value".  Users found this unintuitive.
+ * ## Controls
  *
- * 2. **Flat layout** — no visual separation between the default
- *    vision model picker, the feature toggle, and per-model routing
- *    modes.  Everything looks like one long undifferentiated list.
+ * - **Enter / Space** — cycle the selected setting's value
+ * - **↑↓** — navigate between settings
+ * - **Esc** — close the panel
  *
- * This custom component fixes both:
+ * ## What you can configure
  *
- * - **Enter / Escape close** the dialog (no value change).
- * - **←→ cycle** the selected setting's value.
- * - **Section headers** visually group related settings.
- * - **Value pills** show all options inline with the active one
- *   highlighted in `[brackets]`.
+ * - **Default vision model** — which model to use when no per-model
+ *   preference is set.  `(auto-detect)` means the extension picks the
+ *   first available vision-capable model.
+ * - **Detect responses** — whether to scan assistant messages for
+ *   "I can't see images" and show a warning notification.
+ * - **Per-model routing** — `auto` (route silently), `ask` (show a
+ *   prompt), or `never` (send images as-is).  Shows `(last: ...)` when
+ *   a `lastSuccessfulVision*` is recorded, confirming the self-correcting
+ *   fallback is working.
  *
- * ## Key handling
- *
- * Uses `matchesKey()` (not raw ANSI escape sequences) so arrow keys
- * work consistently across different terminal emulators.  The
- * `snake.ts` and `rainbow-editor.ts` examples use the same pattern.
- *
- * ```
- * matchesKey(data, "up")      → ↑
- * matchesKey(data, "down")    → ↓
- * matchesKey(data, "left")    → ←  (previous value)
- * matchesKey(data, "right")   → →  (next value)
- * matchesKey(data, "return")  → Enter (close)
- * matchesKey(data, "escape")  → Esc  (close)
- * ```
- *
- * Raw `"k"` / `"j"` / `"h"` / `"l"` are also accepted as vim-style
- * alternatives.
+ * Changes are persisted immediately to `~/.pi/agent/image-router.json`.
  */
 async function showSettingsDialog(
 	ctx: ExtensionContext,
 ): Promise<void> {
-	// Build the list of models to show: current model + any with saved prefs
 	const knownModels = new Map<string, { provider: string; id: string; name: string }>();
 
 	if (ctx.model) {
@@ -1051,7 +1055,6 @@ async function showSettingsDialog(
 		}
 	}
 
-	// Populate the "Default vision model" dropdown
 	const visionModels = ctx.modelRegistry
 		.getAvailable()
 		.filter((m) => modelLooksVisionCapable(m))
@@ -1061,211 +1064,88 @@ async function showSettingsDialog(
 		? ["(auto-detect)", ...visionModels]
 		: ["(none available)"];
 
-	// ── Build the setting rows ──────────────────────────────────────
-
-	interface SettingRow {
-		id: string;
-		label: string;
-		value: string;
-		options: string[];
-		/** When true, this row is a section header (not selectable) */
-		header?: boolean;
-	}
-
 	const currentDefaultVision = preferences.defaultVisionProvider && preferences.defaultVisionModelId
 		? `${preferences.defaultVisionProvider}/${preferences.defaultVisionModelId}`
 		: "(auto-detect)";
 
-	const rows: SettingRow[] = [
-		{ id: "header-vision", label: "Vision Model", value: "", options: [], header: true },
+	const items: SettingItem[] = [
 		{
 			id: "defaultVision",
-			label: "  Default model",
-			value: currentDefaultVision,
-			options: visionModelValues,
+			label: "Default vision model",
+			currentValue: currentDefaultVision,
+			values: visionModelValues,
 		},
-		{ id: "header-features", label: "Features", value: "", options: [], header: true },
 		{
 			id: "detectResponses",
-			label: '  Detect "can\'t see images" responses',
-			value: preferences.detectResponses ? "on" : "off",
-			options: ["on", "off"],
+			label: 'Detect "can\'t see images" responses',
+			currentValue: preferences.detectResponses ? "on" : "off",
+			values: ["on", "off"],
 		},
 	];
 
-	// Per-model routing rows
-	if (knownModels.size > 0) {
-		rows.push({ id: "header-models", label: "Per-Model Routing", value: "", options: [], header: true });
-		for (const [key, info] of knownModels) {
-			const pref = preferences.modelPrefs[key];
-			rows.push({
-				id: `model:${key}`,
-				label: `  ${info.name}`,
-				value: pref?.mode ?? "ask",
-				options: ["auto", "ask", "never"],
-			});
-		}
+	for (const [key, info] of knownModels) {
+		const pref = preferences.modelPrefs[key];
+		const lastUsed = pref?.lastSuccessfulVisionProvider && pref?.lastSuccessfulVisionModelId
+			? ` (last: ${pref.lastSuccessfulVisionProvider}/${pref.lastSuccessfulVisionModelId})`
+			: "";
+		items.push({
+			id: `model:${key}`,
+			label: `${info.name}${lastUsed}`,
+			currentValue: pref?.mode ?? "ask",
+			values: ["auto", "ask", "never"],
+		});
 	}
 
 	await ctx.ui.custom((tui, theme, _kb, done) => {
-		let selectedIdx = rows.findIndex((r) => !r.header);
-		if (selectedIdx < 0) selectedIdx = 0;
-		// If we landed on a header (no selectable rows), walk forward
-		while (rows[selectedIdx]?.header) {
-			selectedIdx = (selectedIdx + 1) % rows.length;
-		}
+		const container = new Container();
 
-		const applySetting = (id: string, newValue: string) => {
-			if (id === "defaultVision") {
-				if (newValue === "(auto-detect)") {
-					preferences.defaultVisionProvider = undefined;
-					preferences.defaultVisionModelId = undefined;
-				} else {
-					const slash = newValue.indexOf("/");
-					preferences.defaultVisionProvider = newValue.slice(0, slash);
-					preferences.defaultVisionModelId = newValue.slice(slash + 1);
+		container.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
+		container.addChild(new Text(theme.fg("accent", theme.bold("  Image Router"))));
+		container.addChild(new Text(""));
+
+		const settingsList = new SettingsList(
+			items,
+			Math.min(items.length + 2, 20),
+			getSettingsListTheme(),
+			(id, newValue) => {
+				if (id === "defaultVision") {
+					if (newValue === "(auto-detect)") {
+						preferences.defaultVisionProvider = undefined;
+						preferences.defaultVisionModelId = undefined;
+					} else {
+						const slash = newValue.indexOf("/");
+						preferences.defaultVisionProvider = newValue.slice(0, slash);
+						preferences.defaultVisionModelId = newValue.slice(slash + 1);
+					}
+				} else if (id === "detectResponses") {
+					preferences.detectResponses = newValue === "on";
+				} else if (id.startsWith("model:")) {
+					const mk = id.slice("model:".length);
+					preferences.modelPrefs[mk] = {
+						mode: newValue as RoutingMode,
+						...preferences.modelPrefs[mk],
+					};
 				}
-			} else if (id === "detectResponses") {
-				preferences.detectResponses = newValue === "on";
-			} else if (id.startsWith("model:")) {
-				const modelKey = id.slice("model:".length);
-				preferences.modelPrefs[modelKey] = {
-					mode: newValue as RoutingMode,
-					...preferences.modelPrefs[modelKey],
-				};
-			}
-			savePreferences();
-		};
+				savePreferences();
+			},
+			() => done(undefined),
+		);
 
-		const cycleValue = (row: SettingRow, direction: 1 | -1) => {
-			if (row.options.length === 0) return;
-			const idx = row.options.indexOf(row.value);
-			const nextIdx = ((idx < 0 ? 0 : idx) + direction + row.options.length) % row.options.length;
-			row.value = row.options[nextIdx];
-			applySetting(row.id, row.value);
-		};
+		container.addChild(settingsList);
+		container.addChild(new Text(""));
+		container.addChild(new Text(theme.fg("dim", "  enter/space to change  •  esc to close")));
+		container.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
 
 		return {
 			render(width: number) {
-				const lines: string[] = [];
-
-				// Top border
-				lines.push(theme.fg("accent", "┌" + "─".repeat(width - 2) + "┐"));
-
-				// Title
-				const title = " Image Router Settings ";
-				const padLeft = Math.max(0, Math.floor((width - 2 - title.length) / 2));
-				const padRight = width - 2 - title.length - padLeft;
-				lines.push(
-					theme.fg("accent", "│") +
-					" ".repeat(padLeft) +
-					theme.fg("accent", theme.bold(title)) +
-					" ".repeat(padRight) +
-					theme.fg("accent", "│"),
-				);
-
-				// Separator
-				lines.push(theme.fg("accent", "├" + "─".repeat(width - 2) + "┤"));
-
-				// Rows
-				for (let i = 0; i < rows.length; i++) {
-					const row = rows[i];
-					const isSelected = i === selectedIdx && !row.header;
-
-					if (row.header) {
-						// Section header — dimmed, not selectable
-						const label = ` ${row.label} `;
-						const remaining = width - 2 - label.length;
-						const line = theme.fg("dim", label) +
-							theme.fg("dim", "─".repeat(Math.max(0, remaining)));
-						lines.push(theme.fg("accent", "│") + line + theme.fg("accent", "│"));
-					} else {
-						// Selectable row
-						const prefix = isSelected
-							? theme.fg("accent", "▶")
-							: " ";
-
-						const labelColor = isSelected
-							? (s: string) => theme.fg("accent", s)
-							: (s: string) => s;
-
-						// Value display: show all options with the current one highlighted
-						const valueParts = row.options.map((opt) => {
-							const display = opt === row.value
-								? `[${opt}]`
-								: ` ${opt} `;
-							const colorFn = opt === row.value
-								? (s: string) => theme.fg("accent", theme.bold(s))
-								: (s: string) => theme.fg("muted", s);
-							return colorFn(display);
-						});
-						const valueStr = valueParts.join(" ");
-
-						const label = labelColor(`${prefix} ${row.label}`);
-						const spacer = " ".repeat(
-							Math.max(2, width - 2 - (row.label.length + 2) - valueStr.replace(/\x1b\[[0-9;]*m/g, "").length),
-						);
-
-						const line = `${label}${spacer}${valueStr}`;
-						// Pad to full width
-						const visibleLen = line.replace(/\x1b\[[0-9;]*m/g, "").length;
-						const padding = " ".repeat(Math.max(0, width - 2 - visibleLen));
-						lines.push(theme.fg("accent", "│") + line + padding + theme.fg("accent", "│"));
-					}
-				}
-
-				// Separator before footer
-				lines.push(theme.fg("accent", "├" + "─".repeat(width - 2) + "┤"));
-
-				// Footer
-				const footer = " ↑↓ navigate  ←→ change  esc close ";
-				const footerPad = Math.max(0, width - 2 - footer.length);
-				lines.push(
-					theme.fg("accent", "│") +
-					theme.fg("dim", footer) +
-					" ".repeat(footerPad) +
-					theme.fg("accent", "│"),
-				);
-
-				// Bottom border
-				lines.push(theme.fg("accent", "└" + "─".repeat(width - 2) + "┘"));
-
-				return lines;
+				return container.render(width);
 			},
-			invalidate() {},
+			invalidate() {
+				container.invalidate();
+			},
 			handleInput(data: string) {
-				if (matchesKey(data, "up") || data === "k") {
-					do {
-						selectedIdx = (selectedIdx - 1 + rows.length) % rows.length;
-					} while (rows[selectedIdx]?.header);
-					tui.requestRender();
-					return;
-				}
-				if (matchesKey(data, "down") || data === "j") {
-					do {
-						selectedIdx = (selectedIdx + 1) % rows.length;
-					} while (rows[selectedIdx]?.header);
-					tui.requestRender();
-					return;
-				}
-				if (matchesKey(data, "left") || data === "h") {
-					if (!rows[selectedIdx]?.header) {
-						cycleValue(rows[selectedIdx], -1);
-					}
-					tui.requestRender();
-					return;
-				}
-				if (matchesKey(data, "right") || data === "l") {
-					if (!rows[selectedIdx]?.header) {
-						cycleValue(rows[selectedIdx], 1);
-					}
-					tui.requestRender();
-					return;
-				}
-				if (matchesKey(data, "return") || matchesKey(data, "escape")) {
-					done(undefined);
-					return;
-				}
+				settingsList.handleInput(data);
+				tui.requestRender();
 			},
 		};
 	});
@@ -1273,21 +1153,7 @@ async function showSettingsDialog(
 	ctx.ui.notify("Image router preferences updated", "success");
 }
 
-// ---------------------------------------------------------------------------
-// Shared helpers
-// ---------------------------------------------------------------------------
 
-/**
- * Wrap a vision-model description for injection into the conversation.
- *
- * ```
- * [Image described by vision model:
- * The screenshot shows a React component with a red error banner...]
- * ```
- *
- * The bracketed prefix tells the main model that this text came from an
- * image description, so it knows the source.
- */
 function formatDescription(description: string, imageCount: number): string {
 	return imageCount === 1
 		? `[Image described by vision model:\n${description}\n]`
