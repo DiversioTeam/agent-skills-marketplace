@@ -1112,7 +1112,9 @@ async function showSettingsDialog(
 					if (newValue === "(auto-detect)") {
 						preferences.defaultVisionProvider = undefined;
 						preferences.defaultVisionModelId = undefined;
-					} else {
+					} else if (newValue === "(none available)") {
+					// No vision models registered — keep current setting
+				} else {
 						const slash = newValue.indexOf("/");
 						preferences.defaultVisionProvider = newValue.slice(0, slash);
 						preferences.defaultVisionModelId = newValue.slice(slash + 1);
@@ -1122,8 +1124,8 @@ async function showSettingsDialog(
 				} else if (id.startsWith("model:")) {
 					const mk = id.slice("model:".length);
 					preferences.modelPrefs[mk] = {
-						mode: newValue as RoutingMode,
 						...preferences.modelPrefs[mk],
+						mode: newValue as RoutingMode,
 					};
 				}
 				savePreferences();
@@ -1257,11 +1259,10 @@ export default async function (pi: ExtensionAPI) {
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				ctx.ui.notify(`Image description failed: ${msg}`, "error");
-				if (event.text.trim()) {
-					pi.sendUserMessage(
-						`[Image(s) could not be described: ${msg}]\n\n${event.text}`,
-					);
-				}
+				const fallback = event.text.trim()
+					? `[Image(s) could not be described: ${msg}]\n\n${event.text}`
+					: `[Image(s) could not be described: ${msg}]`;
+				pi.sendUserMessage(fallback);
 			}
 			return { action: "handled" };
 		}
@@ -1317,11 +1318,10 @@ export default async function (pi: ExtensionAPI) {
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			ctx.ui.notify(`Image description failed: ${msg}`, "error");
-			if (event.text.trim()) {
-				pi.sendUserMessage(
-					`[Image(s) could not be described: ${msg}]\n\n${event.text}`,
-				);
-			}
+			const fallback = event.text.trim()
+				? `[Image(s) could not be described: ${msg}]\n\n${event.text}`
+				: `[Image(s) could not be described: ${msg}]`;
+			pi.sendUserMessage(fallback);
 		}
 
 		return { action: "handled" };
@@ -1461,10 +1461,12 @@ export default async function (pi: ExtensionAPI) {
 		let detected = false;
 		for (const msg of event.messages) {
 			if (msg.role !== "assistant") continue;
-			const texts = (msg.content as Array<{ type: string; text?: string; thinking?: string }>)
-				?.filter((c) => c.type === "text" && typeof c.text === "string")
-				.map((c) => c.text!)
-				.join(" ") ?? "";
+			const texts = typeof msg.content === "string"
+				? msg.content
+				: (msg.content as Array<{ type: string; text?: string; thinking?: string }>)
+					?.filter((c) => c.type === "text" && typeof c.text === "string")
+					.map((c) => c.text!)
+					.join(" ") ?? "";
 			if (messageSaysCannotSeeImages(texts)) {
 				detected = true;
 				break;
