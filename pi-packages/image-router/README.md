@@ -44,18 +44,21 @@ The main model never sees the raw image — it reads a description like:
 
 Run **`/image-router`** to open the settings panel and change modes.
 
-## Installation
+## Install
+
+For normal use, install globally from a checkout of this repo. Use `$PWD` so Pi
+registers the checkout you intend in user settings.
 
 ```bash
-# Project-local
-mkdir -p .pi/extensions/image-router
-cp -r pi-packages/image-router/extensions/image-router/ .pi/extensions/
+# From the agent-skills-marketplace repo root
+pi install "$PWD/pi-packages/image-router"
 
-# Global
-cp -r pi-packages/image-router/extensions/image-router/ ~/.pi/agent/extensions/
+# From the Diversio monolith root
+pi install "$PWD/agent-skills-marketplace/pi-packages/image-router"
 ```
 
-Then restart Pi or run `/reload`.
+Plain `pi install` writes to global user settings. Then restart pi or run
+`/reload` in any pi session.
 
 ## Configuration
 
