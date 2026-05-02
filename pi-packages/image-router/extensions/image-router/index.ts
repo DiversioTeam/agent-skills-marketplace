@@ -1236,18 +1236,17 @@ export default async function (pi: ExtensionAPI) {
 
 	pi.on("input", async (event, ctx) => {
 		if (!event.images?.length) return { action: "continue" };
-		if (currentModelSupportsImages(ctx)) return { action: "continue" };
 		if (!ctx.model) return { action: "continue" };
 
 		const currentModel = ctx.model;
 		const existingPref = getModelPref(preferences, currentModel);
 
-		if (existingPref?.mode === "never") return { action: "continue" };
-
 		// Helper: build and return a transform result
 		const transform = (text: string) => ({ action: "transform" as const, text, images: [] as const });
 
-		// ── Auto mode: route silently ──────────────────────────────
+		// If user explicitly set "auto", force routing even when the model
+		// advertises image support (e.g. a proxy that claims support but
+		// actually fails — the agent_end hook tells the user to set auto).
 		if (existingPref?.mode === "auto") {
 			try {
 				const { description, visionModel } = await describeImagesWithFallback(
@@ -1267,6 +1266,11 @@ export default async function (pi: ExtensionAPI) {
 					: `[Image(s) could not be described: ${msg}]`);
 			}
 		}
+
+		if (existingPref?.mode === "never") return { action: "continue" };
+
+		// Native image support — let the model handle it (unless "auto" forces routing)
+		if (currentModelSupportsImages(ctx)) return { action: "continue" };
 
 		// ── Ask mode (default) ─────────────────────────────────────
 		// In headless/RPC contexts there is no TUI — fall back to auto.
@@ -1366,13 +1370,17 @@ export default async function (pi: ExtensionAPI) {
 	pi.on("tool_result", async (event, ctx) => {
 		const { textBlocks, imageBlocks } = partitionContent(event.content);
 		if (imageBlocks.length === 0) return;
-		if (currentModelSupportsImages(ctx)) return;
 		if (!ctx.model) return;
 
 		const currentModel = ctx.model;
 		const existingPref = getModelPref(preferences, currentModel);
 
+		// Force routing for auto mode even when the model advertises
+		// image support (same rationale as the input handler).
 		if (existingPref?.mode === "never") return;
+
+		// Native image support — let the model handle it (unless "auto" is on)
+		if (existingPref?.mode !== "auto" && currentModelSupportsImages(ctx)) return;
 
 		try {
 			// Build a context hint that includes the user's original question.
