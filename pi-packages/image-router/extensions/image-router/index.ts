@@ -1160,7 +1160,7 @@ async function showSettingsDialog(
 		};
 	});
 
-	ctx.ui.notify("Image router preferences updated", "success");
+	ctx.ui.notify("Image router preferences updated", "info");
 }
 
 
@@ -1220,15 +1220,14 @@ export default async function (pi: ExtensionAPI) {
 	// early when there's nothing to do:
 	//
 	//   1. No images?                          — skip
-	//   2. Our own injected message?           — skip (recursion guard)
-	//   3. Current model supports images?      — skip (native handling)
-	//   4. No active model?                    — skip (shouldn't happen)
-	//   5. Preference is "never"?              — skip (user opted out)
+	//   2. Current model supports images?      — skip (native handling)
+	//   3. No active model?                    — skip (shouldn't happen)
+	//   4. Preference is "never"?              — skip (user opted out)
 	//
 	// Then the handler branches on the saved routing mode:
 	//
-	//   "auto"  → describeImagesWithFallback → replace prompt → handled
-	//   "ask"   → showRoutingPrompt → if route: describe → replace → handled
+	//   "auto"  → describeImagesWithFallback → transform prompt
+	//   "ask"   → showRoutingPrompt → if route: describe → transform
 	//                                  if not route: continue (let through)
 	//
 	// After a successful route, `rememberSuccessfulVisionModel()` updates
@@ -1237,7 +1236,6 @@ export default async function (pi: ExtensionAPI) {
 
 	pi.on("input", async (event, ctx) => {
 		if (!event.images?.length) return { action: "continue" };
-		if (event.source === "extension") return { action: "continue" };
 		if (currentModelSupportsImages(ctx)) return { action: "continue" };
 		if (!ctx.model) return { action: "continue" };
 
@@ -1246,39 +1244,34 @@ export default async function (pi: ExtensionAPI) {
 
 		if (existingPref?.mode === "never") return { action: "continue" };
 
+		// Helper: build and return a transform result
+		const transform = (text: string) => ({ action: "transform" as const, text, images: [] as const });
+
 		// ── Auto mode: route silently ──────────────────────────────
 		if (existingPref?.mode === "auto") {
 			try {
 				const { description, visionModel } = await describeImagesWithFallback(
-					ctx,
-					event.images,
-					event.text,            // user's original text as context hint
-					existingPref,
-					undefined,
+					ctx, event.images, event.text, existingPref, undefined,
 					{ announce: `Describing ${event.images.length} image(s)` },
 				);
 				rememberSuccessfulVisionModel(ctx, visionModel);
 				savePreferences();
-				const replacementText = event.text.trim()
+				return transform(event.text.trim()
 					? `${formatDescription(description, event.images.length)}\n\n${event.text}`
-					: formatDescription(description, event.images.length);
-
-				pi.sendUserMessage(replacementText);
+					: formatDescription(description, event.images.length));
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				ctx.ui.notify(`Image description failed: ${msg}`, "error");
-				const fallback = event.text.trim()
+				return transform(event.text.trim()
 					? `[Image(s) could not be described: ${msg}]\n\n${event.text}`
-					: `[Image(s) could not be described: ${msg}]`;
-				pi.sendUserMessage(fallback);
+					: `[Image(s) could not be described: ${msg}]`);
 			}
-			return { action: "handled" };
 		}
 
-		// ── Ask mode (default): show TUI prompt ────────────────────
+		// ── Ask mode (default) ─────────────────────────────────────
 		// In headless/RPC contexts there is no TUI — fall back to auto.
-		if (!ctx.hasUI) {
-			// Re-run as auto mode
+		const hasUI = ctx.hasUI;
+		if (!hasUI) {
 			try {
 				const { description, visionModel: vm } = await describeImagesWithFallback(
 					ctx, event.images, event.text, existingPref, undefined,
@@ -1286,29 +1279,23 @@ export default async function (pi: ExtensionAPI) {
 				);
 				rememberSuccessfulVisionModel(ctx, vm);
 				savePreferences();
-				pi.sendUserMessage(event.text.trim()
+				return transform(event.text.trim()
 					? `${formatDescription(description, event.images.length)}\n\n${event.text}`
 					: formatDescription(description, event.images.length));
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				ctx.ui.notify(`Image description failed: ${msg}`, "error");
-				const fallback = event.text.trim()
+				return transform(event.text.trim()
 					? `[Image(s) could not be described: ${msg}]\n\n${event.text}`
-					: `[Image(s) could not be described: ${msg}]`;
-				pi.sendUserMessage(fallback);
+					: `[Image(s) could not be described: ${msg}]`);
 			}
-			return { action: "handled" };
 		}
 
 		const visionModel = findVisionModelForPref(ctx, existingPref);
 		const decision = await showRoutingPrompt(
-			ctx,
-			currentModel,
-			visionModel,
-			event.images.length,
+			ctx, currentModel, visionModel, event.images.length,
 		);
 
-		// Persist "Always"/"Never" if the user chose to remember
 		if (decision.rememberMode) {
 			setModelPref(preferences, currentModel, {
 				mode: decision.rememberMode,
@@ -1318,47 +1305,31 @@ export default async function (pi: ExtensionAPI) {
 			savePreferences();
 		}
 
-		if (!decision.route) {
-			return { action: "continue" }; // user chose "send anyway" or cancelled
-		}
+		if (!decision.route) return { action: "continue" };
 
-		// Resolve which vision model the user picked
 		const chosenVisionModel = (decision.visionProvider && decision.visionModelId)
 			? ctx.modelRegistry.find(decision.visionProvider, decision.visionModelId)
 			: visionModel;
 
 		try {
 			const { description, visionModel: successfulModel } = await describeImagesWithFallback(
-				ctx,
-				event.images,
-				event.text,
-				existingPref,
-				chosenVisionModel,
+				ctx, event.images, event.text, existingPref, chosenVisionModel,
 				{ announce: `Describing ${event.images.length} image(s)` },
 			);
 			rememberSuccessfulVisionModel(ctx, successfulModel);
 			savePreferences();
-			const replacementText = event.text.trim()
+			ctx.ui.notify(`Image(s) described by ${successfulModel.name ?? successfulModel.id}`, "info");
+			return transform(event.text.trim()
 				? `${formatDescription(description, event.images.length)}\n\n${event.text}`
-					: formatDescription(description, event.images.length);
-
-			pi.sendUserMessage(replacementText);
-			ctx.ui.notify(
-				`Image(s) described by ${successfulModel.name ?? successfulModel.id}`,
-				"success",
-			);
+				: formatDescription(description, event.images.length));
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			ctx.ui.notify(`Image description failed: ${msg}`, "error");
-			const fallback = event.text.trim()
+			return transform(event.text.trim()
 				? `[Image(s) could not be described: ${msg}]\n\n${event.text}`
-				: `[Image(s) could not be described: ${msg}]`;
-			pi.sendUserMessage(fallback);
+				: `[Image(s) could not be described: ${msg}]`);
 		}
-
-		return { action: "handled" };
 	});
-
 	// ── Handler 2: Tool results ───────────────────────────────────────
 	//
 	// Fires when any tool returns content that includes image blocks.
@@ -1456,7 +1427,7 @@ export default async function (pi: ExtensionAPI) {
 
 			ctx.ui.notify(
 				`Image(s) from ${event.toolName} described by ${visionModel.name ?? visionModel.id}`,
-				"success",
+				"info",
 			);
 
 			return { content: [...textBlocks, replacementBlock] };
