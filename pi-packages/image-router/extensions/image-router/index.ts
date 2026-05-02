@@ -440,6 +440,11 @@ function modelAdvertisesImageInput(model: Model): boolean {
 /**
  * Is this model likely able to process images?
  *
+ * Used ONLY for fallback-model discovery in `getVisionCandidates`.
+ * The active-model check (`currentModelSupportsImages`) uses only
+ * explicit metadata — heuristics could false-match a text-only proxy
+ * whose name happens to contain "codex" or "claude".
+ *
  * ## Detection layers
  *
  * ```
@@ -602,10 +607,13 @@ function findVisionModelForPref(
 /**
  * Does the **currently active** model support images?
  *
- * Delegates to `modelLooksVisionCapable` (heuristic + metadata).
+ * Only checks explicit metadata (`model.input.includes("image")`).
+ * Name heuristics are NOT used here — they're only for fallback model
+ * discovery in `getVisionCandidates`.  A text-only model whose name
+ * happens to match a vision family must still go through routing.
  */
 function currentModelSupportsImages(ctx: ExtensionContext): boolean {
-	return ctx.model ? modelLooksVisionCapable(ctx.model) : false;
+	return ctx.model ? modelAdvertisesImageInput(ctx.model) : false;
 }
 
 /**
@@ -1268,6 +1276,30 @@ export default async function (pi: ExtensionAPI) {
 		}
 
 		// ── Ask mode (default): show TUI prompt ────────────────────
+		// In headless/RPC contexts there is no TUI — fall back to auto.
+		if (!ctx.hasUI) {
+			// Re-run as auto mode
+			try {
+				const { description, visionModel: vm } = await describeImagesWithFallback(
+					ctx, event.images, event.text, existingPref, undefined,
+					{ announce: `Describing ${event.images.length} image(s)` },
+				);
+				rememberSuccessfulVisionModel(ctx, vm);
+				savePreferences();
+				pi.sendUserMessage(event.text.trim()
+					? `${formatDescription(description, event.images.length)}\n\n${event.text}`
+					: formatDescription(description, event.images.length));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				ctx.ui.notify(`Image description failed: ${msg}`, "error");
+				const fallback = event.text.trim()
+					? `[Image(s) could not be described: ${msg}]\n\n${event.text}`
+					: `[Image(s) could not be described: ${msg}]`;
+				pi.sendUserMessage(fallback);
+			}
+			return { action: "handled" };
+		}
+
 		const visionModel = findVisionModelForPref(ctx, existingPref);
 		const decision = await showRoutingPrompt(
 			ctx,
