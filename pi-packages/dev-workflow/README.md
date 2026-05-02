@@ -50,6 +50,112 @@ package project-locally as a developer.
 | `/workflow:reviewer` | `workflow.reviewer` | `reviewer` | Independent review with forked context |
 | `/workflow:parallel` | `workflow.parallel` | 3× `reviewer` | Parallel reviews (correctness, tests, complexity) |
 
+### Default cmux behavior for subagent-style workflow commands
+
+When Pi is running **inside cmux**, these subagent-style commands default to a
+**fresh split pane** with a seeded child session when they are run directly from
+an **idle** parent session:
+
+- `/workflow:scout`
+- `/workflow:oracle`
+- `/workflow:reviewer`
+- `/workflow:parallel`
+
+Why:
+
+- reduce developer overhead — no extra `omp-*` command to remember
+- keep the parent workflow lane uncluttered
+- preserve a focused adjacent lane for review / recon work
+
+Mental model:
+
+```text
+/workflow:reviewer
+  ├─ inside cmux + idle parent session -> open seeded split -> run reviewer prompt there
+  └─ otherwise                         -> run inline in current session
+```
+
+Queued / follow-up flows keep their normal current-session behavior instead of
+unexpectedly opening a split later.
+
+If the split launch fails for any reason, the command falls back inline instead
+of failing outright.
+
+If `pi-subagents` is installed, the child session can still use the `subagent`
+tool from inside that split. So cmux handles **surface separation**, while
+`pi-subagents` still handles **agent isolation**.
+
+### What gets seeded into the child lane
+
+The new split is not a blank Pi session.
+
+It starts with a small, focused handoff message that includes:
+
+- the same working directory
+- the current git branch
+- a short `git status --short` snapshot
+- a small recent conversation snapshot from the parent workflow lane
+- any extra text you passed to the workflow command
+- the parent session's selected model when available
+
+Mental model:
+
+```text
+Parent workflow lane
+  ├─ /workflow:reviewer focus on API error handling
+  └─ New cmux split
+       ├─ same repo + cwd
+       ├─ seeded child session on disk
+       ├─ recent parent context
+       └─ reviewer prompt runs there
+```
+
+### Why this logic lives inside dev-workflow
+
+You might reasonably ask:
+
+> "Why not force users to run an explicit `/omp-*` command first?"
+
+Because that adds memory burden.
+
+The goal here is:
+
+```text
+I want review / recon help
+  -> run /workflow:reviewer
+  -> get the right lane automatically when cmux can help
+```
+
+`oh-my-pi` is still the **explicit user-facing cmux command surface** for people
+who want manual control.
+
+`dev-workflow` duplicates a tiny amount of cmux-launch logic on purpose so it:
+
+- works even when installed by itself
+- does not require users to remember a second command
+- keeps the common workflow as one obvious action
+
+### Examples
+
+```text
+/workflow:reviewer
+/workflow:reviewer focus on API error handling
+/workflow:oracle is this migration rollout safe?
+/workflow:parallel only review backend changes
+```
+
+Force inline behavior even inside cmux:
+
+```bash
+PI_WORKFLOW_CMUX_MODE=inline pi --no-extensions -e ./pi-packages/dev-workflow
+```
+
+Prefer a down split instead of a right split:
+
+```bash
+PI_WORKFLOW_CMUX_SPLIT_DIRECTION=down pi --no-extensions -e ./pi-packages/dev-workflow
+```
+
 ### Navigation and prompt registry
 | Command / Shortcut | Does |
 |---|---|
@@ -151,7 +257,7 @@ settings:
 
 ```bash
 # From the agent-skills-marketplace repo root
-pi -e ./pi-packages/dev-workflow
+pi --no-extensions -e ./pi-packages/dev-workflow
 ```
 
 Use a project-local install only when you need to test `.pi/settings.json`,
@@ -181,6 +287,15 @@ After changing commands, tools, shortcuts, prompt inventory, skills, chain
 files, or package resources, update this README plus the top-level `README.md`,
 `docs/runbooks/distribution.md`, and `docs/plugins/catalog.md`.
 
+## Configuration
+
+Optional environment variables:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PI_WORKFLOW_CMUX_MODE` | `auto` | `auto` = subagent-style workflow commands prefer a seeded cmux split when available; `inline` = always stay in the current session |
+| `PI_WORKFLOW_CMUX_SPLIT_DIRECTION` | `right` | Split direction for subagent-style workflow commands: `right` or `down` |
+
 ## Requirements
 
 - pi >= 1.0.0
@@ -194,4 +309,4 @@ files, or package resources, update this README plus the top-level `README.md`,
   `ci-status` both globally and from a different project-local path; duplicated
   CI tools can conflict.
 
-Subagent commands require [pi-subagents](https://github.com/nicobailon/pi-subagents) for true agent isolation; they fall back to inline execution without it. CI prompts prefer the `ci-status` package when installed and only fall back to `get_ci_status` / `ci_fetch_job_logs` when the current harness exposes those tools.
+Subagent commands can use [pi-subagents](https://github.com/nicobailon/pi-subagents) for true agent isolation. When Pi is inside cmux, the default workflow behavior is to open a seeded split for subagent-style prompts; inside that split, the prompt still asks the AI to use the `subagent` tool when available and to fall back gracefully when it is not. CI prompts prefer the `ci-status` package when installed and only fall back to `get_ci_status` / `ci_fetch_job_logs` when the current harness exposes those tools.

@@ -26,13 +26,14 @@ before `/reload`.
 
 ## Contributing And Local Testing
 
-Use `-e` for one-off extension testing while actively editing this package. It
-loads the package for the current Pi run without changing global or project
-settings:
+Use `--no-extensions -e` for one-off extension testing while actively editing
+this package from the repo root. That loads only this package for the current
+Pi run without changing global or project settings, and avoids loading a second
+copy from the root marketplace manifest:
 
 ```bash
 # From the agent-skills-marketplace repo root
-pi -e ./pi-packages/ci-status
+pi --no-extensions -e ./pi-packages/ci-status
 ```
 
 Use a project-local install only when you need to test `.pi/settings.json`,

@@ -85,7 +85,9 @@ agent-skills-marketplace/
 │   └── marketplace.json               # Marketplace definition
 ├── pi-packages/
 │   ├── ci-status/                     # Pi-native CI status extension
-│   └── dev-workflow/                  # Pi-native daily developer workflow extension + skills
+│   ├── dev-workflow/                  # Pi-native daily developer workflow extension + skills
+│   ├── oh-my-pi/                      # Pi-native cmux integration (notifications, split panes, workspace tabs)
+│   └── skills-bridge/                 # Pi-native bridge to Claude Code plugin skills
 ├── plugins/
 │   ├── monty-code-review/             # Monty backend code review plugin
 │   │   ├── .claude-plugin/plugin.json
@@ -276,7 +278,7 @@ agent-skills-marketplace/
 
 ## Available Pi Packages
 
-All three packages are installable together from one git URL (recommended) or
+All four packages are installable together from one git URL (recommended) or
 individually from a local checkout. The root `package.json` declares every
 sub-package so pi can discover them from a single clone — see
 [Git-based install](#git-based-install-recommended) for the one-liner.
@@ -284,8 +286,39 @@ sub-package so pi can discover them from a single clone — see
 | Package | Description |
 |---------|-------------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
-| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain |
+| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
+| `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Zero runtime deps, works only inside cmux |
 | `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+
+Helpful mental model:
+
+```text
+oh-my-pi      -> explicit cmux commands you can run yourself
+              -> /omp-split-*, /omp-workspace*
+
+dev-workflow  -> automatic cmux use when the workflow clearly benefits
+              -> /workflow:scout, /workflow:oracle, /workflow:reviewer, /workflow:parallel
+```
+
+## Marketplace update notifications
+
+Pushes to `main` that change marketplace-delivered artifacts now post one Slack
+message from this repo's own GitHub Actions workflow.
+
+Why this exists:
+
+- plugin updates and Pi package updates both matter to engineers
+- Pi updates should not be hidden inside plugin-only notifications
+- product-release Slack is the wrong layer for marketplace-local Pi changes
+
+Mental model:
+
+```text
+push to main
+  ├─ changed plugins?     -> Plugin items section
+  ├─ changed pi-packages? -> Pi items section
+  └─ one compact Slack post in #ask-tech-team
+```
 
 ## Installation
 
@@ -316,7 +349,7 @@ of the Claude Code marketplace.
 #### Git-based install (recommended)
 
 A root `package.json` at the top of this repo declares every sub-package so pi
-can discover `ci-status`, `dev-workflow`, and `skills-bridge` from one clone:
+can discover `ci-status`, `dev-workflow`, `oh-my-pi`, and `skills-bridge` from one clone:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -352,13 +385,14 @@ local change before pushing:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/oh-my-pi"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
 
-Plain `pi install` writes to global user settings. Use `pi -e ./pi-packages/<package>`
-for one-off extension testing without changing settings. Use `pi install -l`
-only when you need to test project-local install, reload, or persistence
-behavior.
+Plain `pi install` writes to global user settings. Use `pi --no-extensions -e ./pi-packages/<package>`
+for one-off extension testing from the repo root without loading a duplicate copy
+from the root marketplace manifest. Use `pi install -l` only when you need to
+test project-local install, reload, or persistence behavior.
 
 Install each pi package in one scope at a time. If `ci-status` is installed
 globally and also from a different project-local path, Pi can load both copies
@@ -366,9 +400,9 @@ and duplicate `get_ci_status` / `ci_fetch_job_logs` tool registration. Remove
 the duplicate project package entry from `.pi/settings.json` or uninstall the
 global copy before reloading.
 
-Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`
-and `pi-packages/dev-workflow/README.md` for command inventory, contribution
-workflow, and local testing commands.
+Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`,
+`pi-packages/dev-workflow/README.md`, and `pi-packages/oh-my-pi/README.md` for
+command inventory, contribution workflow, and local testing commands.
 
 ### Monolith Review Orchestrator
 
@@ -505,6 +539,12 @@ Once plugins are installed:
    /frontend:review                        # Review a frontend PR using the repo-local digest and Bumang-style priorities
    /frontend:commit                        # Create a digest-aware atomic frontend commit with quality gates
    /frontend:new-branch                    # Create a frontend branch using the repo's detected branch model
+   /omp-split-right                          # Recommended default: open new right-side cmux split → fresh Pi session
+   /omp-split-right-command <cmd>            # Recommended default: open new right-side cmux split → shell command
+   /omp-split-down                           # Recommended default: open new down-side cmux split → fresh Pi session
+   /omp-split-down-command <cmd>             # Recommended default: open new down-side cmux split → shell command
+   /omp-workspace [--name <title>] [prompt]  # Stronger isolation: open new cmux workspace tab → fresh Pi session (focus-switching)
+   /omp-workspace-command [--name <title>] <cmd> # Stronger isolation: open new cmux workspace tab → shell command (focus-switching)
    ```
 
 ## Monty Review Memory

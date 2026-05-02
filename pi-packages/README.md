@@ -7,7 +7,8 @@ Pi-native packages that extend pi with tools, commands, skills, and UI widgets.
 | Package | What it gives you |
 |---------|-------------------|
 | [`ci-status`](./ci-status) | `/ci`, `/ci-detail`, `/ci-logs` commands, CI auto-watch after pushes, status-line widget, GitHub Actions + CircleCI support, and `get_ci_status` / `ci_fetch_job_logs` LLM tools |
-| [`dev-workflow`](./dev-workflow) | 15 core workflow prompts (`/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`), CI analysis, PR review feedback, release PR prep, local skills, and optional pi-subagents chain |
+| [`dev-workflow`](./dev-workflow) | 15 core workflow prompts (`/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`), CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and seeded cmux split launching for subagent-style prompts |
+| [`oh-my-pi`](./oh-my-pi) | Pi-native cmux integration with notifications, readable split commands, and workspace tabs |
 | [`skills-bridge`](./skills-bridge) | Auto-discovers all 21 Claude Code plugin skills from `plugins/*/skills/` and registers them as pi skills — one install bridges the entire plugin ecosystem into pi |
 
 ## Install
@@ -19,7 +20,7 @@ pi install git:github.com/DiversioTeam/agent-skills-marketplace
 ```
 
 The root `package.json` at the top of this repo tells pi where to find every
-package, so one clone discovers all three. Run `/reload` after installing.
+package, so one clone discovers all four. Run `/reload` after installing.
 
 To pull the latest updates later:
 
@@ -38,10 +39,13 @@ From a checkout of this repo:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/oh-my-pi"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
 
-Use `pi -e ./pi-packages/<pkg>` to test a package without writing to settings.
+Use `pi --no-extensions -e ./pi-packages/<pkg>` to test a package from the repo
+root without writing to settings or loading a duplicate copy from the root
+marketplace manifest.
 
 ### Duplicate warning
 
@@ -65,6 +69,10 @@ pi-packages/
 │   ├── extensions/
 │   ├── skills/
 │   └── agents/
+├── oh-my-pi/
+│   ├── package.json
+│   ├── README.md
+│   └── extensions/
 └── skills-bridge/
     ├── package.json
     ├── README.md
@@ -82,7 +90,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full guide. Key rules:
 - Keep each package's `package.json`, `README.md`, and version in sync.
 - **When adding or removing a package**, update the root `package.json`
   `pi.extensions` and `pi.skills` arrays so the git-based install stays accurate.
-- Use `pi -e ./pi-packages/<pkg>` for local smoke tests.
+- Use `pi --no-extensions -e ./pi-packages/<pkg>` for local smoke tests from the repo root.
 - Bump the package version when publishing an update.
 
 ## More

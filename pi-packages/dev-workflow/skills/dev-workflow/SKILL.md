@@ -153,7 +153,21 @@ When [pi-subagents](https://github.com/nicobailon/pi-subagents) is installed, th
 | `/workflow:reviewer` | `reviewer` | Independent review with forked context (correctness, edge cases, tests, simplicity) |
 | `/workflow:parallel` | 3× `reviewer` | Three parallel reviewers (correctness, tests, complexity) → synthesized fixes |
 
-All subagent commands fall back to inline execution if pi-subagents is not installed. The prompts guide the AI to use the subagent tool when available.
+When Pi is running inside cmux, subagent-style workflow commands default to opening a **seeded split pane** when they are run directly from an **idle** parent session, so the review / recon lane gets its own adjacent surface without the engineer having to remember a separate cmux command.
+
+Mental model:
+
+```text
+/workflow:reviewer
+  ├─ inside cmux + idle parent session -> open seeded split -> run reviewer prompt there
+  └─ otherwise                         -> run inline in current session
+```
+
+Queued / follow-up flows keep their normal current-session behavior instead of unexpectedly opening a split later.
+
+The seeded child session carries a small handoff: same cwd, current branch, short git status, a recent parent-session conversation snapshot, and any extra command text.
+
+Inside that child session, the prompt still guides the AI to use the `subagent` tool when available. If `pi-subagents` is not installed, it falls back gracefully to inline analysis / review logic in that lane.
 
 ### Reusable Chains
 

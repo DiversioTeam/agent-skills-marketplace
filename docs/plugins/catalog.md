@@ -25,7 +25,9 @@ when command files change.
   - Purpose: pi-native daily developer workflow with TypeScript extension
     commands, stable workflow prompt codes, XDG/project prompt config,
     interactive TUI help panel, CI analysis, PR review feedback handling,
-    release PR prep prompts, local skills, and optional pi-subagents chain.
+    release PR prep prompts, local skills, optional pi-subagents chain, and
+    default seeded cmux split launching for subagent-style workflow prompts when
+    Pi runs inside cmux.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/dev-workflow"`
   - Package path: `pi-packages/dev-workflow`
@@ -52,9 +54,46 @@ when command files change.
     `app.message.followUp` keybinding (default `Alt+Enter`, often
     `Option+Enter` on macOS) to queue the selected prompt or edited prompt as a
     follow-up while pi is streaming.
+  - cmux behavior: `/workflow:scout`, `/workflow:oracle`,
+    `/workflow:reviewer`, and `/workflow:parallel` default to a seeded cmux
+    split when Pi is inside cmux and the parent session is idle; otherwise they
+    stay inline. `PI_WORKFLOW_CMUX_MODE=inline` disables this and
+    `PI_WORKFLOW_CMUX_SPLIT_DIRECTION=down` changes split direction.
+  - One-off local test from repo root:
+    `pi --no-extensions -e ./pi-packages/dev-workflow`
   - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /
     `ci_fetch_job_logs` only when the current harness exposes those tools.
+- `oh-my-pi` (pi package)
+  - Purpose: Pi-native cmux integration with native notifications, readable
+    split-pane commands, and workspace-tab commands.
+  - Pi install from repo checkout: `pi install "$PWD/pi-packages/oh-my-pi"`
+  - Package path: `pi-packages/oh-my-pi`
+  - Extension path: `pi-packages/oh-my-pi/extensions/oh-my-pi`
+  - Canonical slash commands: `/omp-split-right`,
+    `/omp-split-right-command`, `/omp-split-down`,
+    `/omp-split-down-command`, `/omp-workspace`,
+    `/omp-workspace-command`
+  - Short aliases: `/ompv`, `/ompr`, `/omph`, `/omphr`, `/ompw`, `/ompwr`
+  - Recommendation: prefer split-pane commands by default; use workspace tabs
+    for stronger isolation or named long-lived lanes.
+  - Launch behavior: split/workspace commands restore the current Pi session's
+    PATH before running shell commands; fresh Pi lanes launch through the same
+    underlying Node/Pi install as the current session so panes do not die from
+    `command not found: pi` in stripped respawn environments. Mental model:
+    Pi split commands open adjacent AI lanes; shell split commands open adjacent
+    terminal-program lanes. Short successful shell commands still exit when
+    done; long-running or interactive commands are the best fit for persistent
+    helper lanes. `PI_CLI_PATH` can override the spawned Pi launcher when
+    needed.
+  - Relationship to `dev-workflow`: `oh-my-pi` is the explicit user-facing cmux
+    command surface, while `dev-workflow` uses a small amount of direct cmux
+    logic for automatic seeded split launching on subagent-style workflow
+    prompts.
+  - Environment: `PI_CMUX_NOTIFY_LEVEL`, `PI_CMUX_NOTIFY_THRESHOLD_MS`,
+    `PI_CMUX_NOTIFY_DEBOUNCE_MS`, `PI_CMUX_NOTIFY_TITLE`
+  - One-off local test from repo root:
+    `pi --no-extensions -e ./pi-packages/oh-my-pi`
 - `skills-bridge` (pi package)
   - Purpose: auto-discovers Claude Code plugin skills from
     `plugins/*/skills/` directories and registers them as pi
