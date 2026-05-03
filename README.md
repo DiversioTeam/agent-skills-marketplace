@@ -287,17 +287,24 @@ sub-package so pi can discover them from a single clone — see
 |---------|-------------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
 | `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
-| `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Zero runtime deps, works only inside cmux |
+| `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversioteam/pi-cmux`. Works only inside cmux |
 | `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
 ```text
-oh-my-pi      -> explicit cmux commands you can run yourself
-              -> /omp-split-*, /omp-workspace*
+@diversioteam/pi-cmux
+  -> shared low-level cmux primitives
+  -> split/workspace launch mechanics, command building, notifications
 
-dev-workflow  -> automatic cmux use when the workflow clearly benefits
-              -> /workflow:scout, /workflow:oracle, /workflow:reviewer, /workflow:parallel
+oh-my-pi
+  -> explicit cmux commands you can run yourself
+  -> /omp-split-*, /omp-workspace*
+
+dev-workflow
+  -> workflow UX + seeded session/context behavior
+  -> automatic cmux use when the workflow clearly benefits
+  -> /workflow:scout, /workflow:oracle, /workflow:reviewer, /workflow:parallel
 ```
 
 ## Marketplace update notifications

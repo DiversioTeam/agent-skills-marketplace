@@ -87,9 +87,11 @@ when command files change.
     helper lanes. `PI_CLI_PATH` can override the spawned Pi launcher when
     needed.
   - Relationship to `dev-workflow`: `oh-my-pi` is the explicit user-facing cmux
-    command surface, while `dev-workflow` uses a small amount of direct cmux
-    logic for automatic seeded split launching on subagent-style workflow
-    prompts.
+    command surface, while `dev-workflow` builds workflow-specific seeded child
+    sessions and launches them through the same `@diversioteam/pi-cmux` shared
+    primitives. The low-level cmux mechanics (shell hardening, split/workspace
+    creation, notifications) live in `@diversioteam/pi-cmux` and are not
+    duplicated across packages.
   - Environment: `PI_CMUX_NOTIFY_LEVEL`, `PI_CMUX_NOTIFY_THRESHOLD_MS`,
     `PI_CMUX_NOTIFY_DEBOUNCE_MS`, `PI_CMUX_NOTIFY_TITLE`
   - One-off local test from repo root:

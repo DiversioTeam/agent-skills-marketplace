@@ -8,6 +8,9 @@ on:
       - "pi-packages/**"
       - "scripts/**"
       - ".github/workflows/validate-marketplace.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".npmrc"
   push:
     branches: [main]
     paths:
@@ -16,6 +19,9 @@ on:
       - "pi-packages/**"
       - "scripts/**"
       - ".github/workflows/validate-marketplace.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".npmrc"
 
 permissions:
   contents: read
