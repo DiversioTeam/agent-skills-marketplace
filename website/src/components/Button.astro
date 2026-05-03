@@ -1,0 +1,25 @@
+---
+// Button.astro — Button wrapper using site-wide .btn classes from global.css
+export interface Props {
+  variant?: "primary" | "secondary" | "ghost";
+  href?: string;
+  size?: "sm" | "md";
+  class?: string;
+}
+
+const {
+  variant = "primary",
+  href,
+  size = "md",
+  class: extraClass = "",
+} = Astro.props;
+
+const baseClass = `btn btn-${variant} btn-${size} ${extraClass}`.trim();
+const Tag = href ? "a" : "button";
+---
+<Tag
+  {...(href ? { href } : {})}
+  class={baseClass}
+>
+  <slot />
+</Tag>

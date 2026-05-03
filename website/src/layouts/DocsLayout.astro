@@ -1,0 +1,335 @@
+---
+// DocsLayout.astro — Documentation layout: header + sidebar + content + metadata pane + footer
+import BaseLayout from "./BaseLayout.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+export interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  socialTitle?: string;
+  socialDescription?: string;
+  socialImageAlt?: string;
+  socialType?: "website" | "article";
+  ogImageWidth?: number;
+  ogImageHeight?: number;
+  /** Package name, e.g. @diversio/filesystem-skill */
+  packageName?: string;
+  /** Package version */
+  packageVersion?: string;
+  /** Sidebar navigation items */
+  sidebarItems?: { label: string; href: string; active?: boolean; children?: { label: string; href: string }[] }[];
+  /** Metadata to show in right pane */
+  metadata?: { label: string; value: string; href?: string; mono?: boolean }[];
+  /** Maintainers */
+  maintainers?: { name: string; role: string; avatar?: string }[];
+}
+
+const {
+  title,
+  description,
+  ogImage,
+  socialTitle,
+  socialDescription,
+  socialImageAlt,
+  socialType,
+  ogImageWidth,
+  ogImageHeight,
+  packageName,
+  packageVersion,
+  sidebarItems = [],
+  metadata = [],
+  maintainers = [],
+} = Astro.props;
+---
+<BaseLayout
+  {title}
+  {description}
+  {ogImage}
+  {socialTitle}
+  {socialDescription}
+  {socialImageAlt}
+  {socialType}
+  {ogImageWidth}
+  {ogImageHeight}
+>
+  <Header currentNav="docs" />
+  <div class="docs-layout">
+    <!-- Left Sidebar -->
+    <aside class="docs-sidebar">
+      {packageName && (
+        <div class="sidebar-package">
+          <div class="label-caps" style="color: var(--color-text-secondary); margin-bottom: var(--space-xs);">PACKAGE</div>
+          <div class="code-text" style="color: var(--color-primary); font-weight: 500;">{packageName}</div>
+          {packageVersion && (
+            <div class="body-md" style="color: var(--color-text-muted); margin-top: var(--space-2xs);">{packageVersion}</div>
+          )}
+        </div>
+      )}
+      <nav class="sidebar-nav">
+        {sidebarItems.length > 0 && (
+          <>
+            <div class="label-caps sidebar-nav-heading">CONTENTS</div>
+            <ul class="sidebar-nav-list">
+              {sidebarItems.map((item) => (
+                <li>
+                  <a
+                    href={item.href}
+                    class={`sidebar-nav-link${item.active ? " sidebar-nav-link--active" : ""}`}
+                  >
+                    {item.label}
+                  </a>
+                  {item.children && item.children.length > 0 && (
+                    <ul class="sidebar-nav-sublist">
+                      {item.children.map((child) => (
+                        <li>
+                          <a href={child.href} class="sidebar-nav-sublink">
+                            {child.label}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <article class="docs-content">
+      <slot />
+    </article>
+
+    <!-- Right Metadata Pane -->
+    {(metadata.length > 0 || maintainers.length > 0) && (
+      <aside class="docs-meta">
+        {metadata.length > 0 && (
+          <div class="meta-section">
+            <h4 class="label-caps meta-heading">METADATA</h4>
+            <dl class="meta-list">
+              {metadata.map((m) => (
+                <div class="meta-item">
+                  <dt class="meta-label">{m.label}</dt>
+                  <dd class={`meta-value ${m.mono ? "code-text-sm" : "body-md"}`}>
+                    {m.href ? <a href={m.href}>{m.value}</a> : m.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+        {maintainers.length > 0 && (
+          <div class="meta-section">
+            <h4 class="label-caps meta-heading">MAINTAINERS</h4>
+            <div class="maintainer-list">
+              {maintainers.map((m) => (
+                <div class="maintainer-item">
+                  <div class="maintainer-avatar" aria-hidden="true">
+                    {m.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div class="body-md" style="font-weight: 500;">{m.name}</div>
+                    <div class="code-text-sm" style="color: var(--color-text-muted);">{m.role}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </aside>
+    )}
+  </div>
+  <Footer />
+</BaseLayout>
+
+<style>
+  .docs-layout {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) 1fr 18rem;
+    max-width: var(--max-width);
+    margin: 0 auto;
+    min-height: calc(100vh - var(--header-height));
+    position: relative;
+  }
+
+  .docs-sidebar {
+    position: sticky;
+    top: var(--header-height);
+    height: calc(100vh - var(--header-height));
+    overflow-y: auto;
+    border-right: var(--border-hairline);
+    background: var(--color-surface);
+    padding: var(--space-lg) 0;
+  }
+
+  .sidebar-package {
+    padding: 0 var(--space-lg) var(--space-lg);
+    border-bottom: var(--border-hairline);
+    margin-bottom: var(--space-md);
+  }
+
+  .sidebar-nav {
+    padding: 0;
+  }
+
+  .sidebar-nav-heading {
+    color: var(--color-text-secondary);
+    padding: 0 var(--space-lg) var(--space-xs);
+  }
+
+  .sidebar-nav-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .sidebar-nav-link {
+    display: block;
+    padding: var(--space-xs) var(--space-lg);
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body-sm);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: background var(--transition-fast), color var(--transition-fast);
+    border-right: 2px solid transparent;
+  }
+
+  .sidebar-nav-link:hover {
+    background: var(--color-surface-low);
+    color: var(--color-text);
+  }
+
+  .sidebar-nav-link--active {
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+    border-right-color: var(--color-primary);
+    font-weight: 500;
+  }
+
+  .sidebar-nav-sublist {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-xs) var(--space-lg);
+    border-left: var(--border-hairline);
+  }
+
+  .sidebar-nav-sublink {
+    display: block;
+    padding: var(--space-2xs) var(--space-md);
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+
+  .sidebar-nav-sublink:hover {
+    color: var(--color-primary);
+  }
+
+  .docs-content {
+    padding: var(--space-2xl) var(--space-2xl);
+    max-width: 48rem;
+    min-width: 0;
+  }
+
+  .docs-meta {
+    position: sticky;
+    top: var(--header-height);
+    height: calc(100vh - var(--header-height));
+    overflow-y: auto;
+    border-left: var(--border-hairline);
+    background: var(--color-surface);
+    padding: var(--space-xl);
+  }
+
+  .meta-section {
+    margin-bottom: var(--space-xl);
+  }
+
+  .meta-heading {
+    color: var(--color-text-secondary);
+    border-bottom: var(--border-hairline);
+    padding-bottom: var(--space-xs);
+    margin-bottom: var(--space-md);
+  }
+
+  .meta-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+  }
+
+  .meta-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+
+  .meta-value {
+    color: var(--color-text);
+  }
+
+  .meta-value a {
+    color: var(--color-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+
+  .maintainer-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .maintainer-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .maintainer-avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    font-weight: 700;
+    border: var(--border-hairline);
+    flex-shrink: 0;
+  }
+
+  /* Responsive: collapse sidebars on smaller screens */
+  @media (max-width: 1280px) {
+    .docs-layout {
+      grid-template-columns: var(--sidebar-width) 1fr;
+    }
+    .docs-meta {
+      display: none;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .docs-layout {
+      grid-template-columns: 1fr;
+    }
+    .docs-sidebar {
+      display: none;
+    }
+  }
+</style>

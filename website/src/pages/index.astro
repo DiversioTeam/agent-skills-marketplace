@@ -1,0 +1,354 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import Hero from "../components/Hero.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import Card from "../components/Card.astro";
+import CardGrid from "../components/CardGrid.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import RuntimeCodeTabs from "../components/RuntimeCodeTabs.astro";
+import { plugins, piPackages } from "../data/marketplace.json";
+
+const featured = plugins.filter((p) =>
+  ["monty-code-review", "backend-atomic-commit", "backend-release",
+   "visual-explainer", "plan-directory", "clickup-ticket"].includes(p.name)
+);
+const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
+const categories = [...new Set(plugins.map((p) => p.category))];
+
+// Code strings computed in frontmatter to avoid template literal escaping issues
+const claudePluginInstallCode = `claude plugin marketplace add DiversioTeam/agent-skills-marketplace
+claude plugin install monty-code-review@diversiotech`;
+
+const codexPluginInstallCode = `CODEX_HOME="\${CODEX_HOME:-$HOME/.codex}"
+python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \\
+  --repo DiversioTeam/agent-skills-marketplace \\
+  --path plugins/monty-code-review/skills/monty-code-review`;
+
+const claudeInvokeCode = `/monty-code-review:code-review
+/backend-atomic-commit:commit`;
+
+const codexInvokeCode = `name: monty-code-review
+name: backend-atomic-commit`;
+---
+
+<PageLayout
+  title="Agent Skills Marketplace"
+  description={`A configuration-only registry of reusable agent skills. ${plugins.length} plugins, ${piPackages.length} pi packages, ${totalSkills} skills. Portable across Claude Code, Codex, and Pi.`}
+>
+  <Hero />
+
+  <!-- What is this? -->
+  <section class="page-section">
+    <SectionHeader
+      label="The Marketplace"
+      title="Skills, Plugins, and Pi Packages"
+      description="Three layers. Each with a distinct role in the agent ecosystem."
+    />
+    <div class="layers-grid">
+      <div class="layer-card layer-skills">
+        <div class="layer-card-header">
+          <span class="label-caps">Layer 1</span>
+          <span class="code-text-sm" style="color: var(--color-text-muted)">{totalSkills} skills</span>
+        </div>
+        <div class="layer-card-body">
+          <h3 class="headline-sm">Skills</h3>
+          <p class="body-md">The atomic unit. Each skill is a single <code>SKILL.md</code> — a Markdown file with YAML frontmatter. No compiled code, no runtime. Teaches an agent how to do one specific task well.</p>
+          <div class="layer-example">
+            <CodeBlock
+              lang="yaml"
+              filename="monty-code-review/SKILL.md"
+              code={`---
+name: monty-code-review
+description: >-
+  Hyper-pedantic Django code review with
+  correctness-first, multi-tenant-safe,
+  harness-aware review style.
+---`}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="layer-card layer-plugins">
+        <div class="layer-card-header">
+          <span class="label-caps">Layer 2</span>
+          <span class="code-text-sm" style="color: var(--color-text-muted)">{plugins.length} plugins</span>
+        </div>
+        <div class="layer-card-body">
+          <h3 class="headline-sm">Plugins</h3>
+          <p class="body-md">The distribution bundle. Each plugin packages one or more related skills with slash-command wrappers. Installed via <code>claude plugin install &lt;name&gt;@diversiotech</code> in Claude Code. Codex users install individual skill directories from the repo.</p>
+          <div class="layer-example">
+            <RuntimeCodeTabs
+              tabs={[
+                { label: "Claude Code", code: claudePluginInstallCode },
+                { label: "Codex", code: codexPluginInstallCode },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="layer-card layer-pi">
+        <div class="layer-card-header">
+          <span class="label-caps">Layer 3</span>
+          <span class="code-text-sm" style="color: var(--color-text-muted)">{piPackages.length} packages</span>
+        </div>
+        <div class="layer-card-body">
+          <h3 class="headline-sm">Pi Packages</h3>
+          <p class="body-md">Extensions for the <a href="https://pi.dev">Pi</a> coding agent harness. Not skills — these are code packages that add tools, TUI widgets, notifications, and runtime behavior to Pi itself. The Skills Bridge package auto-discovers plugin skills and registers them as Pi skills.</p>
+          <div class="layer-example">
+            <CodeBlock
+              lang="bash"
+              code={`pi install git:github.com/DiversioTeam/agent-skills-marketplace
+# installs all pi packages at once:
+# dev-workflow, skills-bridge, ci-status, oh-my-pi, image-router`}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured plugins -->
+  <section class="page-section">
+    <div class="catalog-header">
+      <SectionHeader
+        label="Registry"
+        title="Featured Plugins"
+        description={`${plugins.length} plugins across ${categories.join(", ")}.`}
+      />
+      <a href="/registry" class="catalog-view-all label-caps">View all {plugins.length} →</a>
+    </div>
+    <CardGrid cols={3}>
+      {featured.map((p) => (
+        <Card
+          category={p.category}
+          packageId={p.name}
+          title={p.title}
+          description={p.description}
+          version={p.version}
+          runtimes={["CC", "CODEX"]}
+          href={`/docs/${p.name}`}
+        />
+      ))}
+    </CardGrid>
+  </section>
+
+  <!-- Pi packages -->
+  <section class="page-section">
+    <SectionHeader
+      label="Pi Packages"
+      title="Pi-Native Extensions"
+      description={`${piPackages.length} packages that extend the Pi agent harness.`}
+    />
+    <CardGrid cols={3}>
+      {piPackages.map((p) => (
+        <Card
+          category="Pi Package"
+          packageId={p.name}
+          title={p.title}
+          description={p.description}
+          version={p.version}
+          href={`/pi/${p.name}`}
+        />
+      ))}
+    </CardGrid>
+  </section>
+
+  <!-- Quickstart -->
+  <section class="page-section">
+    <SectionHeader
+      label="Quickstart"
+      title="Install. Invoke. Ship."
+      description="Get a skill into your agent in under a minute."
+    />
+    <div class="quickstart-grid">
+      <div class="quickstart-step">
+        <span class="quickstart-num code-text">01</span>
+        <h3 class="headline-sm">Install the marketplace</h3>
+        <p class="body-md">Pick your runtime, then copy the install command that matches it.</p>
+        <RuntimeCodeTabs
+          tabs={[
+            { label: "Claude Code", code: claudePluginInstallCode },
+            { label: "Codex", code: codexPluginInstallCode },
+          ]}
+        />
+      </div>
+      <div class="quickstart-step">
+        <span class="quickstart-num code-text">02</span>
+        <h3 class="headline-sm">Invoke a skill</h3>
+        <p class="body-md">Switch between Claude Code and Codex so copy-to-clipboard gives you the right invocation.</p>
+        <RuntimeCodeTabs
+          tabs={[
+            { label: "Claude Code", code: claudeInvokeCode },
+            { label: "Codex", code: codexInvokeCode },
+          ]}
+        />
+      </div>
+      <div class="quickstart-step">
+        <span class="quickstart-num code-text">03</span>
+        <h3 class="headline-sm">Ship with confidence</h3>
+        <p class="body-md">Skills enforce repo-local conventions and pre-commit hooks. CI validates every change.</p>
+        <CodeBlock lang="bash" code={"/backend-pr-workflow:check-pr\n# branch → migration safety → PR hygiene"} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer CTA -->
+  <section class="page-section contribute-section">
+    <div class="contribute-card">
+      <h2 class="headline-md contribute-title">Built on the Agent Skills Standard</h2>
+      <p class="body-lg contribute-desc">
+        This marketplace follows the{" "}
+        <a href="https://agentskills.io/specification">Agent Skills standard</a>{" "}
+        — an open, tool-agnostic format. Every skill is a directory with a required{" "}
+        <code>SKILL.md</code>, optional <code>references/</code>, <code>scripts/</code>, and{" "}
+        <code>assets/</code>. Portable across Claude Code, Codex, and Pi.
+      </p>
+      <div class="contribute-actions">
+        <a href="https://github.com/DiversioTeam/agent-skills-marketplace" class="btn btn-primary btn-md" target="_blank" rel="noopener">
+          View on GitHub
+        </a>
+        <a href="/docs" class="btn btn-secondary btn-md">
+          Read the Docs
+        </a>
+      </div>
+    </div>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-margin);
+  }
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+  }
+
+  /* Three layers */
+  .layers-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+  }
+  @media (min-width: 1024px) {
+    .layers-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .layer-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    display: flex;
+    flex-direction: column;
+  }
+  .layer-skills { border-top: 3px solid var(--color-primary); }
+  .layer-plugins { border-top: 3px solid var(--color-primary); }
+  .layer-pi { border-top: 3px solid var(--color-accent); }
+
+  .layer-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface-low);
+    border-bottom: var(--border-hairline);
+  }
+  .layer-card-body {
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+  .layer-card-body h3 { margin: 0; }
+  .layer-card-body p { color: var(--color-text-secondary); margin: 0; }
+  .layer-card-body code {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    background: var(--color-surface-low);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+  }
+  .layer-example { margin-top: var(--space-sm); }
+  .layer-example .code-block { margin-bottom: 0; }
+
+  /* Catalog */
+  .catalog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: var(--space-xl);
+    flex-wrap: wrap;
+    gap: var(--space-md);
+  }
+  .catalog-view-all {
+    color: var(--color-primary);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .catalog-view-all:hover { text-decoration: underline; }
+
+  /* Quickstart */
+  .quickstart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+  }
+  @media (min-width: 768px) {
+    .quickstart-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .quickstart-step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+  .quickstart-num {
+    font-size: var(--text-headline-lg);
+    font-weight: 700;
+    color: var(--color-primary-container);
+    line-height: 1;
+  }
+  .quickstart-step p { color: var(--color-text-secondary); }
+  .quickstart-step .code-block { margin-top: auto; }
+
+  /* Contribute */
+  .contribute-section { border-top: var(--border-hairline); }
+  .contribute-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-2xl);
+    box-shadow: var(--shadow-block);
+    text-align: center;
+  }
+  .contribute-title { margin-bottom: var(--space-md); }
+  .contribute-desc {
+    color: var(--color-text-secondary);
+    max-width: 36rem;
+    margin: 0 auto var(--space-xl);
+  }
+  .contribute-desc code {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    background: var(--color-surface-low);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+  }
+  .contribute-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .page-section {
+      padding: var(--space-2xl) var(--space-md);
+    }
+  }
+</style>

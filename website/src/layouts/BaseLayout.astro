@@ -1,0 +1,98 @@
+---
+// BaseLayout.astro — Root wrapper with fonts, metadata, global CSS.
+//
+// Social-sharing first principles:
+// - every page should have a stable canonical URL
+// - every page should expose a readable title + description
+// - every page should resolve to an absolute social image URL
+// - the same metadata should work across Open Graph consumers like Slack,
+//   Facebook, LinkedIn, and iMessage, while also covering X/Twitter cards
+import "../styles/global.css";
+
+export interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  socialTitle?: string;
+  socialDescription?: string;
+  socialImageAlt?: string;
+  socialType?: "website" | "article";
+  ogImageWidth?: number;
+  ogImageHeight?: number;
+}
+
+const siteName = "Agent Skills Marketplace";
+const {
+  title,
+  description = "Reusable agent skills from Diversio for Claude Code, Codex, and Pi.",
+  ogImage = "/og-default.png",
+  socialTitle,
+  socialDescription,
+  socialImageAlt,
+  socialType = "website",
+  ogImageWidth = 1200,
+  ogImageHeight = 630,
+} = Astro.props;
+
+const fullTitle = title === siteName ? siteName : `${title} — ${siteName}`;
+const resolvedDescription = socialDescription ?? description;
+const resolvedSocialTitle = socialTitle ?? fullTitle;
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href;
+const ogImageUrl = new URL(ogImage, Astro.site).href;
+const resolvedSocialImageAlt = socialImageAlt ?? `${resolvedSocialTitle} social preview`;
+const ogImageType = ogImage.endsWith(".png")
+  ? "image/png"
+  : ogImage.endsWith(".svg")
+    ? "image/svg+xml"
+    : undefined;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{fullTitle}</title>
+  <meta name="description" content={description} />
+  <meta name="theme-color" content="#5B34E9" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content={resolvedSocialTitle} />
+  <meta property="og:description" content={resolvedDescription} />
+  <meta property="og:type" content={socialType} />
+  <meta property="og:site_name" content={siteName} />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:image" content={ogImageUrl} />
+  <meta property="og:image:secure_url" content={ogImageUrl} />
+  {ogImageType && <meta property="og:image:type" content={ogImageType} />}
+  <meta property="og:image:width" content={String(ogImageWidth)} />
+  <meta property="og:image:height" content={String(ogImageHeight)} />
+  <meta property="og:image:alt" content={resolvedSocialImageAlt} />
+
+  <!-- X / Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={resolvedSocialTitle} />
+  <meta name="twitter:description" content={resolvedDescription} />
+  <meta name="twitter:image" content={ogImageUrl} />
+  <meta name="twitter:image:alt" content={resolvedSocialImageAlt} />
+
+  <!-- Canonical -->
+  <link rel="canonical" href={canonicalUrl} />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- Preconnect to Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Fonts: Plus Jakarta Sans (headlines), Inter (body), JetBrains Mono (code) -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <slot />
+</body>
+</html>

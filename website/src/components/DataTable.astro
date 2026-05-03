@@ -1,0 +1,77 @@
+---
+// DataTable.astro — High-density data table with 1px borders
+export interface Props {
+  columns: { key: string; label: string; mono?: boolean }[];
+  rows: Record<string, string>[];
+  class?: string;
+}
+
+const { columns, rows } = Astro.props;
+---
+<div class="data-table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        {columns.map((col) => (
+          <th class={`data-table-th ${col.mono ? "data-table-mono" : ""}`}>{col.label}</th>
+        ))}
+      </tr>
+    </thead>
+    <tbody>
+      {rows.map((row) => (
+        <tr>
+          {columns.map((col) => (
+            <td class={`data-table-td ${col.mono ? "data-table-mono" : ""}`}>
+              {row[col.key]}
+            </td>
+          ))}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .data-table-wrapper {
+    overflow-x: auto;
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body-sm);
+  }
+
+  .data-table-th {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    font-family: var(--font-body);
+    font-size: var(--text-label);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    background: var(--color-surface-low);
+    border-bottom: var(--border-hairline);
+  }
+
+  .data-table-td {
+    padding: var(--space-sm) var(--space-md);
+    color: var(--color-text);
+    border-bottom: var(--border-hairline);
+  }
+
+  .data-table tr:last-child .data-table-td {
+    border-bottom: none;
+  }
+
+  .data-table-mono {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    color: var(--color-primary);
+  }
+</style>

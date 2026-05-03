@@ -1,0 +1,18 @@
+{
+  "name": "agent-skills-marketplace-website",
+  "version": "1.0.0",
+  "description": "Agent Skills Marketplace — the extensible layer for AI agents. Discover, integrate, and deploy composable skills with schematic precision.",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "astro": "^6.2.1"
+  }
+}

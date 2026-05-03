@@ -1,0 +1,37 @@
+---
+// SectionHeader.astro — Section label + title + optional description
+export interface Props {
+  label?: string;
+  title: string;
+  description?: string;
+  class?: string;
+}
+
+const { label, title, description, class: extraClass = "" } = Astro.props;
+---
+<div class={`section-header ${extraClass}`}>
+  {label && <span class="label-caps section-header-label">{label}</span>}
+  <h2 class="headline-md section-header-title">{title}</h2>
+  {description && <p class="body-md section-header-desc">{description}</p>}
+</div>
+
+<style>
+  .section-header {
+    margin-bottom: var(--space-xl);
+  }
+
+  .section-header-label {
+    color: var(--color-primary);
+    margin-bottom: var(--space-xs);
+    display: block;
+  }
+
+  .section-header-title {
+    margin-bottom: var(--space-sm);
+  }
+
+  .section-header-desc {
+    color: var(--color-text-secondary);
+    max-width: 40rem;
+  }
+</style>

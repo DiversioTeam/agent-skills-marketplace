@@ -1,0 +1,127 @@
+---
+// Footer.astro — Site footer
+---
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <a
+        href="https://www.diversio.com"
+        class="footer-brand-link"
+        aria-label="Diversio.com"
+        target="_blank"
+        rel="noopener"
+      >
+        <img
+          src="/diversio-logo.svg"
+          alt="Diversio"
+          class="footer-brand-logo"
+          width="116"
+          height="20"
+        />
+      </a>
+      <span class="footer-product">Agent Skills Marketplace</span>
+    </div>
+    <nav class="footer-links" aria-label="Footer navigation">
+      <a href="https://github.com/DiversioTeam/agent-skills-marketplace" target="_blank" rel="noopener">GitHub</a>
+      <a href="/docs">Docs</a>
+      <a href="/security">Security</a>
+      <a href="/terms">Terms</a>
+    </nav>
+    <div class="footer-copy">
+      Built by <a href="https://www.diversio.com" target="_blank" rel="noopener">Diversio.com</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    background: var(--color-surface);
+    border-top: var(--border-hairline);
+    padding: var(--space-md) 0;
+    margin-top: auto;
+  }
+
+  .footer-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+  }
+
+  .footer-brand {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    align-items: flex-start;
+  }
+
+  .footer-brand-link {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+  }
+
+  .footer-brand-logo {
+    display: block;
+    width: auto;
+    height: 1rem;
+  }
+
+  .footer-product {
+    font-family: var(--font-headline);
+    font-size: var(--text-body-md);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text-secondary);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: var(--space-lg);
+  }
+
+  .footer-links a {
+    font-family: var(--font-body);
+    font-size: var(--text-body-md);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+
+  .footer-links a:hover {
+    color: var(--color-primary);
+  }
+
+  .footer-copy {
+    font-family: var(--font-body);
+    font-size: var(--text-body-sm);
+    color: var(--color-text-muted);
+  }
+
+  .footer-copy a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .footer-copy a:hover {
+    color: var(--color-primary);
+  }
+
+  @media (max-width: 640px) {
+    .footer-inner {
+      flex-direction: column;
+      text-align: center;
+      gap: var(--space-sm);
+      padding: 0 var(--space-md);
+    }
+    .footer-brand {
+      align-items: center;
+    }
+    .footer-links {
+      gap: var(--space-md);
+    }
+  }
+</style>

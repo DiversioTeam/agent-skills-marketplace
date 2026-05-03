@@ -1,0 +1,310 @@
+{
+  "plugins": [
+    {
+      "name": "monty-code-review",
+      "category": "Code Analysis",
+      "title": "Monty Code Review",
+      "description": "Hyper-pedantic Django code review with correctness-first, multi-tenant-safe, harness-aware review style.",
+      "version": "v1.3.0",
+      "skills": [
+        {
+          "name": "monty-code-review",
+          "description": "Hyper-pedantic Django code review with correctness-first, multi-tenant-safe, harness-aware review style."
+        }
+      ],
+      "commands": ["code-review", "test-hardening"]
+    },
+    {
+      "name": "backend-atomic-commit",
+      "category": "Process",
+      "title": "Backend Atomic Commit",
+      "description": "Pedantic pre-commit and atomic-commit workflow for Django/Optimo repos. Enforces AGENTS.md, repo-local docs, pre-commit hooks, and commit hygiene without AI signatures.",
+      "version": "v0.2.6",
+      "skills": [
+        {
+          "name": "backend-atomic-commit",
+          "description": "Pedantic backend pre-commit + atomic-commit skill for Django/Optimo repos that enforces local AGENTS.md, repo-local docs, pre-commit hooks, and repo-local commit hygiene without AI signatures."
+        }
+      ],
+      "commands": ["commit", "pre-commit", "atomic-commit"]
+    },
+    {
+      "name": "backend-pr-workflow",
+      "category": "Process",
+      "title": "Backend PR Workflow",
+      "description": "PR workflow for Django/Optimo repos: branch naming, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes.",
+      "version": "v0.1.5",
+      "skills": [
+        {
+          "name": "backend-pr-workflow",
+          "description": "Pedantic backend PR workflow skill that follows repo-local workflow docs, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes."
+        }
+      ],
+      "commands": ["check-pr"]
+    },
+    {
+      "name": "backend-release",
+      "category": "Process",
+      "title": "Backend Release Manager",
+      "description": "Full release workflow for Django4Lyfe: create release PRs, version bumping (YYYY.MM.DD), conflict resolution, GitHub releases, and post-release branch sync.",
+      "version": "v0.3.0",
+      "skills": [
+        {
+          "name": "release-manager",
+          "description": "Create and manage release PRs against master branch. Handles the full release workflow including merging release into master, version bumping in pyproject.toml, running uv lock, and creating GitHub releases."
+        }
+      ],
+      "commands": ["check", "create", "publish"]
+    },
+    {
+      "name": "monolith-review-orchestrator",
+      "category": "Process",
+      "title": "Monolith Review Orchestrator",
+      "description": "PR review harness for the Diversio monolith: deep PR understanding, thread-aware GitHub review, deterministic worktree reuse, and monty-review handoff.",
+      "version": "v0.2.4",
+      "skills": [
+        {
+          "name": "monolith-review-orchestrator",
+          "description": "Monolith-local Diversio PR review harness for deep PR understanding, deterministic worktree reuse/bootstrap, persistent review context across passes, resolved-comment-aware reassessment, backend monty-review handoff, and author-guiding review output."
+        }
+      ],
+      "commands": ["review-prs", "reassess-prs", "post-review"]
+    },
+    {
+      "name": "process-code-review",
+      "category": "Code Analysis",
+      "title": "Process Code Review",
+      "description": "Interactively fix or skip issues from monty-code-review output. Presents findings in severity order, applies fixes, and runs quality checks.",
+      "version": "v0.1.3",
+      "skills": [
+        {
+          "name": "process-code-review",
+          "description": "Process code review findings interactively - fix or skip issues from monty-code-review output. Presents issues in severity order, applies fixes, runs quality checks, and updates review documents with status markers."
+        }
+      ],
+      "commands": ["process-review"]
+    },
+    {
+      "name": "plan-directory",
+      "category": "Process",
+      "title": "Plan Directory",
+      "description": "Create and maintain structured plan directories with PLAN.md index, numbered task files, and required fresh-eyes validation.",
+      "version": "v0.2.3",
+      "skills": [
+        {
+          "name": "plan-directory",
+          "description": "Create or update a structured plan directory with a PLAN.md index and numbered task files (001-*.md) containing checklists, tests, and completion criteria."
+        },
+        {
+          "name": "backend-ralph-plan",
+          "description": "Create a structured plan directory with Ralph Wiggum Loop integration for backend Django projects (PLAN.md, task files, and RALPH-PROMPT.md)."
+        }
+      ],
+      "commands": ["plan", "run", "backend-ralph-plan"]
+    },
+    {
+      "name": "pr-description-writer",
+      "category": "Documentation",
+      "title": "PR Description Writer",
+      "description": "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, structured sections, and repo-local workflow context.",
+      "version": "v0.1.3",
+      "skills": [
+        {
+          "name": "pr-description-writer",
+          "description": "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, structured test plans, and repo-local workflow context."
+        }
+      ],
+      "commands": ["write-pr"]
+    },
+    {
+      "name": "code-review-digest-writer",
+      "category": "Documentation",
+      "title": "Code Review Digest Writer",
+      "description": "Generate weekly code review digest docs from PR review comments for any GitHub repo, capturing themes, repeated issues, and concrete takeaways.",
+      "version": "v0.1.2",
+      "skills": [
+        {
+          "name": "code-review-digest-writer",
+          "description": "Generate weekly code-review digest docs from PR review comments for any GitHub repo, capturing themes, repeated issues, and concrete takeaways."
+        }
+      ],
+      "commands": ["review-digest"]
+    },
+    {
+      "name": "bruno-api",
+      "category": "Documentation",
+      "title": "Bruno API Docs",
+      "description": "Comprehensive API documentation generator from Bruno (.bru) files that maps endpoints to Django implementations (DRF/Django Ninja).",
+      "version": "v0.1.2",
+      "skills": [
+        {
+          "name": "bruno-api",
+          "description": "Generate comprehensive API docs from Bruno (.bru) files by mapping requests to a Django implementation (DRF/Django Ninja), including auth, multi-tenant filtering, schemas, and code references."
+        }
+      ],
+      "commands": ["docs"]
+    },
+    {
+      "name": "repo-docs",
+      "category": "Documentation",
+      "title": "Repo Docs Generator",
+      "description": "Generate and canonicalize repository harness docs: AGENTS.md maps, repo-local docs, quality-gate guidance, and minimal CLAUDE.md stubs.",
+      "version": "v0.1.4",
+      "skills": [
+        {
+          "name": "repo-docs-generator",
+          "description": "Generate repository harness docs: a short AGENTS.md map, README.md, CLAUDE.md stub, and repo-local docs that make the codebase legible to agents."
+        }
+      ],
+      "commands": ["generate", "canonicalize"]
+    },
+    {
+      "name": "visual-explainer",
+      "category": "Documentation",
+      "title": "Visual Explainer",
+      "description": "Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with optional Netlify preview.",
+      "version": "v0.2.0",
+      "skills": [
+        {
+          "name": "visual-explainer",
+          "description": "Generate self-contained, presentation-ready HTML explainers for plans, diffs, docs, architecture, audits, and stakeholder updates."
+        }
+      ],
+      "commands": ["explain"]
+    },
+    {
+      "name": "clickup-ticket",
+      "category": "Project Management",
+      "title": "ClickUp Ticket Manager",
+      "description": "Fetch, filter, and create ClickUp tickets from Claude Code or Codex. Multi-org workspaces, subtasks, and intelligent caching.",
+      "version": "v0.2.0",
+      "skills": [
+        {
+          "name": "clickup-ticket",
+          "description": "Fetch, filter, and create ClickUp tickets directly from Claude Code or Codex. Read tickets by ID, filter by status/assignee/tags/dates, view your assigned tickets, create tickets interactively, and manage multi-org workspaces with intelligent caching."
+        }
+      ],
+      "commands": ["get-ticket", "create-ticket", "my-tickets", "quick-ticket", "list-tickets", "configure", "add-org", "switch-org", "refresh-cache", "create-subtask", "list-spaces", "add-to-backlog"]
+    },
+    {
+      "name": "github-ticket",
+      "category": "Project Management",
+      "title": "GitHub Ticket Manager",
+      "description": "Create, route, and inspect GitHub issues with gh CLI-backed defaults for DiversioTeam/monolith and repo-local execution repos.",
+      "version": "v0.1.1",
+      "skills": [
+        {
+          "name": "github-ticket",
+          "description": "Create, route, and inspect GitHub issues from Claude Code or Codex with gh CLI-backed defaults for DiversioTeam/monolith, repo-local execution repos, and project-board hydration."
+        }
+      ],
+      "commands": ["create-issue", "get-issue", "my-issues", "quick-issue", "list-issues", "route", "configure", "create-linked-issue", "add-to-backlog"]
+    },
+    {
+      "name": "mixpanel-analytics",
+      "category": "Code Analysis",
+      "title": "Mixpanel Analytics",
+      "description": "Mixpanel analytics tracking implementation and review for Django optimo_analytics module with PII protection and code quality enforcement.",
+      "version": "v0.1.5",
+      "skills": [
+        {
+          "name": "mixpanel-analytics",
+          "description": "Mixpanel analytics tracking implementation + review skill for Django optimo_analytics: add events and audit for PII safety, schema design, and code quality."
+        }
+      ],
+      "commands": ["implement", "review"]
+    },
+    {
+      "name": "login-cta-attribution-skill",
+      "category": "Code Analysis",
+      "title": "Login CTA Attribution",
+      "description": "CTA login attribution implementation for Django4Lyfe: guides adding new CTA sources, button/tab attribution, enum registration, and tests.",
+      "version": "v0.1.2",
+      "skills": [
+        {
+          "name": "login-cta-attribution-skill",
+          "description": "CTA login attribution implementation skill for Django4Lyfe: guides adding new CTA sources, button/tab attribution, enum registration, and tests."
+        }
+      ],
+      "commands": ["implement"]
+    },
+    {
+      "name": "dependabot-remediation",
+      "category": "Process",
+      "title": "Dependabot Remediation",
+      "description": "Unified backend/frontend Dependabot remediation: alert deduplication, wave planning, execution guardrails, and post-merge closure verification.",
+      "version": "v0.1.0",
+      "skills": [
+        {
+          "name": "dependabot-remediation",
+          "description": "Plan and execute backend and frontend Dependabot remediation with wave-based sequencing, resolver validation, and post-merge closure checks."
+        }
+      ],
+      "commands": ["backend", "frontend"]
+    },
+    {
+      "name": "terraform",
+      "category": "Process",
+      "title": "Terraform Workflows",
+      "description": "Terraform/Terragrunt workflow tools: atomic-commit quality gates (fmt, validate, tflint, terraform-docs) and PR workflow checks for infrastructure repos.",
+      "version": "v0.1.0",
+      "skills": [
+        {
+          "name": "terraform-atomic-commit",
+          "description": "Terraform-focused pre-commit + atomic-commit Skill for IaC repos (fmt/validate/tflint/terraform-docs) with strict atomicity and no AI commit signatures."
+        },
+        {
+          "name": "terraform-pr-workflow",
+          "description": "PR workflow Skill for Terraform/Terragrunt repos: branch naming, PR hygiene, read-only CI gates, and versioning expectations for interface changes."
+        }
+      ],
+      "commands": ["pre-commit", "atomic-commit", "check-pr"]
+    },
+    {
+      "name": "frontend",
+      "category": "Process",
+      "title": "Frontend Workflow",
+      "description": "Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, and CI/CD workflows.",
+      "version": "v0.0.1",
+      "skills": [
+        {
+          "name": "frontend",
+          "description": "Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows."
+        }
+      ],
+      "commands": ["review", "commit", "work", "new-branch", "refresh-digest"]
+    }
+  ],
+  "piPackages": [
+    {
+      "name": "dev-workflow",
+      "title": "Dev Workflow",
+      "description": "Daily developer workflow for pi — plan review, self-review, standards pass, CI checks, PR review comments, release PR prep, docs, and shipping. 15 core prompts plus run, prompts, and flow.",
+      "version": "v0.0.3"
+    },
+    {
+      "name": "skills-bridge",
+      "title": "Skills Bridge",
+      "description": "Auto-discovers Claude Code plugin skills from plugins/*/skills/ directories and registers them as pi skills. One install bridges all 19+ plugin skills into pi.",
+      "version": "v0.0.1"
+    },
+    {
+      "name": "ci-status",
+      "title": "CI Status",
+      "description": "GitHub Actions and CircleCI status grouped by provider and workflow, interactive TUI details, log access, auto-watch, widget, notifications, and LLM CI tools.",
+      "version": "v0.0.1"
+    },
+    {
+      "name": "oh-my-pi",
+      "title": "Oh My Pi",
+      "description": "Pi-native cmux integration: notifications, split panes, and workspace tabs via native cmux CLI. No tmux-compat shims.",
+      "version": "v0.0.3"
+    },
+    {
+      "name": "image-router",
+      "title": "Image Router",
+      "description": "Automatically routes image inputs to a vision-capable model when the active model doesn't support images (e.g., DeepSeek → Codex fallback).",
+      "version": "v0.1.0"
+    }
+  ]
+}

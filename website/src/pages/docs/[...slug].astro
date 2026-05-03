@@ -1,0 +1,191 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import Tag from "../../components/Tag.astro";
+import { plugins, piPackages } from "../../data/marketplace.json";
+
+export function getStaticPaths() {
+  // Keep bundle-level docs dynamic by default, but let hand-authored flagship
+  // pages win when a route needs deeper custom storytelling.
+  const dedicatedDocSlugs = new Set(["monty-code-review"]);
+
+  return [
+    ...plugins
+      .filter((plugin) => !dedicatedDocSlugs.has(plugin.name))
+      .map((p) => ({ params: { slug: p.name }, props: { type: "plugin", data: p } })),
+    ...piPackages.map((p) => ({ params: { slug: p.name }, props: { type: "pi-package", data: p } })),
+  ];
+}
+
+const { type, data } = Astro.props;
+const isPlugin = type === "plugin";
+const item = data;
+const title = item.title;
+const name = item.name;
+const description = item.description;
+const version = item.version;
+const sourcePath = isPlugin ? `plugins/${name}` : `pi-packages/${name}`;
+const sourceUrl = `https://github.com/DiversioTeam/agent-skills-marketplace/tree/main/${sourcePath}`;
+const commandNames = isPlugin ? item.commands.map((cmd) => `/${name}:${cmd}`) : [];
+const primaryCommand = commandNames[0];
+const claudeInstallCode = isPlugin
+  ? `claude plugin marketplace add DiversioTeam/agent-skills-marketplace
+claude plugin install ${name}@diversiotech`
+  : "";
+const codexInstallCode = isPlugin
+  ? [
+      'CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"',
+      'python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \\',
+      '  --repo DiversioTeam/agent-skills-marketplace \\',
+      ...item.skills.map((skill, index) => {
+        const suffix = index === item.skills.length - 1 ? "" : " \\";
+        return `  --path plugins/${name}/skills/${skill.name}${suffix}`;
+      }),
+    ].join("\n")
+  : "";
+const piInstallCode = `pi install git:github.com/DiversioTeam/agent-skills-marketplace
+
+# or install a single package from a local clone:
+pi install "$PWD/pi-packages/${name}"`;
+
+const sidebarItems = [{ label: "Overview", href: "#overview", active: true }];
+if (isPlugin) {
+  sidebarItems.push({ label: "Skills", href: "#skills" });
+  sidebarItems.push({ label: "Commands", href: "#commands" });
+}
+sidebarItems.push({ label: "Installation", href: "#installation" });
+
+const metadata = [
+  { label: "Category", value: isPlugin ? item.category : "Pi Package" },
+  { label: "Version", value: version, mono: true },
+  { label: "Compatibility", value: isPlugin ? "Claude Code, Codex" : "Pi", mono: true },
+  { label: "Source", value: sourcePath, href: sourceUrl, mono: true },
+];
+---
+
+<DocsLayout
+  title={title}
+  description={description}
+  packageName={name}
+  packageVersion={version}
+  {sidebarItems}
+  {metadata}
+>
+  <header class="doc-header">
+    <div class="doc-tags">
+      <Tag variant="stable">{isPlugin ? "PLUGIN" : "PI PACKAGE"}</Tag>
+      {isPlugin && <Tag variant="default">{item.category.toUpperCase()}</Tag>}
+    </div>
+    <h1 class="headline-xl doc-title">{title}</h1>
+    <p class="body-lg doc-subtitle">{description}</p>
+  </header>
+
+  <section class="doc-section" id="overview">
+    <h2 class="headline-md doc-heading">Overview</h2>
+    {isPlugin ? (
+      <>
+        <p>{description}</p>
+        <p style="margin-top: var(--space-md); color: var(--color-text-secondary)">
+          Bundles {item.skills.length} skill{item.skills.length !== 1 ? "s" : ""} with
+          {" "}{item.commands.length} Claude Code wrapper{item.commands.length !== 1 ? "s" : ""}.
+          Codex users install the same skill directories directly from GitHub.
+        </p>
+      </>
+    ) : (
+      <>
+        <p>{description}</p>
+        <p style="margin-top: var(--space-md); color: var(--color-text-secondary)">
+          Pi-native package for the <a href="https://pi.dev">Pi</a> coding agent harness.
+          Packages can add extensions, tools, local skills, notifications, and TUI behavior.
+        </p>
+        <p style="margin-top: var(--space-md)">
+          Need the Pi-native surface instead of the marketplace package summary?
+          Read the extension docs at <a href={`/pi/${name}`}>/pi/{name}</a>.
+        </p>
+      </>
+    )}
+  </section>
+
+  {isPlugin && (
+    <section class="doc-section" id="skills">
+      <h2 class="headline-md doc-heading">Skills</h2>
+      <p>Each skill is a <code>SKILL.md</code> file with YAML frontmatter and Markdown instructions.</p>
+      {item.skills.map((skill) => (
+        <div class="skill-card">
+          <div class="skill-card-header">
+            <span class="code-text" style="color: var(--color-primary); font-weight: 500;">{skill.name}</span>
+          </div>
+          <div class="skill-card-body">
+            <p>{skill.description}</p>
+            <div class="skill-path code-text-sm">plugins/{name}/skills/{skill.name}</div>
+            <a href={`/skills/${skill.name}`} class="skill-link label-caps">Skill docs →</a>
+          </div>
+        </div>
+      ))}
+    </section>
+  )}
+
+  {isPlugin && (
+    <section class="doc-section" id="commands">
+      <h2 class="headline-md doc-heading">Slash Commands</h2>
+      <p>
+        Claude Code wrapper files live under <code>plugins/{name}/commands/</code> and
+        surface as namespaced commands. Codex invokes the underlying skill by name
+        (for example, <code>name: {item.skills[0].name}</code>).
+      </p>
+      <div class="command-grid">
+        {commandNames.map((cmd) => (<code class="command-chip">{cmd}</code>))}
+      </div>
+    </section>
+  )}
+
+  <section class="doc-section" id="installation">
+    <h2 class="headline-md doc-heading">Installation</h2>
+    {isPlugin ? (
+      <>
+        <p>Install the plugin for Claude Code, or install one or more skill paths for Codex.</p>
+        <div class="install-grid">
+          <div>
+            <h3 class="install-subheading">Claude Code</h3>
+            <CodeBlock lang="bash" code={claudeInstallCode} />
+          </div>
+          <div>
+            <h3 class="install-subheading">Codex</h3>
+            <CodeBlock lang="bash" code={codexInstallCode} />
+          </div>
+        </div>
+        <p style="margin-top: var(--space-md)">
+          Claude Code: invoke as <code>{primaryCommand}</code>.
+          Codex: invoke as <code>name: {item.skills[0].name}</code>.
+        </p>
+      </>
+    ) : (
+      <>
+        <p>For <a href="https://pi.dev">Pi</a> users:</p>
+        <CodeBlock lang="bash" code={piInstallCode} />
+      </>
+    )}
+  </section>
+</DocsLayout>
+
+<style>
+  .doc-header { margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: var(--border-hairline); }
+  .doc-tags { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
+  .doc-title { margin-bottom: var(--space-md); }
+  .doc-subtitle { color: var(--color-text-secondary); max-width: 36rem; }
+  .doc-section { margin-bottom: var(--space-2xl); }
+  .doc-heading { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+  .doc-section p { color: var(--color-text-secondary); margin-bottom: var(--space-md); line-height: var(--leading-body); }
+  .doc-section code:not(pre code):not(.command-chip) { font-family: var(--font-code); font-size: var(--text-code-sm); background: var(--color-surface-low); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--color-primary); }
+  .skill-card { background: var(--color-surface); border: var(--border-hairline); border-radius: var(--radius-md); margin-bottom: var(--space-md); overflow: hidden; }
+  .skill-card-header { padding: var(--space-sm) var(--space-md); background: var(--color-surface-low); border-bottom: var(--border-hairline); }
+  .skill-card-body { padding: var(--space-md); }
+  .skill-card-body p { margin: 0; font-size: var(--text-body-md); }
+  .skill-path { margin-top: var(--space-sm); color: var(--color-text-muted); }
+  .skill-link { display: inline-block; margin-top: var(--space-sm); color: var(--color-primary); text-decoration: none; }
+  .command-grid { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+  .command-chip { display: inline-block; font-family: var(--font-code); font-size: var(--text-code); background: var(--color-code-bg); color: var(--color-code-text); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--color-code-border); white-space: nowrap; }
+  .install-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); }
+  .install-subheading { margin-bottom: var(--space-sm); }
+  @media (min-width: 960px) { .install-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>

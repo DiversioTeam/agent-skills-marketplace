@@ -1,0 +1,52 @@
+---
+// 404.astro — Custom 404 page
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<BaseLayout
+  title="404"
+  description="Page not found."
+>
+  <Header />
+  <main class="not-found">
+    <div class="not-found-inner">
+      <div class="not-found-code">
+        <span class="code-text" style="color: var(--color-primary); font-size: var(--text-headline-xl); font-weight: 700;">404</span>
+      </div>
+      <h1 class="headline-md" style="margin-bottom: var(--space-md)">Page Not Found</h1>
+      <p class="body-lg" style="color: var(--color-text-secondary); margin-bottom: var(--space-xl); max-width: 32rem;">
+        The requested resource could not be located in the registry.
+        It may have been moved, deprecated, or never existed.
+      </p>
+      <div style="display: flex; gap: var(--space-sm);">
+        <a href="/" class="btn btn-primary btn-md">Return to Marketplace</a>
+        <a href="/docs" class="btn btn-secondary btn-md">View Documentation</a>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - var(--header-height) - 200px);
+    padding: var(--space-3xl) var(--space-margin);
+  }
+
+  .not-found-inner {
+    text-align: center;
+    max-width: 36rem;
+  }
+
+  .not-found-code {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-lg);
+  }
+</style>

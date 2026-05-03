@@ -1,0 +1,209 @@
+---
+// Skill detail pages answer a different question than plugin pages.
+//
+// Plugin pages say: "what bundle is this?"
+// Skill pages say: "what does this one skill do, when should I use it, and
+// which command/runtime gets me there fastest?"
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import Tag from "../../components/Tag.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import RuntimeCodeTabs from "../../components/RuntimeCodeTabs.astro";
+import { skillDocs } from "../../data/site-docs";
+
+export function getStaticPaths() {
+  return skillDocs.map((skill) => ({
+    params: { skill: skill.name },
+    props: { skill },
+  }));
+}
+
+const { skill } = Astro.props;
+const isPluginSkill = skill.kind === "plugin-skill";
+const claudeInstallCode = `claude plugin marketplace add DiversioTeam/agent-skills-marketplace
+claude plugin install ${skill.packageName}@diversiotech`;
+const codexInstallCode = `CODEX_HOME="\${CODEX_HOME:-$HOME/.codex}"
+python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \\
+  --repo DiversioTeam/agent-skills-marketplace \\
+  --path ${skill.sourcePath}`;
+const piInstallCode = `# From the agent-skills-marketplace repo root
+pi install "$PWD/pi-packages/${skill.packageName}"
+
+# From the Diversio monolith root
+pi install "$PWD/agent-skills-marketplace/pi-packages/${skill.packageName}"
+
+/reload`;
+const claudeInvokeCode = skill.relatedCommands.length > 0
+  ? skill.relatedCommands.join("\n")
+  : skill.packageCommands.join("\n");
+
+const sidebarItems = [
+  { label: "Overview", href: "#overview", active: true },
+  { label: "Parent Surface", href: "#parent-surface" },
+  ...skill.sections.map((section) => ({ label: section.heading, href: `#${section.slug}` })),
+  { label: "Resources", href: "#resources" },
+  { label: "Installation", href: "#installation" },
+];
+---
+
+<DocsLayout
+  title={skill.title}
+  description={skill.description}
+  packageName={skill.name}
+  packageVersion={skill.packageVersion}
+  {sidebarItems}
+  metadata={[
+    { label: "Type", value: isPluginSkill ? "Marketplace Skill" : "Pi-Local Skill" },
+    { label: "Parent", value: skill.packageTitle, href: skill.packageDocHref },
+    { label: "Source", value: skill.sourcePath, href: skill.sourceUrl, mono: true },
+    { label: "Compatibility", value: isPluginSkill ? "Claude Code, Codex" : "Pi", mono: true },
+  ]}
+>
+  <header class="doc-header">
+    <div class="doc-tags">
+      <Tag variant="stable">SKILL</Tag>
+      <Tag variant="default">{isPluginSkill ? skill.packageCategory.toUpperCase() : "PI LOCAL"}</Tag>
+    </div>
+    <h1 class="headline-xl doc-title">{skill.title}</h1>
+    <p class="body-lg doc-subtitle">{skill.description}</p>
+  </header>
+
+  <section class="doc-section" id="overview">
+    <h2 class="headline-md doc-heading">Overview</h2>
+    <p>{skill.description}</p>
+    <p>
+      {isPluginSkill
+        ? `This skill ships inside the ${skill.packageTitle} plugin and can be installed through the Claude Code marketplace or directly in Codex from its skill path.`
+        : `This is a Pi-local skill shipped inside the ${skill.packageTitle} package. Install the parent Pi package, reload Pi, and the skill becomes available alongside the package's extension surface.`}
+    </p>
+  </section>
+
+  <section class="doc-section" id="parent-surface">
+    <h2 class="headline-md doc-heading">Parent Surface</h2>
+    <p>
+      Parent docs: <a href={skill.packageDocHref}>{skill.packageTitle}</a>
+    </p>
+    {isPluginSkill ? (
+      <>
+        <p>
+          Related wrapper commands from the parent plugin:
+        </p>
+        <div class="chip-grid">
+          {(skill.relatedCommands.length > 0 ? skill.relatedCommands : skill.packageCommands).map((command) => (
+            <code class="chip">{command}</code>
+          ))}
+        </div>
+      </>
+    ) : (
+      <p>
+        This skill is documented together with the parent Pi package at <a href={skill.packageDocHref}>{skill.packageDocHref}</a>, including package-level commands, extension files, and install guidance.
+      </p>
+    )}
+  </section>
+
+  {skill.sections.map((section) => (
+    <section class="doc-section" id={section.slug}>
+      <h2 class="headline-md doc-heading">{section.heading}</h2>
+      {section.paragraphs.map((paragraph) => (
+        <p>{paragraph}</p>
+      ))}
+      {section.bullets.length > 0 && (
+        <ul class="doc-list">
+          {section.bullets.map((bullet) => (
+            <li>{bullet}</li>
+          ))}
+        </ul>
+      )}
+      {section.codeBlocks.slice(0, 2).map((block) => (
+        <CodeBlock lang={block.lang} code={block.code} />
+      ))}
+    </section>
+  ))}
+
+  <section class="doc-section" id="resources">
+    <h2 class="headline-md doc-heading">Resources</h2>
+    {skill.allowedTools.length > 0 && (
+      <>
+        <p>Declared allowed tools:</p>
+        <div class="chip-grid">
+          {skill.allowedTools.map((tool) => (
+            <code class="chip">{tool}</code>
+          ))}
+        </div>
+      </>
+    )}
+
+    {skill.references.length > 0 && (
+      <div class="resource-block">
+        <h3 class="resource-heading">References</h3>
+        <ul class="resource-list">
+          {skill.references.map((file) => (
+            <li><code>{file}</code></li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    {skill.scripts.length > 0 && (
+      <div class="resource-block">
+        <h3 class="resource-heading">Scripts</h3>
+        <ul class="resource-list">
+          {skill.scripts.map((file) => (
+            <li><code>{file}</code></li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    {skill.references.length === 0 && skill.scripts.length === 0 && skill.allowedTools.length === 0 && (
+      <p>No extra references or helper scripts are documented for this skill.</p>
+    )}
+  </section>
+
+  <section class="doc-section" id="installation">
+    <h2 class="headline-md doc-heading">Installation</h2>
+    {isPluginSkill ? (
+      <>
+        <p>Switch between Claude Code and Codex, then copy the install command for the runtime you use.</p>
+        <RuntimeCodeTabs
+          tabs={[
+            { label: "Claude Code", code: claudeInstallCode },
+            { label: "Codex", code: codexInstallCode },
+          ]}
+        />
+        <p style="margin-top: var(--space-lg)">Invocation:</p>
+        <RuntimeCodeTabs
+          tabs={[
+            { label: "Claude Code", code: claudeInvokeCode },
+            { label: "Codex", code: `name: ${skill.name}` },
+          ]}
+        />
+      </>
+    ) : (
+      <>
+        <p>Install the parent Pi package, then reload Pi so the skill is registered locally.</p>
+        <CodeBlock lang="bash" code={piInstallCode} />
+        <p>
+          After install, see <a href={skill.packageDocHref}>{skill.packageTitle}</a> for the parent package's commands and extension behavior.
+        </p>
+      </>
+    )}
+  </section>
+</DocsLayout>
+
+<style>
+  .doc-header { margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: var(--border-hairline); }
+  .doc-tags { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
+  .doc-title { margin-bottom: var(--space-md); }
+  .doc-subtitle { color: var(--color-text-secondary); max-width: 38rem; }
+  .doc-section { margin-bottom: var(--space-2xl); }
+  .doc-heading { margin-bottom: var(--space-lg); }
+  .doc-section p { color: var(--color-text-secondary); margin-bottom: var(--space-md); }
+  .doc-list,
+  .resource-list { padding-left: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); color: var(--color-text-secondary); }
+  .chip-grid { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+  .chip { display: inline-block; font-family: var(--font-code); font-size: var(--text-code); background: var(--color-code-bg); color: var(--color-code-text); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--color-code-border); white-space: nowrap; }
+  .resource-block + .resource-block { margin-top: var(--space-lg); }
+  .resource-heading { margin-bottom: var(--space-sm); }
+  .resource-list code,
+  .doc-section code:not(pre code):not(.chip) { font-family: var(--font-code); font-size: var(--text-code-sm); background: var(--color-surface-low); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--color-primary); }
+</style>

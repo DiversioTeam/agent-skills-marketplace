@@ -1,0 +1,43 @@
+---
+// terms.astro — Terms page
+import PageLayout from "../layouts/PageLayout.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+---
+
+<PageLayout
+  title="Terms"
+  description="Terms of use for the Agent Skills Marketplace."
+>
+  <section class="page-section">
+    <SectionHeader
+      label="Legal"
+      title="Terms of Use"
+      description="The Agent Skills Marketplace is an open-source, configuration-only registry. Skills are provided as-is under their respective licenses (typically MIT)."
+    />
+    <div class="prose">
+      <p class="body-lg" style="color: var(--color-text-secondary)">
+        By using the Agent Skills Marketplace, you agree that:
+      </p>
+      <ul class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-md); padding-left: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm);">
+        <li>Skills are provided for informational and instructional purposes. The agent harness owner is responsible for validating skill behavior before deployment.</li>
+        <li>The marketplace and its maintainers are not liable for any damages arising from the use of marketplace skills.</li>
+        <li>Skills may be updated, deprecated, or removed at any time. Consumers should pin version references in production.</li>
+        <li>Contributions to the marketplace are licensed under the project's open-source license (MIT).</li>
+      </ul>
+      <p class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-xl)">
+        For questions, contact <a href="mailto:tech@diversio.com">tech@diversio.com</a>.
+      </p>
+    </div>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-margin);
+  }
+  .prose {
+    max-width: 40rem;
+  }
+</style>
