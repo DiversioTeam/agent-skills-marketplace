@@ -131,7 +131,7 @@ not the Claude Code marketplace.
 ### Git-based install (recommended)
 
 The root `package.json` at the top of this repo declares every sub-package so pi
-can discover all four from a single clone. One command replaces four:
+can discover all five from a single clone. One command replaces five:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -164,7 +164,8 @@ Pinned refs are skipped by `pi update --extensions`.
 `npm install` if a `package.json` exists, and then reads the `pi` manifest to
 discover extensions, skills, prompts, and themes. The root manifest points into
 the `pi-packages/` subdirectories so pi finds `ci-status`, `dev-workflow`,
-`oh-my-pi`, and `skills-bridge` without any extra configuration.
+`image-router`, `oh-my-pi`, and `skills-bridge` without any extra
+configuration.
 
 **Migrating from local-path installs.** If you previously installed packages
 via local paths (e.g. `pi install "$PWD/pi-packages/ci-status"`), remove those
@@ -178,6 +179,7 @@ From a checkout of this repo:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/image-router"
 pi install "$PWD/pi-packages/oh-my-pi"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
@@ -187,6 +189,7 @@ From the Diversio monolith root, include the submodule path:
 ```bash
 pi install "$PWD/agent-skills-marketplace/pi-packages/ci-status"
 pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
+pi install "$PWD/agent-skills-marketplace/pi-packages/image-router"
 pi install "$PWD/agent-skills-marketplace/pi-packages/oh-my-pi"
 pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
 ```
@@ -204,6 +207,7 @@ second time from the root marketplace manifest:
 ```bash
 pi --no-extensions -e ./pi-packages/ci-status
 pi --no-extensions -e ./pi-packages/dev-workflow
+pi --no-extensions -e ./pi-packages/image-router
 pi --no-extensions -e ./pi-packages/oh-my-pi
 pi --no-extensions -e ./pi-packages/skills-bridge
 ```
@@ -214,6 +218,7 @@ persistence behavior that writes to `.pi/settings.json`:
 ```bash
 pi install -l ./pi-packages/ci-status
 pi install -l ./pi-packages/dev-workflow
+pi install -l ./pi-packages/image-router
 pi install -l ./pi-packages/oh-my-pi
 pi install -l ./pi-packages/skills-bridge
 ```

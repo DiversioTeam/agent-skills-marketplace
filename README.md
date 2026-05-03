@@ -86,6 +86,7 @@ agent-skills-marketplace/
 ├── pi-packages/
 │   ├── ci-status/                     # Pi-native CI status extension
 │   ├── dev-workflow/                  # Pi-native daily developer workflow extension + skills
+│   ├── image-router/                  # Pi-native vision bridge for text-only models
 │   ├── oh-my-pi/                      # Pi-native cmux integration (notifications, split panes, workspace tabs)
 │   └── skills-bridge/                 # Pi-native bridge to Claude Code plugin skills
 ├── plugins/

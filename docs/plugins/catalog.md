@@ -64,6 +64,21 @@ when command files change.
   - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /
     `ci_fetch_job_logs` only when the current harness exposes those tools.
+- `image-router` (pi package)
+  - Purpose: routes image inputs through a vision-capable model when the
+    active model cannot see images, including pasted screenshots, `@path`
+    image references, and image-bearing tool results.
+  - Pi install from repo checkout:
+    `pi install "$PWD/pi-packages/image-router"`
+  - Package path: `pi-packages/image-router`
+  - Extension path: `pi-packages/image-router/extensions/image-router`
+  - Behavior: supports per-model routing modes (`auto`, `ask`, `never`),
+    remembers the last successful vision model for self-correcting fallback,
+    and can detect "I can't see images" responses from the active model.
+  - Configuration: `IMAGE_ROUTER_VISION_PROVIDER`,
+    `IMAGE_ROUTER_VISION_MODEL`
+  - One-off local test from repo root:
+    `pi --no-extensions -e ./pi-packages/image-router`
 - `oh-my-pi` (pi package)
   - Purpose: Pi-native cmux integration with native notifications, readable
     split-pane commands, and workspace-tab commands.
