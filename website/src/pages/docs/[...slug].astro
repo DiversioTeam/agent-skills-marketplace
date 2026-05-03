@@ -5,8 +5,14 @@ import Tag from "../../components/Tag.astro";
 import { plugins, piPackages } from "../../data/marketplace.json";
 
 export function getStaticPaths() {
+  // Keep bundle-level docs dynamic by default, but let hand-authored flagship
+  // pages win when a route needs deeper custom storytelling.
+  const dedicatedDocSlugs = new Set(["monty-code-review"]);
+
   return [
-    ...plugins.map((p) => ({ params: { slug: p.name }, props: { type: "plugin", data: p } })),
+    ...plugins
+      .filter((plugin) => !dedicatedDocSlugs.has(plugin.name))
+      .map((p) => ({ params: { slug: p.name }, props: { type: "plugin", data: p } })),
     ...piPackages.map((p) => ({ params: { slug: p.name }, props: { type: "pi-package", data: p } })),
   ];
 }

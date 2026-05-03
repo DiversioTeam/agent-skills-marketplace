@@ -401,22 +401,11 @@ Reason:
 - the community page is meant to show humans behind the repo
 - git history still drives the data, but the display layer intentionally filters bot identities
 
-## Known Build Note
+## Known Build Notes
 
-You will still see this warning during build:
-
-```text
-Could not render /docs/monty-code-review from route /docs/[...slug]
-as it conflicts with higher priority route /docs/monty-code-review.
-```
-
-That warning is expected.
-
-Why?
-
-- `src/pages/docs/monty-code-review.astro` is a hand-authored flagship page
-- `src/pages/docs/[...slug].astro` is the generic docs route
-- Astro is correctly telling us the specific route wins
+At the moment there are no intentionally accepted build warnings in the website
+itself. If Astro starts warning again, treat that as a fresh issue to inspect,
+not as normal background noise.
 
 ## Deployment
 

@@ -3,6 +3,8 @@
 # Why this workflow exists:
 # - the website is now a real product surface, not just an incidental docs folder
 # - the older marketplace validation workflow intentionally ignores website/**
+# - the site also reads source docs outside website/** at build time
+#   (skills, command wrappers, Pi package READMEs, and extension file trees)
 # - a static site can still break in simple ways: route generation, imports,
 #   metadata wiring, or build-time extraction from repo docs
 #
@@ -16,10 +18,20 @@ on:
   pull_request:
     paths:
       - "website/**"
+      - "plugins/**/skills/**"
+      - "plugins/**/commands/**"
+      - "pi-packages/**/README.md"
+      - "pi-packages/**/skills/**"
+      - "pi-packages/**/extensions/**"
       - ".github/workflows/validate-website.yml"
   push:
     paths:
       - "website/**"
+      - "plugins/**/skills/**"
+      - "plugins/**/commands/**"
+      - "pi-packages/**/README.md"
+      - "pi-packages/**/skills/**"
+      - "pi-packages/**/extensions/**"
       - ".github/workflows/validate-website.yml"
 
 permissions:

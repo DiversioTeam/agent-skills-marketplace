@@ -147,8 +147,31 @@ function stripInlineMarkdown(value: string): string {
     .trim();
 }
 
-function titleFromHeading(rawHeading: string): string {
-  return rawHeading.replace(/\s+skill$/i, "").trim();
+function identifierToTitle(identifier: string): string {
+  return identifier
+    .split("-")
+    .filter(Boolean)
+    .map((part) => (part.length <= 2 ? part.toUpperCase() : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`))
+    .join(" ");
+}
+
+function titleFromHeading(rawHeading: string, fallbackIdentifier: string): string {
+  const normalizedHeading = rawHeading.replace(/\s+skill$/i, "").trim();
+  const normalizedIdentifier = fallbackIdentifier.replace(/-/g, " ").toLowerCase();
+
+  if (!normalizedHeading || normalizedHeading === "Untitled") {
+    return identifierToTitle(fallbackIdentifier);
+  }
+
+  if (normalizedHeading.toLowerCase().includes(normalizedIdentifier)) {
+    return normalizedHeading;
+  }
+
+  return identifierToTitle(fallbackIdentifier);
+}
+
+function normalizeFrontmatterScalar(value: string): string {
+  return value.replace(/^['\"]|['\"]$/g, "").trim();
 }
 
 // We only need a tiny subset of frontmatter today. Keep the parser intentionally
@@ -158,17 +181,52 @@ function parseFrontmatter(raw: string): Record<string, string | string[]> {
   if (!match) return {};
 
   const data: Record<string, string | string[]> = {};
-  for (const line of match[1].split("\n")) {
-    const parts = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+  const lines = match[1].split("\n");
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const parts = lines[index]?.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
     if (!parts) continue;
+
     const [, key, rawValue] = parts;
     const value = rawValue.trim();
-    if (!value || value === ">-" || value === "|" || value === ">") continue;
-    const normalized = value.replace(/^['\"]|['\"]$/g, "").trim();
-    data[key] = key === "allowed-tools"
-      ? normalized.split(/\s+/).filter(Boolean)
-      : normalized;
+
+    if (key === "allowed-tools") {
+      if (value) {
+        data[key] = normalizeFrontmatterScalar(value).split(/\s+/).filter(Boolean);
+        continue;
+      }
+
+      const tools: string[] = [];
+      while (index + 1 < lines.length) {
+        const nextLine = lines[index + 1] ?? "";
+        const listItem = nextLine.match(/^\s+-\s+(.*)$/);
+        if (!listItem) break;
+        tools.push(normalizeFrontmatterScalar(listItem[1] ?? ""));
+        index += 1;
+      }
+      data[key] = tools;
+      continue;
+    }
+
+    if (value === ">" || value === ">-" || value === "|") {
+      const blockLines: string[] = [];
+      while (index + 1 < lines.length) {
+        const nextLine = lines[index + 1] ?? "";
+        if (!/^\s+/.test(nextLine)) break;
+        blockLines.push(nextLine.replace(/^\s+/, ""));
+        index += 1;
+      }
+
+      data[key] = value === "|"
+        ? blockLines.join("\n").trim()
+        : blockLines.join(" ").replace(/\s+/g, " ").trim();
+      continue;
+    }
+
+    if (!value) continue;
+    data[key] = normalizeFrontmatterScalar(value);
   }
+
   return data;
 }
 
@@ -308,12 +366,16 @@ function listRelativeFiles(relativeDir: string): string[] {
   const results: string[] = [];
   const walk = (dir: string, prefix = "") => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "__pycache__" || entry.name.startsWith(".")) continue;
+
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
         walk(path.join(dir, entry.name), rel);
-      } else {
-        results.push(rel);
+        continue;
       }
+
+      if (entry.name.endsWith(".pyc")) continue;
+      results.push(rel);
     }
   };
 
@@ -388,19 +450,31 @@ function parseTableGroups(content: string): string[][][] {
 }
 
 function extractEnvItems(readme: string): string[] {
-  const sections = [findSectionContent(readme, /^environment$/i), findSectionContent(readme, /^configuration$/i)]
+  const sections = [findSectionContent(readme, /^environment\b/i), findSectionContent(readme, /^configuration\b/i)]
     .filter(Boolean)
     .join("\n\n");
 
   if (!sections) return [];
 
   const bulletItems = extractBullets(sections);
+  const tableItems = parseTableGroups(sections)
+    .flatMap((group) => group.slice(2))
+    .map((row) => {
+      const variable = row[0] ?? "";
+      const defaultValue = row[1] ?? "";
+      const description = row[row.length - 1] ?? "";
+      if (!variable || variable === "---" || !description) return "";
+      return defaultValue
+        ? `${variable} (default: ${defaultValue}) — ${description}`
+        : `${variable} — ${description}`;
+    })
+    .filter(Boolean);
   const envLines = parseCodeBlocks(sections)
     .flatMap((block) => block.code.split("\n"))
     .map((line) => line.trim())
     .filter((line) => /^(export\s+)?[A-Z0-9_]+=/.test(line));
 
-  return [...new Set([...bulletItems, ...envLines])];
+  return [...new Set([...bulletItems, ...tableItems, ...envLines])];
 }
 
 function findSectionContent(readme: string, heading: RegExp): string | null {
@@ -481,7 +555,7 @@ function collectPiPackageSkillDocs(): SkillDoc[] {
       docs.push({
         kind: "pi-skill",
         name: skillName,
-        title: titleFromHeading(parsed.title),
+        title: titleFromHeading(parsed.title, skillName),
         description: String(frontmatter.description ?? `Pi-local skill shipped with ${pkg.title}.`),
         sourcePath: skillPath,
         sourceUrl: `${githubBase}/${skillPath}`,
@@ -514,7 +588,7 @@ const pluginSkillDocs: SkillDoc[] = plugins.flatMap((plugin) => {
     return {
       kind: "plugin-skill",
       name: skill.name,
-      title: titleFromHeading(parsed.title),
+      title: titleFromHeading(parsed.title, skill.name),
       description: skill.description,
       sourcePath: skillPath,
       sourceUrl: `${githubBase}/${skillPath}`,

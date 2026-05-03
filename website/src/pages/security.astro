@@ -7,20 +7,20 @@ import FeatureList from "../components/FeatureList.astro";
 
 <PageLayout
   title="Security"
-  description="Security policy for the Agent Skills Marketplace."
+  description="Security policy for the Agent Skills Marketplace website, including markdown skills and installable Pi package extensions."
 >
   <section class="page-section">
     <SectionHeader
       label="Security"
       title="Security Policy"
-      description="The marketplace is configuration-only. Skills are markdown files with no executable payloads. Every skill runs sandboxed at the agent harness level."
+      description="This site documents two different artifact types: markdown skills and Pi packages that may include installable TypeScript extensions. Review both the docs and the source before installing anything into an agent harness."
     />
     <FeatureList
       features={[
-        { label: "No executable code", description: "Skills are pure markdown instructions. The harness, not the skill, executes operations." },
-        { label: "Sandboxed execution", description: "All skill operations are confined to defined workspace boundaries." },
-        { label: "Manifest validation", description: "CI validates every manifest before merge. Invalid manifests are rejected." },
-        { label: "Dependency chain audit", description: "Skills declare dependencies explicitly. Circular or unverified dependencies are blocked." },
+        { label: "Markdown-first skills", description: "Claude Code marketplace skills are primarily markdown instruction files. The harness executes tools, not the markdown itself." },
+        { label: "Pi packages can ship code", description: "Pi packages may include TypeScript extensions under pi-packages/**/extensions/. Treat those like installable source code, not like passive docs." },
+        { label: "Build and manifest validation", description: "CI validates manifests, package structure, and website builds so broken metadata and obvious shape problems are caught before merge." },
+        { label: "Inspectable source", description: "Published skills, package READMEs, and extension files live in this repository so engineers can inspect what they are installing." },
       ]}
     />
     <p class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-xl)">

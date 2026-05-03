@@ -25,7 +25,12 @@ const codexInstallCode = `CODEX_HOME="\${CODEX_HOME:-$HOME/.codex}"
 python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \\
   --repo DiversioTeam/agent-skills-marketplace \\
   --path ${skill.sourcePath}`;
-const piInstallCode = `pi install git:github.com/DiversioTeam/agent-skills-marketplace
+const piInstallCode = `# From the agent-skills-marketplace repo root
+pi install "$PWD/pi-packages/${skill.packageName}"
+
+# From the Diversio monolith root
+pi install "$PWD/agent-skills-marketplace/pi-packages/${skill.packageName}"
+
 /reload`;
 const claudeInvokeCode = skill.relatedCommands.length > 0
   ? skill.relatedCommands.join("\n")
