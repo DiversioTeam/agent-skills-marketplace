@@ -15,6 +15,8 @@ pi install "$PWD/pi-packages/dev-workflow"
 pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
 ```
 
+Before the first install from a checkout, make sure your environment is configured for `@diversioteam` GitHub Packages. If not, export `NPM_TOKEN` with GitHub Packages read access first, then run `cd pi-packages/dev-workflow && npm install && cd ../..` so the shared `@diversioteam/pi-cmux` dependency is available.
+
 Plain `pi install` writes to global user settings. Then restart pi or run
 `/reload` in any pi session.
 
@@ -129,11 +131,50 @@ I want review / recon help
 `oh-my-pi` is still the **explicit user-facing cmux command surface** for people
 who want manual control.
 
-`dev-workflow` duplicates a tiny amount of cmux-launch logic on purpose so it:
+`dev-workflow` now uses the shared `@diversioteam/pi-cmux` primitives so it:
 
 - works even when installed by itself
+- shares the hardened launcher logic with `oh-my-pi`
 - does not require users to remember a second command
 - keeps the common workflow as one obvious action
+
+### Why we extracted `@diversioteam/pi-cmux`
+
+This is easiest to understand from first principles:
+
+```text
+workflow command wants a helper lane
+  -> helper lane usually means "open a split and run Pi there"
+  -> split launching is fragile terminal/process code
+  -> fragile code should have one source of truth, not two
+```
+
+Before the extraction, `dev-workflow` and `oh-my-pi` both knew how to launch
+cmux splits.
+
+That sounds harmless, but it creates drift:
+
+```text
+package A hardens the launcher
+package B still has the old copy
+  -> one flow works
+  -> the other opens a pane that immediately closes
+```
+
+`@diversioteam/pi-cmux` fixes that by moving the brittle mechanics into one
+shared package.
+
+Mental model now:
+
+```text
+dev-workflow
+  ├─ decides when opening a new lane is helpful
+  ├─ seeds context for that lane
+  └─ asks @diversioteam/pi-cmux to perform the actual split launch
+```
+
+So `dev-workflow` owns the workflow UX, while `@diversioteam/pi-cmux` owns the
+terminal reliability details.
 
 ### Examples
 
@@ -253,7 +294,16 @@ Run with:
 
 Use `-e` for one-off extension testing while actively editing this package. It
 loads the package for the current Pi run without changing global or project
-settings:
+settings.
+
+Install the package dependency first. If your environment does not already provide GitHub Packages auth for `@diversioteam`, export `NPM_TOKEN` in the current shell first:
+
+```bash
+# From the agent-skills-marketplace repo root
+cd pi-packages/dev-workflow && npm install && cd ../..
+```
+
+Then run Pi:
 
 ```bash
 # From the agent-skills-marketplace repo root

@@ -27,11 +27,11 @@ already exist.
 ## Mental model
 
 ```text
-cmux-core.ts
+@diversioteam/pi-cmux
   ├─ knows how to talk to cmux safely
   ├─ builds shell / Pi launch commands
-  ├─ opens splits
-  └─ opens workspace tabs
+  ├─ opens splits and workspace tabs
+  └─ provides the low-level notify primitive
 
 cmux-notify.ts
   ├─ listens to Pi events
@@ -48,6 +48,43 @@ cmux-workspace.ts
 ## How this relates to dev-workflow
 
 `oh-my-pi` is the **explicit** cmux command surface.
+
+### Why `@diversioteam/pi-cmux` exists
+
+This package used to carry all of the low-level cmux mechanics itself.
+
+That worked until the same mechanics also existed somewhere else.
+
+From first principles, split launching is exactly the kind of code that should
+have one shared implementation:
+
+```text
+open pane
+  -> build command string
+  -> preserve PATH
+  -> start Pi or a shell command
+  -> keep the pane readable if startup fails
+```
+
+If two packages each implement that flow, they will eventually diverge.
+When they diverge, one package gets the hardening and the other keeps the old
+failure mode.
+
+So the new architecture is:
+
+```text
+oh-my-pi
+  ├─ owns the user-facing slash commands
+  └─ delegates the brittle cmux mechanics to @diversioteam/pi-cmux
+
+@diversioteam/pi-cmux
+  ├─ owns split/workspace/notify primitives
+  ├─ owns hardened shell and Pi command building
+  └─ is shared by oh-my-pi and dev-workflow
+```
+
+That separation keeps `oh-my-pi` easier to reason about: command UX lives here,
+terminal mechanics live in the shared library.
 
 That means if you want to manually say:
 
@@ -76,7 +113,15 @@ dev-workflow  -> automatic cmux use when a workflow lane clearly benefits
 
 ## Quick Install (local test)
 
-From the marketplace root, use `--no-extensions` so the root marketplace
+Install the package dependency first. If your environment does not already provide GitHub Packages auth for `@diversioteam`, export `NPM_TOKEN` in the current shell first:
+
+```bash
+cd /path/to/agent-skills-marketplace/pi-packages/oh-my-pi
+npm install
+cd ../..
+```
+
+Then, from the marketplace root, use `--no-extensions` so the root marketplace
 manifest does not load a second copy of `oh-my-pi`:
 
 ```bash
@@ -331,12 +376,18 @@ A few choices in this package are intentionally conservative:
 ```
 extensions/oh-my-pi/
 ├── index.ts           # Entry point (auto-discovered by pi)
-├── cmux-core.ts       # Shared cmux helpers (caller detection, shell escaping,
-│                      #   command building, notify, openSplit, openWorkspace)
 ├── cmux-notify.ts     # Notification logic (listens to agent_start,
 │                      #   tool_result, agent_end)
 ├── cmux-split.ts      # Split pane commands (/omp-split-* + aliases)
 └── cmux-workspace.ts  # Workspace tab commands (/omp-workspace* + aliases)
+```
+
+Shared dependency:
+
+```text
+@diversioteam/pi-cmux
+├── cmux.ts / split.ts / workspace.ts / notify.ts / launch.ts / escape.ts
+└── hardened cmux primitives reused by oh-my-pi and dev-workflow
 ```
 
 ### Design decisions
@@ -344,7 +395,7 @@ extensions/oh-my-pi/
 - Uses native `cmux notify` (not OSC escape sequences)
 - Uses `cmux --json new-split` + `respawn-pane` (no polling)
 - Treats `cmux new-workspace` as text output (not JSON)
-- No runtime npm dependencies
+- One small shared runtime dependency: `@diversioteam/pi-cmux`
 - Silent no-op outside cmux for notifications; interactive commands warn
 
 ## Limitations (v1)
@@ -360,7 +411,7 @@ extensions/oh-my-pi/
 
 Use this rule of thumb:
 
-- If the change is about **talking to cmux**, put it in `cmux-core.ts`.
+- If the change is about **talking to cmux**, put it in `@diversioteam/pi-cmux`.
 - If the change is about **when / what to notify**, put it in `cmux-notify.ts`.
 - If the change is about **slash command UX**, put it in `cmux-split.ts` or
   `cmux-workspace.ts`.

@@ -6,6 +6,9 @@
   "keywords": [
     "pi-package"
   ],
+  "dependencies": {
+    "@diversioteam/pi-cmux": "^0.1.0"
+  },
   "pi": {
     "extensions": [
       "pi-packages/ci-status/extensions",
