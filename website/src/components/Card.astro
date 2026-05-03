@@ -1,0 +1,112 @@
+---
+// Card.astro — Package/plugin card with header bar
+export interface Props {
+  /** Category label in the header */
+  category: string;
+  /** Package ID (mono text in header) */
+  packageId?: string;
+  /** Plugin / package title */
+  title: string;
+  description: string;
+  /** Status tag */
+  status?: "stable" | "beta" | "deprecated";
+  /** Version string */
+  version?: string;
+  /** Runtime tags */
+  runtimes?: string[];
+  href?: string;
+}
+
+const { category, packageId, title, description, status, version, runtimes, href } = Astro.props;
+---
+<article class={`card${href ? " card--link" : ""}`}>
+  <div class="card-header">
+    <span class="label-caps card-category">{category}</span>
+    {packageId && <span class="code-text-sm card-id">{packageId}</span>}
+  </div>
+  <div class="card-body">
+    <h3 class="card-title">{title}</h3>
+    <p class="body-md card-desc">{description}</p>
+    <div class="card-meta">
+      {status && (
+        <span class={`tag tag-${status}`}>{status}</span>
+      )}
+      {version && (
+        <span class="tag tag-default">{version}</span>
+      )}
+      {runtimes && runtimes.map((rt) => (
+        <span class="tag tag-default">{rt}</span>
+      ))}
+    </div>
+  </div>
+  {href && <a href={href} class="card-overlay-link" aria-label={`View ${title}`}></a>}
+</article>
+
+<style>
+  .card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    position: relative;
+    transition: border-color var(--transition-fast);
+  }
+
+  .card--link:hover {
+    border-color: var(--color-primary);
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface-low);
+    border-bottom: var(--border-hairline);
+  }
+
+  .card-category {
+    color: var(--color-text-secondary);
+    transition: color var(--transition-fast);
+  }
+
+  .card--link:hover .card-category {
+    color: var(--color-primary);
+  }
+
+  .card-id {
+    color: var(--color-text-muted);
+  }
+
+  .card-body {
+    padding: var(--space-lg);
+  }
+
+  .card-title {
+    font-family: var(--font-headline);
+    font-size: var(--text-headline-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text);
+    margin: 0 0 var(--space-sm);
+  }
+
+  .card-desc {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-md);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+  }
+
+  .card-overlay-link {
+    position: absolute;
+    inset: 0;
+    text-indent: -9999px;
+    overflow: hidden;
+  }
+</style>

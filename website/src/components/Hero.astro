@@ -1,0 +1,304 @@
+---
+// Hero.astro — Homepage hero. Real content about the Agent Skills Marketplace.
+import Terminal from "./Terminal.astro";
+import { plugins, piPackages } from "../data/marketplace.json";
+
+const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
+---
+<section class="hero">
+  <div class="hero-grid">
+    <div class="hero-left">
+      <div class="hero-brand">
+        <img
+          src="/diversio-logo.svg"
+          alt="Diversio"
+          class="hero-brand-logo"
+          width="116"
+          height="20"
+        />
+        <span class="label-caps hero-brand-note">Engineering</span>
+      </div>
+      <h1 class="hero-title">Agent Skills Marketplace</h1>
+      <p class="body-lg hero-desc">
+        A configuration-only registry of reusable agent skills. Markdown files with YAML frontmatter
+        that teach coding agents how to do specific tasks — from pedantic Django code review to
+        structured release management. Portable across Claude Code, Codex, and Pi.
+      </p>
+      <div class="hero-actions">
+        <a href="/docs" class="btn btn-primary btn-md">Get Started</a>
+        <a href="/registry" class="btn btn-secondary btn-md">Browse Registry</a>
+        <a href="https://github.com/DiversioTeam/agent-skills-marketplace" class="btn btn-ghost btn-md" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="hero-terminal">
+        <Terminal
+          lang="slash commands"
+          prompt="$"
+          lines={[
+            "/monty-code-review:code-review  # deep Django code review",
+            "/backend-atomic-commit:commit  # pre-commit + atomic commit",
+            "/visual-explainer:explain      # generate HTML explainers",
+            "/backend-release:create        # cut a new release PR",
+            "/backend-pr-workflow:check-pr # PR + migration safety",
+          ]}
+        />
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="hero-stats">
+        <div class="stat-card">
+          <span class="stat-num">{plugins.length}</span>
+          <span class="stat-label label-caps">Plugins</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num">{piPackages.length}</span>
+          <span class="stat-label label-caps">Pi Packages</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num">{totalSkills}</span>
+          <span class="stat-label label-caps">Skills</span>
+        </div>
+      </div>
+      <div class="arch-panel">
+        <div class="arch-panel-header">
+          <span class="label-caps">Ecosystem</span>
+          <span class="code-text-sm arch-panel-id">FIG.01</span>
+        </div>
+        <div class="arch-panel-body">
+          <div class="eco-flow">
+            <div class="eco-node eco-node-plugins">
+              <span class="code-text-sm">{plugins.length} Plugins</span>
+              <span class="eco-sublabel">slash commands</span>
+            </div>
+            <div class="eco-arrow">→</div>
+            <div class="eco-node eco-node-skills">
+              <span class="code-text-sm">{totalSkills} Skills</span>
+              <span class="eco-sublabel">SKILL.md</span>
+            </div>
+            <div class="eco-arrow">→</div>
+            <div class="eco-node eco-node-agent">
+              <span class="code-text-sm">Agent Harness</span>
+              <span class="eco-sublabel">CC · Codex · Pi</span>
+            </div>
+          </div>
+          <div class="eco-flow-secondary">
+            <div class="eco-node eco-node-pi">
+              <span class="code-text-sm">{piPackages.length} Pi Packages</span>
+              <span class="eco-sublabel">extensions · tools</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding: var(--space-3xl) var(--space-margin) 0;
+    max-width: var(--max-width);
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, var(--grid-pattern-color) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-pattern-color) 1px, transparent 1px);
+    background-size: var(--grid-pattern-size) var(--grid-pattern-size);
+    pointer-events: none;
+    opacity: 0.5;
+    z-index: 0;
+  }
+
+  .hero-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+    padding-bottom: var(--space-3xl);
+  }
+
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .hero-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .hero-brand-logo {
+    display: block;
+    width: auto;
+    height: 1.125rem;
+  }
+
+  .hero-brand-note {
+    color: var(--color-primary);
+  }
+
+  .hero-title {
+    font-family: var(--font-headline);
+    font-size: var(--text-headline-xl);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-headline);
+    letter-spacing: var(--tracking-headline);
+    color: var(--color-text);
+  }
+
+  .hero-desc {
+    color: var(--color-text-secondary);
+    max-width: 42rem;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .hero-terminal {
+    margin-top: var(--space-md);
+    max-width: 100%;
+  }
+
+  .hero-right {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  /* Stats row */
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-sm);
+  }
+
+  .stat-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg) var(--space-md);
+    text-align: center;
+    box-shadow: var(--shadow-block-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2xs);
+  }
+
+  .stat-num {
+    font-family: var(--font-headline);
+    font-size: 2rem;
+    font-weight: var(--weight-bold);
+    color: var(--color-primary);
+    line-height: 1;
+  }
+
+  .stat-label {
+    color: var(--color-text-secondary);
+  }
+
+  /* Architecture panel */
+  .arch-panel {
+    width: 100%;
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-block);
+    overflow: hidden;
+  }
+
+  .arch-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface-low);
+    border-bottom: var(--border-hairline);
+  }
+
+  .arch-panel-header .label-caps {
+    color: var(--color-text-secondary);
+  }
+
+  .arch-panel-id {
+    color: var(--color-text-muted);
+  }
+
+  .arch-panel-body {
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .eco-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+  }
+
+  .eco-flow-secondary {
+    display: flex;
+    justify-content: center;
+  }
+
+  .eco-node {
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--color-surface);
+  }
+
+  .eco-node-plugins {
+    border-color: var(--color-primary);
+    background: var(--color-primary-container);
+  }
+
+  .eco-node-skills {
+    border-color: var(--color-primary);
+  }
+
+  .eco-node-agent {
+    border-color: var(--color-hairline);
+    background: var(--color-surface-low);
+  }
+
+  .eco-node-pi {
+    border-color: var(--color-accent);
+  }
+
+  .eco-sublabel {
+    font-family: var(--font-code);
+    font-size: 0.625rem;
+    color: var(--color-text-muted);
+  }
+
+  .eco-arrow {
+    color: var(--color-text-muted);
+    font-family: var(--font-code);
+    font-size: var(--text-code);
+    flex-shrink: 0;
+  }
+
+  @media (min-width: 1280px) {
+    .hero-grid {
+      grid-template-columns: 3fr 2fr;
+    }
+  }
+</style>

@@ -53,6 +53,10 @@ skills target:
     or the workflow file itself.
   - Validates JSON, unique plugin names, plugin directory coverage, manifest
     name and version sync, skill presence, and changed-skill size budgets.
+- `Validate Website`
+  - Triggered by changes under `website/**` or the website workflow file.
+  - Runs a clean website dependency install and `cd website && npm run build`.
+  - This is the build gate for the Astro site at `agents.diversio.com`.
 - `Notify Marketplace Updates`
   - Triggered by pushes to `main` that touch `plugins/**` or `pi-packages/**`.
   - Diffs the full pushed range, groups changes by marketplace item, and posts
@@ -60,6 +64,14 @@ skills target:
 
 Docs-only changes do not currently trigger the marketplace validation workflow,
 so run the local checks manually when you touch shared instructions.
+
+Website changes now trigger `Validate Website`, but you should still run the
+local build yourself before opening a PR:
+
+```bash
+cd website
+npm run build
+```
 
 ## Review Discipline
 

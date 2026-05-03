@@ -1,0 +1,68 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import SectionHeader from "../../components/SectionHeader.astro";
+import Card from "../../components/Card.astro";
+import CardGrid from "../../components/CardGrid.astro";
+import { piPackageDocs } from "../../data/site-docs";
+---
+
+<PageLayout
+  title="Pi Extensions"
+  description={`Browse ${piPackageDocs.length} Pi package and extension docs in the Agent Skills Marketplace.`}
+  currentNav="docs"
+>
+  <section class="page-section page-hero">
+    <SectionHeader
+      label="Pi Extensions"
+      title="Pi package and extension docs"
+      description={`${piPackageDocs.length} Pi packages, each documented as its own extension surface with commands, tools, environment variables, and packaged skills.`}
+    />
+  </section>
+
+  <section class="page-section">
+    <CardGrid cols={3}>
+      {piPackageDocs.map((pkg) => (
+        <Card
+          category="Pi Package"
+          packageId={pkg.name}
+          title={pkg.title}
+          description={pkg.description}
+          version={pkg.version}
+          runtimes={["PI"]}
+          href={`/pi/${pkg.name}`}
+        />
+      ))}
+    </CardGrid>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+
+  .page-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+
+  @media (max-width: 640px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+
+    .page-hero {
+      padding-top: var(--space-2xl);
+    }
+
+    .page-section + .page-section {
+      padding-top: var(--space-2xl);
+    }
+  }
+</style>

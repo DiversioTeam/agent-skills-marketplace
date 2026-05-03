@@ -1,0 +1,637 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import SectionHeader from "../../components/SectionHeader.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import FeatureList from "../../components/FeatureList.astro";
+import { plugins, piPackages } from "../../data/marketplace.json";
+import { skillDocs, piPackageDocs } from "../../data/site-docs";
+
+const totalSkills = skillDocs.length;
+const marketplaceSkillCount = skillDocs.filter((skill) => skill.kind === "plugin-skill").length;
+const piLocalSkillCount = skillDocs.filter((skill) => skill.kind === "pi-skill").length;
+
+const structureCode = `.claude-plugin/marketplace.json
+plugins/monty-code-review/
+  .claude-plugin/plugin.json
+  commands/code-review.md
+  commands/test-hardening.md
+  skills/monty-code-review/SKILL.md
+  skills/monty-code-review/references/
+  skills/monty-code-review/scripts/
+pi-packages/dev-workflow/
+  package.json
+  README.md
+  extensions/dev-workflow/
+  skills/dev-workflow/SKILL.md
+docs/
+scripts/validate-skills.sh`;
+
+const skillCode = `---
+name: repo-docs-generator
+description: "Generate repository harness docs: a short AGENTS.md map, README.md, CLAUDE.md stub, and repo-local docs that make the codebase legible to agents."
+---
+
+# Repo Docs Generator
+
+## When to Use This Skill
+- Add or refresh repo-local harness docs
+- Replace tribal knowledge with docs and guardrails`;
+
+const wrapperCode = `---
+description: Hyper-pedantic backend Django code review using the monty-code-review Skill.
+---
+
+Use your \`monty-code-review\` Skill to perform a full backend Django code review
+of the current change (PR, diff, or working tree), following the workflow,
+severity tags, and checklists defined in its SKILL.md.`;
+
+const claudeCode = `claude plugin marketplace add DiversioTeam/agent-skills-marketplace
+claude plugin install repo-docs@diversiotech
+/repo-docs:generate`;
+
+const codexCode = `CODEX_HOME="\${CODEX_HOME:-$HOME/.codex}"
+python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \\
+  --repo DiversioTeam/agent-skills-marketplace \\
+  --path plugins/repo-docs/skills/repo-docs-generator
+
+name: repo-docs-generator`;
+
+const piCode = `pi install git:github.com/DiversioTeam/agent-skills-marketplace
+/reload
+
+# skills-bridge makes marketplace skills available in Pi`;
+
+const validationCode = `bash scripts/validate-skills.sh
+bash scripts/validate-skills.sh --all
+jq -e . .claude-plugin/marketplace.json >/dev/null
+jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
+jq -e . pi-packages/<package>/package.json >/dev/null
+printf '{"id":"cmds","type":"get_commands"}\\n' | \\
+  PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions \\
+  -e ./pi-packages/<package> --no-prompt-templates --no-skills`;
+
+const docsPipelineCode = `plugins/*/skills/*/SKILL.md        ─┐
+pi-packages/*/README.md           ├─> src/data/site-docs.ts ──> /skills/* and /pi/* pages
+pi-packages/*/skills/*/SKILL.md   ─┘
+
+src/data/marketplace.json         ───────────────────────────> cards, counts, summaries`;
+
+const maintenanceCode = `# after changing SKILL.md, README.md, or commands
+cd website
+npm run build
+
+# then smoke-check the new deep docs
+open http://localhost:4321/skills
+open http://localhost:4321/pi`;
+---
+
+<PageLayout
+  title="Documentation"
+  description="Authoring, packaging, distribution, and validation guidance for the Agent Skills Marketplace."
+  currentNav="docs"
+>
+  <section class="docs-hero">
+    <SectionHeader
+      label="Documentation"
+      title="Authoring and shipping marketplace artifacts"
+      description={`${plugins.length} plugins, ${marketplaceSkillCount} marketplace skills, ${piLocalSkillCount} Pi-local skills, and ${piPackages.length} pi packages. The homepage explains the ecosystem; this page focuses on the file layout, authoring rules, command wrappers, and release checks.`}
+    />
+    <div class="intro-card">
+      <p class="body-md intro-copy">
+        Need the high-level overview first? Start on the
+        <a href="/">homepage</a>. Need a specific plugin or package? Jump to the
+        <a href="/registry">registry</a>. This page is the practical guide for editing
+        the repo itself.
+      </p>
+      <div class="intro-actions">
+        <a href="/" class="btn btn-secondary btn-md">Marketplace Overview</a>
+        <a href="/registry" class="btn btn-secondary btn-md">Browse Registry</a>
+        <a
+          href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/CONTRIBUTING.md"
+          class="btn btn-primary btn-md"
+          target="_blank"
+          rel="noopener"
+        >
+          Open CONTRIBUTING.md
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="page-section docs-shell">
+    <div class="docs-main">
+      <section class="doc-block" id="structure">
+        <SectionHeader
+          label="Repository Shape"
+          title="Where each layer lives"
+          description="Skills are the instruction files, plugins are the Claude Code distribution units, and pi packages are Pi-native extensions. Each layer has a distinct directory shape."
+        />
+        <div class="split-grid">
+          <div class="prose-card">
+            <p class="body-md prose-copy">
+              The repo is configuration-first. Most edits happen in
+              <code>plugins/&lt;plugin&gt;/skills/</code>,
+              <code>plugins/&lt;plugin&gt;/commands/</code>,
+              <code>.claude-plugin/marketplace.json</code>, and
+              <code>pi-packages/&lt;package&gt;/</code>.
+            </p>
+            <div class="mini-list">
+              <div class="mini-item">
+                <strong>Skills</strong>
+                <span>Markdown instructions in <code>SKILL.md</code>.</span>
+              </div>
+              <div class="mini-item">
+                <strong>Plugins</strong>
+                <span>Claude Code bundles: manifest + skills + slash-command wrappers.</span>
+              </div>
+              <div class="mini-item">
+                <strong>Pi packages</strong>
+                <span>Pi-native extensions, local skills, tools, and TUI behavior.</span>
+              </div>
+            </div>
+          </div>
+          <CodeBlock lang="text" filename="repo-tree.txt" code={structureCode} />
+        </div>
+      </section>
+
+      <section class="doc-block" id="skill-file">
+        <SectionHeader
+          label="SKILL.md"
+          title="Write the skill first"
+          description="The skill body is the source of truth. Command wrappers stay thin and distribution metadata stays in manifests."
+        />
+        <div class="split-grid split-grid--reverse">
+          <CodeBlock lang="md" filename="plugins/repo-docs/skills/repo-docs-generator/SKILL.md" code={skillCode} />
+          <FeatureList
+            features={[
+              { label: "Required frontmatter", description: "At minimum, keep name and description accurate and machine-readable." },
+              { label: "Portable instructions", description: "Put durable behavior in SKILL.md, not in a command wrapper or repo-only tribal knowledge." },
+              { label: "500-line budget", description: "Move deep procedures into references/ and reusable helpers into scripts/." },
+              { label: "Quote special YAML strings", description: "Frontmatter with colons, commas, brackets, or quotes should be quoted." },
+              { label: "Keep docs nearby", description: "If the workflow changes, update the focused docs in docs/ instead of bloating CLAUDE.md." },
+            ]}
+          />
+        </div>
+      </section>
+
+      <section class="doc-block" id="commands">
+        <SectionHeader
+          label="Slash Commands"
+          title="Wrappers are thin and namespaced"
+          description="Every Claude Code marketplace skill needs at least one wrapper in plugins/<plugin>/commands/. The wrapper provides command-specific context; the real behavior stays in the skill."
+        />
+        <div class="split-grid">
+          <CodeBlock lang="md" filename="plugins/monty-code-review/commands/code-review.md" code={wrapperCode} />
+          <div class="prose-card">
+            <ul class="section-list">
+              <li><strong>Location:</strong> <code>plugins/&lt;plugin&gt;/commands/*.md</code></li>
+              <li><strong>Convention:</strong> wrapper file names become Claude Code commands like <code>/monty-code-review:code-review</code></li>
+              <li><strong>One skill, many wrappers:</strong> a single skill can back multiple task-focused entrypoints</li>
+              <li><strong>No duplication:</strong> do not paste the whole skill into the wrapper</li>
+              <li><strong>Codex is different:</strong> Codex installs the skill directory directly and invokes with <code>name: &lt;skill-name&gt;</code></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-block" id="deep-docs">
+        <SectionHeader
+          label="Deep Docs"
+          title="Browse by skill or Pi extension"
+          description={`Go deeper than plugin/package summaries: ${marketplaceSkillCount} marketplace skills, ${piLocalSkillCount} Pi-local skills, and ${piPackageDocs.length} Pi extension pages now have dedicated docs.`}
+        />
+        <div class="runtime-grid">
+          <div class="runtime-card">
+            <div class="runtime-card-header">
+              <span class="label-caps">Skills</span>
+              <span class="code-text-sm">{totalSkills} pages</span>
+            </div>
+            <p class="body-md runtime-copy">
+              Individual skill docs cover when to use a skill, related commands,
+              source paths, references, scripts, and runtime-specific invocation.
+            </p>
+            <div class="runtime-card-actions">
+              <a href="/skills" class="btn btn-secondary btn-md">Browse Skill Docs</a>
+            </div>
+          </div>
+          <div class="runtime-card">
+            <div class="runtime-card-header">
+              <span class="label-caps">Pi Extensions</span>
+              <span class="code-text-sm">{piPackageDocs.length} pages</span>
+            </div>
+            <p class="body-md runtime-copy">
+              Pi package docs focus on extension commands, LLM tools, environment
+              variables, packaged skills, and extension file layout.
+            </p>
+            <div class="runtime-card-actions">
+              <a href="/pi" class="btn btn-secondary btn-md">Browse Pi Docs</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-block" id="docs-pipeline">
+        <SectionHeader
+          label="Docs Pipeline"
+          title="Why the site now has skill and Pi extension pages"
+          description="First principles: the old plugin/package pages answered bundle-level questions, but they did not explain individual skills or Pi extension surfaces well enough. The newer routes read from the repo’s real docs instead of inventing a second website-only truth."
+        />
+        <div class="split-grid">
+          <CodeBlock lang="text" filename="docs-pipeline.txt" code={docsPipelineCode} />
+          <div class="prose-card">
+            <ul class="section-list">
+              <li><strong>One source of truth:</strong> skill behavior still lives in <code>SKILL.md</code>; Pi extension behavior still lives in each package README.</li>
+              <li><strong>Website pages are extracted views:</strong> <code>src/data/site-docs.ts</code> turns those repo files into structured data for <code>/skills/*</code> and <code>/pi/*</code>.</li>
+              <li><strong>Why this matters:</strong> maintainers only need to update the repo docs they were already supposed to maintain, then rebuild the site.</li>
+              <li><strong>Keep it explainable:</strong> the extraction logic is deliberately conservative. If a page looks wrong, fix the source docs first, then teach the extractor the new pattern.</li>
+            </ul>
+            <div class="link-box">
+              <p class="body-md">
+                Maintainer rule of thumb: if you add or reshape a skill, edit the
+                canonical markdown first, then confirm the generated deep docs.
+              </p>
+              <CodeBlock lang="bash" code={maintenanceCode} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-block" id="distribution">
+        <SectionHeader
+          label="Distribution"
+          title="How the same repo reaches three runtimes"
+          description="The marketplace ships the same underlying content through different installation surfaces for Claude Code, Codex, and Pi."
+        />
+        <div class="runtime-grid">
+          <div class="runtime-card">
+            <div class="runtime-card-header">
+              <span class="label-caps">Claude Code</span>
+              <span class="code-text-sm">plugin bundle</span>
+            </div>
+            <p class="body-md runtime-copy">
+              Install a plugin from the marketplace, then invoke its namespaced slash
+              commands.
+            </p>
+            <CodeBlock lang="bash" code={claudeCode} />
+          </div>
+          <div class="runtime-card">
+            <div class="runtime-card-header">
+              <span class="label-caps">Codex</span>
+              <span class="code-text-sm">skill directory</span>
+            </div>
+            <p class="body-md runtime-copy">
+              Install one or more exact skill paths from GitHub, then invoke each skill
+              by name.
+            </p>
+            <CodeBlock lang="bash" code={codexCode} />
+          </div>
+          <div class="runtime-card">
+            <div class="runtime-card-header">
+              <span class="label-caps">Pi</span>
+              <span class="code-text-sm">package install</span>
+            </div>
+            <p class="body-md runtime-copy">
+              Pi packages extend the harness directly. The <code>skills-bridge</code>
+              package auto-discovers marketplace skills and exposes them inside Pi.
+              See <a href="https://pi.dev">pi.dev</a> for the Pi project.
+            </p>
+            <CodeBlock lang="bash" code={piCode} />
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-block" id="validation">
+        <SectionHeader
+          label="Validation"
+          title="Run the guardrails before opening a PR"
+          description="Docs-only changes do not currently trigger every marketplace workflow, so run the matching local checks when you touch shared instructions or metadata."
+        />
+        <div class="split-grid split-grid--reverse">
+          <CodeBlock lang="bash" code={validationCode} />
+          <div class="prose-card">
+            <ul class="section-list">
+              <li><strong>Version sync:</strong> plugin versions must match in <code>plugins/&lt;plugin&gt;/.claude-plugin/plugin.json</code> and <code>.claude-plugin/marketplace.json</code></li>
+              <li><strong>Structure sync:</strong> every changed skill should still have at least one wrapper</li>
+              <li><strong>Package sync:</strong> keep <code>package.json</code>, package README files, and install docs aligned for pi packages</li>
+              <li><strong>Skill size:</strong> changed <code>SKILL.md</code> files must stay at or below 500 lines</li>
+              <li><strong>Fresh-eyes pass:</strong> after substantive edits, review adjacent docs and metadata for drift</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-block" id="contribute">
+        <SectionHeader
+          label="Contribute"
+          title="Add a skill safely"
+          description="The happy path is still markdown-first: skill, wrapper, manifest sync, validation, PR."
+        />
+        <FeatureList
+          features={[
+            { label: "Write SKILL.md", description: "YAML frontmatter + Markdown. The skill is the canonical instruction file." },
+            { label: "Add a thin wrapper", description: "Create at least one command file in plugins/<plugin>/commands/." },
+            { label: "Bump synced versions", description: "Update the plugin manifest and the top-level marketplace manifest together." },
+            { label: "Validate locally", description: "Run validate-skills, jq checks, and Pi smoke tests when packages change." },
+            { label: "Open a GitHub PR", description: "Contribution review happens in the main repository on GitHub." },
+          ]}
+        />
+        <div class="link-box">
+          <p class="body-md">
+            Keep the focused docs in sync when behavior changes:
+            <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/docs/plugins/catalog.md" target="_blank" rel="noopener">catalog</a>,
+            <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/docs/runbooks/distribution.md" target="_blank" rel="noopener">distribution runbook</a>, and
+            <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/README.md" target="_blank" rel="noopener">README</a>.
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <aside class="docs-side-rail">
+      <div class="rail-card">
+        <h4 class="label-caps rail-heading">ON THIS PAGE</h4>
+        <nav class="rail-nav">
+          <a href="#structure" class="rail-link">Repository Shape</a>
+          <a href="#skill-file" class="rail-link">Writing SKILL.md</a>
+          <a href="#commands" class="rail-link">Slash Commands</a>
+          <a href="#deep-docs" class="rail-link">Deep Docs</a>
+          <a href="#docs-pipeline" class="rail-link">Docs Pipeline</a>
+          <a href="#distribution" class="rail-link">Distribution</a>
+          <a href="#validation" class="rail-link">Validation</a>
+          <a href="#contribute" class="rail-link">Contribute</a>
+        </nav>
+      </div>
+      <div class="rail-card rail-card--muted">
+        <h4 class="label-caps rail-heading">REFERENCE DOCS</h4>
+        <div class="rail-links-secondary">
+          <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/docs/architecture/overview.md" target="_blank" rel="noopener">Architecture Overview</a>
+          <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/docs/quality/gates.md" target="_blank" rel="noopener">Quality Gates</a>
+          <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/docs/runbooks/distribution.md" target="_blank" rel="noopener">Distribution Runbook</a>
+        </div>
+      </div>
+    </aside>
+  </section>
+</PageLayout>
+
+<style>
+  .docs-hero {
+    padding: var(--space-3xl) var(--space-margin) 0;
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+
+  .intro-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-block);
+    padding: var(--space-lg);
+  }
+
+  .intro-copy {
+    color: var(--color-text-secondary);
+  }
+
+  .intro-copy a {
+    color: var(--color-primary);
+  }
+
+  .intro-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-lg);
+  }
+
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-margin);
+  }
+
+  .docs-shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .docs-shell {
+      grid-template-columns: minmax(0, 1fr) 16rem;
+    }
+  }
+
+  .docs-main {
+    min-width: 0;
+  }
+
+  .doc-block + .doc-block {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+    margin-top: var(--space-3xl);
+  }
+
+  .split-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+  }
+
+  @media (min-width: 960px) {
+    .split-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .split-grid--reverse > :first-child {
+      order: 2;
+    }
+
+    .split-grid--reverse > :last-child {
+      order: 1;
+    }
+  }
+
+  .prose-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+  }
+
+  .prose-copy {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-lg);
+  }
+
+  .prose-card code,
+  .runtime-card code,
+  .link-box code,
+  .section-list code,
+  .mini-item code {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    background: var(--color-surface-low);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+  }
+
+  .mini-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .mini-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body-sm);
+  }
+
+  .mini-item strong {
+    color: var(--color-text);
+  }
+
+  .mini-item span {
+    color: var(--color-text-secondary);
+  }
+
+  .section-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .section-list strong {
+    color: var(--color-text);
+  }
+
+  .runtime-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  @media (min-width: 960px) {
+    .runtime-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .runtime-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .runtime-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-surface-low);
+    border-bottom: var(--border-hairline);
+  }
+
+  .runtime-copy {
+    color: var(--color-text-secondary);
+    padding: var(--space-lg) var(--space-lg) 0;
+  }
+
+  .runtime-card :global(.code-block) {
+    margin: var(--space-lg);
+  }
+
+  .runtime-card-actions {
+    padding: 0 var(--space-lg) var(--space-lg);
+  }
+
+  .link-box {
+    margin-top: var(--space-lg);
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+  }
+
+  .link-box p {
+    color: var(--color-text-secondary);
+  }
+
+  .docs-side-rail {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-lg));
+    align-self: start;
+    display: none;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  @media (min-width: 1024px) {
+    .docs-side-rail {
+      display: flex;
+    }
+  }
+
+  .rail-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+  }
+
+  .rail-card--muted {
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .rail-heading {
+    color: var(--color-text-secondary);
+    border-bottom: var(--border-hairline);
+    padding-bottom: var(--space-xs);
+    margin-bottom: var(--space-md);
+  }
+
+  .rail-nav,
+  .rail-links-secondary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .rail-link,
+  .rail-links-secondary a {
+    font-size: var(--text-body-md);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+
+  .rail-link:hover,
+  .rail-links-secondary a:hover {
+    color: var(--color-primary);
+  }
+
+  @media (max-width: 640px) {
+    .docs-hero {
+      padding: var(--space-2xl) var(--space-md) 0;
+    }
+
+    .page-section {
+      padding: var(--space-2xl) var(--space-md);
+    }
+
+    .doc-block + .doc-block {
+      padding-top: var(--space-2xl);
+      margin-top: var(--space-2xl);
+    }
+  }
+</style>

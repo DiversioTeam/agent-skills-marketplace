@@ -18,6 +18,10 @@
 - `pi-packages/<package>/`
   - Pi-native packages for workflows that need pi extensions, TUI components,
     or pi-local skills outside the Claude Code marketplace shape.
+- `website/`
+  - Astro static site for `agents.diversio.com`.
+  - Hosts the human-facing marketplace catalog plus deeper `/skills/*` and
+    `/pi/*` docs built from repo-local source files.
 - `scripts/validate-skills.sh`
   - Local and CI guardrail for the `SKILL.md` line-count budget.
 - `.github/workflows/validate-marketplace.yml`
@@ -26,6 +30,8 @@
 - `.github/workflows/notify-plugin-updates.yml`
   - Post-merge notification flow for plugin and pi-package changes pushed to
     `main`, rendered in separate Plugin items and Pi items Slack sections.
+- `.github/workflows/validate-website.yml`
+  - Website build check for changes under `website/**`.
 
 ## Boundaries
 
@@ -38,6 +44,9 @@
 - Pi packages may include TypeScript extensions under `pi-packages/**/extensions/`;
   keep package READMEs and distribution docs accurate because these are not
   Claude Code marketplace plugins.
+- The website should not invent a second source of truth for skills or Pi
+  extension behavior. Prefer extracting from `SKILL.md` and package `README.md`
+  files instead.
 - `README.md` stays human-first, `AGENTS.md` stays as the agent routing map,
   and detailed guidance lives under `docs/`.
 
@@ -55,14 +64,20 @@
      sync with install commands and command inventory.
    - If the package includes a pi extension, validate it against the pi docs and
      examples before publishing.
-3. Validate locally
+3. Add or change the website
+   - Update `website/src/data/marketplace.json` for catalog-level metadata.
+   - Update the real source docs (`SKILL.md`, package `README.md`) when deeper
+     skill or Pi extension pages need better content.
+   - Run `cd website && npm run build` before opening a PR.
+4. Validate locally
    - Run `bash scripts/validate-skills.sh` for changed Claude marketplace skills.
    - Validate edited JSON with `jq -e .`.
-4. CI verification
+5. CI verification
    - `Validate Marketplace` checks JSON validity, unique plugin names,
      directory/manifest consistency, version sync, presence of skills, and the
      `SKILL.md` size budget.
-5. Post-merge notification
+   - `Validate Website` runs a clean website install plus `npm run build`.
+6. Post-merge notification
    - Pushes to `main` that touch `plugins/**` or `pi-packages/**` trigger Slack
      update messages.
    - Plugin changes render under a dedicated `Plugin items` section.

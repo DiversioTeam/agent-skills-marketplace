@@ -1,0 +1,39 @@
+---
+// security.astro — Security policy page
+import PageLayout from "../layouts/PageLayout.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import FeatureList from "../components/FeatureList.astro";
+---
+
+<PageLayout
+  title="Security"
+  description="Security policy for the Agent Skills Marketplace."
+>
+  <section class="page-section">
+    <SectionHeader
+      label="Security"
+      title="Security Policy"
+      description="The marketplace is configuration-only. Skills are markdown files with no executable payloads. Every skill runs sandboxed at the agent harness level."
+    />
+    <FeatureList
+      features={[
+        { label: "No executable code", description: "Skills are pure markdown instructions. The harness, not the skill, executes operations." },
+        { label: "Sandboxed execution", description: "All skill operations are confined to defined workspace boundaries." },
+        { label: "Manifest validation", description: "CI validates every manifest before merge. Invalid manifests are rejected." },
+        { label: "Dependency chain audit", description: "Skills declare dependencies explicitly. Circular or unverified dependencies are blocked." },
+      ]}
+    />
+    <p class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-xl)">
+      To report a security vulnerability, please email <a href="mailto:security@diversio.com">security@diversio.com</a>.
+      Do not open a public issue.
+    </p>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-margin);
+  }
+</style>

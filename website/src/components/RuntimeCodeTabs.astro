@@ -1,0 +1,272 @@
+---
+// RuntimeCodeTabs.astro — a code block with the runtime switch built into the
+// dark header itself.
+//
+// Why this exists
+// ---------------
+// A normal code block answers "what language is this?" with a small header label
+// like "bash". Our install/invoke examples need to answer a different question:
+// "which runtime am I copying for right now?"
+//
+// Putting the switch inside the black header keeps that answer visually attached
+// to the code, and it guarantees that the copy button always copies the code the
+// reader is actually looking at.
+export interface Props {
+  tabs: {
+    label: string;
+    code: string;
+    lang?: string;
+    filename?: string;
+  }[];
+  defaultTab?: number;
+  class?: string;
+}
+
+const { tabs, defaultTab = 0, class: extraClass = "" } = Astro.props;
+
+if (tabs.length === 0) {
+  throw new Error("RuntimeCodeTabs requires at least one tab");
+}
+
+const activeIndex = Math.min(Math.max(defaultTab, 0), tabs.length - 1);
+const baseId = `runtime-tabs-${Math.random().toString(36).slice(2, 10)}`;
+---
+<div class={`runtime-code-tabs ${extraClass}`} data-runtime-tabs>
+  <div class="runtime-code-block">
+    <div class="runtime-code-block-header">
+      <div class="runtime-code-tabs-header" role="tablist" aria-label="Runtime options">
+        {tabs.map((tab, index) => (
+          <button
+            type="button"
+            id={`${baseId}-tab-${index}`}
+            class={`runtime-code-tab${index === activeIndex ? " runtime-code-tab--active" : ""}`}
+            role="tab"
+            aria-selected={index === activeIndex ? "true" : "false"}
+            aria-controls={`${baseId}-panel-${index}`}
+            tabindex={index === activeIndex ? 0 : -1}
+            data-runtime-tab-button
+            data-tab-index={index}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <button
+        class="runtime-code-copy"
+        aria-label="Copy code"
+        data-runtime-copy
+        data-code={tabs[activeIndex].code}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+      </button>
+    </div>
+
+    {tabs.map((tab, index) => (
+      <div
+        id={`${baseId}-panel-${index}`}
+        class={`runtime-code-panel${index === activeIndex ? " runtime-code-panel--active" : ""}`}
+        role="tabpanel"
+        aria-labelledby={`${baseId}-tab-${index}`}
+        hidden={index !== activeIndex}
+        data-runtime-tab-panel
+        data-tab-index={index}
+      >
+        <pre class="runtime-code-block-body"><code>{tab.code}</code></pre>
+      </div>
+    ))}
+  </div>
+</div>
+
+<script>
+  // Keep each tabset self-contained:
+  // - clicking or using arrow keys swaps the visible panel
+  // - the copy button always tracks the currently visible code
+  document.querySelectorAll("[data-runtime-tabs]").forEach((root) => {
+    const element = root as HTMLElement & { dataset: DOMStringMap & { bound?: string } };
+    if (element.dataset.bound === "true") return;
+    element.dataset.bound = "true";
+
+    const buttons = Array.from(
+      element.querySelectorAll("[data-runtime-tab-button]")
+    ) as HTMLButtonElement[];
+    const panels = Array.from(
+      element.querySelectorAll("[data-runtime-tab-panel]")
+    ) as HTMLElement[];
+    const copyButton = element.querySelector("[data-runtime-copy]") as HTMLButtonElement | null;
+
+    // One small state transition function makes the behavior predictable.
+    // Update tabs, panels, and copy payload together so they never drift.
+    const activate = (targetIndex: string, focusButton = false) => {
+      buttons.forEach((button) => {
+        const active = button.dataset.tabIndex === targetIndex;
+        button.classList.toggle("runtime-code-tab--active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+        button.tabIndex = active ? 0 : -1;
+        if (active && focusButton) button.focus();
+      });
+
+      panels.forEach((panel) => {
+        const active = panel.dataset.tabIndex === targetIndex;
+        panel.classList.toggle("runtime-code-panel--active", active);
+        panel.hidden = !active;
+      });
+
+      if (copyButton) {
+        const activePanel = panels.find((panel) => panel.dataset.tabIndex === targetIndex);
+        const code = activePanel?.querySelector("code")?.textContent ?? "";
+        copyButton.dataset.code = code;
+      }
+    };
+
+    buttons.forEach((button, index) => {
+      button.addEventListener("click", () => {
+        if (!button.dataset.tabIndex) return;
+        activate(button.dataset.tabIndex);
+      });
+
+      // Use the standard tablist keyboard model so the control behaves like a
+      // real tab switcher, not just a row of styled buttons.
+      button.addEventListener("keydown", (event) => {
+        const { key } = event;
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) return;
+        event.preventDefault();
+
+        let nextIndex = index;
+        if (key === "ArrowRight") nextIndex = (index + 1) % buttons.length;
+        if (key === "ArrowLeft") nextIndex = (index - 1 + buttons.length) % buttons.length;
+        if (key === "Home") nextIndex = 0;
+        if (key === "End") nextIndex = buttons.length - 1;
+
+        const nextButton = buttons[nextIndex];
+        if (!nextButton?.dataset.tabIndex) return;
+        activate(nextButton.dataset.tabIndex, true);
+      });
+    });
+
+    if (copyButton) {
+      const btn = copyButton as HTMLButtonElement & { dataset: DOMStringMap & { bound?: string } };
+      if (btn.dataset.bound !== "true") {
+        btn.dataset.bound = "true";
+        btn.addEventListener("click", async () => {
+          const code = btn.dataset.code;
+          if (!code) return;
+
+          try {
+            await navigator.clipboard.writeText(code);
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>`;
+            setTimeout(() => {
+              btn.innerHTML = original;
+            }, 2000);
+          } catch {
+            // Ignore clipboard failures silently; the button remains usable.
+          }
+        });
+      }
+    }
+  });
+</script>
+
+<style>
+  /* This is intentionally styled like our normal dark code surfaces so the
+     runtime switch feels like part of the code block instead of a separate UI. */
+  .runtime-code-block {
+    background: var(--color-code-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: var(--border-hairline);
+    margin-bottom: var(--space-lg);
+  }
+
+  .runtime-code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-code-bg-header);
+    border-bottom: 1px solid var(--color-code-border);
+  }
+
+  .runtime-code-tabs-header {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .runtime-code-tab {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-code-comment);
+    border-radius: var(--radius-sm);
+    padding: 0.375rem 0.625rem;
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+    white-space: nowrap;
+  }
+
+  .runtime-code-tab:hover {
+    color: var(--color-code-text);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .runtime-code-tab:focus-visible {
+    outline: 1px solid rgba(187, 154, 247, 0.45);
+    outline-offset: 1px;
+  }
+
+  .runtime-code-tab--active {
+    color: var(--color-code-keyword);
+    background: rgba(187, 154, 247, 0.1);
+    border-color: rgba(187, 154, 247, 0.24);
+  }
+
+  .runtime-code-copy {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: var(--space-2xs);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    transition: color var(--transition-fast), background var(--transition-fast);
+  }
+
+  .runtime-code-copy:hover {
+    color: var(--color-code-text);
+    background: var(--color-code-border);
+  }
+
+  .runtime-code-block-body {
+    padding: var(--space-lg);
+    margin: 0;
+    overflow-x: auto;
+    font-family: var(--font-code);
+    font-size: var(--text-code);
+    line-height: var(--leading-code);
+    color: var(--color-code-text);
+  }
+
+  .runtime-code-block-body code {
+    font-family: inherit;
+    white-space: pre;
+  }
+
+  .runtime-code-tabs .runtime-code-block {
+    margin-bottom: 0;
+  }
+</style>

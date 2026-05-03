@@ -1,0 +1,93 @@
+---
+// Terminal.astro — Terminal-like code block for hero / demos
+export interface Props {
+  lines?: string[];
+  lang?: string;
+  prompt?: string;
+  class?: string;
+}
+---
+<div class={`terminal ${Astro.props.class ?? ""}`}>
+  <div class="terminal-header">
+    <div class="terminal-dots">
+      <span class="terminal-dot"></span>
+      <span class="terminal-dot"></span>
+      <span class="terminal-dot"></span>
+    </div>
+    <span class="terminal-lang">{Astro.props.lang ?? "bash"}</span>
+  </div>
+  <div class="terminal-body">
+    <pre><code set:html={
+      Astro.props.lines
+        ? Astro.props.lines.map((line) =>
+            Astro.props.prompt
+              ? `<span class="terminal-prompt">${Astro.props.prompt}</span> ${line}`
+              : line
+          ).join("\n")
+        : ""
+    } /></pre>
+  </div>
+</div>
+
+<style>
+  .terminal {
+    background: var(--color-code-bg);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border: 1px solid rgba(35, 16, 82, 0.25);
+    overflow: hidden;
+    box-shadow: var(--shadow-block);
+  }
+
+  .terminal-header {
+    display: flex;
+    align-items: center;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-code-bg-header);
+    border-bottom: 1px solid var(--color-code-border);
+    gap: var(--space-sm);
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+    opacity: 0.6;
+  }
+
+  .terminal-lang {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    color: var(--color-text-muted);
+    margin-left: var(--space-sm);
+  }
+
+  .terminal-body {
+    padding: var(--space-lg);
+    overflow-x: auto;
+  }
+
+  .terminal-body pre {
+    margin: 0;
+    font-family: var(--font-code);
+    font-size: var(--text-code);
+    line-height: var(--leading-code);
+    color: var(--color-code-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .terminal-body code {
+    font-family: inherit;
+  }
+
+  .terminal-prompt {
+    color: var(--color-code-prompt);
+    user-select: none;
+  }
+</style>

@@ -1,0 +1,108 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import SectionHeader from "../../components/SectionHeader.astro";
+import Card from "../../components/Card.astro";
+import CardGrid from "../../components/CardGrid.astro";
+import { skillDocs } from "../../data/site-docs";
+
+const marketplaceSkills = skillDocs.filter((skill) => skill.kind === "plugin-skill");
+const piLocalSkills = skillDocs.filter((skill) => skill.kind === "pi-skill");
+---
+
+<PageLayout
+  title="Skills"
+  description={`Browse ${skillDocs.length} individual skill docs across marketplace plugins and Pi-local packages.`}
+  currentNav="docs"
+>
+  <section class="page-section page-hero">
+    <SectionHeader
+      label="Skills"
+      title="Individual skill docs"
+      description={`${marketplaceSkills.length} marketplace skills and ${piLocalSkills.length} Pi-local skills. Each page documents the skill itself instead of only the parent plugin or package.`}
+    />
+  </section>
+
+  <section class="page-section">
+    <div class="category-header">
+      <h2 class="headline-md">Marketplace Skills</h2>
+      <span class="code-text-sm meta-text">{marketplaceSkills.length} skills</span>
+    </div>
+    <CardGrid cols={3}>
+      {marketplaceSkills.map((skill) => (
+        <Card
+          category={skill.packageCategory}
+          packageId={skill.name}
+          title={skill.title}
+          description={skill.description}
+          version={skill.packageVersion}
+          runtimes={["CC", "CODEX"]}
+          href={`/skills/${skill.name}`}
+        />
+      ))}
+    </CardGrid>
+  </section>
+
+  {piLocalSkills.length > 0 && (
+    <section class="page-section">
+      <div class="category-header">
+        <h2 class="headline-md">Pi-Local Skills</h2>
+        <span class="code-text-sm meta-text">{piLocalSkills.length} skills</span>
+      </div>
+      <CardGrid cols={3}>
+        {piLocalSkills.map((skill) => (
+          <Card
+            category="Pi Skill"
+            packageId={skill.name}
+            title={skill.title}
+            description={skill.description}
+            version={skill.packageVersion}
+            runtimes={["PI"]}
+            href={`/skills/${skill.name}`}
+          />
+        ))}
+      </CardGrid>
+    </section>
+  )}
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+
+  .page-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+
+  .category-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+  }
+
+  .meta-text {
+    color: var(--color-text-muted);
+  }
+
+  @media (max-width: 640px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+
+    .page-hero {
+      padding-top: var(--space-2xl);
+    }
+
+    .page-section + .page-section {
+      padding-top: var(--space-2xl);
+    }
+  }
+</style>

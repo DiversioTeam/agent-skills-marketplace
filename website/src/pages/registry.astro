@@ -1,0 +1,128 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import Card from "../components/Card.astro";
+import CardGrid from "../components/CardGrid.astro";
+import { plugins, piPackages } from "../data/marketplace.json";
+import { skillDocs, piPackageDocs } from "../data/site-docs";
+
+const categories = [...new Set(plugins.map((p) => p.category))];
+const marketplaceSkills = skillDocs.filter((skill) => skill.kind === "plugin-skill");
+const piLocalSkills = skillDocs.filter((skill) => skill.kind === "pi-skill");
+---
+
+<PageLayout
+  title="Registry"
+  description={`Browse all ${plugins.length} plugins and ${piPackages.length} pi packages in the Diversio Agent Skills Marketplace.`}
+  currentNav="registry"
+>
+  <section class="page-section registry-hero">
+    <SectionHeader
+      label="Registry"
+      title="Package Registry"
+      description={`${plugins.length} plugins across ${categories.length} categories, ${marketplaceSkills.length} marketplace skill pages, and ${piPackageDocs.length} Pi extension pages. Every entry links to deeper docs.`}
+    />
+  </section>
+
+  <section class="page-section">
+    <div class="category-header">
+      <h2 class="headline-md">Deeper Docs</h2>
+      <span class="code-text-sm" style="color: var(--color-text-muted)">skills + Pi extensions</span>
+    </div>
+    <CardGrid cols={3}>
+      <Card
+        category="Skills"
+        packageId="/skills"
+        title="Marketplace Skill Docs"
+        description={`Browse ${marketplaceSkills.length} individual marketplace skills, including wrapper commands, references, scripts, and runtime-specific install/invoke guidance.`}
+        href="/skills"
+      />
+      <Card
+        category="Pi Skill"
+        packageId="/skills"
+        title="Pi-Local Skill Docs"
+        description={`Browse ${piLocalSkills.length} Pi-local skills shipped inside Pi packages, including parent package context and source layout.`}
+        href="/skills"
+      />
+      <Card
+        category="Pi Package"
+        packageId="/pi"
+        title="Pi Extension Docs"
+        description={`Browse ${piPackageDocs.length} Pi packages as first-class extension docs with commands, tools, environment variables, and extension file layout.`}
+        href="/pi"
+      />
+    </CardGrid>
+  </section>
+
+  {categories.map((cat) => {
+    const catPlugins = plugins.filter((p) => p.category === cat);
+    return (
+      <section class="page-section">
+        <div class="category-header">
+          <h2 class="headline-md">{cat}</h2>
+          <span class="code-text-sm" style="color: var(--color-text-muted)">
+            {catPlugins.length} plugin{catPlugins.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <CardGrid cols={3}>
+          {catPlugins.map((p) => (
+            <Card
+              category={p.category}
+              packageId={p.name}
+              title={p.title}
+              description={p.description}
+              version={p.version}
+              runtimes={["CC", "CODEX"]}
+              href={`/docs/${p.name}`}
+            />
+          ))}
+        </CardGrid>
+      </section>
+    );
+  })}
+
+  <section class="page-section">
+    <div class="category-header">
+      <h2 class="headline-md">Pi Packages</h2>
+      <span class="code-text-sm" style="color: var(--color-text-muted)">{piPackages.length} packages</span>
+    </div>
+    <CardGrid cols={3}>
+      {piPackages.map((p) => (
+        <Card
+          category="Pi Package"
+          packageId={p.name}
+          title={p.title}
+          description={p.description}
+          version={p.version}
+          href={`/pi/${p.name}`}
+        />
+      ))}
+    </CardGrid>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+  .registry-hero { padding-top: var(--space-3xl); }
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+  .category-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+  }
+  @media (max-width: 640px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+    .registry-hero { padding-top: var(--space-2xl); }
+    .page-section + .page-section { padding-top: var(--space-2xl); }
+  }
+</style>

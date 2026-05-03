@@ -1,0 +1,51 @@
+---
+// CardGrid.astro — Responsive card grid container
+export interface Props {
+  cols?: 2 | 3 | 4;
+}
+
+const { cols = 3 } = Astro.props;
+---
+<div class={`card-grid card-grid--${cols}`}>
+  <slot />
+</div>
+
+<style>
+  .card-grid {
+    display: grid;
+    gap: 0;
+  }
+
+  .card-grid--2 {
+    grid-template-columns: repeat(1, 1fr);
+  }
+
+  .card-grid--3 {
+    grid-template-columns: repeat(1, 1fr);
+  }
+
+  .card-grid--4 {
+    grid-template-columns: repeat(1, 1fr);
+  }
+
+  @media (min-width: 640px) {
+    .card-grid--2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .card-grid--3 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .card-grid--4 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .card-grid--3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .card-grid--4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+</style>

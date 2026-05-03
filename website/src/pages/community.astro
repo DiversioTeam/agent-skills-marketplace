@@ -1,0 +1,436 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import FeatureList from "../components/FeatureList.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import { plugins, piPackages } from "../data/marketplace.json";
+import { contributors } from "../data/contributors";
+
+const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
+const totalContributorCommits = contributors.reduce((sum, contributor) => sum + contributor.commits, 0);
+const guardrailsCode = `bash scripts/validate-skills.sh
+jq -e . .claude-plugin/marketplace.json >/dev/null
+jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
+jq -e . pi-packages/<package>/package.json >/dev/null`;
+---
+
+<PageLayout
+  title="Community"
+  description="GitHub-first contribution workflow for the Agent Skills Marketplace: source, issues, PRs, guardrails, and support."
+  currentNav="community"
+>
+  <section class="page-section community-hero">
+    <SectionHeader
+      label="Community"
+      title="GitHub-first collaboration"
+      description={`The marketplace is maintained in the open: ${plugins.length} plugins, ${totalSkills} plugin skills, and ${piPackages.length} pi packages, all reviewed through standard GitHub issues and pull requests.`}
+    />
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-num">{plugins.length}</span>
+        <span class="label-caps stat-label">Plugins</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num">{totalSkills}</span>
+        <span class="label-caps stat-label">Plugin Skills</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num">{piPackages.length}</span>
+        <span class="label-caps stat-label">Pi Packages</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num">PR</span>
+        <span class="label-caps stat-label">Default contribution path</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="page-section">
+    <SectionHeader
+      label="Get Involved"
+      title="Where the work happens"
+      description="There is no separate forum layer today. Use GitHub for bugs, proposals, reviews, and contribution docs."
+    />
+    <div class="community-grid">
+      <a href="https://github.com/DiversioTeam/agent-skills-marketplace" class="community-card" target="_blank" rel="noopener">
+        <span class="label-caps community-kicker">Repository</span>
+        <h2 class="headline-sm">Source, catalog, and release history</h2>
+        <p class="body-md community-copy">
+          Browse plugin and pi-package source, inspect manifests, and review recent
+          changes directly in the repository.
+        </p>
+        <span class="label-caps community-link">Open GitHub →</span>
+      </a>
+
+      <a href="https://github.com/DiversioTeam/agent-skills-marketplace/issues" class="community-card" target="_blank" rel="noopener">
+        <span class="label-caps community-kicker">Issues</span>
+        <h2 class="headline-sm">Bugs, proposals, and docs drift</h2>
+        <p class="body-md community-copy">
+          Open issues when command behavior, install docs, or marketplace metadata drift
+          from the actual repo.
+        </p>
+        <span class="label-caps community-link">View issues →</span>
+      </a>
+
+      <a href="https://github.com/DiversioTeam/agent-skills-marketplace/pulls" class="community-card" target="_blank" rel="noopener">
+        <span class="label-caps community-kicker">Pull Requests</span>
+        <h2 class="headline-sm">Reviewable changes only</h2>
+        <p class="body-md community-copy">
+          Skills, manifests, docs, and pi packages all flow through normal PR review.
+          Keep changes scoped and version bumps synchronized.
+        </p>
+        <span class="label-caps community-link">Browse PRs →</span>
+      </a>
+
+      <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/CONTRIBUTING.md" class="community-card" target="_blank" rel="noopener">
+        <span class="label-caps community-kicker">Contributor Guide</span>
+        <h2 class="headline-sm">The repo’s working agreement</h2>
+        <p class="body-md community-copy">
+          Use the contribution guide for plugin shape, pi-package rules, validation
+          commands, and doc-sync expectations.
+        </p>
+        <span class="label-caps community-link">Read CONTRIBUTING.md →</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="page-section contributors-section">
+    <SectionHeader
+      label="Contributors"
+      title="Humans behind the marketplace"
+      description={`${contributors.length} contributors in git history, excluding bots. Current history shows ${totalContributorCommits} total authored commits across the marketplace repository.`}
+    />
+    <div class="contributors-grid">
+      {contributors.map((contributor) => (
+        <article class="contributor-card">
+          <div class="contributor-card-header">
+            <div class="contributor-avatar" aria-hidden="true">{contributor.initials}</div>
+            <div class="contributor-meta">
+              <h3 class="headline-sm contributor-name">{contributor.name}</h3>
+              <p class="body-md contributor-commits">
+                {contributor.commits} commit{contributor.commits !== 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+          {contributor.github ? (
+            <a href={contributor.github} class="contributor-link label-caps" target="_blank" rel="noopener">
+              GitHub →
+            </a>
+          ) : (
+            <span class="contributor-link contributor-link--muted label-caps">Contributor</span>
+          )}
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="page-section">
+    <SectionHeader
+      label="Workflow"
+      title="How a good contribution moves"
+      description="The repo is configuration-only, so the bar is less about application runtime behavior and more about shape, sync, and guardrails."
+    />
+    <div class="workflow-grid">
+      <div class="workflow-step">
+        <span class="workflow-num code-text">01</span>
+        <h3 class="headline-sm">Pick the right layer</h3>
+        <p class="body-md">Decide whether the change belongs in a skill, a Claude Code plugin wrapper/manifest, a pi package, or repo docs.</p>
+      </div>
+      <div class="workflow-step">
+        <span class="workflow-num code-text">02</span>
+        <h3 class="headline-sm">Edit the canonical files</h3>
+        <p class="body-md">Update SKILL.md first, keep wrappers thin, and sync plugin or package manifests with the user-facing docs.</p>
+      </div>
+      <div class="workflow-step">
+        <span class="workflow-num code-text">03</span>
+        <h3 class="headline-sm">Run local guardrails</h3>
+        <p class="body-md">Validate skill size, JSON, and pi-package command discovery before asking anyone else to review the change.</p>
+      </div>
+      <div class="workflow-step">
+        <span class="workflow-num code-text">04</span>
+        <h3 class="headline-sm">Open a clean PR</h3>
+        <p class="body-md">Use standard GitHub review, link the motivating issue when relevant, and keep the diff narrow enough to audit quickly.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page-section quality-section">
+    <SectionHeader
+      label="Quality Gates"
+      title="What maintainers expect before review"
+      description="Most repeated failures in this repo are sync failures: versions, docs, wrappers, and package metadata drifting apart."
+    />
+    <div class="quality-grid">
+      <FeatureList
+        features={[
+          { label: "Version sync", description: "Plugin changes should update both the plugin manifest and the top-level marketplace manifest." },
+          { label: "Wrapper coverage", description: "Every changed marketplace skill should still have at least one command wrapper." },
+          { label: "Skill size budget", description: "Changed SKILL.md files stay at or below 500 lines." },
+          { label: "Doc accuracy", description: "README, catalog, and distribution docs should stay aligned with install and invoke behavior." },
+          { label: "Pi package checks", description: "When a pi package changes, validate its package.json and smoke-test command discovery." },
+        ]}
+      />
+      <CodeBlock lang="bash" code={guardrailsCode} />
+    </div>
+  </section>
+
+  <section class="page-section support-section">
+    <SectionHeader
+      label="Support"
+      title="Questions, security issues, or unclear docs?"
+      description="Route feedback to the channel that matches the problem so it can turn into docs, scripts, or CI instead of staying tribal knowledge."
+    />
+    <div class="support-grid">
+      <div class="support-card">
+        <span class="label-caps community-kicker">General Help</span>
+        <h3 class="headline-sm">tech@diversio.com</h3>
+        <p class="body-md community-copy">
+          Use email for maintainer contact when GitHub alone is not the right path.
+        </p>
+      </div>
+      <a href="/security" class="support-card support-card--link">
+        <span class="label-caps community-kicker">Security</span>
+        <h3 class="headline-sm">Security policy</h3>
+        <p class="body-md community-copy">
+          Follow the security page for responsible disclosure instead of filing a public issue.
+        </p>
+        <span class="label-caps community-link">Read policy →</span>
+      </a>
+      <a href="/docs" class="support-card support-card--link">
+        <span class="label-caps community-kicker">Documentation</span>
+        <h3 class="headline-sm">Authoring and distribution guide</h3>
+        <p class="body-md community-copy">
+          The docs section explains directory shape, SKILL.md conventions, runtime distribution, and validation commands.
+        </p>
+        <span class="label-caps community-link">Open docs →</span>
+      </a>
+    </div>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-margin);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+  }
+
+  .community-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm);
+  }
+
+  @media (min-width: 960px) {
+    .stats-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .stat-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-block-sm);
+    padding: var(--space-lg) var(--space-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    justify-content: center;
+    min-height: 7.5rem;
+  }
+
+  .stat-num {
+    font-family: var(--font-headline);
+    font-size: var(--text-headline-lg);
+    font-weight: var(--weight-bold);
+    color: var(--color-primary);
+    line-height: 1;
+  }
+
+  .stat-label {
+    color: var(--color-text-secondary);
+  }
+
+  .community-grid,
+  .support-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  @media (min-width: 768px) {
+    .community-grid,
+    .support-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .community-card,
+  .support-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .community-card {
+    text-decoration: none;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  }
+
+  .community-card:hover,
+  .support-card--link:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-block);
+  }
+
+  .community-kicker {
+    color: var(--color-primary);
+  }
+
+  .community-copy {
+    color: var(--color-text-secondary);
+  }
+
+  .community-link {
+    color: var(--color-primary);
+    margin-top: auto;
+  }
+
+  .contributors-grid,
+  .workflow-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  @media (min-width: 768px) {
+    .contributors-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1120px) {
+    .contributors-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .contributor-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-block-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .contributor-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .contributor-avatar {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+    border: var(--border-hairline);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-code);
+    font-size: var(--text-code);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .contributor-meta {
+    min-width: 0;
+  }
+
+  .contributor-name {
+    margin: 0 0 var(--space-2xs);
+  }
+
+  .contributor-commits {
+    color: var(--color-text-secondary);
+  }
+
+  .contributor-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    margin-top: auto;
+  }
+
+  .contributor-link--muted {
+    color: var(--color-text-muted);
+  }
+
+  @media (min-width: 960px) {
+    .workflow-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .workflow-step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .workflow-num {
+    font-size: var(--text-headline-lg);
+    color: var(--color-primary-container);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .workflow-step p {
+    color: var(--color-text-secondary);
+  }
+
+  .quality-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  @media (min-width: 960px) {
+    .quality-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+
+  .support-card--link {
+    text-decoration: none;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  }
+
+  @media (max-width: 640px) {
+    .page-section {
+      padding: var(--space-2xl) var(--space-md);
+    }
+
+    .community-hero {
+      padding-top: var(--space-2xl);
+    }
+  }
+</style>

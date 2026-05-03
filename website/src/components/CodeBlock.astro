@@ -1,0 +1,104 @@
+---
+// CodeBlock.astro — Dark-themed code block with header and copy button
+export interface Props {
+  lang: string;
+  filename?: string;
+  code: string;
+}
+
+const { lang, filename, code } = Astro.props;
+---
+<div class="code-block">
+  <div class="code-block-header">
+    <span class="code-block-lang">{filename ?? lang}</span>
+    <button class="code-block-copy" aria-label="Copy code" data-code={code}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+      </svg>
+    </button>
+  </div>
+  <pre class="code-block-body"><code>{code}</code></pre>
+</div>
+
+<script>
+  // Copy-to-clipboard for code blocks
+  document.querySelectorAll(".code-block-copy").forEach((button) => {
+    const btn = button as HTMLButtonElement & { dataset: DOMStringMap & { bound?: string } };
+    if (btn.dataset.bound === "true") return;
+    btn.dataset.bound = "true";
+
+    btn.addEventListener("click", async () => {
+      const code = btn.dataset.code;
+      if (!code) return;
+
+      try {
+        await navigator.clipboard.writeText(code);
+        const original = btn.innerHTML;
+        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>`;
+        setTimeout(() => {
+          btn.innerHTML = original;
+        }, 2000);
+      } catch {
+        // Ignore clipboard failures silently; the button remains usable.
+      }
+    });
+  });
+</script>
+
+<style>
+  .code-block {
+    background: var(--color-code-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: var(--border-hairline);
+    margin-bottom: var(--space-lg);
+  }
+
+  .code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-code-bg-header);
+    border-bottom: 1px solid var(--color-code-border);
+  }
+
+  .code-block-lang {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    color: var(--color-text-muted);
+  }
+
+  .code-block-copy {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: var(--space-2xs);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    transition: color var(--transition-fast), background var(--transition-fast);
+  }
+
+  .code-block-copy:hover {
+    color: var(--color-code-text);
+    background: var(--color-code-border);
+  }
+
+  .code-block-body {
+    padding: var(--space-lg);
+    margin: 0;
+    overflow-x: auto;
+    font-family: var(--font-code);
+    font-size: var(--text-code);
+    line-height: var(--leading-code);
+    color: var(--color-code-text);
+  }
+
+  .code-block-body code {
+    font-family: inherit;
+    white-space: pre;
+  }
+</style>

@@ -1,0 +1,195 @@
+---
+// Pi package detail pages are intentionally extension-first.
+//
+// The older marketplace package pages are useful summaries, but they are too
+// shallow for someone who needs the real Pi surface area: commands, tools,
+// environment variables, packaged skills, and extension file layout.
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import Tag from "../../components/Tag.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import DataTable from "../../components/DataTable.astro";
+import { piPackageDocs } from "../../data/site-docs";
+
+export function getStaticPaths() {
+  return piPackageDocs.map((pkg) => ({
+    params: { package: pkg.name },
+    props: { pkg },
+  }));
+}
+
+const { pkg } = Astro.props;
+const sidebarItems = [
+  { label: "Overview", href: "#overview", active: true },
+  ...(pkg.packagedSkills.length > 0 ? [{ label: "Packaged Skills", href: "#packaged-skills" }] : []),
+  ...(pkg.commandRows.length > 0 ? [{ label: "Commands", href: "#commands" }] : []),
+  ...(pkg.toolRows.length > 0 ? [{ label: "LLM Tools", href: "#tools" }] : []),
+  ...(pkg.environmentItems.length > 0 ? [{ label: "Environment", href: "#environment" }] : []),
+  ...(pkg.shortcutItems.length > 0 ? [{ label: "Shortcuts", href: "#shortcuts" }] : []),
+  { label: "Extension Files", href: "#extension-files" },
+  { label: "Installation", href: "#installation" },
+  ...pkg.sections.map((section) => ({ label: section.heading, href: `#${section.slug}` })),
+];
+---
+
+<DocsLayout
+  title={pkg.title}
+  description={pkg.description}
+  packageName={pkg.name}
+  packageVersion={pkg.version}
+  {sidebarItems}
+  metadata={[
+    { label: "Type", value: "Pi Package" },
+    { label: "Package", value: pkg.packagePath, href: pkg.packageUrl, mono: true },
+    ...(pkg.extensionPath ? [{ label: "Extension", value: pkg.extensionPath, href: `${pkg.packageUrl}/extensions`, mono: true }] : []),
+    { label: "Compatibility", value: "Pi", mono: true },
+  ]}
+>
+  <header class="doc-header">
+    <div class="doc-tags">
+      <Tag variant="stable">PI PACKAGE</Tag>
+      <Tag variant="default">EXTENSION</Tag>
+    </div>
+    <h1 class="headline-xl doc-title">{pkg.title}</h1>
+    <p class="body-lg doc-subtitle">{pkg.description}</p>
+  </header>
+
+  <section class="doc-section" id="overview">
+    <h2 class="headline-md doc-heading">Overview</h2>
+    <p>{pkg.description}</p>
+    <p>
+      Package docs also remain available on the marketplace package page at <a href={pkg.packageDocHref}>{pkg.packageDocHref}</a>, but this page focuses on the Pi-native extension surface: commands, tools, environment variables, packaged skills, and extension files.
+    </p>
+  </section>
+
+  {pkg.packagedSkills.length > 0 && (
+    <section class="doc-section" id="packaged-skills">
+      <h2 class="headline-md doc-heading">Packaged Skills</h2>
+      <p>This package ships Pi-local skills alongside the extension code:</p>
+      <div class="chip-grid">
+        {pkg.packagedSkills.map((skill) => (
+          <a href={skill.href} class="chip chip-link">{skill.name}</a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {pkg.commandRows.length > 0 && (
+    <section class="doc-section" id="commands">
+      <h2 class="headline-md doc-heading">Commands</h2>
+      <DataTable
+        columns={[
+          { key: "command", label: "Command", mono: true },
+          { key: "description", label: "Does" },
+        ]}
+        rows={pkg.commandRows}
+      />
+    </section>
+  )}
+
+  {pkg.toolRows.length > 0 && (
+    <section class="doc-section" id="tools">
+      <h2 class="headline-md doc-heading">LLM Tools</h2>
+      <DataTable
+        columns={[
+          { key: "tool", label: "Tool", mono: true },
+          { key: "description", label: "Does" },
+        ]}
+        rows={pkg.toolRows}
+      />
+    </section>
+  )}
+
+  {pkg.environmentItems.length > 0 && (
+    <section class="doc-section" id="environment">
+      <h2 class="headline-md doc-heading">Environment</h2>
+      <ul class="doc-list">
+        {pkg.environmentItems.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {pkg.shortcutItems.length > 0 && (
+    <section class="doc-section" id="shortcuts">
+      <h2 class="headline-md doc-heading">UI Shortcuts</h2>
+      <ul class="doc-list">
+        {pkg.shortcutItems.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <section class="doc-section" id="extension-files">
+    <h2 class="headline-md doc-heading">Extension Files</h2>
+    {pkg.extensionPath ? (
+      <>
+        <p>Primary extension path: <code>{pkg.extensionPath}</code></p>
+        {pkg.extensionFiles.length > 0 && (
+          <ul class="resource-list">
+            {pkg.extensionFiles.map((file) => (
+              <li><code>{file}</code></li>
+            ))}
+          </ul>
+        )}
+      </>
+    ) : (
+      <p>No extension directory is published for this package.</p>
+    )}
+  </section>
+
+  <section class="doc-section" id="installation">
+    <h2 class="headline-md doc-heading">Installation</h2>
+    {pkg.installCode ? (
+      <CodeBlock lang="bash" code={pkg.installCode} />
+    ) : (
+      <CodeBlock lang="bash" code={`pi install git:github.com/DiversioTeam/agent-skills-marketplace
+/reload`} />
+    )}
+
+    {pkg.localTestCode && (
+      <>
+        <p style="margin-top: var(--space-lg)">Local test or verification snippet:</p>
+        <CodeBlock lang="bash" code={pkg.localTestCode} />
+      </>
+    )}
+  </section>
+
+  {pkg.sections.map((section) => (
+    <section class="doc-section" id={section.slug}>
+      <h2 class="headline-md doc-heading">{section.heading}</h2>
+      {section.paragraphs.map((paragraph) => (
+        <p>{paragraph}</p>
+      ))}
+      {section.bullets.length > 0 && (
+        <ul class="doc-list">
+          {section.bullets.map((bullet) => (
+            <li>{bullet}</li>
+          ))}
+        </ul>
+      )}
+      {section.codeBlocks.slice(0, 2).map((block) => (
+        <CodeBlock lang={block.lang} code={block.code} />
+      ))}
+    </section>
+  ))}
+</DocsLayout>
+
+<style>
+  .doc-header { margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: var(--border-hairline); }
+  .doc-tags { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
+  .doc-title { margin-bottom: var(--space-md); }
+  .doc-subtitle { color: var(--color-text-secondary); max-width: 38rem; }
+  .doc-section { margin-bottom: var(--space-2xl); }
+  .doc-heading { margin-bottom: var(--space-lg); }
+  .doc-section p { color: var(--color-text-secondary); margin-bottom: var(--space-md); }
+  .doc-list,
+  .resource-list { padding-left: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); color: var(--color-text-secondary); }
+  .chip-grid { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+  .chip { display: inline-block; font-family: var(--font-code); font-size: var(--text-code); background: var(--color-code-bg); color: var(--color-code-text); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--color-code-border); white-space: nowrap; }
+  .chip-link { text-decoration: none; }
+  .chip-link:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .resource-list code,
+  .doc-section code:not(pre code):not(.chip) { font-family: var(--font-code); font-size: var(--text-code-sm); background: var(--color-surface-low); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--color-primary); }
+</style>

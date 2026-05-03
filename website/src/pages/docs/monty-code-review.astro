@@ -1,0 +1,239 @@
+---
+// docs/monty-code-review.astro — Monty Code Review skill documentation
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import RuntimeCodeTabs from "../../components/RuntimeCodeTabs.astro";
+import FeatureList from "../../components/FeatureList.astro";
+import Tag from "../../components/Tag.astro";
+import { plugins } from "../../data/marketplace.json";
+
+const montyPlugin = plugins.find((plugin) => plugin.name === "monty-code-review");
+if (!montyPlugin) {
+  throw new Error("Missing monty-code-review entry in marketplace.json");
+}
+---
+
+<DocsLayout
+  title={montyPlugin.title}
+  description={montyPlugin.description}
+  packageName={montyPlugin.name}
+  packageVersion={montyPlugin.version}
+  sidebarItems={[
+    { label: "Overview", href: "#overview", active: true },
+    { label: "Core Taste & Priorities", href: "#taste" },
+    { label: "Quickstart", href: "#quickstart" },
+    { label: "Review Output Format", href: "#output" },
+    { label: "Test Hardening", href: "#test-hardening" },
+    { label: "Review Memory", href: "#memory" },
+  ]}
+  metadata={[
+    { label: "Repository", value: "github.com/DiversioTeam/agent-skills-marketplace", href: "https://github.com/DiversioTeam/agent-skills-marketplace", mono: true },
+    { label: "Category", value: "Code Analysis" },
+    { label: "Compatibility", value: "Claude Code, Codex", mono: true },
+  ]}
+  maintainers={[
+    { name: "Diversio Devs", role: "Core Team" },
+  ]}
+>
+  <!-- Header -->
+  <header class="doc-header">
+    <div class="doc-tags">
+      <Tag variant="stable">SKILL</Tag>
+      <Tag variant="default">CODE ANALYSIS</Tag>
+    </div>
+    <h1 class="headline-xl doc-title">{montyPlugin.title}</h1>
+    <p class="body-lg doc-subtitle">
+      {montyPlugin.description} Includes a pytest test-hardening lane and persistent
+      JSON-first review memory across review passes.
+    </p>
+  </header>
+
+  <!-- Overview -->
+  <section class="doc-section" id="overview">
+    <h2 class="headline-md doc-heading">Overview</h2>
+    <p>
+      The Monty Code Review skill brings a hyper-pedantic, correctness-first review style
+      to your Django backend code. It targets core Django apps like <code>dashboardapp/</code>,
+      <code>survey/</code>, <code>optimo_*</code>, <code>pulse_iq/</code>, and <code>utils/</code>,
+      with special attention to multi-tenant data safety, time dimensions, exports, and
+      Django migrations.
+    </p>
+
+    <FeatureList
+      features={[
+        { label: "Business-first, correctness-first", description: "Simple, obviously-correct code beats clever abstractions." },
+        { label: "Complexity is a cost", description: "Only accept extra abstraction when it clearly buys performance, safety, or clearer modeling." },
+        { label: "Invariants over conditionals", description: "Encode company/org/year/quarter and multi-tenant guards as invariants, not scattered if-statements." },
+        { label: "Migrations are downtime-sensitive", description: "Every schema change is reviewed for safety with large tables and concurrent traffic." },
+      ]}
+    />
+  </section>
+
+  <!-- Core Taste & Priorities -->
+  <section class="doc-section" id="taste">
+    <h2 class="headline-md doc-heading">Core Taste &amp; Priorities</h2>
+    <p>
+      Emulate Monty's backend engineering and review taste as practiced in the Diversio
+      codebase:
+    </p>
+    <ul class="doc-list">
+      <li><strong>Business-first, correctness-first:</strong> simple, obviously-correct code beats clever abstractions.</li>
+      <li><strong>Complexity is a cost:</strong> only accept extra abstraction or machinery when it clearly buys performance, safety, or significantly clearer modeling.</li>
+      <li><strong>Invariants over conditionals:</strong> encode company/org/year/quarter, multi-tenant, and time-dimension guards as invariants encoded in the type system or at the query layer.</li>
+      <li><strong>Migrations:</strong> every schema change must be reviewed through the lens of large tables, concurrent traffic, and downtime risk.</li>
+    </ul>
+  </section>
+
+  <!-- Quickstart -->
+  <section class="doc-section" id="quickstart">
+    <h2 class="headline-md doc-heading">Quickstart</h2>
+
+    <p>Switch between Claude Code and Codex, then copy the invocation you actually need:</p>
+    <RuntimeCodeTabs
+      tabs={[
+        { label: "Claude Code", code: "/monty-code-review:code-review" },
+        { label: "Codex", code: "name: monty-code-review" },
+      ]}
+    />
+
+    <p style="margin-top: var(--space-lg)">For a test-hardening pass specifically:</p>
+    <CodeBlock
+      lang="bash"
+      code={`/monty-code-review:test-hardening`}
+    />
+  </section>
+
+  <!-- Review Output Format -->
+  <section class="doc-section" id="output">
+    <h2 class="headline-md doc-heading">Review Output Format</h2>
+    <p>
+      The human-facing review artifact is a markdown review with severity-tagged findings,
+      not a standalone JSON report. The skill’s persistent memory is JSON-first behind the
+      scenes, but the reviewer-visible output should follow this shape:
+    </p>
+    <CodeBlock
+      lang="md"
+      filename="docs/code_reviews/pr_1842_review.md"
+      code={`## What’s great
+- survey/models.py – nice use of transaction.atomic around the backfill path.
+
+## What could be improved
+- [BLOCKING] dashboardapp/views.py:get_queryset (line 142)
+  Missing tenant scoping on the Survey query can leak cross-company data.
+  Add .filter(company_id=request.company_id) before evaluation.
+
+- [SHOULD_FIX] survey/tests/test_exports.py
+  The new export path has happy-path coverage, but it does not exercise the
+  empty-result and cross-tenant cases.
+
+- [NIT] utils/dates.py
+  Consider renaming quarter_key to reporting_quarter_key for local clarity.
+
+## Tests
+- Covered well: export happy path, serializer validation.
+- Missing: cross-tenant access, zero-row export, rollback behavior.
+
+## Verdict
+Request changes until the tenant filter and missing tests land.`}
+    />
+    <p>
+      Severity tags should follow the skill’s documented conventions:
+      <code>[BLOCKING]</code>, <code>[SHOULD_FIX]</code>, and <code>[NIT]</code>.
+    </p>
+  </section>
+
+  <!-- Test Hardening -->
+  <section class="doc-section" id="test-hardening">
+    <h2 class="headline-md doc-heading">Test Hardening Lane</h2>
+    <p>
+      The skill includes a dedicated test-hardening lane that reviews test coverage and
+      suggests additional test cases. It focuses on:
+    </p>
+    <ul class="doc-list">
+      <li>Edge cases for multi-tenant data access</li>
+      <li>Permission boundary tests</li>
+      <li>Migration rollback and rollforward scenarios</li>
+      <li>Concurrent access and race condition tests</li>
+      <li>Large dataset performance tests</li>
+    </ul>
+  </section>
+
+  <!-- Review Memory -->
+  <section class="doc-section" id="memory">
+    <h2 class="headline-md doc-heading">Review Memory</h2>
+    <p>
+      The skill maintains a persistent JSON-first review memory across passes.
+      When re-reviewing a PR after fixes, it loads the previous findings and
+      marks resolved items so reassessment can focus on what actually changed.
+    </p>
+    <p>
+      The machine-readable memory lives in an XDG-aware cache/state location
+      (for example <code>~/.cache/monty-code-review</code> when no XDG path is set),
+      while the repo-local <code>*_review.md</code> file remains the human-facing artifact.
+    </p>
+  </section>
+</DocsLayout>
+
+<style>
+  .doc-header {
+    margin-bottom: var(--space-2xl);
+    padding-bottom: var(--space-xl);
+    border-bottom: var(--border-hairline);
+  }
+
+  .doc-tags {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+  }
+
+  .doc-title {
+    margin-bottom: var(--space-md);
+  }
+
+  .doc-subtitle {
+    color: var(--color-text-secondary);
+    max-width: 36rem;
+  }
+
+  .doc-section {
+    margin-bottom: var(--space-2xl);
+  }
+
+  .doc-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+  }
+
+  .doc-section p {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-md);
+    line-height: var(--leading-body);
+  }
+
+  .doc-section code:not(pre code) {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    background: var(--color-surface-low);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+  }
+
+  .doc-list {
+    color: var(--color-text-secondary);
+    padding-left: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body-sm);
+  }
+
+  .doc-list strong {
+    color: var(--color-text);
+  }
+</style>

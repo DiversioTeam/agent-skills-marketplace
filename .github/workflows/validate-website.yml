@@ -1,0 +1,54 @@
+# Website validation
+#
+# Why this workflow exists:
+# - the website is now a real product surface, not just an incidental docs folder
+# - the older marketplace validation workflow intentionally ignores website/**
+# - a static site can still break in simple ways: route generation, imports,
+#   metadata wiring, or build-time extraction from repo docs
+#
+# First principles:
+# - if a change touches the website, CI should at least prove the Astro build works
+# - the cheapest useful check is a clean install plus `npm run build`
+# - keep this workflow narrow and read-only
+name: Validate Website
+
+on:
+  pull_request:
+    paths:
+      - "website/**"
+      - ".github/workflows/validate-website.yml"
+  push:
+    paths:
+      - "website/**"
+      - ".github/workflows/validate-website.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-website:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Install website dependencies
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock=false
+
+      - name: Build website
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
