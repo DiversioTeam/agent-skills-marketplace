@@ -1,0 +1,12 @@
+{
+  "name": "image-router",
+  "version": "0.1.0",
+  "description": "Automatically routes image inputs to a vision-capable model when the active model doesn't support images (e.g., DeepSeek → Codex fallback).",
+  "keywords": ["pi-package"],
+  "files": ["extensions/", "README.md"],
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-tui": "*"
+  }
+}

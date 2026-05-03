@@ -10,6 +10,7 @@
     "extensions": [
       "pi-packages/ci-status/extensions",
       "pi-packages/dev-workflow/extensions",
+      "pi-packages/image-router/extensions",
       "pi-packages/skills-bridge/extensions",
       "pi-packages/oh-my-pi/extensions"
     ],
