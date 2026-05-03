@@ -434,7 +434,9 @@ command inventory, contribution workflow, and local testing commands.
 
 `monolith-review-orchestrator` is a harness-local workflow for Diversio
 monolith review work. Read `plugins/monolith-review-orchestrator/README.md`
-for prerequisites, helper commands, and usage examples.
+for prerequisites, helper commands, and usage examples. Reassessment guidance
+uses `report-live-drift`, while `validate-live-state` is reserved for the final
+posting gate.
 
 If you already use the upstream `visual-explainer` plugin, uninstall it before
 installing this marketplace version:
