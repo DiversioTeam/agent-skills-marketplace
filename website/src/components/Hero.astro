@@ -125,12 +125,14 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     grid-template-columns: 1fr;
     gap: var(--space-xl);
     padding-bottom: var(--space-3xl);
+    min-width: 0;
   }
 
   .hero-left {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
+    min-width: 0;
   }
 
   .hero-brand {
@@ -167,6 +169,7 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     display: flex;
     gap: var(--space-sm);
     flex-wrap: wrap;
+    min-width: 0;
   }
 
   .hero-terminal {
@@ -178,12 +181,13 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     display: flex;
     flex-direction: column;
     gap: var(--space-lg);
+    min-width: 0;
   }
 
   /* Stats row */
   .hero-stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-sm);
   }
 
@@ -198,6 +202,7 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     flex-direction: column;
     align-items: center;
     gap: var(--space-2xs);
+    min-width: 0;
   }
 
   .stat-num {
@@ -244,6 +249,7 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     display: flex;
     flex-direction: column;
     gap: var(--space-lg);
+    min-width: 0;
   }
 
   .eco-flow {
@@ -251,6 +257,7 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     align-items: center;
     justify-content: center;
     gap: var(--space-sm);
+    min-width: 0;
   }
 
   .eco-flow-secondary {
@@ -267,6 +274,7 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     flex-direction: column;
     gap: 2px;
     background: var(--color-surface);
+    min-width: 0;
   }
 
   .eco-node-plugins {
@@ -298,6 +306,46 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     font-family: var(--font-code);
     font-size: var(--text-code);
     flex-shrink: 0;
+  }
+
+  @media (max-width: 640px) {
+    .hero-actions > .btn {
+      flex: 1 1 calc(50% - var(--space-sm));
+    }
+
+    .hero-stats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stat-card {
+      padding: var(--space-md) var(--space-xs);
+    }
+
+    .stat-num {
+      font-size: 1.75rem;
+    }
+
+    .stat-label {
+      font-size: 0.625rem;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .arch-panel-body {
+      padding: var(--space-md);
+    }
+
+    .eco-flow {
+      flex-wrap: wrap;
+    }
+
+    .eco-arrow {
+      display: none;
+    }
+
+    .eco-node {
+      flex: 1 1 100%;
+    }
   }
 
   @media (min-width: 1280px) {

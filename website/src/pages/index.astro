@@ -26,6 +26,11 @@ const publishedPosts = (await getCollection("blog"))
   .filter((post) => !post.data.draft)
   .sort((a, b) => b.data.publishDate.getTime() - a.data.publishDate.getTime());
 const contributorCount = contributors.length;
+const summaryWritingValue = publishedPosts.length > 0 ? String(publishedPosts.length) : String(openSourceProjects.length);
+const summaryWritingLabel = publishedPosts.length > 0 ? "Blog Posts" : "Open Source";
+const writingMeta = publishedPosts.length > 0
+  ? `${publishedPosts.length} post${publishedPosts.length === 1 ? "" : "s"} live`
+  : "Original posts";
 ---
 
 <PageLayout
@@ -73,8 +78,8 @@ const contributorCount = contributors.length;
             <span class="label-caps summary-stat-label">Skills</span>
           </div>
           <div class="summary-stat">
-            <span class="summary-stat-num">{publishedPosts.length}</span>
-            <span class="label-caps summary-stat-label">Blog Posts</span>
+            <span class="summary-stat-num">{summaryWritingValue}</span>
+            <span class="label-caps summary-stat-label">{summaryWritingLabel}</span>
           </div>
         </div>
         <div class="summary-note body-md">
@@ -109,7 +114,7 @@ const contributorCount = contributors.length;
       <article class="section-card">
         <div class="section-card-header">
           <span class="label-caps">02</span>
-          <span class="code-text-sm">{publishedPosts.length} post{publishedPosts.length === 1 ? "" : "s"} live</span>
+          <span class="code-text-sm">{writingMeta}</span>
         </div>
         <h3 class="headline-sm">Engineering blog</h3>
         <p class="body-md">
