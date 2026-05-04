@@ -8,6 +8,7 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
 import Tag from "../../components/Tag.astro";
 import CodeBlock from "../../components/CodeBlock.astro";
 import RuntimeCodeTabs from "../../components/RuntimeCodeTabs.astro";
+import { getGeneratedOgImage } from "../../utils/og-image";
 import { skillDocs } from "../../data/site-docs";
 
 export function getStaticPaths() {
@@ -36,6 +37,7 @@ const claudeInvokeCode = skill.relatedCommands.length > 0
   ? skill.relatedCommands.join("\n")
   : skill.packageCommands.join("\n");
 
+const ogImage = getGeneratedOgImage(`/og/skill-${skill.name}.png`, "/og/skill-default.png");
 const sidebarItems = [
   { label: "Overview", href: "#overview", active: true },
   { label: "Parent Surface", href: "#parent-surface" },
@@ -48,6 +50,8 @@ const sidebarItems = [
 <DocsLayout
   title={skill.title}
   description={skill.description}
+  ogImage={ogImage}
+  socialImageAlt={`${skill.title} social preview`}
   packageName={skill.name}
   packageVersion={skill.packageVersion}
   {sidebarItems}

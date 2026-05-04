@@ -2,6 +2,7 @@
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import CodeBlock from "../../components/CodeBlock.astro";
 import Tag from "../../components/Tag.astro";
+import { getGeneratedOgImage } from "../../utils/og-image";
 import { plugins, piPackages } from "../../data/marketplace.json";
 
 export function getStaticPaths() {
@@ -47,6 +48,7 @@ const piInstallCode = `pi install git:github.com/DiversioTeam/agent-skills-marke
 
 # or install a single package from a local clone:
 pi install "$PWD/pi-packages/${name}"`;
+const ogImage = getGeneratedOgImage(`/og/docs-${name}.png`, "/og/docs-default.png");
 
 const sidebarItems = [{ label: "Overview", href: "#overview", active: true }];
 if (isPlugin) {
@@ -66,6 +68,8 @@ const metadata = [
 <DocsLayout
   title={title}
   description={description}
+  ogImage={ogImage}
+  socialImageAlt={`${title} social preview`}
   packageName={name}
   packageVersion={version}
   {sidebarItems}

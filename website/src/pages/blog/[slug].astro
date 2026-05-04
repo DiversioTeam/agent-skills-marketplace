@@ -9,6 +9,7 @@
 import { getCollection, render } from "astro:content";
 import PageLayout from "../../layouts/PageLayout.astro";
 import { formatEditorialDate } from "../../utils/format-date";
+import { getGeneratedOgImage } from "../../utils/og-image";
 
 export async function getStaticPaths() {
   const posts = (await getCollection("blog")).filter((post) => !post.data.draft);
@@ -22,12 +23,14 @@ export async function getStaticPaths() {
 const { post } = Astro.props;
 const { Content } = await render(post);
 const isRepost = post.data.sourceType === "repost";
+const generatedOgImage = getGeneratedOgImage(`/og/blog-${(post.data.slug ?? post.id).replace(/\.md$/, "")}.png`, "/og/blog-default.png");
+const ogImage = post.data.socialImage ?? post.data.heroImage ?? generatedOgImage;
 ---
 
 <PageLayout
   title={post.data.title}
   description={post.data.summary}
-  ogImage={post.data.socialImage ?? post.data.heroImage}
+  ogImage={ogImage}
   canonicalUrl={post.data.canonicalUrl}
   socialTitle={post.data.socialTitle ?? post.data.title}
   socialDescription={post.data.socialDescription ?? post.data.summary}

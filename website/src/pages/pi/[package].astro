@@ -4,11 +4,11 @@
 // The older marketplace package pages are useful summaries, but they are too
 // shallow for someone who needs the real Pi surface area: commands, tools,
 // environment variables, packaged skills, and extension file layout.
-import { existsSync } from "node:fs";
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import Tag from "../../components/Tag.astro";
 import CodeBlock from "../../components/CodeBlock.astro";
 import DataTable from "../../components/DataTable.astro";
+import { getGeneratedOgImage } from "../../utils/og-image";
 import { piPackageDocs } from "../../data/site-docs";
 
 export function getStaticPaths() {
@@ -19,9 +19,7 @@ export function getStaticPaths() {
 }
 
 const { pkg } = Astro.props;
-const customOgImage = `/og/pi-${pkg.name}.png`;
-const hasCustomOgImage = existsSync(new URL(`../../../public${customOgImage}`, import.meta.url));
-const ogImage = hasCustomOgImage ? customOgImage : "/og/pi-package-default.png";
+const ogImage = getGeneratedOgImage(`/og/pi-${pkg.name}.png`, "/og/pi-package-default.png");
 const sidebarItems = [
   { label: "Overview", href: "#overview", active: true },
   ...(pkg.packagedSkills.length > 0 ? [{ label: "Packaged Skills", href: "#packaged-skills" }] : []),

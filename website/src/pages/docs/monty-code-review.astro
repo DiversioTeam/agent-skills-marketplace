@@ -5,17 +5,21 @@ import CodeBlock from "../../components/CodeBlock.astro";
 import RuntimeCodeTabs from "../../components/RuntimeCodeTabs.astro";
 import FeatureList from "../../components/FeatureList.astro";
 import Tag from "../../components/Tag.astro";
+import { getGeneratedOgImage } from "../../utils/og-image";
 import { plugins } from "../../data/marketplace.json";
 
 const montyPlugin = plugins.find((plugin) => plugin.name === "monty-code-review");
 if (!montyPlugin) {
   throw new Error("Missing monty-code-review entry in marketplace.json");
 }
+const ogImage = getGeneratedOgImage("/og/docs-monty-code-review.png", "/og/docs-default.png");
 ---
 
 <DocsLayout
   title={montyPlugin.title}
   description={montyPlugin.description}
+  ogImage={ogImage}
+  socialImageAlt={`${montyPlugin.title} social preview`}
   packageName={montyPlugin.name}
   packageVersion={montyPlugin.version}
   sidebarItems={[
