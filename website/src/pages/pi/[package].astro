@@ -19,6 +19,10 @@ export function getStaticPaths() {
 }
 
 const { pkg } = Astro.props;
+
+// Pi pages are especially likely to be shared in chat while someone is
+// discussing one specific package. Use a package-specific OG image when it
+// exists so the preview matches the exact Pi extension being linked.
 const ogImage = getGeneratedOgImage(`/og/pi-${pkg.name}.png`, "/og/pi-package-default.png");
 const sidebarItems = [
   { label: "Overview", href: "#overview", active: true },

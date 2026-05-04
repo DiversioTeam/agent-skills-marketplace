@@ -15,6 +15,29 @@ This script keeps previews specific and repeatable:
 
 The site does not render OG images dynamically at request time.
 That keeps previews deterministic and easy to cache.
+
+Route naming convention
+----------------------
+A route usually maps to one predictable image name:
+
+    /                      -> public/og/home.png
+    /agentic-tools         -> public/og/agentic-tools.png
+    /docs/dev-workflow     -> public/og/docs-dev-workflow.png
+    /skills/dev-workflow   -> public/og/skill-dev-workflow.png
+    /pi/dev-workflow       -> public/og/pi-dev-workflow.png
+    /blog/my-post          -> public/og/blog-my-post.png
+
+Typical workflow
+----------------
+1. Update marketplace metadata, skill docs, or blog frontmatter.
+2. Re-run this script.
+3. Rebuild the Astro site.
+4. Check the generated page metadata and the PNG itself.
+
+Commands:
+
+    python3 website/scripts/generate-og-images.py
+    cd website && npm run build
 """
 
 from __future__ import annotations
@@ -81,8 +104,8 @@ FONT_PANEL_TEXT = load_font(22, bold=False)
 
 def normalize_display_text(value: str) -> str:
     return (
-        value.replace("—", ": ")
-        .replace("–", "-")
+        value.replace("\u2014", ": ")
+        .replace("\u2013", "-")
         .replace("  ", " ")
         .strip()
     )
@@ -203,6 +226,13 @@ def create_card(
     footer_path: str,
     output: Path,
 ) -> None:
+    """Render one OG card.
+
+    First principles:
+    - left side explains what the page is about
+    - right side gives a compact summary panel
+    - footer reminds the viewer which exact route is being shared
+    """
     image = Image.new("RGB", (WIDTH, HEIGHT), "#FBFAFF")
     draw = ImageDraw.Draw(image)
 

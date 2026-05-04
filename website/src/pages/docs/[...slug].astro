@@ -48,6 +48,9 @@ const piInstallCode = `pi install git:github.com/DiversioTeam/agent-skills-marke
 
 # or install a single package from a local clone:
 pi install "$PWD/pi-packages/${name}"`;
+
+// Bundle-level docs pages get their own social preview image when one has been
+// generated. If not, they fall back to the shared docs card.
 const ogImage = getGeneratedOgImage(`/og/docs-${name}.png`, "/og/docs-default.png");
 
 const sidebarItems = [{ label: "Overview", href: "#overview", active: true }];

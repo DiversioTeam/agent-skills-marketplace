@@ -1,4 +1,4 @@
-# Diversio Engineering — Website
+# Diversio Engineering Website
 
 Astro static site for the Diversio Engineering hub at [engineering.diversio.com](https://engineering.diversio.com).
 
@@ -21,19 +21,19 @@ Node requirement: Astro 6 in this site currently needs Node `>=22.12.0`.
 
 The website now has **three roles**:
 
-1. **Hub** — present Diversio Engineering as the umbrella site
+1. **Hub**: present Diversio Engineering as the umbrella site
    - homepage
    - section routing
    - shared brand + canonical metadata
 
-2. **Agentic Tools** — power the open tools section
+2. **Agentic Tools**: power the open tools section
    - `/agentic-tools`
    - `/registry`
    - `/docs/*`
    - `/skills/*`
    - `/pi/*`
 
-3. **Editorial** — support engineering writing and curated reposts
+3. **Editorial**: support engineering writing and curated reposts
    - `/blog`
    - `/blog/*`
    - original posts
@@ -543,9 +543,33 @@ Why generate them ahead of time?
 A few examples:
 
 ```text
-/pi/dev-workflow      -> /og/pi-dev-workflow.png
-/docs/dev-workflow    -> /og/docs-dev-workflow.png
-/skills/dev-workflow  -> /og/skill-dev-workflow.png
+/                       -> /og/home.png
+/agentic-tools          -> /og/agentic-tools.png
+/docs/dev-workflow      -> /og/docs-dev-workflow.png
+/skills/dev-workflow    -> /og/skill-dev-workflow.png
+/pi/dev-workflow        -> /og/pi-dev-workflow.png
+/blog/my-post           -> /og/blog-my-post.png
+```
+
+The page code does not hardcode file existence checks by hand. Instead, routes
+use `src/utils/og-image.ts` to ask for the image that matches their route type
+and fall back cleanly when a generated asset is missing.
+
+Typical workflow:
+
+```bash
+# 1. Change metadata or copy that affects a social card
+$EDITOR website/src/data/marketplace.json
+$EDITOR website/src/content/blog/*.md
+
+# 2. Regenerate the PNG assets
+python3 website/scripts/generate-og-images.py
+
+# 3. Rebuild the site and spot-check a few routes
+cd website && npm run build
+rg -n 'og:image|twitter:image' dist/docs/dev-workflow/index.html
+rg -n 'og:image|twitter:image' dist/skills/dev-workflow/index.html
+rg -n 'og:image|twitter:image' dist/pi/dev-workflow/index.html
 ```
 
 ## UI Decisions That Are Easy To Miss

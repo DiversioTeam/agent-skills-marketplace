@@ -24,6 +24,10 @@ const { post } = Astro.props;
 const { Content } = await render(post);
 const isRepost = post.data.sourceType === "repost";
 const postOgSlug = (post.data.slug ?? post.id).replace(/\.md$/, "").replace(/\//g, "-");
+
+// Blog posts can override their image in frontmatter, but the site also keeps a
+// generated fallback per post so a share still looks intentional even when the
+// editor did not provide a custom image.
 const generatedOgImage = getGeneratedOgImage(`/og/blog-${postOgSlug}.png`, "/og/blog-default.png");
 const ogImage = post.data.socialImage ?? post.data.heroImage ?? generatedOgImage;
 ---

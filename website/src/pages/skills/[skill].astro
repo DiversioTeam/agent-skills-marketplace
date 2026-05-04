@@ -37,6 +37,8 @@ const claudeInvokeCode = skill.relatedCommands.length > 0
   ? skill.relatedCommands.join("\n")
   : skill.packageCommands.join("\n");
 
+// Skill pages can have their own social card. If a route-specific image is not
+// present yet, use the shared skill fallback so links still unfurl cleanly.
 const ogImage = getGeneratedOgImage(`/og/skill-${skill.name}.png`, "/og/skill-default.png");
 const sidebarItems = [
   { label: "Overview", href: "#overview", active: true },
