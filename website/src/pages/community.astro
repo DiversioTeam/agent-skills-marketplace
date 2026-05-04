@@ -14,7 +14,7 @@ const guardrailsCode = `bash scripts/validate-skills.sh
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null`;
-const repoUrl = siteConfig.githubUrl;
+const repoUrl = siteConfig.githubRepoUrl;
 const issuesUrl = `${repoUrl}/issues`;
 const pullsUrl = `${repoUrl}/pulls`;
 const contributingUrl = `${repoUrl}/blob/main/CONTRIBUTING.md`;

@@ -7,7 +7,8 @@
 //
 // Mental model:
 // - content pages decide *what they say*
-// - this file decides *what the site is called* and *where sections live*
+// - this file decides *what the site is called*, *where sections live*, and
+//   *which public GitHub destination a shared UI link should use*
 //
 // If you rename a section or move a top-level route, update this file first,
 // then update any page copy that refers to the old name.
@@ -16,7 +17,8 @@ export const siteConfig = {
   siteUrl: "https://engineering.diversio.com",
   toolsSectionName: "Agentic Tools",
   blogSectionName: "Blog",
-  githubUrl: "https://github.com/DiversioTeam/agent-skills-marketplace",
+  githubUrl: "https://github.com/DiversioTeam",
+  githubRepoUrl: "https://github.com/DiversioTeam/agent-skills-marketplace",
   defaultDescription:
     "Diversio Engineering shares agentic tools, deep docs, and engineering writing.",
   routes: {
