@@ -79,6 +79,15 @@ FONT_PANEL_VALUE = load_font(30, bold=True)
 FONT_PANEL_TEXT = load_font(22, bold=False)
 
 
+def normalize_display_text(value: str) -> str:
+    return (
+        value.replace("—", ": ")
+        .replace("–", "-")
+        .replace("  ", " ")
+        .strip()
+    )
+
+
 def draw_grid(draw: ImageDraw.ImageDraw) -> None:
     step = 48
     for x in range(0, WIDTH, step):
@@ -188,7 +197,7 @@ def create_card(
 
     left_x = 120
     y = 120
-    draw.text((left_x, y), "DIVERSIO ENGINEERING", font=FONT_LABEL, fill=PURPLE)
+    draw.text((left_x, y), "DIVERSIO", font=FONT_LABEL, fill=PURPLE)
     y += 56
 
     badge_bbox = draw.textbbox((0, 0), badge, font=FONT_SMALL)
@@ -198,11 +207,11 @@ def create_card(
     draw.text((left_x + 15, y + 8), badge, font=FONT_SMALL, fill=PURPLE)
     y += badge_h + 34
 
-    y = draw_wrapped_text(draw, title, (left_x, y), FONT_TITLE, TEXT, width_px=580, line_spacing=8, max_lines=2)
+    y = draw_wrapped_text(draw, normalize_display_text(title), (left_x, y), FONT_TITLE, TEXT, width_px=580, line_spacing=8, max_lines=2)
     y += 18
     y = draw_wrapped_text(
         draw,
-        description,
+        normalize_display_text(description),
         (left_x, y),
         FONT_BODY,
         MUTED,
@@ -211,12 +220,12 @@ def create_card(
         max_lines=4,
     )
 
-    draw.text((left_x, HEIGHT - 135), footer_path, font=FONT_META, fill=MUTED)
+    draw.text((left_x, HEIGHT - 135), normalize_display_text(footer_path), font=FONT_META, fill=MUTED)
 
     panel = (830, 120, 1080, 510)
     draw.rounded_rectangle(panel, radius=24, fill=PANEL_SUBTLE, outline=BORDER, width=2)
     draw.rectangle((panel[0], panel[1], panel[2], panel[1] + 64), fill=PURPLE_LIGHT)
-    draw_wrapped_text(draw, right_title, (panel[0] + 22, panel[1] + 18), FONT_PANEL_TITLE, PURPLE, width_px=panel[2] - panel[0] - 44, line_spacing=4, max_lines=2)
+    draw_wrapped_text(draw, normalize_display_text(right_title), (panel[0] + 22, panel[1] + 18), FONT_PANEL_TITLE, PURPLE, width_px=panel[2] - panel[0] - 44, line_spacing=4, max_lines=2)
 
     line_y = panel[1] + 110
     for idx, line in enumerate(right_lines):
@@ -224,7 +233,7 @@ def create_card(
         text_fill = PURPLE if idx == 0 else TEXT
         line_y = draw_wrapped_text(
             draw,
-            line,
+            normalize_display_text(line),
             (panel[0] + 22, line_y),
             text_font,
             text_fill,
@@ -259,7 +268,7 @@ def collect_skill_docs() -> list[dict[str, str]]:
                 "name": skill_name,
                 "title": markdown_title(raw, identifier_to_title(skill_name)).replace(" Skill", ""),
                 "description": frontmatter.get("description", plugin.get("description", "Reusable skill from Diversio Engineering.")),
-                "badge": "SKILL",
+                "badge": "PLUGIN SKILL",
                 "panel_title": "PLUGIN SKILL",
                 "line1": "Claude Code · Codex",
                 "line2": plugin.get("title", identifier_to_title(plugin_name)),
@@ -280,7 +289,7 @@ def collect_skill_docs() -> list[dict[str, str]]:
                 "name": skill_name,
                 "title": markdown_title(raw, identifier_to_title(skill_name)).replace(" Skill", ""),
                 "description": frontmatter.get("description", pkg.get("description", "Pi-local skill from Diversio Engineering.")),
-                "badge": "SKILL",
+                "badge": "PI SKILL",
                 "panel_title": "PI SKILL",
                 "line1": "Pi Local",
                 "line2": pkg.get("title", identifier_to_title(package_name)),
@@ -432,9 +441,9 @@ def main() -> None:
             "description": "Original posts, updates, and technical writing from Diversio Engineering.",
             "badge": "BLOG",
             "panel_title": "WRITING",
-            "line1": f"{len(blog_posts)} posts",
-            "line2": "Original posts",
-            "line3": "Technical updates",
+            "line1": f"{len(blog_posts)} posts" if blog_posts else "Original posts",
+            "line2": "Technical updates",
+            "line3": "Diversio Engineering",
             "footer": "engineering.diversio.com/blog",
             "output": OUTPUT_DIR / "blog-index.png",
         },
@@ -500,9 +509,9 @@ def main() -> None:
         create_card(
             title=plugin["title"],
             description=plugin["description"],
-            badge="PLUGIN",
-            right_title="DOCS",
-            right_lines=[plugin.get("version", ""), plugin.get("category", "Plugin"), "Bundle summary"],
+            badge="PLUGIN DOCS",
+            right_title=plugin["name"].upper().replace("-", " "),
+            right_lines=[plugin.get("version", ""), plugin.get("category", "Plugin"), "Bundle docs"],
             footer_path=f"engineering.diversio.com/docs/{plugin['name']}",
             output=OUTPUT_DIR / f"docs-{plugin['name']}.png",
         )
@@ -511,9 +520,9 @@ def main() -> None:
         create_card(
             title=pkg["title"],
             description=pkg["description"],
-            badge="PI PACKAGE",
-            right_title="DOCS",
-            right_lines=[pkg.get("version", ""), "Pi Package", "Bundle summary"],
+            badge="PACKAGE DOCS",
+            right_title=pkg["name"].upper().replace("-", " "),
+            right_lines=[pkg.get("version", ""), "Pi package", "Bundle docs"],
             footer_path=f"engineering.diversio.com/docs/{pkg['name']}",
             output=OUTPUT_DIR / f"docs-{pkg['name']}.png",
         )

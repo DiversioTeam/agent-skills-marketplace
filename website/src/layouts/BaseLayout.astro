@@ -37,7 +37,7 @@ const {
   ogImageHeight = 630,
 } = Astro.props;
 
-const fullTitle = title === siteName ? siteName : `${title} — ${siteName}`;
+const fullTitle = title === siteName ? siteName : `${title} | ${siteName}`;
 const resolvedDescription = socialDescription ?? description;
 const resolvedSocialTitle = socialTitle ?? fullTitle;
 const resolvedCanonicalUrl = canonicalUrl ?? new URL(Astro.url.pathname, Astro.site).href;

@@ -279,7 +279,7 @@
     {
       "name": "dev-workflow",
       "title": "Dev Workflow",
-      "description": "Daily developer workflow for pi — plan review, self-review, standards pass, CI checks, PR review comments, release PR prep, docs, and shipping. 15 core prompts plus run, prompts, and flow.",
+      "description": "Daily developer workflow for pi: plan review, self-review, standards pass, CI checks, PR review comments, release PR prep, docs, and shipping. 15 core prompts plus run, prompts, and flow.",
       "version": "v0.0.3"
     },
     {
