@@ -55,11 +55,13 @@ const ogImage = post.data.socialImage ?? post.data.heroImage ?? generatedOgImage
       <h1 class="headline-xl post-title">{post.data.title}</h1>
       <p class="body-lg post-summary">{post.data.summary}</p>
       <div class="post-byline body-md">
-        <span>By {post.data.author.name}</span>
-        {post.data.author.url && (
+        By{" "}
+        {post.data.author.url ? (
           <a href={post.data.author.url} target="_blank" rel="noopener">
-            {post.data.author.name} profile
+            {post.data.author.name}
           </a>
+        ) : (
+          post.data.author.name
         )}
       </div>
       {isRepost && (
