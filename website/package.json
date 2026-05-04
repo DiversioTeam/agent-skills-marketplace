@@ -1,7 +1,7 @@
 {
   "name": "agent-skills-marketplace-website",
   "version": "1.0.0",
-  "description": "Agent Skills Marketplace — the extensible layer for AI agents. Discover, integrate, and deploy composable skills with schematic precision.",
+  "description": "Diversio Engineering website with Agentic Tools, deep docs, and blog scaffolding for original posts and curated reposts.",
   "type": "module",
   "scripts": {
     "dev": "astro dev",

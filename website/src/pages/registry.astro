@@ -5,22 +5,23 @@ import Card from "../components/Card.astro";
 import CardGrid from "../components/CardGrid.astro";
 import { plugins, piPackages } from "../data/marketplace.json";
 import { skillDocs, piPackageDocs } from "../data/site-docs";
+import { siteConfig } from "../../site.config.mjs";
 
 const categories = [...new Set(plugins.map((p) => p.category))];
-const marketplaceSkills = skillDocs.filter((skill) => skill.kind === "plugin-skill");
+const pluginSkills = skillDocs.filter((skill) => skill.kind === "plugin-skill");
 const piLocalSkills = skillDocs.filter((skill) => skill.kind === "pi-skill");
 ---
 
 <PageLayout
   title="Registry"
-  description={`Browse all ${plugins.length} plugins and ${piPackages.length} pi packages in the Diversio Agent Skills Marketplace.`}
-  currentNav="registry"
+  description={`Browse all ${plugins.length} plugins and ${piPackages.length} pi packages in Diversio ${siteConfig.toolsSectionName}.`}
+  currentNav="tools"
 >
   <section class="page-section registry-hero">
     <SectionHeader
       label="Registry"
       title="Package Registry"
-      description={`${plugins.length} plugins across ${categories.length} categories, ${marketplaceSkills.length} marketplace skill pages, and ${piPackageDocs.length} Pi extension pages. Every entry links to deeper docs.`}
+      description={`${plugins.length} plugins across ${categories.length} categories, ${pluginSkills.length} plugin skill pages, and ${piPackageDocs.length} Pi extension pages. Every entry links to deeper docs.`}
     />
   </section>
 
@@ -33,8 +34,8 @@ const piLocalSkills = skillDocs.filter((skill) => skill.kind === "pi-skill");
       <Card
         category="Skills"
         packageId="/skills"
-        title="Marketplace Skill Docs"
-        description={`Browse ${marketplaceSkills.length} individual marketplace skills, including wrapper commands, references, scripts, and runtime-specific install/invoke guidance.`}
+        title="Plugin Skill Docs"
+        description={`Browse ${pluginSkills.length} individual plugin skills, including wrapper commands, references, scripts, and runtime-specific install and invoke guidance.`}
         href="/skills"
       />
       <Card

@@ -56,11 +56,19 @@ skills target:
 - `Validate Website`
   - Triggered by changes under `website/**` or the website workflow file.
   - Runs a clean website dependency install and `cd website && npm run build`.
-  - This is the build gate for the Astro site at `agents.diversio.com`.
+  - This is the build gate for the Astro site that now targets `engineering.diversio.com`.
 - `Notify Marketplace Updates`
   - Triggered by pushes to `main` that touch `plugins/**` or `pi-packages/**`.
   - Diffs the full pushed range, groups changes by marketplace item, and posts
     one Slack message with separate `Plugin items` and `Pi items` sections.
+- `Deploy Website to Cloudflare Pages`
+  - Triggered by website changes and site-doc source changes.
+  - Builds the static site in GitHub Actions, then uploads `website/dist` to
+    Cloudflare Pages.
+  - PR previews run only for same-repo PRs because forked PRs do not receive
+    Cloudflare secrets.
+  - Pushes to `main` publish production automatically once the required GitHub
+    secrets are configured.
 
 Docs-only changes do not currently trigger the marketplace validation workflow,
 so run the local checks manually when you touch shared instructions.

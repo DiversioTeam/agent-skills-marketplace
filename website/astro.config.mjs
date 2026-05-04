@@ -1,8 +1,9 @@
 import { defineConfig } from "astro/config";
+import { siteConfig } from "./site.config.mjs";
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://agents.diversio.com",
+  site: siteConfig.siteUrl,
   output: "static",
   build: {
     // Cloudflare-friendly: no inline assets > 4KB

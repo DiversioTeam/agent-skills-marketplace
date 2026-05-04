@@ -1,7 +1,8 @@
 ---
-// Hero.astro — Homepage hero. Real content about the Agent Skills Marketplace.
+// Hero.astro — Agentic Tools hero.
 import Terminal from "./Terminal.astro";
 import { plugins, piPackages } from "../data/marketplace.json";
+import { siteConfig } from "../../site.config.mjs";
 
 const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
 ---
@@ -18,16 +19,14 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
         />
         <span class="label-caps hero-brand-note">Engineering</span>
       </div>
-      <h1 class="hero-title">Agent Skills Marketplace</h1>
+      <h1 class="hero-title">{siteConfig.toolsSectionName}</h1>
       <p class="body-lg hero-desc">
-        A configuration-only registry of reusable agent skills. Markdown files with YAML frontmatter
-        that teach coding agents how to do specific tasks — from pedantic Django code review to
-        structured release management. Portable across Claude Code, Codex, and Pi.
+        Open source tools, reusable skills, and Pi extensions from Diversio Engineering for Claude Code, Codex, and Pi.
       </p>
       <div class="hero-actions">
-        <a href="/docs" class="btn btn-primary btn-md">Get Started</a>
-        <a href="/registry" class="btn btn-secondary btn-md">Browse Registry</a>
-        <a href="https://github.com/DiversioTeam/agent-skills-marketplace" class="btn btn-ghost btn-md" target="_blank" rel="noopener">GitHub</a>
+        <a href={siteConfig.routes.docs} class="btn btn-primary btn-md">Read the Docs</a>
+        <a href={siteConfig.routes.registry} class="btn btn-secondary btn-md">Browse Registry</a>
+        <a href={siteConfig.githubUrl} class="btn btn-ghost btn-md" target="_blank" rel="noopener">GitHub</a>
       </div>
       <div class="hero-terminal">
         <Terminal

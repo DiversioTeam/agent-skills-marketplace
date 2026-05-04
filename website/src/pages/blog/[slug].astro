@@ -1,0 +1,179 @@
+---
+// Individual blog post page.
+//
+// Why this page exists:
+// - original posts and curated reposts share one layout and metadata system
+// - reposts sometimes need a canonical URL that points to the original source
+// - the content body should stay plain markdown while the page handles the
+//   surrounding attribution and social metadata rules
+import { getCollection, render } from "astro:content";
+import PageLayout from "../../layouts/PageLayout.astro";
+
+export async function getStaticPaths() {
+  const posts = (await getCollection("blog")).filter((post) => !post.data.draft);
+
+  return posts.map((post) => ({
+    params: { slug: (post.data.slug ?? post.id).replace(/\.md$/, "") },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const isRepost = post.data.sourceType === "repost";
+---
+
+<PageLayout
+  title={post.data.title}
+  description={post.data.summary}
+  ogImage={post.data.socialImage ?? post.data.heroImage}
+  canonicalUrl={post.data.canonicalUrl}
+  socialTitle={post.data.socialTitle ?? post.data.title}
+  socialDescription={post.data.socialDescription ?? post.data.summary}
+  socialType="article"
+  currentNav="blog"
+>
+  <section class="post-shell">
+    <header class="post-header">
+      <div class="post-kicker-row">
+        <span class={`label-caps post-kind${isRepost ? " post-kind--repost" : ""}`}>
+          {isRepost ? "Curated repost" : "Original post"}
+        </span>
+        <time class="code-text-sm post-date" datetime={post.data.publishDate.toISOString()}>
+          {post.data.publishDate.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}
+        </time>
+      </div>
+      <h1 class="headline-xl post-title">{post.data.title}</h1>
+      <p class="body-lg post-summary">{post.data.summary}</p>
+      <div class="post-byline body-md">
+        <span>By {post.data.author.name}</span>
+        {post.data.author.url && (
+          <a href={post.data.author.url} target="_blank" rel="noopener">author link</a>
+        )}
+      </div>
+      {isRepost && (
+        <div class="source-note">
+          <strong>Source:</strong>{" "}
+          {post.data.sourceUrl ? (
+            <a href={post.data.sourceUrl} target="_blank" rel="noopener">
+              {post.data.sourceSiteName ?? post.data.sourceUrl}
+            </a>
+          ) : (
+            post.data.sourceSiteName ?? "External source"
+          )}
+          {post.data.canonicalUrl && (
+            <>
+              {" "}· <strong>Canonical:</strong>{" "}
+              <a href={post.data.canonicalUrl} target="_blank" rel="noopener">
+                {post.data.canonicalUrl}
+              </a>
+            </>
+          )}
+        </div>
+      )}
+    </header>
+
+    <article class="post-content prose">
+      <Content />
+    </article>
+  </section>
+</PageLayout>
+
+<style>
+  .post-shell {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-margin);
+  }
+
+  .post-header {
+    margin-bottom: var(--space-2xl);
+  }
+
+  .post-kicker-row,
+  .post-byline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .post-kind {
+    color: var(--color-primary);
+  }
+
+  .post-kind--repost {
+    color: var(--color-accent);
+  }
+
+  .post-date,
+  .post-summary,
+  .post-byline,
+  .source-note,
+  .prose {
+    color: var(--color-text-secondary);
+  }
+
+  .post-title {
+    margin: var(--space-sm) 0;
+  }
+
+  .post-summary {
+    max-width: 40rem;
+  }
+
+  .post-byline a,
+  .source-note a {
+    color: var(--color-primary);
+  }
+
+  .source-note {
+    margin-top: var(--space-lg);
+    padding: var(--space-md);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-low);
+  }
+
+  .post-content :global(h2),
+  .post-content :global(h3),
+  .post-content :global(h4) {
+    color: var(--color-text);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-sm);
+  }
+
+  .post-content :global(p),
+  .post-content :global(ul),
+  .post-content :global(ol),
+  .post-content :global(blockquote) {
+    margin-bottom: var(--space-md);
+  }
+
+  .post-content :global(a) {
+    color: var(--color-primary);
+  }
+
+  .post-content :global(code) {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    background: var(--color-surface-low);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+  }
+
+  .post-content :global(pre) {
+    margin: var(--space-lg) 0;
+  }
+
+  @media (max-width: 640px) {
+    .post-shell {
+      padding: var(--space-2xl) var(--space-md);
+    }
+  }
+</style>

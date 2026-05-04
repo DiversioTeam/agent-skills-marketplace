@@ -1,0 +1,143 @@
+# Deploy the Diversio Engineering website to Cloudflare Pages.
+#
+# First principles:
+# - production should publish automatically from merges to main
+# - preview deploys should exist for reviewable PRs from this repository
+# - the site build depends on source docs outside website/**, so deploy triggers
+#   must include those inputs as well
+# - keep the workflow repo-local and explicit; Cloudflare project creation,
+#   secrets, and custom-domain mapping are one-time setup steps
+name: Deploy Website to Cloudflare Pages
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "website/**"
+      - "plugins/**/skills/**"
+      - "plugins/**/commands/**"
+      - "pi-packages/**/README.md"
+      - "pi-packages/**/skills/**"
+      - "pi-packages/**/extensions/**"
+      - ".github/workflows/deploy-website-cloudflare-pages.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "website/**"
+      - "plugins/**/skills/**"
+      - "plugins/**/commands/**"
+      - "pi-packages/**/README.md"
+      - "pi-packages/**/skills/**"
+      - "pi-packages/**/extensions/**"
+      - ".github/workflows/deploy-website-cloudflare-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-website-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  # Keep the project name configurable so the workflow can be reused across
+  # environments without rewriting the YAML. The default matches the intended
+  # production project for this repo.
+  CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'diversio-engineering' }}
+
+jobs:
+  # Preview deploys are limited to same-repo PRs because forked PRs do not
+  # receive repository secrets. That keeps the workflow safe and avoids noisy
+  # failures contributors cannot fix from forks.
+  deploy-preview:
+    name: Deploy preview
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: cloudflare-pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install website dependencies
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock=false
+
+      - name: Build website
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+
+      # We build in GitHub Actions first, then upload the finished static site.
+      # That keeps the deploy path deterministic and makes the GitHub build logs
+      # the source of truth when something breaks.
+      - name: Deploy preview to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.15.2 pages deploy website/dist \
+            --project-name="${CLOUDFLARE_PAGES_PROJECT}" \
+            --branch="${GITHUB_HEAD_REF}"
+
+  # Production deploys only happen from main so the public site matches merged
+  # repository state, not ad-hoc branch state.
+  deploy-production:
+    name: Deploy production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: cloudflare-pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install website dependencies
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock=false
+
+      - name: Build website
+        working-directory: website
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+
+      - name: Deploy production to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.15.2 pages deploy website/dist \
+            --project-name="${CLOUDFLARE_PAGES_PROJECT}" \
+            --branch=main
