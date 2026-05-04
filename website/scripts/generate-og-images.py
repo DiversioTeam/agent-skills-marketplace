@@ -137,12 +137,12 @@ def identifier_to_title(identifier: str) -> str:
     return " ".join(part.upper() if len(part) <= 2 else part.capitalize() for part in identifier.split("-") if part)
 
 
-def parse_frontmatter(raw: str) -> dict[str, str]:
+def parse_frontmatter(raw: str) -> dict[str, object]:
     match = re.match(r"^---\n([\s\S]*?)\n---\n?", raw)
     if not match:
         return {}
 
-    result: dict[str, str] = {}
+    result: dict[str, object] = {}
     lines = match.group(1).splitlines()
     index = 0
     while index < len(lines):
@@ -162,6 +162,19 @@ def parse_frontmatter(raw: str) -> dict[str, str]:
             result[key] = " ".join(part for part in block if part).strip()
             continue
 
+        if raw_value == "":
+            nested: dict[str, str] = {}
+            index += 1
+            while index < len(lines):
+                nested_match = re.match(r"^\s+([A-Za-z0-9_-]+):\s*(.*)$", lines[index])
+                if not nested_match:
+                    break
+                nested_key, nested_value = nested_match.group(1), nested_match.group(2).strip()
+                nested[nested_key] = nested_value.strip().strip('"').strip("'")
+                index += 1
+            result[key] = nested
+            continue
+
         cleaned = raw_value.strip().strip('"').strip("'")
         result[key] = cleaned
         index += 1
@@ -174,6 +187,10 @@ def markdown_title(raw: str, fallback: str) -> str:
     content = raw[frontmatter.end():] if frontmatter else raw
     match = re.search(r"^#\s+(.+)$", content, re.M)
     return match.group(1).strip() if match else fallback
+
+
+def asset_slug(value: str) -> str:
+    return value.replace("/", "-")
 
 
 def create_card(
@@ -309,19 +326,19 @@ def collect_blog_posts() -> list[dict[str, str]]:
         frontmatter = parse_frontmatter(raw)
         if frontmatter.get("draft", "false").lower() == "true":
             continue
-        slug = frontmatter.get("slug") or path.stem
+        slug = str(frontmatter.get("slug") or path.stem)
         posts.append(
             {
                 "slug": slug,
-                "title": frontmatter.get("title", identifier_to_title(slug)),
-                "description": frontmatter.get("summary", "Engineering writing from Diversio Engineering."),
+                "title": str(frontmatter.get("title", identifier_to_title(slug))),
+                "description": str(frontmatter.get("summary", "Engineering writing from Diversio Engineering.")),
                 "badge": "ENGINEERING BLOG",
                 "panel_title": "BLOG",
-                "line1": frontmatter.get("publishDate", ""),
-                "line2": frontmatter.get("author", "Diversio Engineering"),
+                "line1": str(frontmatter.get("publishDate", "")),
+                "line2": str((frontmatter.get("author") or {}).get("name", "Diversio Engineering")) if isinstance(frontmatter.get("author"), dict) else str(frontmatter.get("author", "Diversio Engineering")),
                 "line3": "Diversio Engineering",
                 "footer": f"engineering.diversio.com/blog/{slug}",
-                "output": str(OUTPUT_DIR / f"blog-{slug}.png"),
+                "output": str(OUTPUT_DIR / f"blog-{asset_slug(slug)}.png"),
             }
         )
     return posts
@@ -435,6 +452,17 @@ def main() -> None:
             "line3": "Use at your own risk",
             "footer": "engineering.diversio.com/terms",
             "output": OUTPUT_DIR / "terms.png",
+        },
+        {
+            "title": "Page Not Found",
+            "description": "The page you asked for is missing or has moved inside Diversio Engineering.",
+            "badge": "404",
+            "panel_title": "NOT FOUND",
+            "line1": "Browse tools",
+            "line2": "Read docs",
+            "line3": "Return home",
+            "footer": "engineering.diversio.com/404",
+            "output": OUTPUT_DIR / "404.png",
         },
         {
             "title": "Engineering Writing",

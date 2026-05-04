@@ -8,6 +8,8 @@ import Footer from "../components/Footer.astro";
 <BaseLayout
   title="404"
   description="Page not found."
+  ogImage="/og/404.png"
+  socialImageAlt="Page not found social preview"
 >
   <Header />
   <main class="not-found">
@@ -17,11 +19,11 @@ import Footer from "../components/Footer.astro";
       </div>
       <h1 class="headline-md" style="margin-bottom: var(--space-md)">Page Not Found</h1>
       <p class="body-lg" style="color: var(--color-text-secondary); margin-bottom: var(--space-xl); max-width: 32rem;">
-        The requested resource could not be located in the registry.
-        It may have been moved, deprecated, or never existed.
+        The requested page could not be found.
+        It may have moved, been removed, or never existed.
       </p>
       <div style="display: flex; gap: var(--space-sm);">
-        <a href="/" class="btn btn-primary btn-md">Return to Marketplace</a>
+        <a href="/" class="btn btn-primary btn-md">Return Home</a>
         <a href="/docs" class="btn btn-secondary btn-md">View Documentation</a>
       </div>
     </div>

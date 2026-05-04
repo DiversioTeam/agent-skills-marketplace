@@ -23,7 +23,8 @@ export async function getStaticPaths() {
 const { post } = Astro.props;
 const { Content } = await render(post);
 const isRepost = post.data.sourceType === "repost";
-const generatedOgImage = getGeneratedOgImage(`/og/blog-${(post.data.slug ?? post.id).replace(/\.md$/, "")}.png`, "/og/blog-default.png");
+const postOgSlug = (post.data.slug ?? post.id).replace(/\.md$/, "").replace(/\//g, "-");
+const generatedOgImage = getGeneratedOgImage(`/og/blog-${postOgSlug}.png`, "/og/blog-default.png");
 const ogImage = post.data.socialImage ?? post.data.heroImage ?? generatedOgImage;
 ---
 
