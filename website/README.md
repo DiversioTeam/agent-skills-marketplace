@@ -608,13 +608,15 @@ push to main
   -> production deployment on Cloudflare Pages
 
 manual workflow_dispatch run
-  -> preview or production, chosen explicitly at dispatch time
+  -> preview from any selected ref
+  -> production only when dispatched from main
 ```
 
 This split exists for a simple reason: reviewers need a safe preview URL, while
 production should only change after merge. Manual dispatch still exists so the
 team can re-run a preview or production deploy without manufacturing a new code
-change.
+change, but the workflow guards against deploying a feature-branch build to the
+production Pages branch.
 
 The canonical site URL is:
 

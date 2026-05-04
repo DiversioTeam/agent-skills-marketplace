@@ -66,7 +66,9 @@ CI/deploy checks:
 
 - open a PR from this repo and confirm the `Deploy Website to Cloudflare Pages` preview job runs
 - merge to `main` and confirm the production deploy job runs
-- use `workflow_dispatch` when you need a manual preview or production redeploy without a new commit
+- use `workflow_dispatch` when you need a manual redeploy without a new commit:
+  - preview can run from any selected ref
+  - production should only be dispatched from `main`
 - verify `engineering.diversio.com` serves the production build
 - verify `_redirects` aliases work
 - configure hostname-level redirect for `agents.diversio.com` -> `engineering.diversio.com`
@@ -87,7 +89,7 @@ npx wrangler pages deploy website/dist \
   --project-name=diversio-engineering \
   --branch=<branch-name>
 
-# Production-style deploy
+# Production-style deploy (use code from main)
 npx wrangler pages deploy website/dist \
   --project-name=diversio-engineering \
   --branch=main

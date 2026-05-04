@@ -7,6 +7,12 @@
 #   must include those inputs as well
 # - keep the workflow repo-local and explicit; Cloudflare project creation,
 #   secrets, and custom-domain mapping are one-time setup steps
+#
+# Safety rules for manual dispatch:
+# - manual preview deploys may run from any selected ref
+# - manual production deploys must only run from main
+# - do not let a workflow_dispatch run from a feature branch publish that
+#   feature branch build to the production Pages branch
 name: Deploy Website to Cloudflare Pages
 
 on:
@@ -43,9 +49,9 @@ on:
           - preview
           - production
       preview_branch:
-        description: "Preview branch name when deploy_target=preview"
+        description: "Optional preview branch alias override. Leave blank to use the selected GitHub ref name."
         required: false
-        default: manual
+        default: ""
         type: string
 
 permissions:
@@ -112,7 +118,7 @@ jobs:
           set -euo pipefail
           branch="${GITHUB_HEAD_REF:-}"
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            branch="${MANUAL_PREVIEW_BRANCH:-manual}"
+            branch="${MANUAL_PREVIEW_BRANCH:-${GITHUB_REF_NAME}}"
           fi
           npx --yes wrangler@4.15.2 pages deploy website/dist \
             --project-name="${CLOUDFLARE_PAGES_PROJECT}" \
@@ -124,7 +130,7 @@ jobs:
     name: Deploy production
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production')
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: cloudflare-pages
