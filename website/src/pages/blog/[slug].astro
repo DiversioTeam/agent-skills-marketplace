@@ -3,9 +3,29 @@
 //
 // Why this page exists:
 // - original posts and curated reposts share one layout and metadata system
-// - reposts sometimes need a canonical URL that points to the original source
+// - reposts need a canonical URL that points to the original source
 // - the content body should stay plain markdown while the page handles the
 //   surrounding attribution and social metadata rules
+//
+// What this page does for each post type:
+//
+//   original post:
+//     - author byline with optional profile link
+//     - no source note box
+//     - canonical URL defaults to this site's page URL
+//     - OG image falls back to the generated blog-specific card
+//
+//   curated repost:
+//     - "Curated repost" label instead of "Original post"
+//     - source note box with link to the original and canonical URL
+//     - canonical URL explicitly points to the original source for SEO
+//     - social metadata (og:url, og:title) points to the original
+//
+// OG image resolution order for a blog post:
+//   1. socialImage in frontmatter (hand-picked override)
+//   2. heroImage in frontmatter (article header image)
+//   3. generated blog-specific card (e.g. /og/blog-my-post.png)
+//   4. blog-default.png (shared fallback card)
 import { getCollection, render } from "astro:content";
 import PageLayout from "../../layouts/PageLayout.astro";
 import { formatEditorialDate } from "../../utils/format-date";

@@ -13,9 +13,50 @@ import { defineCollection, z } from "astro:content";
 // - make the important publishing rules machine-checkable
 // - fail early when a repost is missing source metadata
 //
-// Example mental model:
-//   original post -> published here, canonical can default to this site
-//   repost        -> published here, but must still point back to the source
+// Mental model for the two post types:
+//
+//   original post
+//     written for this site, canonical URL can stay here
+//     example: announcing a new feature or launch
+//
+//   curated repost
+//     originally published elsewhere, cross-posted here with attribution
+//     the canonical URL must point to the original
+//     the sourceUrl tells readers where the full post lives
+//     example: reposting an engineer's personal blog post about Diversio
+//
+// How to add a repost:
+//
+//   1. Create a markdown file under src/content/blog/
+//   2. Use this frontmatter shape:
+//
+//      ---
+//      title: "The Original Title"
+//      slug: original-slug-from-source
+//      summary: One-sentence description
+//      publishDate: 2025-08-07
+//      author:
+//        name: Original Author
+//        url: https://their-site.com
+//      sourceType: repost
+//      sourceSiteName: their-site.com
+//      sourceUrl: https://their-site.com/original-post/
+//      canonicalUrl: https://their-site.com/original-post/
+//      ---
+//
+//   3. The body should be a short intro + link to original.
+//      The full article stays on the source site.
+//
+//   4. Regenerate OG images and rebuild:
+//
+//      python3 website/scripts/generate-og-images.py
+//      cd website && npm run build
+//
+// Key rules for reposts:
+//   - sourceUrl and canonicalUrl are both required (enforced by superRefine)
+//   - sourceSiteName is displayed on the blog index and detail pages
+//   - canonicalUrl is what search engines see as the authoritative URL
+//   - the slug should match the original article's slug for consistency
 const blog = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/blog" }),
   schema: z

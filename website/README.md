@@ -41,6 +41,101 @@ The website now has **three roles**:
 
 The current implementation extends the PR #77 Astro baseline instead of replacing it.
 
+## Blog Content Model
+
+Blog posts live as markdown files under `src/content/blog/`. The site supports
+two kinds of posts that share one schema and one list page.
+
+### Original posts
+
+Written for this site. The canonical URL stays on engineering.diversio.com.
+
+```yaml
+---
+title: My Post Title
+summary: One-sentence summary
+publishDate: 2026-05-04
+author:
+  name: Author Name
+  url: https://github.com/author        # optional
+tags: [engineering, tooling]
+sourceType: original
+---
+
+Post body in markdown.
+```
+
+### Curated reposts
+
+Originally published elsewhere. The canonical URL and source URL must point to
+the original so search engines attribute correctly and readers can find the
+full article.
+
+```yaml
+---
+title: Original Article Title
+slug: original-slug-from-source
+summary: One-sentence description
+publishDate: 2025-08-07        # original publication date
+author:
+  name: Original Author
+  url: https://their-site.com
+tags: [engineering, django]
+sourceType: repost
+sourceSiteName: their-site.com
+sourceUrl: https://their-site.com/original-post/
+canonicalUrl: https://their-site.com/original-post/
+---
+
+*This post was originally published on [their-site.com](https://their-site.com/original-post/).*
+
+Brief context or excerpt here.
+
+[Read the full post on their-site.com](https://their-site.com/original-post/)
+```
+
+### Repost rules
+
+| Field | Required for reposts | Why |
+|---|---|---|
+| `sourceType: repost` | Yes | Tells the page to show "Curated repost" label and source box |
+| `sourceUrl` | Yes | Links readers to the original |
+| `canonicalUrl` | Yes | Search engines see this as the authoritative URL |
+| `sourceSiteName` | Recommended | Shown on the blog index as "Source: example.com" |
+| `slug` | Recommended | Match the original slug so URLs are predictable |
+| `publishDate` | Recommended | Use the original publish date so the timeline is honest |
+
+### Commands for managing posts
+
+```bash
+# Add a new repost markdown file
+$EDITOR website/src/content/blog/repost-some-post.md
+
+# Regenerate social preview cards (blog posts get their own OG images)
+python3 website/scripts/generate-og-images.py
+
+# Rebuild and check
+cd website && npm run build
+find dist/blog -name '*.html' | sort
+
+# Check a specific repost page
+curl -s http://localhost:4321/blog/some-slug/ | rg '<title>'
+```
+
+### How the blog pages use repost metadata
+
+```text
+frontmatter.sourceType = "repost"
+  -> blog index shows "Curated repost" label instead of "Original post"
+  -> detail page shows source note box with sourceUrl and canonicalUrl
+  -> detail page sets og:url to the original canonical URL for SEO
+
+frontmatter.sourceType = "original"
+  -> blog index shows "Original post" label
+  -> detail page does not show source note box
+  -> canonical URL defaults to the engineering site URL
+```
+
 ## First-Principles Mental Model
 
 ```text

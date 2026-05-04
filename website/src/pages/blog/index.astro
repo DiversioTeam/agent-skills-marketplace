@@ -8,6 +8,16 @@
 //
 // This page intentionally handles both post types in one list so readers do not
 // have to learn two different content surfaces.
+//
+// How the list works:
+//   1. Collect all blog posts that are not drafts
+//   2. Sort by publishDate descending (newest first)
+//   3. Check whether any reposts exist (drives the hero description text)
+//   4. Render each post as a card with source type label and source credit
+//
+// The hero copy changes based on whether reposts exist:
+//   no reposts  -> "Read original posts..." (simpler message)
+//   has reposts -> "Original posts and curated reposts live in one place..."
 import { getCollection } from "astro:content";
 import PageLayout from "../../layouts/PageLayout.astro";
 import SectionHeader from "../../components/SectionHeader.astro";
