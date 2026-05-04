@@ -36,16 +36,6 @@ const contributorCount = contributors.length;
   <section class="home-hero">
     <div class="home-hero-grid">
       <div class="home-hero-copy">
-        <div class="home-brand-row">
-          <img
-            src="/diversio-logo.svg"
-            alt="Diversio"
-            class="home-brand-logo"
-            width="116"
-            height="20"
-          />
-          <span class="label-caps home-brand-note">Engineering</span>
-        </div>
         <h1 class="home-title">{siteConfig.siteName}</h1>
         <p class="body-lg home-desc">
           Open tools, deep docs, and engineering writing from Diversio. Explore {siteConfig.toolsSectionName.toLowerCase()}, dive into implementation details, and follow new writing as the site grows.
@@ -240,22 +230,6 @@ const contributorCount = contributors.length;
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
-  }
-
-  .home-brand-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-  }
-
-  .home-brand-logo {
-    display: block;
-    width: auto;
-    height: 1.125rem;
-  }
-
-  .home-brand-note {
-    color: var(--color-primary);
   }
 
   .home-title {

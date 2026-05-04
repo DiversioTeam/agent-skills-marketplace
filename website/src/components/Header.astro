@@ -20,8 +20,6 @@ const navItems = siteConfig.navItems;
           width="116"
           height="20"
         />
-        <span class="header-brand-divider" aria-hidden="true"></span>
-        <span class="header-brand-product">{siteConfig.siteName}</span>
       </a>
       <nav class="header-nav" aria-label="Main navigation">
         {navItems.map((item) => (
@@ -89,24 +87,6 @@ const navItems = siteConfig.navItems;
     flex-shrink: 0;
   }
 
-  .header-brand-divider {
-    width: 1px;
-    align-self: stretch;
-    min-height: 1rem;
-    margin-block: 1px;
-    background: var(--color-hairline-solid);
-  }
-
-  .header-brand-product {
-    display: inline-flex;
-    align-items: center;
-    font-family: var(--font-headline);
-    font-weight: var(--weight-semibold);
-    font-size: var(--text-body-md);
-    line-height: 1;
-    color: var(--color-primary);
-    white-space: nowrap;
-  }
 
   .header-nav {
     display: flex;
@@ -200,10 +180,6 @@ const navItems = siteConfig.navItems;
       top: 0;
       right: var(--space-md);
       height: var(--header-height);
-    }
-    .header-brand-divider,
-    .header-brand-product {
-      display: none;
     }
   }
 
