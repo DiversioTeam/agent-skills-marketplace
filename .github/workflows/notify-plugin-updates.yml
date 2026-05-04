@@ -201,7 +201,7 @@ jobs:
           #
           # Format example:
           #   *Plugin items:*
-          #   • *frontend* `v0.0.1` — collapse 9 frontend plugins into one digest-first plugin
+          #   • *frontend* `v0.0.1` - collapse 9 frontend plugins into one digest-first plugin
           PLUGIN_SECTION=""
           if [ "$PLUGIN_COUNT" -gt 0 ]; then
             PLUGIN_SECTION="*Plugin items:*"
@@ -211,7 +211,7 @@ jobs:
               summary=$(extract_plugin_summary "$plugin_path")
               line="• *${plugin_name}* \`v${version}\`"
               if [ -n "$summary" ]; then
-                line="${line} — ${summary}"
+                line="${line} - ${summary}"
               fi
               PLUGIN_SECTION+=$'\n'"$line"
             done
@@ -231,14 +231,14 @@ jobs:
               summary=$(extract_pi_summary "$package_path")
               line="• *${package_name}* \`v${version}\`"
               if [ -n "$summary" ]; then
-                line="${line} — ${summary}"
+                line="${line} - ${summary}"
               fi
               PI_SECTION+=$'\n'"$line"
             done
           fi
 
           # Short action hints at the bottom of the message.
-          # Keep these compact — they are reminders, not full runbooks.
+          # Keep these compact - they are reminders, not full runbooks.
           INSTALL_HINTS=()
           if [ "$PLUGIN_COUNT" -gt 0 ]; then
             INSTALL_HINTS+=("Plugin reinstall: \`/plugin install <name>@diversiotech\`")

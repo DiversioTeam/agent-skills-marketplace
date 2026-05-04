@@ -283,14 +283,14 @@ agent-skills-marketplace/
 | `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
-| `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe — guides adding new CTA sources, button/tab attribution, and enum registration |
+| `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
 | `frontend` | Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows |
 
 ## Available Pi Packages
 
 All four packages are installable together from one git URL (recommended) or
 individually from a local checkout. The root `package.json` declares every
-sub-package so pi can discover them from a single clone — see
+sub-package so pi can discover them from a single clone - see
 [Git-based install](#git-based-install-recommended) for the one-liner.
 
 | Package | Description |
@@ -401,7 +401,7 @@ any worktree, and always loads exactly one copy of each extension.
 
 #### Local-path install (legacy)
 
-If you need to install from a local checkout — for example, when testing a
+If you need to install from a local checkout - for example, when testing a
 local change before pushing:
 
 ```bash
@@ -561,7 +561,7 @@ Once plugins are installed:
    /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
    /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
    /login-cta-attribution-skill:implement   # Add new CTA login attribution source
-   /frontend:work                          # Main frontend entrypoint — routes to the correct lane based on arguments
+   /frontend:work                          # Main frontend entrypoint - routes to the correct lane based on arguments
    /frontend:refresh-digest                # Persist a full frontend project digest to docs/frontend-skill-digest/
    /frontend:review                        # Review a frontend PR using the repo-local digest and Bumang-style priorities
    /frontend:commit                        # Create a digest-aware atomic frontend commit with quality gates

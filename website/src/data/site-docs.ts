@@ -1,5 +1,5 @@
 /**
- * site-docs.ts — build-time doc extraction for the website's deeper pages.
+ * site-docs.ts - build-time doc extraction for the website's deeper pages.
  *
  * Why this file exists
  * --------------------
@@ -465,8 +465,8 @@ function extractEnvItems(readme: string): string[] {
       const description = row[row.length - 1] ?? "";
       if (!variable || variable === "---" || !description) return "";
       return defaultValue
-        ? `${variable} (default: ${defaultValue}) — ${description}`
-        : `${variable} — ${description}`;
+        ? `${variable} (default: ${defaultValue}) - ${description}`
+        : `${variable} - ${description}`;
     })
     .filter(Boolean);
   const envLines = parseCodeBlocks(sections)

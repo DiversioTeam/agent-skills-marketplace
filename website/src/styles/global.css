@@ -1,5 +1,5 @@
 /* ============================================================
-   Agent Skills Marketplace — Design System Tokens
+   Agent Skills Marketplace - Design System Tokens
    Based on the Diversio Engineering Blueprint
    ============================================================ */
 
@@ -102,7 +102,7 @@
   --radius-lg: 8px;
   --radius-none: 0;
 
-  /* === Elevation (block shadows — no blur) === */
+  /* === Elevation (block shadows - no blur) === */
   --shadow-block: 4px 4px 0 rgba(35, 16, 82, 0.1);
   --shadow-block-sm: 2px 2px 0 rgba(35, 16, 82, 0.08);
 

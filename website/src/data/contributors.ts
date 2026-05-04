@@ -1,5 +1,5 @@
 /**
- * contributors.ts — build the community page's contributor cards from git.
+ * contributors.ts - build the community page's contributor cards from git.
  *
  * First principles
  * ----------------
