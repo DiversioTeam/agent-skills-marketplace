@@ -25,7 +25,6 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
 const publishedPosts = (await getCollection("blog"))
   .filter((post) => !post.data.draft)
   .sort((a, b) => b.data.publishDate.getTime() - a.data.publishDate.getTime());
-const hasReposts = publishedPosts.some((post) => post.data.sourceType === "repost");
 const contributorCount = contributors.length;
 ---
 
@@ -113,11 +112,11 @@ const contributorCount = contributors.length;
       <article class="section-card">
         <div class="section-card-header">
           <span class="label-caps">02</span>
-          <span class="code-text-sm">{publishedPosts.length} post{publishedPosts.length === 1 ? "" : "s"} live · curated reposts {hasReposts ? "live" : "coming soon"}</span>
+          <span class="code-text-sm">{publishedPosts.length} post{publishedPosts.length === 1 ? "" : "s"} live</span>
         </div>
         <h3 class="headline-sm">Engineering blog</h3>
         <p class="body-md">
-          Read original posts from Diversio Engineering today. Curated reposts are marked <span class="status-chip">Coming soon</span> until the first syndicated entry lands.
+          Read original posts, updates, and engineering writing from Diversio in one place.
         </p>
         <div class="section-card-actions">
           <a href={siteConfig.routes.blog} class="btn btn-secondary btn-md">Browse the Blog</a>
@@ -390,20 +389,6 @@ const contributorCount = contributors.length;
   .text-link:hover,
   .catalog-view-all:hover {
     text-decoration: underline;
-  }
-
-  .status-chip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.1875rem 0.5rem;
-    border: var(--border-hairline);
-    border-radius: 999px;
-    background: var(--color-surface-low);
-    color: var(--color-text-secondary);
-    font-family: var(--font-code);
-    font-size: var(--text-code-sm);
-    white-space: nowrap;
   }
 
   .catalog-header {
