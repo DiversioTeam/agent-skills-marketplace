@@ -3,21 +3,22 @@
 import PageLayout from "../layouts/PageLayout.astro";
 import SectionHeader from "../components/SectionHeader.astro";
 import FeatureList from "../components/FeatureList.astro";
+import { siteConfig } from "../../site.config.mjs";
 ---
 
 <PageLayout
   title="Security"
-  description="Security policy for the Agent Skills Marketplace website, including markdown skills and installable Pi package extensions."
+  description={`Security guidance for ${siteConfig.siteName}, including markdown skills, Pi package extensions, and published docs.`}
 >
   <section class="page-section">
     <SectionHeader
       label="Security"
       title="Security Policy"
-      description="This site documents two different artifact types: markdown skills and Pi packages that may include installable TypeScript extensions. Review both the docs and the source before installing anything into an agent harness."
+      description="This site links to two main artifact types: markdown skills and Pi packages that may include installable TypeScript extensions. Review both the docs and the source before installing anything into an agent harness."
     />
     <FeatureList
       features={[
-        { label: "Markdown-first skills", description: "Claude Code marketplace skills are primarily markdown instruction files. The harness executes tools, not the markdown itself." },
+        { label: "Markdown-first skills", description: "Claude Code skills are primarily markdown instruction files. The harness executes tools, not the markdown itself." },
         { label: "Pi packages can ship code", description: "Pi packages may include TypeScript extensions under pi-packages/**/extensions/. Treat those like installable source code, not like passive docs." },
         { label: "Build and manifest validation", description: "CI validates manifests, package structure, and website builds so broken metadata and obvious shape problems are caught before merge." },
         { label: "Inspectable source", description: "Published skills, package READMEs, and extension files live in this repository so engineers can inspect what they are installing." },

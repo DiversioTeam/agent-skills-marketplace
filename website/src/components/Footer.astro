@@ -1,5 +1,6 @@
 ---
 // Footer.astro — Site footer
+import { siteConfig } from "../../site.config.mjs";
 ---
 <footer class="footer">
   <div class="footer-inner">
@@ -19,13 +20,14 @@
           height="20"
         />
       </a>
-      <span class="footer-product">Agent Skills Marketplace</span>
+      <span class="footer-product">{siteConfig.siteName}</span>
     </div>
     <nav class="footer-links" aria-label="Footer navigation">
-      <a href="https://github.com/DiversioTeam/agent-skills-marketplace" target="_blank" rel="noopener">GitHub</a>
-      <a href="/docs">Docs</a>
-      <a href="/security">Security</a>
-      <a href="/terms">Terms</a>
+      <a href={siteConfig.githubUrl} target="_blank" rel="noopener">GitHub</a>
+      <a href={siteConfig.routes.tools}>{siteConfig.toolsSectionName}</a>
+      <a href={siteConfig.routes.blog}>{siteConfig.blogSectionName}</a>
+      <a href={siteConfig.routes.security}>Security</a>
+      <a href={siteConfig.routes.terms}>Terms</a>
     </nav>
     <div class="footer-copy">
       Built by <a href="https://www.diversio.com" target="_blank" rel="noopener">Diversio.com</a>

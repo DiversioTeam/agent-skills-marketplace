@@ -2,27 +2,28 @@
 // terms.astro — Terms page
 import PageLayout from "../layouts/PageLayout.astro";
 import SectionHeader from "../components/SectionHeader.astro";
+import { siteConfig } from "../../site.config.mjs";
 ---
 
 <PageLayout
   title="Terms"
-  description="Terms of use for the Agent Skills Marketplace."
+  description={`Terms of use for ${siteConfig.siteName} and its open-source tools and docs.`}
 >
   <section class="page-section">
     <SectionHeader
       label="Legal"
       title="Terms of Use"
-      description="The Agent Skills Marketplace is an open-source, configuration-only registry. Skills are provided as-is under their respective licenses (typically MIT)."
+      description={`${siteConfig.siteName} includes open-source tools and documentation. Published skills are provided as-is under their respective licenses, typically MIT.`}
     />
     <div class="prose">
       <p class="body-lg" style="color: var(--color-text-secondary)">
-        By using the Agent Skills Marketplace, you agree that:
+        By using {siteConfig.siteName}, you agree that:
       </p>
       <ul class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-md); padding-left: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm);">
-        <li>Skills are provided for informational and instructional purposes. The agent harness owner is responsible for validating skill behavior before deployment.</li>
-        <li>The marketplace and its maintainers are not liable for any damages arising from the use of marketplace skills.</li>
-        <li>Skills may be updated, deprecated, or removed at any time. Consumers should pin version references in production.</li>
-        <li>Contributions to the marketplace are licensed under the project's open-source license (MIT).</li>
+        <li>Published skills and docs are provided for informational and instructional purposes. The operator of any agent harness is responsible for validating behavior before deployment.</li>
+        <li>The tools section and its maintainers are not liable for damages arising from the use of published skills or extensions.</li>
+        <li>Skills, docs, and extensions may be updated, deprecated, or removed at any time. Production consumers should pin versions where appropriate.</li>
+        <li>Contributions to the repository are licensed under the project's open-source license (MIT).</li>
       </ul>
       <p class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-xl)">
         For questions, contact <a href="mailto:tech@diversio.com">tech@diversio.com</a>.

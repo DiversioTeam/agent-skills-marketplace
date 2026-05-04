@@ -1,0 +1,210 @@
+---
+// Blog index for the engineering hub.
+//
+// Why this page exists:
+// - engineering writing needs a first-class home alongside the tools section
+// - original posts should be easy to publish from markdown
+// - curated reposts should be visible, but clearly labeled and attributable
+//
+// This page intentionally handles both post types in one list so readers do not
+// have to learn two different content surfaces.
+import { getCollection } from "astro:content";
+import PageLayout from "../../layouts/PageLayout.astro";
+import SectionHeader from "../../components/SectionHeader.astro";
+import { formatEditorialDate } from "../../utils/format-date";
+import { siteConfig } from "../../../site.config.mjs";
+
+const posts = (await getCollection("blog"))
+  .filter((post) => !post.data.draft)
+  .sort((a, b) => b.data.publishDate.getTime() - a.data.publishDate.getTime());
+const hasReposts = posts.some((post) => post.data.sourceType === "repost");
+const blogDescription = hasReposts
+  ? "Original Diversio Engineering posts and curated reposts, with clear attribution and canonical metadata."
+  : "Original Diversio Engineering posts are live now, and curated reposts will be added with clear attribution and canonical metadata.";
+
+function getPostSlug(post: { id: string; data: { slug?: string } }) {
+  return (post.data.slug ?? post.id).replace(/\.md$/, "");
+}
+---
+
+<PageLayout
+  title={siteConfig.blogSectionName}
+  description={blogDescription}
+  currentNav="blog"
+>
+  <section class="page-section page-hero">
+    <SectionHeader
+      label={siteConfig.blogSectionName}
+      title="Engineering writing"
+      description={hasReposts
+        ? "Original posts from Diversio Engineering and curated reposts live in one place, with clear source labeling and canonical URL support."
+        : "Original posts from Diversio Engineering are live now. Curated reposts are coming soon, with clear source labeling and canonical URL support."
+      }
+    />
+  </section>
+
+  <section class="page-section">
+    {!hasReposts && (
+      <div class="status-banner">
+        <span class="status-chip">Coming soon</span>
+        <p class="body-md status-copy">
+          Curated reposts are not published yet. When they arrive, they’ll appear here with clear attribution and links back to the original source.
+        </p>
+      </div>
+    )}
+    {posts.length > 0 ? (
+      <div class="posts-grid">
+        {posts.map((post) => {
+          const href = `/blog/${getPostSlug(post)}`;
+          const isRepost = post.data.sourceType === "repost";
+          return (
+            <article class="post-card">
+              <div class="post-meta-row">
+                <span class={`label-caps post-kind${isRepost ? " post-kind--repost" : ""}`}>
+                  {isRepost ? "Curated repost" : "Original post"}
+                </span>
+                <time class="code-text-sm post-date" datetime={post.data.publishDate.toISOString()}>
+                  {formatEditorialDate(post.data.publishDate, "short")}
+                </time>
+              </div>
+              <h2 class="headline-sm"><a href={href}>{post.data.title}</a></h2>
+              <p class="body-md post-summary">{post.data.summary}</p>
+              <div class="post-footer">
+                <span class="body-md post-author">{post.data.author.name}</span>
+                {isRepost && post.data.sourceSiteName && (
+                  <span class="code-text-sm post-source">Source: {post.data.sourceSiteName}</span>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    ) : (
+      <div class="empty-state">
+        <h2 class="headline-sm">No posts published yet</h2>
+        <p class="body-md empty-copy">
+          The blog scaffolding is ready for original Diversio Engineering posts and curated reposts. Add markdown entries under <code>website/src/content/blog/</code> using the collection schema in <code>website/src/content.config.ts</code>.
+        </p>
+      </div>
+    )}
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+
+  .page-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+
+  .posts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  .status-banner,
+  .post-card,
+  .empty-state {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .status-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-lg);
+  }
+
+  .post-meta-row,
+  .post-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1875rem 0.5rem;
+    border: var(--border-hairline);
+    border-radius: 999px;
+    background: var(--color-surface-low);
+    color: var(--color-text-secondary);
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    white-space: nowrap;
+  }
+
+  .post-kind {
+    color: var(--color-primary);
+  }
+
+  .post-kind--repost {
+    color: var(--color-accent);
+  }
+
+  .post-date,
+  .post-source,
+  .post-author,
+  .status-copy,
+  .empty-copy {
+    color: var(--color-text-secondary);
+  }
+
+  .post-card h2 {
+    margin: var(--space-sm) 0;
+  }
+
+  .post-card h2 a {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .post-card h2 a:hover {
+    color: var(--color-primary);
+  }
+
+  .post-summary {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-md);
+  }
+
+  .status-banner code,
+  .empty-state code {
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
+    background: var(--color-surface-low);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+  }
+
+  @media (max-width: 640px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+
+    .page-hero,
+    .page-section + .page-section {
+      padding-top: var(--space-2xl);
+    }
+  }
+</style>

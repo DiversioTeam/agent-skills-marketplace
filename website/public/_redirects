@@ -1,0 +1,17 @@
+# Legacy path aliases for the engineering hub rollout.
+#
+# Why these are exact aliases instead of wildcard rewrites:
+# - the tools landing page moved from the old product framing to /agentic-tools
+# - deep docs already kept their short stable routes (/docs, /skills, /pi)
+# - wildcard rewrites can quietly send users to routes that do not really exist
+#
+# Rule of thumb:
+# - use exact aliases here for renamed top-level entrypoints
+# - use page routes for real content
+# - use host-level redirect config for agents.diversio.com -> engineering.diversio.com
+/marketplace /agentic-tools 301
+/marketplace/ /agentic-tools 301
+/tools /agentic-tools 301
+/tools/ /agentic-tools 301
+/agent-skills-marketplace /agentic-tools 301
+/agent-skills-marketplace/ /agentic-tools 301

@@ -5,6 +5,7 @@ import CodeBlock from "../../components/CodeBlock.astro";
 import FeatureList from "../../components/FeatureList.astro";
 import { plugins, piPackages } from "../../data/marketplace.json";
 import { skillDocs, piPackageDocs } from "../../data/site-docs";
+import { siteConfig } from "../../../site.config.mjs";
 
 const totalSkills = skillDocs.length;
 const marketplaceSkillCount = skillDocs.filter((skill) => skill.kind === "plugin-skill").length;
@@ -59,7 +60,7 @@ name: repo-docs-generator`;
 const piCode = `pi install git:github.com/DiversioTeam/agent-skills-marketplace
 /reload
 
-# skills-bridge makes marketplace skills available in Pi`;
+# skills-bridge makes plugin skills available in Pi`;
 
 const validationCode = `bash scripts/validate-skills.sh
 bash scripts/validate-skills.sh --all
@@ -87,24 +88,23 @@ open http://localhost:4321/pi`;
 
 <PageLayout
   title="Documentation"
-  description="Authoring, packaging, distribution, and validation guidance for the Agent Skills Marketplace."
+  description="Maintainer docs for Agentic Tools: authoring, packaging, distribution, and validation."
   currentNav="docs"
 >
   <section class="docs-hero">
     <SectionHeader
       label="Documentation"
-      title="Authoring and shipping marketplace artifacts"
-      description={`${plugins.length} plugins, ${marketplaceSkillCount} marketplace skills, ${piLocalSkillCount} Pi-local skills, and ${piPackages.length} pi packages. The homepage explains the ecosystem; this page focuses on the file layout, authoring rules, command wrappers, and release checks.`}
+      title="Build and maintain Agentic Tools"
+      description={`${plugins.length} plugins, ${marketplaceSkillCount} plugin skills, ${piLocalSkillCount} Pi-local skills, and ${piPackages.length} pi packages. This page focuses on repo structure, authoring rules, command wrappers, and release checks.`}
     />
     <div class="intro-card">
       <p class="body-md intro-copy">
-        Need the high-level overview first? Start on the
-        <a href="/">homepage</a>. Need a specific plugin or package? Jump to the
-        <a href="/registry">registry</a>. This page is the practical guide for editing
-        the repo itself.
+        Need the public overview first? Start on the
+        <a href={siteConfig.routes.tools}>{siteConfig.toolsSectionName} page</a>. Need a specific plugin or package? Jump to the
+        <a href="/registry">registry</a>. This page is the maintainer guide for working in the open-source repo.
       </p>
       <div class="intro-actions">
-        <a href="/" class="btn btn-secondary btn-md">Marketplace Overview</a>
+        <a href={siteConfig.routes.tools} class="btn btn-secondary btn-md">{siteConfig.toolsSectionName} Overview</a>
         <a href="/registry" class="btn btn-secondary btn-md">Browse Registry</a>
         <a
           href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/CONTRIBUTING.md"
@@ -178,7 +178,7 @@ open http://localhost:4321/pi`;
         <SectionHeader
           label="Slash Commands"
           title="Wrappers are thin and namespaced"
-          description="Every Claude Code marketplace skill needs at least one wrapper in plugins/<plugin>/commands/. The wrapper provides command-specific context; the real behavior stays in the skill."
+          description="Every Claude Code skill needs at least one wrapper in plugins/<plugin>/commands/. The wrapper provides task-specific entrypoints; the real behavior stays in the skill."
         />
         <div class="split-grid">
           <CodeBlock lang="md" filename="plugins/monty-code-review/commands/code-review.md" code={wrapperCode} />
@@ -198,7 +198,7 @@ open http://localhost:4321/pi`;
         <SectionHeader
           label="Deep Docs"
           title="Browse by skill or Pi extension"
-          description={`Go deeper than plugin/package summaries: ${marketplaceSkillCount} marketplace skills, ${piLocalSkillCount} Pi-local skills, and ${piPackageDocs.length} Pi extension pages now have dedicated docs.`}
+          description={`Go deeper than bundle summaries: ${marketplaceSkillCount} plugin skills, ${piLocalSkillCount} Pi-local skills, and ${piPackageDocs.length} Pi extension pages now have dedicated docs.`}
         />
         <div class="runtime-grid">
           <div class="runtime-card">
@@ -233,8 +233,8 @@ open http://localhost:4321/pi`;
       <section class="doc-block" id="docs-pipeline">
         <SectionHeader
           label="Docs Pipeline"
-          title="Why the site now has skill and Pi extension pages"
-          description="First principles: the old plugin/package pages answered bundle-level questions, but they did not explain individual skills or Pi extension surfaces well enough. The newer routes read from the repo’s real docs instead of inventing a second website-only truth."
+          title="How docs become pages"
+          description="The high-level pages explain bundles, while the deeper routes explain individual skills and Pi extension surfaces. Those pages are generated from the repo’s real docs instead of a second website-only schema."
         />
         <div class="split-grid">
           <CodeBlock lang="text" filename="docs-pipeline.txt" code={docsPipelineCode} />
@@ -242,7 +242,7 @@ open http://localhost:4321/pi`;
             <ul class="section-list">
               <li><strong>One source of truth:</strong> skill behavior still lives in <code>SKILL.md</code>; Pi extension behavior still lives in each package README.</li>
               <li><strong>Website pages are extracted views:</strong> <code>src/data/site-docs.ts</code> turns those repo files into structured data for <code>/skills/*</code> and <code>/pi/*</code>.</li>
-              <li><strong>Why this matters:</strong> maintainers only need to update the repo docs they were already supposed to maintain, then rebuild the site.</li>
+              <li><strong>Why this matters:</strong> maintainers update the same repo docs they already own, then rebuild the site.</li>
               <li><strong>Keep it explainable:</strong> the extraction logic is deliberately conservative. If a page looks wrong, fix the source docs first, then teach the extractor the new pattern.</li>
             </ul>
             <div class="link-box">
@@ -260,7 +260,7 @@ open http://localhost:4321/pi`;
         <SectionHeader
           label="Distribution"
           title="How the same repo reaches three runtimes"
-          description="The marketplace ships the same underlying content through different installation surfaces for Claude Code, Codex, and Pi."
+          description="The same underlying content reaches Claude Code, Codex, and Pi through different installation surfaces."
         />
         <div class="runtime-grid">
           <div class="runtime-card">
@@ -269,8 +269,7 @@ open http://localhost:4321/pi`;
               <span class="code-text-sm">plugin bundle</span>
             </div>
             <p class="body-md runtime-copy">
-              Install a plugin from the marketplace, then invoke its namespaced slash
-              commands.
+              Install a plugin, then invoke its namespaced slash commands inside Claude Code.
             </p>
             <CodeBlock lang="bash" code={claudeCode} />
           </div>
@@ -292,7 +291,7 @@ open http://localhost:4321/pi`;
             </div>
             <p class="body-md runtime-copy">
               Pi packages extend the harness directly. The <code>skills-bridge</code>
-              package auto-discovers marketplace skills and exposes them inside Pi.
+              package auto-discovers plugin skills and exposes them inside Pi.
               See <a href="https://pi.dev">pi.dev</a> for the Pi project.
             </p>
             <CodeBlock lang="bash" code={piCode} />
@@ -304,7 +303,7 @@ open http://localhost:4321/pi`;
         <SectionHeader
           label="Validation"
           title="Run the guardrails before opening a PR"
-          description="Docs-only changes do not currently trigger every marketplace workflow, so run the matching local checks when you touch shared instructions or metadata."
+          description="Some docs-only changes do not trigger every workflow, so run the matching local checks when you touch shared instructions or metadata."
         />
         <div class="split-grid split-grid--reverse">
           <CodeBlock lang="bash" code={validationCode} />
@@ -323,8 +322,8 @@ open http://localhost:4321/pi`;
       <section class="doc-block" id="contribute">
         <SectionHeader
           label="Contribute"
-          title="Add a skill safely"
-          description="The happy path is still markdown-first: skill, wrapper, manifest sync, validation, PR."
+          title="Contribute safely"
+          description="Recommended flow: skill, wrapper, manifest sync, validation, PR."
         />
         <FeatureList
           features={[

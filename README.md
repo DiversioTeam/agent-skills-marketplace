@@ -66,9 +66,10 @@ This repository hosts Diversio-maintained Agent Skills and plugin manifests so
 the same skills can be distributed via the Claude Code marketplace or other
 channels.
 
-It also now includes the Astro website in `website/`, which powers
-`https://agents.diversio.com`. That site is the human-facing catalog and deep
-Docs surface for marketplace plugins, individual skills, and Pi extensions.
+It also now includes the Astro website in `website/`, which targets
+`https://engineering.diversio.com`. That site is the Diversio Engineering hub,
+including the `Agentic Tools` section for marketplace plugins, individual
+skills, and Pi extensions.
 
 ## Documentation Philosophy
 
@@ -93,8 +94,8 @@ agent-skills-marketplace/
 │   ├── image-router/                  # Pi-native vision bridge for text-only models
 │   ├── oh-my-pi/                      # Pi-native cmux integration (notifications, split panes, workspace tabs)
 │   └── skills-bridge/                 # Pi-native bridge to Claude Code plugin skills
-├── website/                           # Astro site for agents.diversio.com
-│   ├── src/pages/                     # Homepage, registry, docs, /skills/*, /pi/*
+├── website/                           # Astro site for engineering.diversio.com
+│   ├── src/pages/                     # Homepage, /agentic-tools, registry, docs, /skills/*, /pi/*, /blog/*
 │   ├── src/data/site-docs.ts          # Build-time extraction from SKILL.md + package READMEs
 │   └── public/                        # Branding assets, headers, OG image
 ├── plugins/

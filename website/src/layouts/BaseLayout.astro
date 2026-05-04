@@ -8,11 +8,13 @@
 // - the same metadata should work across Open Graph consumers like Slack,
 //   Facebook, LinkedIn, and iMessage, while also covering X/Twitter cards
 import "../styles/global.css";
+import { siteConfig } from "../../site.config.mjs";
 
 export interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  canonicalUrl?: string;
   socialTitle?: string;
   socialDescription?: string;
   socialImageAlt?: string;
@@ -21,11 +23,12 @@ export interface Props {
   ogImageHeight?: number;
 }
 
-const siteName = "Agent Skills Marketplace";
+const siteName = siteConfig.siteName;
 const {
   title,
-  description = "Reusable agent skills from Diversio for Claude Code, Codex, and Pi.",
+  description = siteConfig.defaultDescription,
   ogImage = "/og-default.png",
+  canonicalUrl,
   socialTitle,
   socialDescription,
   socialImageAlt,
@@ -37,7 +40,7 @@ const {
 const fullTitle = title === siteName ? siteName : `${title} — ${siteName}`;
 const resolvedDescription = socialDescription ?? description;
 const resolvedSocialTitle = socialTitle ?? fullTitle;
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href;
+const resolvedCanonicalUrl = canonicalUrl ?? new URL(Astro.url.pathname, Astro.site).href;
 const ogImageUrl = new URL(ogImage, Astro.site).href;
 const resolvedSocialImageAlt = socialImageAlt ?? `${resolvedSocialTitle} social preview`;
 const ogImageType = ogImage.endsWith(".png")
@@ -61,7 +64,7 @@ const ogImageType = ogImage.endsWith(".png")
   <meta property="og:type" content={socialType} />
   <meta property="og:site_name" content={siteName} />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:url" content={resolvedCanonicalUrl} />
   <meta property="og:image" content={ogImageUrl} />
   <meta property="og:image:secure_url" content={ogImageUrl} />
   {ogImageType && <meta property="og:image:type" content={ogImageType} />}
@@ -77,7 +80,7 @@ const ogImageType = ogImage.endsWith(".png")
   <meta name="twitter:image:alt" content={resolvedSocialImageAlt} />
 
   <!-- Canonical -->
-  <link rel="canonical" href={canonicalUrl} />
+  <link rel="canonical" href={resolvedCanonicalUrl} />
 
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

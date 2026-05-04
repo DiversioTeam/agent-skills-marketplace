@@ -19,9 +19,10 @@
   - Pi-native packages for workflows that need pi extensions, TUI components,
     or pi-local skills outside the Claude Code marketplace shape.
 - `website/`
-  - Astro static site for `agents.diversio.com`.
-  - Hosts the human-facing marketplace catalog plus deeper `/skills/*` and
-    `/pi/*` docs built from repo-local source files.
+  - Astro static site for the Diversio Engineering hub on `engineering.diversio.com`.
+  - Hosts the broader engineering homepage plus the `Agentic Tools` section,
+    deeper `/skills/*` and `/pi/*` docs, and blog scaffolding built from
+    repo-local source files.
 - `scripts/validate-skills.sh`
   - Local and CI guardrail for the `SKILL.md` line-count budget.
 - `.github/workflows/validate-marketplace.yml`

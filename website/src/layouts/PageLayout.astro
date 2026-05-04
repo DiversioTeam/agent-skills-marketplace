@@ -4,23 +4,27 @@ import BaseLayout from "./BaseLayout.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 
+export type HeaderNavKey = "home" | "tools" | "docs" | "blog" | "community";
+
 export interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  canonicalUrl?: string;
   socialTitle?: string;
   socialDescription?: string;
   socialImageAlt?: string;
   socialType?: "website" | "article";
   ogImageWidth?: number;
   ogImageHeight?: number;
-  currentNav?: "marketplace" | "docs" | "registry" | "community";
+  currentNav?: HeaderNavKey;
 }
 
 const {
   title,
   description,
   ogImage,
+  canonicalUrl,
   socialTitle,
   socialDescription,
   socialImageAlt,
@@ -34,6 +38,7 @@ const {
   {title}
   {description}
   {ogImage}
+  {canonicalUrl}
   {socialTitle}
   {socialDescription}
   {socialImageAlt}

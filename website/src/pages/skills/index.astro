@@ -4,31 +4,32 @@ import SectionHeader from "../../components/SectionHeader.astro";
 import Card from "../../components/Card.astro";
 import CardGrid from "../../components/CardGrid.astro";
 import { skillDocs } from "../../data/site-docs";
+import { siteConfig } from "../../../site.config.mjs";
 
-const marketplaceSkills = skillDocs.filter((skill) => skill.kind === "plugin-skill");
+const pluginSkills = skillDocs.filter((skill) => skill.kind === "plugin-skill");
 const piLocalSkills = skillDocs.filter((skill) => skill.kind === "pi-skill");
 ---
 
 <PageLayout
   title="Skills"
-  description={`Browse ${skillDocs.length} individual skill docs across marketplace plugins and Pi-local packages.`}
+  description={`Browse ${skillDocs.length} individual skill docs across Diversio ${siteConfig.toolsSectionName} plugins and Pi-local packages.`}
   currentNav="docs"
 >
   <section class="page-section page-hero">
     <SectionHeader
       label="Skills"
       title="Individual skill docs"
-      description={`${marketplaceSkills.length} marketplace skills and ${piLocalSkills.length} Pi-local skills. Each page documents the skill itself instead of only the parent plugin or package.`}
+      description={`${pluginSkills.length} plugin skills and ${piLocalSkills.length} Pi-local skills. Each page documents the skill itself instead of only the parent plugin or package.`}
     />
   </section>
 
   <section class="page-section">
     <div class="category-header">
-      <h2 class="headline-md">Marketplace Skills</h2>
-      <span class="code-text-sm meta-text">{marketplaceSkills.length} skills</span>
+      <h2 class="headline-md">Plugin Skills</h2>
+      <span class="code-text-sm meta-text">{pluginSkills.length} skills</span>
     </div>
     <CardGrid cols={3}>
-      {marketplaceSkills.map((skill) => (
+      {pluginSkills.map((skill) => (
         <Card
           category={skill.packageCategory}
           packageId={skill.name}

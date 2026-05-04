@@ -1,6 +1,6 @@
-# Agent Skills Marketplace — Website
+# Diversio Engineering — Website
 
-Astro static site for [agents.diversio.com](https://agents.diversio.com).
+Astro static site for the Diversio Engineering hub at [engineering.diversio.com](https://engineering.diversio.com).
 
 This README is for maintainers of the **website code**, not just visitors of the
 site.
@@ -19,27 +19,27 @@ Node requirement: Astro 6 in this site currently needs Node `>=22.12.0`.
 
 ## The Big Idea
 
-The website has **two jobs**:
+The website now has **three roles**:
 
-1. **Catalog job** — show the marketplace at a glance
-   - plugins
-   - Pi packages
-   - counts
-   - summaries
+1. **Hub** — present Diversio Engineering as the umbrella site
+   - homepage
+   - section routing
+   - shared brand + canonical metadata
 
-2. **Deep docs job** — explain the thing itself
-   - individual skills
-   - Pi extension surfaces
-   - runtime-specific install/invoke examples
-   - commands, tools, env vars, references, scripts
+2. **Agentic Tools** — power the open tools section
+   - `/agentic-tools`
+   - `/registry`
+   - `/docs/*`
+   - `/skills/*`
+   - `/pi/*`
 
-The first version of the site did the catalog job well enough.
-It did a much worse job on deep docs.
+3. **Editorial** — support engineering writing and curated reposts
+   - `/blog`
+   - `/blog/*`
+   - original posts
+   - reposts with explicit attribution and canonical handling
 
-So the site now has two extra route families:
-
-- `/skills/*` — individual skill pages
-- `/pi/*` — Pi package / extension pages
+The current implementation extends the PR #77 Astro baseline instead of replacing it.
 
 ## First-Principles Mental Model
 
@@ -59,7 +59,7 @@ src/data/site-docs.ts
   -> readable website pages built from the real repo docs
 ```
 
-Why do it this way?
+Why this shape works
 
 Because the repo already has a source of truth.
 We do **not** want a second website-only documentation schema that drifts.
@@ -68,10 +68,12 @@ We do **not** want a second website-only documentation schema that drifts.
 
 | Website surface | Source of truth | Why |
 |---|---|---|
+| Shared site name, primary hostname, nav routes | `site.config.mjs` | one place for public brand/domain strings |
 | Homepage counts, registry cards, package summaries | `src/data/marketplace.json` | stable catalog metadata |
-| Individual marketplace skill pages | `plugins/*/skills/*/SKILL.md` | the skill itself is the canonical behavior |
+| Individual plugin skill pages | `plugins/*/skills/*/SKILL.md` | the skill itself is the canonical behavior |
 | Pi-local skill pages | `pi-packages/*/skills/*/SKILL.md` | same reason: skill behavior lives in markdown |
 | Pi extension pages | `pi-packages/*/README.md` | commands/tools/env vars already live there |
+| Blog posts and repost metadata | `src/content/blog/*` + `src/content.config.ts` | explicit editorial schema with reviewable markdown |
 | Contributor grid | git history via `src/data/contributors.ts` | community data should age with the repo |
 
 ## Project Structure
@@ -80,10 +82,12 @@ We do **not** want a second website-only documentation schema that drifts.
 website/
 ├── astro.config.mjs
 ├── package.json
+├── site.config.mjs
 ├── tsconfig.json
 ├── README.md
 ├── public/
 │   ├── _headers
+│   ├── _redirects
 │   ├── diversio-logo.svg
 │   ├── favicon.svg
 │   └── og-default.png
@@ -108,12 +112,16 @@ website/
     │   ├── SectionHeader.astro
     │   ├── Tag.astro
     │   └── Button.astro
+    ├── content/
+    │   └── blog/
+    ├── content.config.ts
     ├── data/
     │   ├── marketplace.json
     │   ├── site-docs.ts
     │   └── contributors.ts
     └── pages/
         ├── index.astro
+        ├── agentic-tools.astro
         ├── registry.astro
         ├── community.astro
         ├── security.astro
@@ -126,9 +134,12 @@ website/
         ├── skills/
         │   ├── index.astro
         │   └── [skill].astro
-        └── pi/
+        ├── pi/
+        │   ├── index.astro
+        │   └── [package].astro
+        └── blog/
             ├── index.astro
-            └── [package].astro
+            └── [slug].astro
 ```
 
 ## Why the New Files Exist
@@ -145,7 +156,7 @@ It exists because:
 
 It intentionally does **simple extraction**, not clever parsing.
 
-That is a feature, not a bug.
+That simplicity is intentional.
 
 If something breaks, a future maintainer should be able to read the file and say:
 
@@ -194,11 +205,88 @@ It keeps the logic simple:
 - infer GitHub profiles from noreply addresses when possible
 - fall back to a small static list if git metadata is unavailable
 
+### `site.config.mjs`
+
+This file is the **single source of truth for site identity**.
+
+It exists because the rebrand touched several things at once:
+
+- site name
+- primary hostname
+- top-level nav labels
+- top-level route names
+
+Without a shared config file, those strings drift into layouts, headers,
+footers, metadata, and docs.
+
+Mental model:
+
+```text
+page copy          -> explains the content on one page
+site.config.mjs    -> explains what the site is called and where sections live
+```
+
+If a future change renames a section or moves a top-level route, start there.
+
+### `src/content.config.ts`
+
+This file defines the **editorial contract** for blog content.
+
+It exists because original posts and curated reposts have different rules.
+
+```text
+original post
+  -> can be owned entirely by this site
+
+repost
+  -> must keep source attribution
+  -> must keep canonical URL information
+```
+
+That is why reposts are validated more strictly than original posts.
+
+### `public/_redirects`
+
+This file exists to preserve **human entrypoints** after the site rebrand.
+
+It handles simple aliases such as:
+
+```text
+/marketplace               -> /agentic-tools
+/tools                     -> /agentic-tools
+/agent-skills-marketplace  -> /agentic-tools
+```
+
+Why keep the rules exact instead of using broad wildcards?
+
+- the tools landing page moved
+- the deep docs routes mostly did not
+- exact aliases are easier to reason about and harder to misconfigure
+
+### `.github/workflows/deploy-website-cloudflare-pages.yml`
+
+This workflow exists so deployment stays **repo-owned and repeatable**.
+
+Mental model:
+
+```text
+GitHub Actions
+  -> install dependencies
+  -> build website/dist
+  -> upload the finished static output to Cloudflare Pages
+```
+
+Why not rely on an opaque remote build only?
+
+- build logs stay in GitHub where the change happened
+- the same build command runs locally and in CI
+- deployment is easier to audit when the upload step is explicit
+
 ## How Deep Docs Get Built
 
 ### Skill pages
 
-Marketplace skill pages come from:
+Plugin skill pages come from:
 
 ```text
 plugins/<plugin>/skills/<skill>/SKILL.md
@@ -238,7 +326,7 @@ That means:
 
 ## Practical Maintainer Workflows
 
-### 1. You changed a marketplace skill
+### 1. You changed a plugin skill
 
 Edit the real skill docs first:
 
@@ -295,6 +383,49 @@ That order matters.
 
 Do not start by patching the final page template if the real docs are missing.
 
+### 4. You added or edited blog content
+
+The blog now supports two content types:
+
+```text
+sourceType: original   -> written for this site
+sourceType: repost     -> mirrored/curated content with source attribution
+```
+
+A minimal original post looks like this:
+
+```md
+---
+title: Example post
+summary: Short summary for cards and metadata.
+publishDate: 2026-05-03
+author:
+  name: Diversio Engineering
+sourceType: original
+---
+
+Hello world.
+```
+
+A repost must carry more metadata:
+
+```md
+---
+title: Example repost
+summary: Why this external piece matters here.
+publishDate: 2026-05-03
+author:
+  name: Original Author
+sourceType: repost
+sourceSiteName: Example Site
+sourceUrl: https://example.com/post
+canonicalUrl: https://example.com/post
+---
+```
+
+That extra metadata is not optional ceremony. It exists so future readers and
+social crawlers can tell where the piece came from.
+
 ## Commands Worth Remembering
 
 ### Rebuild the site
@@ -311,7 +442,7 @@ cd website
 npm run dev
 ```
 
-### Check the marketplace repo sources that feed the site
+### Check the repo sources that feed the site
 
 ```bash
 cd ..
@@ -329,20 +460,29 @@ rg -n '/skills/|/pi/' dist
 
 ## Route Guide
 
+### Hub pages
+
+- `/`
+- `/agentic-tools`
+- `/blog`
+- `/community`
+
+Use these when you want the high-level engineering hub, tools landing page, editorial index, or collaboration entrypoints.
+
 ### Bundle-level pages
 
 - `/docs/<plugin-or-package>`
 - `/registry`
 
-Use these when you want the overview.
+Use these when you want the tools overview for a specific bundle or the full registry inventory.
 
 ### Deep docs pages
 
 - `/skills/<skill>`
 - `/pi/<package>`
+- `/blog/<slug>`
 
-Use these when you want the actual behavior, commands, tools, references,
-installation flow, or extension surface.
+Use these when you want the actual behavior, commands, tools, references, installation flow, extension surface, or article body.
 
 ## Social Sharing Metadata
 
@@ -361,6 +501,7 @@ That includes:
 
 The logic lives in:
 
+- `site.config.mjs`
 - `src/layouts/BaseLayout.astro`
 
 First principles:
@@ -411,19 +552,75 @@ not as normal background noise.
 
 The site is fully static and deploys cleanly to Cloudflare Pages.
 
+Current deploy shape:
+
+- `Validate Website` remains the read-only build gate
+- `.github/workflows/deploy-website-cloudflare-pages.yml` builds the site in GitHub Actions and uploads `website/dist` to Cloudflare Pages
+- PR previews run for same-repo PRs
+- production deploys run automatically on pushes to `main`
+
+Current redirect split:
+
+- `public/_redirects` handles same-project path aliases such as `/marketplace` -> `/agentic-tools`
+- hostname migration from `agents.diversio.com` to `engineering.diversio.com` still needs host-level redirect configuration during rollout
+
+Required GitHub secrets:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Optional GitHub repo variable:
+
+- `CLOUDFLARE_PAGES_PROJECT` (defaults to `diversio-engineering` in the workflow)
+
 Recommended settings:
 
 | Setting | Value |
 |---|---|
-| Framework preset | Astro |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
-| Root directory | `website/` |
-| Node.js version | 22.12+ |
+| Pages project name | `diversio-engineering` |
+| Deploy path | `website/dist` |
+| Production branch | `main` |
+| Node.js version | 24 |
+
+### Local deploy-minded checks
+
+Before you trust CI, run the same core steps locally:
+
+```bash
+cd website
+npm install --package-lock=false
+npm run build
+```
+
+Then sanity-check the output:
+
+```bash
+rg -n '/agentic-tools|/blog|/skills|/pi' dist
+```
+
+### What preview vs production means here
+
+```text
+pull request from this repo
+  -> preview deployment on Cloudflare Pages
+
+push to main
+  -> production deployment on Cloudflare Pages
+
+manual workflow_dispatch run
+  -> preview from any selected ref
+  -> production only when dispatched from main
+```
+
+This split exists for a simple reason: reviewers need a safe preview URL, while
+production should only change after merge. Manual dispatch still exists so the
+team can re-run a preview or production deploy without manufacturing a new code
+change, but the workflow guards against deploying a feature-branch build to the
+production Pages branch.
 
 The canonical site URL is:
 
-- `https://agents.diversio.com`
+- `https://engineering.diversio.com`
 
 ## Branding Notes
 

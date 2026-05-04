@@ -4,11 +4,12 @@ import SectionHeader from "../../components/SectionHeader.astro";
 import Card from "../../components/Card.astro";
 import CardGrid from "../../components/CardGrid.astro";
 import { piPackageDocs } from "../../data/site-docs";
+import { siteConfig } from "../../../site.config.mjs";
 ---
 
 <PageLayout
   title="Pi Extensions"
-  description={`Browse ${piPackageDocs.length} Pi package and extension docs in the Agent Skills Marketplace.`}
+  description={`Browse ${piPackageDocs.length} Pi package and extension docs in Diversio ${siteConfig.toolsSectionName}.`}
   currentNav="docs"
 >
   <section class="page-section page-hero">
