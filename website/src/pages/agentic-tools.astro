@@ -237,12 +237,13 @@ description: >-
 
   .layers-grid {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-xl);
+    align-items: start;
   }
   @media (min-width: 1024px) {
     .layers-grid {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
@@ -251,6 +252,7 @@ description: >-
     border: var(--border-hairline);
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
   .layer-skills { border-top: 3px solid var(--color-primary); }
   .layer-plugins { border-top: 3px solid var(--color-primary); }
@@ -269,6 +271,7 @@ description: >-
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
+    min-width: 0;
   }
   .layer-card-body h3 { margin: 0; }
   .layer-card-body p { color: var(--color-text-secondary); margin: 0; }
@@ -280,7 +283,17 @@ description: >-
     border-radius: var(--radius-sm);
     color: var(--color-primary);
   }
-  .layer-example { margin-top: var(--space-sm); }
+  .layer-example {
+    margin-top: var(--space-sm);
+    min-width: 0;
+  }
+  .layer-example :global(.code-block),
+  .layer-example :global(.runtime-code-tabs),
+  .layer-example :global(.runtime-code-block) {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
   .layer-example :global(.code-block) { margin-bottom: 0; }
 
   .catalog-header {
