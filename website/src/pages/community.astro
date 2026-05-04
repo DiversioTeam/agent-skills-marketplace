@@ -4,12 +4,15 @@ import SectionHeader from "../components/SectionHeader.astro";
 import FeatureList from "../components/FeatureList.astro";
 import CodeBlock from "../components/CodeBlock.astro";
 import { plugins, piPackages } from "../data/marketplace.json";
-import { contributors } from "../data/contributors";
+import { contributors, contributorsSource } from "../data/contributors";
 import { openSourceProjects } from "../data/open-source-projects";
 import { siteConfig } from "../../site.config.mjs";
 
 const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
 const totalContributorCommits = contributors.reduce((sum, contributor) => sum + contributor.commits, 0);
+const contributorDescription = contributorsSource === "git"
+  ? `${contributors.length} contributors in repository history, excluding bots, with ${totalContributorCommits} authored commits represented here.`
+  : `${contributors.length} contributors highlighted from repository history, excluding bots.`;
 const guardrailsCode = `bash scripts/validate-skills.sh
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
@@ -122,7 +125,7 @@ const contributingUrl = `${repoUrl}/blob/main/CONTRIBUTING.md`;
     <SectionHeader
       label="Contributors"
       title="People behind the work"
-      description={`${contributors.length} contributors in git history, excluding bots. Current history shows ${totalContributorCommits} total authored commits across the Agentic Tools repository.`}
+      description={contributorDescription}
     />
     <div class="contributors-grid">
       {contributors.map((contributor) => (

@@ -35,7 +35,19 @@ function resolveRepoRoot(): string {
   }
 }
 
+function isShallowRepository(repoPath: string): boolean {
+  try {
+    return execSync("git rev-parse --is-shallow-repository", {
+      cwd: repoPath,
+      encoding: "utf8",
+    }).trim() === "true";
+  } catch {
+    return false;
+  }
+}
+
 const repoRoot = resolveRepoRoot();
+const shallowRepository = isShallowRepository(repoRoot);
 
 // Hand-maintained profile metadata for humans we know should collapse into one
 // card even when they have multiple commit identities.
@@ -63,6 +75,12 @@ const contributorAliases: Record<string, string> = {
 
 // Safety net for environments where the git checkout is shallow, missing, or
 // otherwise unavailable at build time.
+//
+// Why shallow checkouts matter:
+// - CI often clones only the newest commit by default
+// - `git log --all` then makes the site think the repo has only one author
+// - a small, hand-maintained fallback is less wrong in public than showing a
+//   fake "1 contributor" result on the live site
 const fallbackContributors: Contributor[] = [
   { id: "ashwini-chaudhary", name: "Ashwini Chaudhary", commits: 194, initials: "AC" },
   { id: "amal-raj-br", name: "Amal Raj B R", commits: 30, initials: "AR", github: "https://github.com/amalrajdiversio" },
@@ -157,11 +175,17 @@ function getContributorsFromGit(): Contributor[] {
     .sort((a, b) => b.commits - a.commits || a.name.localeCompare(b.name));
 }
 
-export const contributors: Contributor[] = (() => {
+export const contributorsSource: "git" | "fallback" = (() => {
+  if (shallowRepository) return "fallback";
+
   try {
-    const fromGit = getContributorsFromGit();
-    return fromGit.length > 0 ? fromGit : fallbackContributors;
+    return getContributorsFromGit().length > 0 ? "git" : "fallback";
   } catch {
-    return fallbackContributors;
+    return "fallback";
   }
+})();
+
+export const contributors: Contributor[] = (() => {
+  if (contributorsSource === "fallback") return fallbackContributors;
+  return getContributorsFromGit();
 })();
