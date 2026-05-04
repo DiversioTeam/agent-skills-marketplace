@@ -606,10 +606,15 @@ pull request from this repo
 
 push to main
   -> production deployment on Cloudflare Pages
+
+manual workflow_dispatch run
+  -> preview or production, chosen explicitly at dispatch time
 ```
 
 This split exists for a simple reason: reviewers need a safe preview URL, while
-production should only change after merge.
+production should only change after merge. Manual dispatch still exists so the
+team can re-run a preview or production deploy without manufacturing a new code
+change.
 
 The canonical site URL is:
 

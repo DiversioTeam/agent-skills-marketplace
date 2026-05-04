@@ -66,6 +66,7 @@ CI/deploy checks:
 
 - open a PR from this repo and confirm the `Deploy Website to Cloudflare Pages` preview job runs
 - merge to `main` and confirm the production deploy job runs
+- use `workflow_dispatch` when you need a manual preview or production redeploy without a new commit
 - verify `engineering.diversio.com` serves the production build
 - verify `_redirects` aliases work
 - configure hostname-level redirect for `agents.diversio.com` -> `engineering.diversio.com`
