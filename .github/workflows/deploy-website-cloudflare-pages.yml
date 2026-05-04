@@ -33,6 +33,20 @@ on:
       - "pi-packages/**/extensions/**"
       - ".github/workflows/deploy-website-cloudflare-pages.yml"
   workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Which environment to deploy manually"
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production
+      preview_branch:
+        description: "Preview branch name when deploy_target=preview"
+        required: false
+        default: manual
+        type: string
 
 permissions:
   contents: read
@@ -53,7 +67,9 @@ jobs:
   # failures contributors cannot fix from forks.
   deploy-preview:
     name: Deploy preview
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'preview')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: cloudflare-pages
@@ -90,18 +106,25 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MANUAL_PREVIEW_BRANCH: ${{ github.event.inputs.preview_branch }}
         shell: bash
         run: |
           set -euo pipefail
+          branch="${GITHUB_HEAD_REF:-}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            branch="${MANUAL_PREVIEW_BRANCH:-manual}"
+          fi
           npx --yes wrangler@4.15.2 pages deploy website/dist \
             --project-name="${CLOUDFLARE_PAGES_PROJECT}" \
-            --branch="${GITHUB_HEAD_REF}"
+            --branch="${branch}"
 
   # Production deploys only happen from main so the public site matches merged
   # repository state, not ad-hoc branch state.
   deploy-production:
     name: Deploy production
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: cloudflare-pages

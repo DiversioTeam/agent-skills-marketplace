@@ -8,6 +8,7 @@
 //   surrounding attribution and social metadata rules
 import { getCollection, render } from "astro:content";
 import PageLayout from "../../layouts/PageLayout.astro";
+import { formatEditorialDate } from "../../utils/format-date";
 
 export async function getStaticPaths() {
   const posts = (await getCollection("blog")).filter((post) => !post.data.draft);
@@ -40,11 +41,7 @@ const isRepost = post.data.sourceType === "repost";
           {isRepost ? "Curated repost" : "Original post"}
         </span>
         <time class="code-text-sm post-date" datetime={post.data.publishDate.toISOString()}>
-          {post.data.publishDate.toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
+          {formatEditorialDate(post.data.publishDate, "long")}
         </time>
       </div>
       <h1 class="headline-xl post-title">{post.data.title}</h1>
@@ -52,7 +49,9 @@ const isRepost = post.data.sourceType === "repost";
       <div class="post-byline body-md">
         <span>By {post.data.author.name}</span>
         {post.data.author.url && (
-          <a href={post.data.author.url} target="_blank" rel="noopener">author link</a>
+          <a href={post.data.author.url} target="_blank" rel="noopener">
+            {post.data.author.name} profile
+          </a>
         )}
       </div>
       {isRepost && (

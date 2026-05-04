@@ -6,6 +6,7 @@ import CodeBlock from "../components/CodeBlock.astro";
 import { plugins, piPackages } from "../data/marketplace.json";
 import { contributors } from "../data/contributors";
 import { openSourceProjects } from "../data/open-source-projects";
+import { siteConfig } from "../../site.config.mjs";
 
 const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
 const totalContributorCommits = contributors.reduce((sum, contributor) => sum + contributor.commits, 0);
@@ -13,6 +14,10 @@ const guardrailsCode = `bash scripts/validate-skills.sh
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null`;
+const repoUrl = siteConfig.githubUrl;
+const issuesUrl = `${repoUrl}/issues`;
+const pullsUrl = `${repoUrl}/pulls`;
+const contributingUrl = `${repoUrl}/blob/main/CONTRIBUTING.md`;
 ---
 
 <PageLayout
@@ -53,7 +58,7 @@ jq -e . pi-packages/<package>/package.json >/dev/null`;
       description="Use GitHub for bugs, proposals, reviews, and contribution docs."
     />
     <div class="community-grid">
-      <a href="https://github.com/DiversioTeam/agent-skills-marketplace" class="community-card" target="_blank" rel="noopener">
+      <a href={repoUrl} class="community-card" target="_blank" rel="noopener">
         <span class="label-caps community-kicker">Repository</span>
         <h2 class="headline-sm">Source, catalog, and release history</h2>
         <p class="body-md community-copy">
@@ -63,7 +68,7 @@ jq -e . pi-packages/<package>/package.json >/dev/null`;
         <span class="label-caps community-link">Open GitHub →</span>
       </a>
 
-      <a href="https://github.com/DiversioTeam/agent-skills-marketplace/issues" class="community-card" target="_blank" rel="noopener">
+      <a href={issuesUrl} class="community-card" target="_blank" rel="noopener">
         <span class="label-caps community-kicker">Issues</span>
         <h2 class="headline-sm">Bugs, proposals, and docs drift</h2>
         <p class="body-md community-copy">
@@ -72,7 +77,7 @@ jq -e . pi-packages/<package>/package.json >/dev/null`;
         <span class="label-caps community-link">View issues →</span>
       </a>
 
-      <a href="https://github.com/DiversioTeam/agent-skills-marketplace/pulls" class="community-card" target="_blank" rel="noopener">
+      <a href={pullsUrl} class="community-card" target="_blank" rel="noopener">
         <span class="label-caps community-kicker">Pull Requests</span>
         <h2 class="headline-sm">Reviewable changes only</h2>
         <p class="body-md community-copy">
@@ -82,7 +87,7 @@ jq -e . pi-packages/<package>/package.json >/dev/null`;
         <span class="label-caps community-link">Browse PRs →</span>
       </a>
 
-      <a href="https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/CONTRIBUTING.md" class="community-card" target="_blank" rel="noopener">
+      <a href={contributingUrl} class="community-card" target="_blank" rel="noopener">
         <span class="label-caps community-kicker">Contributor Guide</span>
         <h2 class="headline-sm">The repo’s working agreement</h2>
         <p class="body-md community-copy">
