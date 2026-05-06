@@ -41,6 +41,7 @@ const { columns, rows } = Astro.props;
 
   .data-table {
     width: 100%;
+    min-width: 34rem;
     border-collapse: collapse;
     font-size: var(--text-body-md);
     line-height: var(--leading-body-sm);
@@ -73,5 +74,12 @@ const { columns, rows } = Astro.props;
     font-family: var(--font-code);
     font-size: var(--text-code-sm);
     color: var(--color-primary);
+  }
+
+  @media (max-width: 860px) {
+    .data-table-th,
+    .data-table-td {
+      padding: var(--space-xs) var(--space-sm);
+    }
   }
 </style>

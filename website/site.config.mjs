@@ -20,9 +20,11 @@ export const siteConfig = {
   githubUrl: "https://github.com/DiversioTeam",
   githubRepoUrl: "https://github.com/DiversioTeam/agent-skills-marketplace",
   defaultDescription:
-    "Diversio Engineering shares agentic tools, deep docs, and engineering writing.",
+    "Diversio Engineering shares engineering systems, open tools, deep docs, and writing.",
   routes: {
     home: "/",
+    howWeWork: "/how-we-work",
+    systems: "/systems",
     tools: "/agentic-tools",
     docs: "/docs",
     registry: "/registry",
@@ -35,8 +37,9 @@ export const siteConfig = {
   },
   navItems: [
     { label: "Home", href: "/", key: "home" },
+    { label: "How We Work", href: "/how-we-work", key: "howWeWork" },
+    { label: "Systems", href: "/systems", key: "systems" },
     { label: "Agentic Tools", href: "/agentic-tools", key: "tools" },
-    { label: "Docs", href: "/docs", key: "docs" },
     { label: "Blog", href: "/blog", key: "blog" },
     { label: "Community", href: "/community", key: "community" },
   ],

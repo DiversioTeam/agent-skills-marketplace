@@ -54,8 +54,8 @@ const {
   {ogImageWidth}
   {ogImageHeight}
 >
-  <Header currentNav="docs" />
-  <div class="docs-layout">
+  <Header currentNav="tools" />
+  <div class:list={["docs-layout", metadata.length === 0 && maintainers.length === 0 && "docs-layout--no-meta"]}>
     <!-- Left Sidebar -->
     <aside class="docs-sidebar">
       {packageName && (
@@ -101,6 +101,41 @@ const {
 
     <!-- Main Content -->
     <article class="docs-content">
+      {(sidebarItems.length > 0 || metadata.length > 0) && (
+        <details class="docs-mobile-panel">
+          <summary class="docs-mobile-panel-summary">On this page</summary>
+          <div class="docs-mobile-panel-body">
+            {packageName && (
+              <div class="docs-mobile-package">
+                <div class="label-caps" style="color: var(--color-text-secondary); margin-bottom: var(--space-xs);">PACKAGE</div>
+                <div class="code-text" style="color: var(--color-primary); font-weight: 500;">{packageName}</div>
+                {packageVersion && (
+                  <div class="body-md" style="color: var(--color-text-muted); margin-top: var(--space-2xs);">{packageVersion}</div>
+                )}
+              </div>
+            )}
+            {sidebarItems.length > 0 && (
+              <nav class="docs-mobile-nav" aria-label="Mobile contents">
+                {sidebarItems.map((item) => (
+                  <a href={item.href} class="docs-mobile-link">{item.label}</a>
+                ))}
+              </nav>
+            )}
+            {metadata.length > 0 && (
+              <dl class="docs-mobile-meta">
+                {metadata.map((m) => (
+                  <div class="docs-mobile-meta-item">
+                    <dt class="meta-label">{m.label}</dt>
+                    <dd class={`meta-value ${m.mono ? "code-text-sm" : "body-md"}`}>
+                      {m.href ? <a href={m.href}>{m.value}</a> : m.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        </details>
+      )}
       <slot />
     </article>
 
@@ -149,11 +184,15 @@ const {
 <style>
   .docs-layout {
     display: grid;
-    grid-template-columns: var(--sidebar-width) 1fr 18rem;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) 18rem;
     max-width: var(--max-width);
     margin: 0 auto;
     min-height: calc(100vh - var(--header-height));
     position: relative;
+  }
+
+  .docs-layout--no-meta {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   }
 
   .docs-sidebar {
@@ -161,6 +200,7 @@ const {
     top: var(--header-height);
     height: calc(100vh - var(--header-height));
     overflow-y: auto;
+    overflow-x: hidden;
     border-right: var(--border-hairline);
     background: var(--color-surface);
     padding: var(--space-lg) 0;
@@ -232,9 +272,71 @@ const {
   }
 
   .docs-content {
-    padding: var(--space-2xl) var(--space-2xl);
+    padding: var(--space-2xl) clamp(var(--space-lg), 3vw, var(--space-2xl));
+    width: 100%;
     max-width: 48rem;
     min-width: 0;
+    justify-self: center;
+  }
+
+  .docs-mobile-panel {
+    display: none;
+    margin-bottom: var(--space-lg);
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-block-sm);
+    overflow: hidden;
+  }
+
+  .docs-mobile-panel-summary {
+    cursor: pointer;
+    list-style: none;
+    padding: var(--space-md) var(--space-lg);
+    font-family: var(--font-body);
+    font-size: var(--text-body-md);
+    font-weight: var(--weight-semibold);
+    color: var(--color-text);
+    background: var(--color-surface-low);
+  }
+
+  .docs-mobile-panel-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .docs-mobile-panel-body {
+    display: grid;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+  }
+
+  .docs-mobile-package {
+    padding-bottom: var(--space-md);
+    border-bottom: var(--border-hairline);
+  }
+
+  .docs-mobile-nav {
+    display: grid;
+    gap: var(--space-xs);
+  }
+
+  .docs-mobile-link {
+    color: var(--color-text-secondary);
+    text-decoration: none;
+  }
+
+  .docs-mobile-link:hover {
+    color: var(--color-primary);
+  }
+
+  .docs-mobile-meta {
+    display: grid;
+    gap: var(--space-sm);
+  }
+
+  .docs-mobile-meta-item {
+    display: grid;
+    gap: var(--space-2xs);
   }
 
   .docs-meta {
@@ -242,6 +344,7 @@ const {
     top: var(--header-height);
     height: calc(100vh - var(--header-height));
     overflow-y: auto;
+    overflow-x: hidden;
     border-left: var(--border-hairline);
     background: var(--color-surface);
     padding: var(--space-xl);
@@ -316,20 +419,35 @@ const {
 
   /* Responsive: collapse sidebars on smaller screens */
   @media (max-width: 1280px) {
-    .docs-layout {
-      grid-template-columns: var(--sidebar-width) 1fr;
+    .docs-layout,
+    .docs-layout--no-meta {
+      grid-template-columns: minmax(0, 1fr);
     }
+
+    .docs-sidebar,
     .docs-meta {
       display: none;
     }
+
+    .docs-content {
+      max-width: 58rem;
+    }
+
+    .docs-mobile-panel {
+      display: block;
+    }
   }
 
-  @media (max-width: 1024px) {
-    .docs-layout {
-      grid-template-columns: 1fr;
+  @media (max-width: 860px) {
+    .docs-content {
+      padding: var(--space-xl) var(--space-md);
+      max-width: 100%;
     }
-    .docs-sidebar {
-      display: none;
+
+    .docs-mobile-panel-summary,
+    .docs-mobile-panel-body {
+      padding-left: var(--space-md);
+      padding-right: var(--space-md);
     }
   }
 </style>

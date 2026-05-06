@@ -1,0 +1,369 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import { getGeneratedOgImage } from "../utils/og-image";
+import { getOrderedEngineeringHighlightLanes } from "../utils/engineering-content";
+import { engineeringHighlightLaneOrder, engineeringHighlights } from "../data/engineering-highlights";
+import { engineeringStack } from "../data/engineering-stack";
+
+const ogImage = getGeneratedOgImage("/og/systems.png", "/og-default.png");
+const systemsPage = {
+  title: "Systems",
+  metaDescription: "Workflows, stack choices, guardrails, and design decisions behind Diversio Engineering.",
+  heroTitle: "Systems behind the tools",
+  heroDescription: "Workflows, stack choices, guardrails, and design decisions behind Diversio Engineering.",
+  stackTitle: "The stack behind the work",
+  stackDescription: "The technologies and foundations we rely on, organized by the part of the engineering system they support.",
+} as const;
+const lanes = getOrderedEngineeringHighlightLanes(engineeringHighlights, engineeringHighlightLaneOrder);
+function laneSlug(lane: string): string {
+  return lane.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+---
+
+<PageLayout
+  title={systemsPage.title}
+  description={systemsPage.metaDescription}
+  ogImage={ogImage}
+  socialImageAlt="Diversio Engineering systems"
+  currentNav="systems"
+>
+  <section class="page-section page-hero">
+    <SectionHeader
+      label="Systems"
+      title={systemsPage.heroTitle}
+      titleLevel="h1"
+      description={systemsPage.heroDescription}
+      variant="systems"
+    />
+    <nav class="lane-nav" aria-label="Systems areas">
+      <a href="#stack" class="lane-nav-link">Stack</a>
+      {lanes.map((lane) => (
+        <a href={`#${laneSlug(lane)}`} class="lane-nav-link">{lane}</a>
+      ))}
+    </nav>
+  </section>
+
+  <section class="page-section lane-section" id="stack">
+    <SectionHeader
+      label="Stack"
+      title={systemsPage.stackTitle}
+      description={systemsPage.stackDescription}
+      variant="systems"
+    />
+    <div class="stack-list">
+      {engineeringStack.map((layer) => (
+        <article class="stack-row">
+          <div class="stack-row-meta">
+            <span class="label-caps stack-row-label">{layer.label}</span>
+          </div>
+          <div class="stack-row-body">
+            <h3 class="headline-sm">{layer.title}</h3>
+            <p class="body-md stack-copy">{layer.summary}</p>
+            <p class="body-md stack-proof"><strong>Why it fits:</strong> {layer.whyItFits}</p>
+            <div class="stack-tech-list" aria-label={`${layer.label} technologies`}>
+              {layer.technologies.map((tech) => (
+                <div class={`stack-tech${tech.wide ? " stack-tech--wide" : ""}`}>
+                  <img src={tech.logoSrc} alt={tech.logoAlt} class={`stack-tech-logo${tech.wide ? " stack-tech-logo--wide" : ""}`} loading="lazy" />
+                  <span class="body-md stack-tech-name">{tech.name}</span>
+                </div>
+              ))}
+            </div>
+            {layer.supportingTools && layer.supportingTools.length > 0 && (
+              <div class="stack-supporting-tools">
+                <span class="label-caps stack-supporting-label">Also in this layer</span>
+                <div class="stack-supporting-list">
+                  {layer.supportingTools.map((tool) => (
+                    <span class="stack-supporting-chip code-text-sm">{tool}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {layer.relatedHref && (
+              <a href={layer.relatedHref} class="system-link label-caps">{layer.relatedLabel ?? "Read more"} →</a>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  {lanes.map((lane) => {
+    const laneHighlights = engineeringHighlights.filter((highlight) => highlight.lane === lane);
+    return (
+      <section class="page-section lane-section" id={laneSlug(lane)}>
+        <div class="lane-section-header">
+          <span class="label-caps lane-section-label">Area</span>
+          <div>
+            <h2 class="headline-md lane-section-title">{lane}</h2>
+            <p class="body-md lane-section-desc">{laneHighlights.length} {laneHighlights.length === 1 ? "highlight" : "highlights"} in this area.</p>
+          </div>
+        </div>
+        <div class="lane-list">
+          {laneHighlights.map((highlight, index) => (
+            <article class="system-row">
+              <div class="system-row-meta">
+                <span class="code-text-sm system-row-index">0{index + 1}</span>
+              </div>
+              <div class="system-row-body">
+                <h3 class="headline-sm">{highlight.title}</h3>
+                <p class="body-md system-copy">{highlight.summary}</p>
+                <div class="system-proof-block">
+                  <span class="label-caps system-proof-label">Why it matters</span>
+                  <p class="body-md system-proof">{highlight.proof}</p>
+                </div>
+                {highlight.href && (
+                  <a href={highlight.href} class="system-link label-caps">
+                    {highlight.hrefLabel ?? "Read more"} →
+                  </a>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  })}
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+
+  .page-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+
+  .lane-list,
+  .stack-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  .lane-nav,
+  .system-row,
+  .stack-row {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .lane-section-label,
+  .system-proof-label {
+    color: var(--color-primary);
+  }
+
+  .lane-section-desc,
+  .system-copy,
+  .system-proof,
+  .stack-copy,
+  .stack-proof,
+  .stack-tech-name {
+    color: var(--color-text-secondary);
+  }
+
+  .lane-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    padding: var(--space-md);
+  }
+
+  .lane-nav-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.7rem;
+    border: var(--border-hairline);
+    border-radius: 999px;
+    background: var(--color-surface-low);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+  }
+
+  .lane-nav-link:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+
+  .lane-section {
+    display: grid;
+    gap: var(--space-lg);
+  }
+
+  .lane-section-header {
+    display: grid;
+    grid-template-columns: 6rem minmax(0, 1fr);
+    gap: var(--space-lg);
+    align-items: start;
+  }
+
+  .lane-section-title {
+    margin-bottom: var(--space-sm);
+  }
+
+  .stack-row,
+  .system-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+  }
+
+  .stack-row h3,
+  .system-row h3 {
+    text-wrap: balance;
+  }
+
+  .system-row {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+
+  .stack-row-meta,
+  .system-row-meta {
+    color: var(--color-text-muted);
+  }
+
+  .stack-row-label {
+    color: var(--color-primary);
+  }
+
+  .system-row-index {
+    color: var(--color-primary);
+  }
+
+  .stack-row-body,
+  .system-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    min-width: 0;
+  }
+
+  .stack-tech-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+  }
+
+  .stack-supporting-tools {
+    display: grid;
+    gap: var(--space-xs);
+    margin-top: var(--space-sm);
+  }
+
+  .stack-supporting-label {
+    color: var(--color-text-muted);
+  }
+
+  .stack-supporting-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+  }
+
+  .stack-supporting-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.6rem;
+    border: var(--border-hairline);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+  }
+
+  .stack-tech {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 0.45rem 0.7rem;
+    border: var(--border-hairline);
+    border-radius: 999px;
+    background: var(--color-surface-low);
+    min-width: 0;
+  }
+
+  .stack-tech-logo {
+    width: 1rem;
+    height: 1rem;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .stack-tech-logo--wide {
+    width: auto;
+    max-width: 2rem;
+    height: 1rem;
+  }
+
+  .stack-tech-name {
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .stack-tech--wide {
+    padding-right: var(--space-md);
+  }
+
+  .system-proof-block {
+    margin-top: var(--space-xs);
+    padding-top: var(--space-sm);
+    border-top: var(--border-hairline);
+  }
+
+  .system-link {
+    margin-top: auto;
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .system-link:hover {
+    text-decoration: underline;
+  }
+
+  @media (min-width: 1100px) {
+    .stack-row {
+      grid-template-columns: 10rem minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+
+    .page-hero,
+    .page-section + .page-section {
+      padding-top: var(--space-2xl);
+    }
+
+    .lane-nav,
+    .stack-row,
+    .system-row {
+      padding-left: var(--space-md);
+      padding-right: var(--space-md);
+    }
+
+    .lane-section-header,
+    .stack-row,
+    .system-row {
+      grid-template-columns: 1fr;
+      gap: var(--space-sm);
+    }
+
+    .stack-tech-name {
+      white-space: normal;
+    }
+  }
+</style>

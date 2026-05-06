@@ -15,6 +15,7 @@
  * - keep a tiny fallback list so static builds never fail
  */
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 export interface Contributor {
   id: string;
@@ -59,18 +60,23 @@ const contributorProfiles: Record<string, { name: string; github?: string }> = {
   "little-person": { name: "Little Person", github: "https://github.com/little-person" },
 };
 
-// Email -> canonical contributor id. This is the smallest, easiest-to-audit
-// place to teach the site that two commit emails belong to one person.
+function hashEmail(email: string): string {
+  return createHash("sha256").update(email).digest("hex");
+}
+
+// Hashed email -> canonical contributor id. The source repo already contains
+// commit-author emails in git history, but the website source does not need to
+// repeat those literal addresses just to merge known aliases.
 const contributorAliases: Record<string, string> = {
-  "ashwch3018@gmail.com": "ashwini-chaudhary",
-  "ashwch@users.noreply.github.com": "ashwini-chaudhary",
-  "amal@diversio.com": "amal-raj-br",
-  "97768599+amalrajdiversio@users.noreply.github.com": "amal-raj-br",
-  "umangabhattarai11@gmail.com": "umanga-bhattarai",
-  "44160507+bumang@users.noreply.github.com": "umanga-bhattarai",
-  "ashish@diversio.com": "ashish581d",
-  "ashishsiwal13@gmail.com": "ashish581d",
-  "109978238+little-person@users.noreply.github.com": "little-person",
+  "9c7ab890b573f70c062d3858ffbd343d062b08398efd8eefe5c2b6b1d6ff147d": "ashwini-chaudhary",
+  "bb1aa0ae5d62afa0607a9b2cc5adfee4fcc84d79127a350b5ea177d8f64b4b5b": "ashwini-chaudhary",
+  "c8d63c056019e471b8e05049ad79be6cfb279e633c975d2275c69d9120bf5bb3": "amal-raj-br",
+  "4a79bcb2a4c30fa5a0fa0eebe67365a63422ff08a490ab1f0dcad0ba39eb23c3": "amal-raj-br",
+  "06acac4f6b18a4724a1bc9daa2b620f8cc699ddf8406dc29869665d99525bc80": "umanga-bhattarai",
+  "f0338f36ac3d11404f0d475a835e01bfac36b6ee2e611cf051757f24a082a0fa": "umanga-bhattarai",
+  "d224ba123ab97d168d01ef253c22a99e87608ffbe2177b00280fab54178abe1e": "ashish581d",
+  "b80d90359dac5ca72d3f003acf329ee50ee187e236ddd2cc9f94713aecc5312d": "ashish581d",
+  "00e63def06e3e8aed42ee11bd60b87ba1756450783b565974ad31b3cb1099c94": "little-person",
 };
 
 // Safety net for environments where the git checkout is shallow, missing, or
@@ -147,7 +153,7 @@ function getContributorsFromGit(): Contributor[] {
     const email = rawEmail.trim().toLowerCase();
     if (!name || !email || isBot(name, email)) continue;
 
-    const id = contributorAliases[email] ?? slugify(name);
+    const id = contributorAliases[hashEmail(email)] ?? slugify(name);
     const existing = grouped.get(id) ?? {
       commits: 0,
       names: new Set<string>(),

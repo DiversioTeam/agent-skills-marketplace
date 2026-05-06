@@ -107,18 +107,40 @@ export interface PiPackageDoc {
 const plugins = marketplace.plugins as MarketplacePlugin[];
 const piPackages = marketplace.piPackages as MarketplacePiPackage[];
 
-// Build-time pages can run from the website directory or from a bundled Astro
-// execution context. Ask git for the repo root first so we can always find the
-// real marketplace files, then fall back to a simple parent-directory guess.
+// Build-time pages can run from this repo today or from a future standalone
+// engineering-site repo that checks out agent-skills-marketplace as a sibling
+// or vendored directory. Resolve the source repo explicitly so local builds and
+// CI use the same extraction logic.
+function isAgentSkillsRepoRoot(candidate: string): boolean {
+  return existsSync(path.join(candidate, "plugins")) && existsSync(path.join(candidate, "pi-packages"));
+}
+
 function resolveRepoRoot(): string {
-  try {
-    return execSync("git rev-parse --show-toplevel", {
-      cwd: process.cwd(),
-      encoding: "utf8",
-    }).trim();
-  } catch {
-    return path.resolve(process.cwd(), "..");
-  }
+  const configured = process.env.AGENT_SKILLS_REPO_DIR?.trim();
+  const candidates = [
+    configured,
+    (() => {
+      try {
+        return execSync("git rev-parse --show-toplevel", {
+          cwd: process.cwd(),
+          encoding: "utf8",
+        }).trim();
+      } catch {
+        return null;
+      }
+    })(),
+    path.resolve(process.cwd(), ".."),
+    path.resolve(process.cwd(), "../agent-skills-marketplace"),
+    path.resolve(process.cwd(), "../vendor/agent-skills-marketplace"),
+    path.resolve(process.cwd(), "vendor/agent-skills-marketplace"),
+  ].filter(Boolean) as string[];
+
+  const match = candidates.find((candidate) => isAgentSkillsRepoRoot(candidate));
+  if (match) return match;
+
+  throw new Error(
+    "Could not locate the agent-skills-marketplace source repo. Set AGENT_SKILLS_REPO_DIR to a checkout containing plugins/ and pi-packages/."
+  );
 }
 
 const repoRoot = resolveRepoRoot();

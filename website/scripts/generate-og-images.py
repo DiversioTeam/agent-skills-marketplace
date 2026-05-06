@@ -43,6 +43,7 @@ Commands:
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Iterable
@@ -52,9 +53,33 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 MARKETPLACE_JSON = ROOT / "src" / "data" / "marketplace.json"
 BLOG_DIR = ROOT / "src" / "content" / "blog"
-PLUGINS_DIR = ROOT.parent / "plugins"
-PI_PACKAGES_DIR = ROOT.parent / "pi-packages"
 OUTPUT_DIR = ROOT / "public" / "og"
+
+
+def is_agent_skills_repo_root(candidate: Path) -> bool:
+    return (candidate / "plugins").exists() and (candidate / "pi-packages").exists()
+
+
+def resolve_source_repo_root() -> Path:
+    configured = Path(os.environ["AGENT_SKILLS_REPO_DIR"]).expanduser().resolve() if os.environ.get("AGENT_SKILLS_REPO_DIR", "").strip() else None
+    candidates = [
+        configured,
+        ROOT.parent,
+        (ROOT.parent / "agent-skills-marketplace").resolve(),
+        (ROOT.parent / "vendor" / "agent-skills-marketplace").resolve(),
+        (ROOT / "vendor" / "agent-skills-marketplace").resolve(),
+    ]
+    for candidate in candidates:
+        if candidate and is_agent_skills_repo_root(candidate):
+            return candidate
+    raise RuntimeError(
+        "Could not locate the agent-skills-marketplace source repo. Set AGENT_SKILLS_REPO_DIR to a checkout containing plugins/ and pi-packages/."
+    )
+
+
+SOURCE_REPO_ROOT = resolve_source_repo_root()
+PLUGINS_DIR = SOURCE_REPO_ROOT / "plugins"
+PI_PACKAGES_DIR = SOURCE_REPO_ROOT / "pi-packages"
 
 WIDTH = 1200
 HEIGHT = 630
@@ -362,6 +387,7 @@ def collect_blog_posts() -> list[dict[str, str]]:
                 "slug": slug,
                 "title": str(frontmatter.get("title", identifier_to_title(slug))),
                 "description": str(frontmatter.get("summary", "Engineering writing from Diversio Engineering.")),
+                "sourceType": str(frontmatter.get("sourceType", "original")),
                 "badge": "ENGINEERING BLOG",
                 "panel_title": "BLOG",
                 "line1": str(frontmatter.get("publishDate", "")),
@@ -381,19 +407,53 @@ def main() -> None:
     plugin_skill_count = sum(len(plugin.get("skills", [])) for plugin in plugins)
     skill_docs = collect_skill_docs()
     blog_posts = collect_blog_posts()
+    original_blog_posts = [post for post in blog_posts if post.get("sourceType") == "original"]
+    repost_blog_posts = [post for post in blog_posts if post.get("sourceType") == "repost"]
+
+    blog_index_line2 = (
+        "Original + reposts"
+        if original_blog_posts and repost_blog_posts
+        else "Original posts"
+        if original_blog_posts
+        else "Curated reposts"
+        if repost_blog_posts
+        else "Writing in progress"
+    )
 
     # Section-level pages.
     section_cards = [
         {
             "title": "Diversio Engineering",
-            "description": "Open tools, deep docs, and engineering writing from Diversio.",
+            "description": "Engineering systems, open tools, deep docs, and writing from Diversio.",
             "badge": "ENGINEERING HUB",
             "panel_title": "OVERVIEW",
             "line1": f"{len(plugins)} plugins",
             "line2": f"{len(pi_packages)} Pi packages",
-            "line3": "Tools · Docs · Writing",
+            "line3": "Systems · Tools · Writing",
             "footer": "engineering.diversio.com/",
             "output": OUTPUT_DIR / "home.png",
+        },
+        {
+            "title": "How We Work",
+            "description": "The standards, habits, and tooling choices behind Diversio Engineering.",
+            "badge": "HOW WE WORK",
+            "panel_title": "MODEL",
+            "line1": "Real systems",
+            "line2": "Guardrailed AI",
+            "line3": "Docs as harness",
+            "footer": "engineering.diversio.com/how-we-work",
+            "output": OUTPUT_DIR / "how-we-work.png",
+        },
+        {
+            "title": "Systems",
+            "description": "Workflows, guardrails, and design choices behind Diversio Engineering.",
+            "badge": "SYSTEMS",
+            "panel_title": "PATTERNS",
+            "line1": "Workflow",
+            "line2": "Security",
+            "line3": "Documentation",
+            "footer": "engineering.diversio.com/systems",
+            "output": OUTPUT_DIR / "systems.png",
         },
         {
             "title": "Agentic Tools",
@@ -451,12 +511,12 @@ def main() -> None:
             "output": OUTPUT_DIR / "pi-index.png",
         },
         {
-            "title": "Community",
-            "description": "How Diversio Engineering collaborates in public across repos, issues, pull requests, and docs.",
-            "badge": "COMMUNITY",
+            "title": "Contribute",
+            "description": "How to contribute to the open Agentic Tools repository across issues, pull requests, docs, and validation workflows.",
+            "badge": "CONTRIBUTE",
             "panel_title": "OPEN SOURCE",
             "line1": f"{len(plugins)} plugins",
-            "line2": "Contributors",
+            "line2": "Contribution docs",
             "line3": "Review workflows",
             "footer": "engineering.diversio.com/community",
             "output": OUTPUT_DIR / "community.png",
@@ -496,11 +556,11 @@ def main() -> None:
         },
         {
             "title": "Engineering Writing",
-            "description": "Original posts, updates, and technical writing from Diversio Engineering.",
+            "description": "Curated reposts, original posts over time, and technical writing from Diversio Engineering.",
             "badge": "BLOG",
             "panel_title": "WRITING",
-            "line1": f"{len(blog_posts)} posts" if blog_posts else "Original posts",
-            "line2": "Technical updates",
+            "line1": f"{len(blog_posts)} posts" if blog_posts else "Writing in progress",
+            "line2": blog_index_line2,
             "line3": "Diversio Engineering",
             "footer": "engineering.diversio.com/blog",
             "output": OUTPUT_DIR / "blog-index.png",

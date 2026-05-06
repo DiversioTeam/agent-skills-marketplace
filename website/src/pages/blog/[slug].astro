@@ -30,6 +30,8 @@ import { getCollection, render } from "astro:content";
 import PageLayout from "../../layouts/PageLayout.astro";
 import { formatEditorialDate } from "../../utils/format-date";
 import { getGeneratedOgImage } from "../../utils/og-image";
+import { getAuthorHref } from "../../utils/authors";
+import { getPublishedBlogPosts } from "../../utils/blog-posts";
 
 export async function getStaticPaths() {
   const posts = (await getCollection("blog")).filter((post) => !post.data.draft);
@@ -40,16 +42,39 @@ export async function getStaticPaths() {
   }));
 }
 
+const allPosts = await getPublishedBlogPosts();
 const { post } = Astro.props;
-const { Content } = await render(post);
+const { Content, headings } = await render(post);
 const isRepost = post.data.sourceType === "repost";
 const postOgSlug = (post.data.slug ?? post.id).replace(/\.md$/, "").replace(/\//g, "-");
+const topLevelHeadings = headings.filter((heading) => heading.depth === 2);
+const tocHeadings = topLevelHeadings.length >= 2 ? topLevelHeadings : headings.filter((heading) => heading.depth <= 3);
+const hasToc = tocHeadings.length >= 2;
+const words = (post.body ?? "").trim().split(/\s+/).filter(Boolean).length;
+const readingMinutes = Math.max(1, Math.ceil(words / 225));
+const primaryTags = new Set(post.data.tags);
+const relatedPosts = allPosts
+  .filter((candidate) => candidate.id !== post.id)
+  .map((candidate) => {
+    const sharedTags = candidate.data.tags.filter((tag) => primaryTags.has(tag)).length;
+    const sameAuthor = candidate.data.author.name === post.data.author.name ? 1 : 0;
+    const sameType = candidate.data.sourceType === post.data.sourceType ? 1 : 0;
+    return {
+      candidate,
+      score: sharedTags * 10 + sameAuthor * 3 + sameType,
+    };
+  })
+  .filter((item) => item.score > 0)
+  .sort((a, b) => b.score - a.score || b.candidate.data.publishDate.getTime() - a.candidate.data.publishDate.getTime())
+  .slice(0, 3)
+  .map((item) => item.candidate);
 
 // Blog posts can override their image in frontmatter, but the site also keeps a
 // generated fallback per post so a share still looks intentional even when the
 // editor did not provide a custom image.
 const generatedOgImage = getGeneratedOgImage(`/og/blog-${postOgSlug}.png`, "/og/blog-default.png");
 const ogImage = post.data.socialImage ?? post.data.heroImage ?? generatedOgImage;
+const visibleHeroImage = post.data.heroImage;
 ---
 
 <PageLayout
@@ -63,146 +88,639 @@ const ogImage = post.data.socialImage ?? post.data.heroImage ?? generatedOgImage
   currentNav="blog"
 >
   <section class="post-shell">
-    <header class="post-header">
-      <div class="post-kicker-row">
-        <span class={`label-caps post-kind${isRepost ? " post-kind--repost" : ""}`}>
-          {isRepost ? "Curated repost" : "Original post"}
-        </span>
-        <time class="code-text-sm post-date" datetime={post.data.publishDate.toISOString()}>
-          {formatEditorialDate(post.data.publishDate, "long")}
-        </time>
-      </div>
-      <h1 class="headline-xl post-title">{post.data.title}</h1>
-      <p class="body-lg post-summary">{post.data.summary}</p>
-      <div class="post-byline body-md">
-        By{" "}
-        {post.data.author.url ? (
-          <a href={post.data.author.url} target="_blank" rel="noopener">
-            {post.data.author.name}
-          </a>
-        ) : (
-          post.data.author.name
-        )}
-      </div>
-      {isRepost && (
-        <div class="source-note">
-          <strong>Source:</strong>{" "}
-          {post.data.sourceUrl ? (
-            <a href={post.data.sourceUrl} target="_blank" rel="noopener">
-              {post.data.sourceSiteName ?? post.data.sourceUrl}
-            </a>
-          ) : (
-            post.data.sourceSiteName ?? "External source"
+    <div class:list={["post-layout", !hasToc && "post-layout--no-toc"]}>
+      <article class="post-main">
+        <header class="post-header">
+          <div class="post-kicker-row">
+            <a href="/blog" class="post-back-link">← Back to blog</a>
+            <span class={`label-caps post-kind${isRepost ? " post-kind--repost" : ""}`}>
+              {isRepost ? "Curated repost" : "Original post"}
+            </span>
+          </div>
+          <h1 class="headline-xl post-title">{post.data.title}</h1>
+          <p class="body-lg post-summary">{post.data.summary}</p>
+          <div class="post-meta-row body-md">
+            <span>
+              By <a href={getAuthorHref(post.data.author.name)} class="post-author-link">{post.data.author.name}</a>
+              {post.data.author.url && (
+                <>
+                  {" "}<a href={post.data.author.url} target="_blank" rel="noopener" class="post-author-external">site ↗</a>
+                </>
+              )}
+            </span>
+            <span class="post-meta-separator" aria-hidden="true">·</span>
+            <time class="code-text-sm post-date" datetime={post.data.publishDate.toISOString()}>
+              {formatEditorialDate(post.data.publishDate, "long")}
+            </time>
+            <span class="post-meta-separator" aria-hidden="true">·</span>
+            <span class="code-text-sm post-date">{readingMinutes} min read</span>
+          </div>
+          {post.data.tags.length > 0 && (
+            <div class="post-tags">
+              {post.data.tags.map((tag) => (
+                <span class="post-tag">{tag}</span>
+              ))}
+            </div>
           )}
-          {post.data.canonicalUrl && (
-            <>
-              {" "}· <strong>Canonical:</strong>{" "}
-              <a href={post.data.canonicalUrl} target="_blank" rel="noopener">
-                {post.data.canonicalUrl}
-              </a>
-            </>
+          {isRepost && (
+            <div class="source-note">
+              <strong>Source:</strong>{" "}
+              {post.data.sourceUrl ? (
+                <a href={post.data.sourceUrl} target="_blank" rel="noopener">
+                  {post.data.sourceSiteName ?? post.data.sourceUrl}
+                </a>
+              ) : (
+                post.data.sourceSiteName ?? "External source"
+              )}
+              {post.data.canonicalUrl && (
+                <>
+                  {" "}· <strong>Canonical:</strong>{" "}
+                  <a href={post.data.canonicalUrl} target="_blank" rel="noopener">
+                    {post.data.canonicalUrl}
+                  </a>
+                </>
+              )}
+            </div>
           )}
-        </div>
-      )}
-    </header>
+        </header>
 
-    <article class="post-content prose">
-      <Content />
-    </article>
+        {visibleHeroImage && (
+          <figure class="post-hero">
+            <img src={visibleHeroImage} alt={post.data.title} loading="eager" />
+          </figure>
+        )}
+
+        <div class="post-content prose">
+          <Content />
+        </div>
+
+        {relatedPosts.length > 0 && (
+          <section class="post-related">
+            <div class="post-related-header">
+              <span class="label-caps post-related-label">Continue reading</span>
+              <h2 class="headline-sm post-related-title">More from the engineering blog</h2>
+            </div>
+            <div class="post-related-grid">
+              {relatedPosts.map((relatedPost) => {
+                const relatedHref = `/blog/${(relatedPost.data.slug ?? relatedPost.id).replace(/\.md$/, "")}`;
+                const relatedIsRepost = relatedPost.data.sourceType === "repost";
+                return (
+                  <article class="post-related-card">
+                    <div class="post-related-meta">
+                      <span class={`label-caps post-kind${relatedIsRepost ? " post-kind--repost" : ""}`}>
+                        {relatedIsRepost ? "Curated repost" : "Original post"}
+                      </span>
+                    </div>
+                    <h3 class="headline-sm"><a href={relatedHref}>{relatedPost.data.title}</a></h3>
+                    <p class="body-md post-related-summary">{relatedPost.data.summary}</p>
+                    <div class="post-related-footer">
+                      <a href={getAuthorHref(relatedPost.data.author.name)} class="post-author-link">{relatedPost.data.author.name}</a>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </article>
+
+      {hasToc && (
+        <aside class="post-toc" aria-label="Table of contents">
+          <div class="post-toc-card">
+            <span class="label-caps post-toc-label">Contents</span>
+            <nav class="post-toc-nav">
+              {tocHeadings.map((heading, index) => (
+                <a
+                  href={`#${heading.slug}`}
+                  class={`post-toc-link post-toc-link--depth-${heading.depth}`}
+                  data-toc-link
+                  data-active={index === 0 ? "true" : undefined}
+                >
+                  {heading.text.replace(/\s*#$/, "")}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </aside>
+      )}
+    </div>
   </section>
 </PageLayout>
 
 <style>
   .post-shell {
-    max-width: 48rem;
+    max-width: min(100%, 90rem);
     margin: 0 auto;
     padding: var(--space-3xl) var(--space-margin);
   }
 
+  .post-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 52rem) minmax(14rem, 16rem);
+    grid-template-areas: "main toc";
+    justify-content: center;
+    gap: clamp(var(--space-xl), 4vw, var(--space-3xl));
+    align-items: start;
+  }
+
+  .post-layout--no-toc {
+    grid-template-columns: minmax(0, 52rem);
+    grid-template-areas: "main";
+  }
+
+  .post-main {
+    grid-area: main;
+    min-width: 0;
+    width: min(100%, 52rem);
+    padding: clamp(var(--space-xl), 2vw + 1rem, var(--space-2xl));
+    border: var(--border-hairline);
+    border-radius: 1.25rem;
+    background: var(--color-surface);
+    box-shadow: 0 18px 40px rgba(35, 16, 82, 0.08);
+  }
+
   .post-header {
     margin-bottom: var(--space-2xl);
+    padding-bottom: var(--space-xl);
+    border-bottom: var(--border-hairline);
   }
 
   .post-kicker-row,
-  .post-byline {
+  .post-meta-row {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     flex-wrap: wrap;
   }
 
+  .post-back-link {
+    color: var(--color-text-muted);
+    text-decoration: none;
+  }
+
+  .post-back-link:hover {
+    color: var(--color-primary);
+  }
+
   .post-kind {
     color: var(--color-primary);
+    padding: 0.35rem 0.65rem;
+    border: var(--border-hairline);
+    border-radius: 999px;
+    background: var(--color-primary-container);
   }
 
   .post-kind--repost {
     color: var(--color-accent);
-  }
-
-  .post-date,
-  .post-summary,
-  .post-byline,
-  .source-note,
-  .prose {
-    color: var(--color-text-secondary);
+    background: var(--color-accent-container);
   }
 
   .post-title {
-    margin: var(--space-sm) 0;
+    margin: var(--space-md) 0 var(--space-sm);
+    max-width: 14ch;
+    font-size: clamp(2.7rem, 4vw, 4.25rem);
+    line-height: 1.02;
+    text-wrap: balance;
   }
 
   .post-summary {
-    max-width: 40rem;
+    max-width: 46rem;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-md);
+    font-size: clamp(1.12rem, 1.02rem + 0.25vw, 1.28rem);
+    line-height: 1.75;
+    text-wrap: pretty;
   }
 
-  .post-byline a,
+  .post-meta-row {
+    color: var(--color-text-secondary);
+  }
+
+  .post-meta-row a,
   .source-note a {
     color: var(--color-primary);
+  }
+
+  .post-meta-separator {
+    color: var(--color-text-muted);
+  }
+
+  .post-author-link {
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .post-author-link:hover {
+    text-decoration: underline;
+  }
+
+  .post-author-external {
+    color: var(--color-text-muted);
+    font-size: var(--text-body-sm);
+    text-decoration: none;
+  }
+
+  .post-author-external:hover {
+    color: var(--color-primary);
+  }
+
+  .post-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-md);
+  }
+
+  .post-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.6rem;
+    border: var(--border-hairline);
+    border-radius: 999px;
+    background: var(--color-surface-low);
+    color: var(--color-text-secondary);
+    font-family: var(--font-code);
+    font-size: var(--text-code-sm);
   }
 
   .source-note {
     margin-top: var(--space-lg);
     padding: var(--space-md);
     border: var(--border-hairline);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     background: var(--color-surface-low);
+    color: var(--color-text-secondary);
+  }
+
+  .post-hero {
+    margin: 0 0 var(--space-2xl);
+    overflow: hidden;
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: var(--color-surface-low);
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .post-hero img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
+
+  .post-toc {
+    grid-area: toc;
+    min-width: 0;
+  }
+
+  .post-toc-card {
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-block-sm);
+    padding: var(--space-lg);
+  }
+
+  .post-toc-label {
+    color: var(--color-primary);
+    display: block;
+    margin-bottom: var(--space-sm);
+  }
+
+  .post-toc-nav {
+    display: grid;
+    gap: var(--space-xs);
+  }
+
+  .post-toc-link {
+    display: block;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    line-height: 1.45;
+    padding-left: var(--space-xs);
+    border-left: 2px solid transparent;
+  }
+
+  .post-toc-link:hover,
+  .post-toc-link[data-active="true"] {
+    color: var(--color-primary);
+    border-left-color: var(--color-primary);
+  }
+
+  .post-toc-link--depth-3 {
+    padding-left: var(--space-md);
+    font-size: var(--text-body-md);
+  }
+
+  .post-content {
+    width: min(100%, 46rem);
+    color: var(--color-text);
+    font-family: var(--font-reading);
+    font-size: clamp(1.18rem, 1.08rem + 0.28vw, 1.38rem);
+    line-height: 1.92;
+    letter-spacing: -0.003em;
+    text-wrap: pretty;
+  }
+
+  .post-content > :global(*:first-child) {
+    margin-top: 0;
+  }
+
+  .post-content :global(p),
+  .post-content :global(ul),
+  .post-content :global(ol),
+  .post-content :global(blockquote),
+  .post-content :global(pre),
+  .post-content :global(figure),
+  .post-content :global(table) {
+    margin: 0 0 var(--space-lg);
   }
 
   .post-content :global(h2),
   .post-content :global(h3),
   .post-content :global(h4) {
     color: var(--color-text);
-    margin-top: var(--space-2xl);
-    margin-bottom: var(--space-sm);
+    font-family: var(--font-headline);
+    line-height: 1.16;
+    letter-spacing: -0.02em;
+    scroll-margin-top: calc(var(--header-height) + var(--space-lg));
   }
 
-  .post-content :global(p),
+  .post-content :global(h2) {
+    margin: calc(var(--space-2xl) + var(--space-sm)) 0 var(--space-md);
+    font-size: clamp(1.95rem, 1.8rem + 0.42vw, 2.35rem);
+  }
+
+  .post-content :global(h3) {
+    margin: var(--space-2xl) 0 var(--space-sm);
+    font-size: clamp(1.45rem, 1.3rem + 0.24vw, 1.72rem);
+  }
+
+  .post-content :global(h4) {
+    margin: var(--space-xl) 0 var(--space-sm);
+    font-size: 1.1rem;
+  }
+
   .post-content :global(ul),
-  .post-content :global(ol),
+  .post-content :global(ol) {
+    padding-left: 1.5rem;
+  }
+
+  .post-content :global(li + li) {
+    margin-top: 0.5rem;
+  }
+
   .post-content :global(blockquote) {
-    margin-bottom: var(--space-md);
+    padding: var(--space-lg) var(--space-xl);
+    border-left: 4px solid var(--color-primary);
+    background: linear-gradient(180deg, var(--color-surface-low), var(--color-surface));
+    color: var(--color-text-secondary);
+    border-radius: 0 0.9rem 0.9rem 0;
+    font-style: italic;
   }
 
   .post-content :global(a) {
     color: var(--color-primary);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+  }
+
+  .post-content :global(strong) {
+    color: var(--color-text);
   }
 
   .post-content :global(code) {
     font-family: var(--font-code);
-    font-size: var(--text-code-sm);
+    font-size: 0.88em;
     background: var(--color-surface-low);
-    padding: 1px 6px;
+    padding: 0.15em 0.4em;
     border-radius: var(--radius-sm);
     color: var(--color-primary);
   }
 
   .post-content :global(pre) {
-    margin: var(--space-lg) 0;
+    overflow-x: auto;
+    padding: var(--space-lg);
+    border: 1px solid var(--color-code-border);
+    border-radius: 1rem;
+    background: var(--color-code-bg);
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .post-content :global(pre code) {
+    padding: 0;
+    background: transparent;
+    color: var(--color-code-text);
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .post-content :global(img),
+  .post-content :global(figure img) {
+    border-radius: var(--radius-lg);
+  }
+
+  .post-content :global(figcaption) {
+    margin-top: var(--space-sm);
+    color: var(--color-text-muted);
+    font-size: var(--text-body-md);
+    text-align: center;
+  }
+
+  .post-content :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1rem;
+  }
+
+  .post-content :global(th),
+  .post-content :global(td) {
+    padding: 0.75rem;
+    border: var(--border-hairline);
+    text-align: left;
+  }
+
+  .post-content :global(hr) {
+    border: 0;
+    border-top: var(--border-hairline);
+    margin: var(--space-2xl) 0;
+  }
+
+  .post-related {
+    margin-top: var(--space-2xl);
+    padding-top: var(--space-2xl);
+    border-top: var(--border-hairline);
+  }
+
+  .post-related-header {
+    margin-bottom: var(--space-lg);
+  }
+
+  .post-related-label {
+    color: var(--color-primary);
+    display: block;
+    margin-bottom: var(--space-xs);
+  }
+
+  .post-related-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  .post-related-card {
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, var(--color-surface), var(--color-surface-low));
+    box-shadow: var(--shadow-block-sm);
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .post-related-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-block);
+    transform: translateY(-1px);
+  }
+
+  .post-related-card h3 {
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .post-related-card h3 a {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .post-related-card h3 a:hover {
+    color: var(--color-primary);
+  }
+
+  .post-related-summary,
+  .post-related-footer {
+    color: var(--color-text-secondary);
+  }
+
+  @media (min-width: 860px) {
+    .post-related-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1201px) {
+    .post-toc {
+      position: sticky;
+      top: calc(var(--header-height) + var(--space-lg));
+      max-height: calc(100vh - var(--header-height) - var(--space-2xl));
+      overflow: auto;
+    }
+  }
+
+  @media (max-width: 1200px) {
+    .post-layout {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "toc"
+        "main";
+    }
+
+    .post-layout--no-toc {
+      grid-template-columns: 1fr;
+      grid-template-areas: "main";
+    }
+
+    .post-main {
+      width: 100%;
+    }
+
+    .post-toc {
+      position: static;
+      max-height: none;
+      overflow: visible;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .post-kicker-row,
+    .post-meta-row {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .post-meta-separator {
+      display: none;
+    }
   }
 
   @media (max-width: 640px) {
     .post-shell {
       padding: var(--space-2xl) var(--space-md);
     }
+
+    .post-main {
+      padding: var(--space-lg);
+      border-radius: 1rem;
+    }
+
+    .post-title {
+      max-width: none;
+      font-size: clamp(2.2rem, 11vw, 3rem);
+    }
+
+    .post-summary {
+      font-size: 1.04rem;
+      line-height: 1.72;
+    }
+
+    .post-content {
+      width: 100%;
+      font-size: 1.08rem;
+      line-height: 1.84;
+    }
+
+    .post-toc-card,
+    .post-related-card {
+      padding: var(--space-md);
+    }
   }
 </style>
+
+{hasToc && (
+  <script is:inline>
+    (() => {
+      const links = Array.from(document.querySelectorAll('[data-toc-link]'));
+      if (!links.length) return;
+
+      const sections = links
+        .map((link) => {
+          const id = link.getAttribute('href')?.slice(1);
+          const element = id ? document.getElementById(id) : null;
+          return element ? { link, element } : null;
+        })
+        .filter(Boolean);
+
+      if (!sections.length) return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+
+          if (!visible) return;
+
+          links.forEach((link) => link.removeAttribute('data-active'));
+          const current = sections.find((section) => section.element === visible.target);
+          current?.link.setAttribute('data-active', 'true');
+        },
+        { rootMargin: '-18% 0px -72% 0px' },
+      );
+
+      sections.forEach((section) => observer.observe(section.element));
+    })();
+  </script>
+)}
