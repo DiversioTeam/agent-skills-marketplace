@@ -13,39 +13,31 @@ const { cols = 3 } = Astro.props;
 <style>
   .card-grid {
     display: grid;
-    gap: 0;
+    gap: var(--space-lg);
+    align-items: stretch;
   }
 
-  .card-grid--2 {
-    grid-template-columns: repeat(1, 1fr);
-  }
-
-  .card-grid--3 {
-    grid-template-columns: repeat(1, 1fr);
-  }
-
+  .card-grid--2,
+  .card-grid--3,
   .card-grid--4 {
-    grid-template-columns: repeat(1, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  @media (min-width: 640px) {
-    .card-grid--2 {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .card-grid--3 {
-      grid-template-columns: repeat(2, 1fr);
-    }
+  @media (min-width: 700px) {
+    .card-grid--2,
+    .card-grid--3,
     .card-grid--4 {
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  @media (min-width: 1024px) {
+  @media (min-width: 1100px) {
     .card-grid--3 {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+
     .card-grid--4 {
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
 </style>

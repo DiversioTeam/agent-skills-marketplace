@@ -1,0 +1,71 @@
+---
+export interface Props {
+  class?: string;
+  label?: string;
+  ariaLabel?: string;
+  plain?: boolean;
+}
+
+const {
+  class: extraClass = "",
+  label = "Email us",
+  ariaLabel = "Contact Diversio Engineering by email",
+  plain = false,
+} = Astro.props;
+
+const prefixCodepoints = "109,97,105,108,116,111,58";
+const leftCodepoints = "116,101,99,104";
+const rightCodepoints = "100,105,118,101,114,115,105,111,46,99,111,109";
+---
+<a
+  href="#"
+  class={`email-link${plain ? " email-link--plain" : ""} ${extraClass}`.trim()}
+  data-p={prefixCodepoints}
+  data-l={leftCodepoints}
+  data-r={rightCodepoints}
+  aria-label={ariaLabel}
+>
+  {label}
+</a>
+<script is:inline>
+  (() => {
+    const link = document.currentScript?.previousElementSibling;
+    if (!(link instanceof HTMLAnchorElement)) return;
+
+    const decode = (value) =>
+      (value || "")
+        .split(",")
+        .filter(Boolean)
+        .map((chunk) => String.fromCharCode(Number(chunk)))
+        .join("");
+
+    const activate = () => {
+      const prefix = decode(link.dataset.p);
+      const left = decode(link.dataset.l);
+      const right = decode(link.dataset.r);
+      if (!prefix || !left || !right) return;
+      link.href = `${prefix}${left}@${right}`;
+    };
+
+    link.addEventListener("focus", activate, { once: true });
+    link.addEventListener("mouseenter", activate, { once: true });
+    link.addEventListener("touchstart", activate, { once: true, passive: true });
+    link.addEventListener("click", activate, { once: true });
+  })();
+</script>
+
+<style>
+  .email-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .email-link:hover {
+    color: var(--color-primary);
+  }
+
+  .email-link--plain {
+    text-decoration: none;
+  }
+</style>

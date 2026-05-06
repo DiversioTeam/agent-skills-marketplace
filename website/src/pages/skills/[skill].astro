@@ -85,25 +85,27 @@ const sidebarItems = [
 
   <section class="doc-section" id="parent-surface">
     <h2 class="headline-md doc-heading">Parent Surface</h2>
-    <p>
-      Parent docs: <a href={skill.packageDocHref}>{skill.packageTitle}</a>
-    </p>
-    {isPluginSkill ? (
-      <>
-        <p>
-          Related wrapper commands from the parent plugin:
-        </p>
-        <div class="chip-grid">
-          {(skill.relatedCommands.length > 0 ? skill.relatedCommands : skill.packageCommands).map((command) => (
-            <code class="chip">{command}</code>
-          ))}
-        </div>
-      </>
-    ) : (
+    <div class="surface-card">
       <p>
-        This skill is documented together with the parent Pi package at <a href={skill.packageDocHref}>{skill.packageDocHref}</a>, including package-level commands, extension files, and install guidance.
+        Parent docs: <a href={skill.packageDocHref}>{skill.packageTitle}</a>
       </p>
-    )}
+      {isPluginSkill ? (
+        <>
+          <p>
+            Related wrapper commands from the parent plugin:
+          </p>
+          <div class="chip-grid">
+            {(skill.relatedCommands.length > 0 ? skill.relatedCommands : skill.packageCommands).map((command) => (
+              <code class="chip">{command}</code>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p>
+          This skill is documented together with the parent Pi package at <a href={skill.packageDocHref}>{skill.packageDocHref}</a>, including package-level commands, extension files, and install guidance.
+        </p>
+      )}
+    </div>
   </section>
 
   {skill.sections.map((section) => (
@@ -198,18 +200,32 @@ const sidebarItems = [
 
 <style>
   .doc-header { margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: var(--border-hairline); }
-  .doc-tags { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
-  .doc-title { margin-bottom: var(--space-md); }
+  .doc-tags { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); flex-wrap: wrap; }
+  .doc-title { margin-bottom: var(--space-md); text-wrap: balance; }
   .doc-subtitle { color: var(--color-text-secondary); max-width: 38rem; }
-  .doc-section { margin-bottom: var(--space-2xl); }
+  .doc-section { margin-bottom: var(--space-2xl); min-width: 0; }
   .doc-heading { margin-bottom: var(--space-lg); }
   .doc-section p { color: var(--color-text-secondary); margin-bottom: var(--space-md); }
+  .surface-card,
+  .resource-block {
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-block-sm);
+    padding: var(--space-lg);
+  }
   .doc-list,
   .resource-list { padding-left: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); color: var(--color-text-secondary); }
   .chip-grid { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
-  .chip { display: inline-block; font-family: var(--font-code); font-size: var(--text-code); background: var(--color-code-bg); color: var(--color-code-text); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--color-code-border); white-space: nowrap; }
+  .chip { display: inline-flex; max-width: 100%; font-family: var(--font-code); font-size: var(--text-code); background: var(--color-code-bg); color: var(--color-code-text); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--color-code-border); white-space: normal; overflow-wrap: anywhere; }
   .resource-block + .resource-block { margin-top: var(--space-lg); }
+  .surface-card .chip-grid { margin-top: var(--space-sm); }
   .resource-heading { margin-bottom: var(--space-sm); }
   .resource-list code,
-  .doc-section code:not(pre code):not(.chip) { font-family: var(--font-code); font-size: var(--text-code-sm); background: var(--color-surface-low); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--color-primary); }
+  .doc-section code:not(pre code):not(.chip) { font-family: var(--font-code); font-size: var(--text-code-sm); background: var(--color-surface-low); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--color-primary); word-break: break-word; }
+  @media (max-width: 860px) {
+    .chip-grid { gap: var(--space-xs); }
+    .surface-card,
+    .resource-block { padding: var(--space-md); }
+  }
 </style>
