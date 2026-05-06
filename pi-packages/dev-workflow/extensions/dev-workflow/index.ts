@@ -1,5 +1,5 @@
 import { DynamicBorder, SessionManager, type ExtensionAPI, type SessionEntry, type SessionHeader, type Theme } from "@mariozechner/pi-coding-agent";
-import { buildPiCommand, isInsideCmux, openSplit, type SplitDirection } from "@diversioteam/pi-cmux";
+import { buildPiCommand, isInsideCmux, openSplit, type SplitDirection } from "@diversio/pi-cmux";
 import { HelpPanel, PromptEditor, type WorkflowHelpCommand, type WorkflowPromptCategory, type WorkflowPromptSource } from "./help-panel";
 import { Container, Input, Key, matchesKey, SelectList, Spacer, Text, truncateToWidth, type SelectItem } from "@mariozechner/pi-tui";
 import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
@@ -1456,7 +1456,7 @@ interface WorkflowContext {
  * `oh-my-pi` command names:
  * - `dev-workflow` should stay useful when installed by itself.
  * - Workflow commands need behavior, not a second command the user must remember.
- * - Low-level cmux primitives live in `@diversioteam/pi-cmux`, while this
+ * - Low-level cmux primitives live in `@diversio/pi-cmux`, while this
  *   package decides when to open a lane and what context to seed into it.
  *
  * Mental model:

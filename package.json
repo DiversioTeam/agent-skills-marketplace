@@ -7,7 +7,7 @@
     "pi-package"
   ],
   "dependencies": {
-    "@diversioteam/pi-cmux": "^0.1.0"
+    "@diversio/pi-cmux": "^0.1.0"
   },
   "pi": {
     "extensions": [

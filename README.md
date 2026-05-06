@@ -297,13 +297,13 @@ sub-package so pi can discover them from a single clone - see
 |---------|-------------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
 | `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
-| `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversioteam/pi-cmux`. Works only inside cmux |
+| `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
 | `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
 ```text
-@diversioteam/pi-cmux
+@diversio/pi-cmux
   -> shared low-level cmux primitives
   -> split/workspace launch mechanics, command building, notifications
 
@@ -372,10 +372,8 @@ can discover `ci-status`, `dev-workflow`, `oh-my-pi`, and `skills-bridge` from o
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
 ```
 
-If your environment is not already configured for other `@diversioteam`
-GitHub Packages, export `NPM_TOKEN` with GitHub Packages read access before the
-first install. `dev-workflow` and `oh-my-pi` install the shared
-`@diversioteam/pi-cmux` dependency from `npm.pkg.github.com`.
+`dev-workflow` and `oh-my-pi` depend on `@diversio/pi-cmux`, which is
+published on the public npm registry — no auth or `.npmrc` setup needed.
 
 Run `/reload` in pi after installation. To pull the latest updates later:
 
@@ -412,9 +410,8 @@ pi install "$PWD/pi-packages/skills-bridge"
 ```
 
 Before local-path installs or `-e` smoke tests of `dev-workflow` or `oh-my-pi`,
-make sure your environment is already configured for `@diversioteam` GitHub
-Packages, then run `npm install` either at the repo root or inside the target
-package directory so `@diversioteam/pi-cmux` is available.
+run `npm install` either at the repo root or inside the target
+package directory so `@diversio/pi-cmux` is available (public npm, no auth needed).
 
 Plain `pi install` writes to global user settings. Use `pi --no-extensions -e ./pi-packages/<package>`
 for one-off extension testing from the repo root without loading a duplicate copy

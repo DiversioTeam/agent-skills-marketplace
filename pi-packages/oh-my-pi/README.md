@@ -27,7 +27,7 @@ already exist.
 ## Mental model
 
 ```text
-@diversioteam/pi-cmux
+@diversio/pi-cmux
   ├─ knows how to talk to cmux safely
   ├─ builds shell / Pi launch commands
   ├─ opens splits and workspace tabs
@@ -49,7 +49,7 @@ cmux-workspace.ts
 
 `oh-my-pi` is the **explicit** cmux command surface.
 
-### Why `@diversioteam/pi-cmux` exists
+### Why `@diversio/pi-cmux` exists
 
 This package used to carry all of the low-level cmux mechanics itself.
 
@@ -75,9 +75,9 @@ So the new architecture is:
 ```text
 oh-my-pi
   ├─ owns the user-facing slash commands
-  └─ delegates the brittle cmux mechanics to @diversioteam/pi-cmux
+  └─ delegates the brittle cmux mechanics to @diversio/pi-cmux
 
-@diversioteam/pi-cmux
+@diversio/pi-cmux
   ├─ owns split/workspace/notify primitives
   ├─ owns hardened shell and Pi command building
   └─ is shared by oh-my-pi and dev-workflow
@@ -113,7 +113,7 @@ dev-workflow  -> automatic cmux use when a workflow lane clearly benefits
 
 ## Quick Install (local test)
 
-Install the package dependency first. If your environment does not already provide GitHub Packages auth for `@diversioteam`, export `NPM_TOKEN` in the current shell first:
+Install the package dependency first (`@diversio/pi-cmux` is public npm, no auth needed):
 
 ```bash
 cd /path/to/agent-skills-marketplace/pi-packages/oh-my-pi
@@ -385,7 +385,7 @@ extensions/oh-my-pi/
 Shared dependency:
 
 ```text
-@diversioteam/pi-cmux
+@diversio/pi-cmux
 ├── cmux.ts / split.ts / workspace.ts / notify.ts / launch.ts / escape.ts
 └── hardened cmux primitives reused by oh-my-pi and dev-workflow
 ```
@@ -395,7 +395,7 @@ Shared dependency:
 - Uses native `cmux notify` (not OSC escape sequences)
 - Uses `cmux --json new-split` + `respawn-pane` (no polling)
 - Treats `cmux new-workspace` as text output (not JSON)
-- One small shared runtime dependency: `@diversioteam/pi-cmux`
+- One small shared runtime dependency: `@diversio/pi-cmux`
 - Silent no-op outside cmux for notifications; interactive commands warn
 
 ## Limitations (v1)
@@ -411,7 +411,7 @@ Shared dependency:
 
 Use this rule of thumb:
 
-- If the change is about **talking to cmux**, put it in `@diversioteam/pi-cmux`.
+- If the change is about **talking to cmux**, put it in `@diversio/pi-cmux`.
 - If the change is about **when / what to notify**, put it in `cmux-notify.ts`.
 - If the change is about **slash command UX**, put it in `cmux-split.ts` or
   `cmux-workspace.ts`.

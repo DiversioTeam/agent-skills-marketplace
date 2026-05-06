@@ -4,7 +4,7 @@ import {
   buildShellCommand,
   isInsideCmux,
   openWorkspace,
-} from "@diversioteam/pi-cmux";
+} from "@diversio/pi-cmux";
 
 /**
  * Workspace tab commands

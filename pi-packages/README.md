@@ -20,10 +20,8 @@ Pi-native packages that extend pi with tools, commands, skills, and UI widgets.
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
 ```
 
-If your environment is not already configured for other `@diversioteam`
-GitHub Packages, export `NPM_TOKEN` with GitHub Packages read access before the
-first install. `dev-workflow` and `oh-my-pi` install the shared
-`@diversioteam/pi-cmux` dependency from `npm.pkg.github.com`.
+`dev-workflow` and `oh-my-pi` depend on `@diversio/pi-cmux`, which is
+published on the public npm registry — no auth or `.npmrc` setup needed.
 
 The root `package.json` at the top of this repo tells pi where to find every
 package, so one clone discovers all five. Run `/reload` after installing.
@@ -51,9 +49,8 @@ pi install "$PWD/pi-packages/skills-bridge"
 ```
 
 Before local-path installs or `-e` smoke tests of `dev-workflow` or `oh-my-pi`,
-make sure your environment is already configured for `@diversioteam` GitHub
-Packages, then run `npm install` either at the repo root or inside the target
-package directory so `@diversioteam/pi-cmux` is available.
+run `npm install` either at the repo root or inside the target
+package directory so `@diversio/pi-cmux` is available (public npm, no auth needed).
 
 Use `pi --no-extensions -e ./pi-packages/<pkg>` to test a package from the repo
 root without writing to settings or loading a duplicate copy from the root

@@ -5,7 +5,7 @@
   "keywords": ["pi-package"],
   "files": ["extensions/", "skills/", "agents/", "README.md"],
   "dependencies": {
-    "@diversioteam/pi-cmux": "^0.1.0"
+    "@diversio/pi-cmux": "^0.1.0"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",

@@ -8,7 +8,7 @@ import {
   isWriteToolResult,
 } from "@mariozechner/pi-coding-agent";
 import { basename } from "node:path";
-import { isInsideCmux, notify } from "@diversioteam/pi-cmux";
+import { isInsideCmux, notify } from "@diversio/pi-cmux";
 
 /**
  * Native cmux notifications for Pi
