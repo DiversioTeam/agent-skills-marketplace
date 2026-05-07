@@ -223,7 +223,9 @@ Once the code is ready, use the PR description writer skill to generate a review
       "Identifies one PR, inferred current PR, or multiple provided PRs",
       "Fetches unresolved threads, review summaries, issue comments, and inline comments",
       "Groups feedback by root cause and asks questions when scope or intent is ambiguous",
-      "Makes focused fixes, runs atomic/pre-commit checks, commits, pushes, resolves addressed threads, and re-requests review",
+      "Makes focused fixes, runs atomic/pre-commit checks, commits, and pushes",
+      "Queries ALL unresolved review threads via GitHub GraphQL API, lists every thread with ID / path / line / body summary / addressed status, resolves addressed threads via resolveReviewThread, and explicitly flags any thread that remains unaddressed",
+      "Re-requests review from affected reviewers once every addressed thread is resolved and every unaddressed thread is flagged",
     ],
     whenToUse: "When reviewers or bots left PR feedback that must be addressed before re-review. Supports multiple PRs when provided explicitly.",
     example: "/workflow:pr-review-comments PR #68 and PR #69",
@@ -245,7 +247,12 @@ Process:
 5. Run checks before pushing: relevant formatting, lint, type, test, build, and repo-local atomic commit or pre-commit workflows.
 6. Commit atomically: include all files required for the fix, keep commits reviewable, and keep multiple PR/repo fixes scoped appropriately.
 7. Push normally to the PR branch.
-8. Resolve review threads: resolve only threads actually addressed by pushed changes. Leave unresolved anything needing clarification or follow-up.
+8. Resolve review threads:
+   - Query ALL unresolved review threads via the GraphQL API before claiming completion.
+   - List every thread explicitly: its ID, path, line, body summary, and whether it is addressed by the current commit.
+   - For each addressed thread, call resolveReviewThread. Show the result.
+   - If any thread is NOT addressed, say so clearly — do not skip it silently.
+   - Only after every addressed thread is resolved AND every unaddressed thread is flagged, move to step 9.
 9. Re-request review: ask affected reviewers again. Trigger automation reviewers if needed.
 10. Final report: PRs handled, comments addressed, files changed, commits pushed, checks run, threads resolved, reviewers re-requested, and remaining blockers.
 

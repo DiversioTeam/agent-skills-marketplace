@@ -34,7 +34,7 @@ package project-locally as a developer.
 | `/workflow:ci` | `workflow.ci` | CI check — `/ci`, `/ci-detail`, logs, ours-vs-flake analysis |
 | `/workflow:docs` | `workflow.docs` | Documentation pass — explain the *why* |
 | `/workflow:ship` | `workflow.ship` | Smart ship — verify CI, atomic commit, PR description, open/update PR |
-| `/workflow:pr-review-comments` | `workflow.pr-review-comments` | Address PR review comments, validate, push, resolve threads, re-request review |
+| `/workflow:pr-review-comments` | `workflow.pr-review-comments` | Address PR review comments, validate, push, resolve threads via GraphQL (explicit listing + resolveReviewThread + unaddressed flagging), re-request review |
 | `/workflow:release-prs` | `workflow.release-prs` | Prepare backend/frontend/optimo-frontend/design-system release PRs |
 
 ### Session bootstrap & handoff
