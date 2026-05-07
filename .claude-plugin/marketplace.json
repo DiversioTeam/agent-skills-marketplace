@@ -1,6 +1,6 @@
 {
   "name": "diversiotech",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Claude Code plugins curated by Diversio (internal/team-focused tools).",
   "owner": {
     "name": "Diversio",
@@ -39,6 +39,28 @@
       "source": "./plugins/monty-code-review",
       "category": "code-analysis",
       "keywords": ["django", "backend", "code-review", "pytest", "tests", "optimo", "diversio"]
+    },
+    {
+      "name": "monty-v2-code-review",
+      "description": "Deep-coverage code review with mechanical branch enumeration, adversarial inputs, and self-review bias mitigation. 8-phase methodology, 22 blind-spot patterns.",
+      "version": "2.5.0",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/monty-v2-code-review",
+      "category": "code-analysis",
+      "keywords": ["code-review", "testing", "branches", "adversarial", "bias-mitigation", "django"]
+    },
+    {
+      "name": "moe-skills",
+      "description": "Backend workflow skills: interactive PR review fix, commit-and-reply with SHA links, PR status dashboard, and codebase reuse finder with product boundary awareness.",
+      "version": "0.8.0",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/moe-skills",
+      "category": "process",
+      "keywords": ["django", "backend", "pr-review", "commit", "pr-status", "reuse", "constants"]
     },
     {
       "name": "backend-pr-workflow",
