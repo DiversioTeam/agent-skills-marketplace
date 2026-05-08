@@ -176,6 +176,22 @@ when command files change.
     `plugins/monty-code-review/skills/monty-code-review/references/review-memory-protocol.md`
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
+- `monty-v2-code-review`
+  - Purpose: deep-coverage Django/Python code review using mechanical branch enumeration, adversarial inputs, test mapping, and bias mitigation.
+  - Claude install: `claude plugin install monty-v2-code-review@diversiotech`
+  - Skill path: `plugins/monty-v2-code-review/skills/monty-v2-code-review`
+  - References: `plugins/monty-v2-code-review/skills/monty-v2-code-review/references/`
+  - Slash commands: `/monty-v2-code-review:code-review`
+- `moe-skills`
+  - Purpose: backend workflow helpers for PR review fixes, commit-and-reply, PR status, and codebase reuse scanning.
+  - Claude install: `claude plugin install moe-skills@diversiotech`
+  - Skill paths: `plugins/moe-skills/skills/pr-review-fix`,
+    `plugins/moe-skills/skills/commit-and-reply`,
+    `plugins/moe-skills/skills/pr-status`,
+    `plugins/moe-skills/skills/codebase-reuse-finder`
+  - Slash commands: `/moe-skills:pr-review-fix`,
+    `/moe-skills:commit-and-reply`, `/moe-skills:pr-status`,
+    `/moe-skills:codebase-reuse-finder`
 - `backend-atomic-commit`
   - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene.
   - Claude install: `claude plugin install backend-atomic-commit@diversiotech`

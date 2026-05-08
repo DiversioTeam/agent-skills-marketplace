@@ -1,0 +1,8 @@
+{
+  "name": "monty-v2-code-review",
+  "version": "2.5.0",
+  "description": "Deep-coverage code review with mechanical branch enumeration, adversarial inputs, and self-review bias mitigation. 8-phase methodology, 22 blind-spot patterns.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}
