@@ -29,6 +29,7 @@ import click
 
 
 REQUIRED_TOOLS: tuple[str, ...] = ("git", "uv")
+ALLOWED_MODES: tuple[str, ...] = ("status", "review", "reassess", "post")
 MONOLITH_MARKERS: tuple[str, ...] = (
     ".gitmodules",
     ".submodule-branches",
@@ -51,6 +52,32 @@ def resolve_root(candidate: Path) -> Path:
     return path
 
 
+def has_monolith_markers(path: Path) -> bool:
+    return all((path / marker).exists() for marker in MONOLITH_MARKERS)
+
+
+def discover_monolith_root_from_siblings(start: Path) -> Path | None:
+    current = resolve_root(start)
+    for candidate in (current, *current.parents):
+        parent = candidate.parent
+        if not parent.exists() or not parent.is_dir():
+            continue
+        matches = [
+            child
+            for child in parent.iterdir()
+            if child.is_dir() and has_monolith_markers(child)
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise click.ClickException(
+                "Could not uniquely resolve the monolith root from sibling review "
+                f"worktree `{current}`. Matching roots: "
+                f"{', '.join(str(match) for match in sorted(matches))}."
+            )
+    return None
+
+
 def discover_monolith_root(start: Path) -> Path:
     """Walk upward until we find the real monolith root markers.
 
@@ -60,8 +87,11 @@ def discover_monolith_root(start: Path) -> Path:
 
     current = resolve_root(start)
     for candidate in (current, *current.parents):
-        if all((candidate / marker).exists() for marker in MONOLITH_MARKERS):
+        if has_monolith_markers(candidate):
             return candidate
+    sibling_match = discover_monolith_root_from_siblings(current)
+    if sibling_match is not None:
+        return sibling_match
     return current
 
 
@@ -75,15 +105,40 @@ def discover_monolith_root(start: Path) -> Path:
 )
 @click.option(
     "--require-github-auth/--no-require-github-auth",
-    default=False,
-    show_default=True,
-    help="Check for gh auth status when GitHub access is required.",
+    default=None,
+    help=(
+        "Override GitHub auth inference. By default, GitHub auth is required "
+        "whenever a mode or PR URL is provided."
+    ),
 )
-def main(monolith_root: Path, require_github_auth: bool) -> None:
+@click.option(
+    "--mode",
+    type=click.Choice(ALLOWED_MODES, case_sensitive=False),
+    default=None,
+    help="Resolved execution mode for the run being preflighted.",
+)
+@click.option(
+    "--pr-url",
+    "pr_urls",
+    multiple=True,
+    help="Repeat for each PR URL this run intends to inspect or post against.",
+)
+def main(
+    monolith_root: Path,
+    require_github_auth: bool | None,
+    mode: str | None,
+    pr_urls: tuple[str, ...],
+) -> None:
     """Verify that the local environment can run the monolith review harness."""
 
-    root = resolve_root(monolith_root)
+    root = discover_monolith_root(monolith_root)
     errors: list[str] = []
+    normalized_mode = mode.lower() if mode is not None else None
+    github_required = (
+        require_github_auth
+        if require_github_auth is not None
+        else bool(pr_urls or normalized_mode is not None)
+    )
 
     if not (root / ".git").exists():
         errors.append(f"{root} is not a git repository.")
@@ -106,7 +161,7 @@ def main(monolith_root: Path, require_github_auth: bool) -> None:
     if not sibling_dir.exists() or not sibling_dir.is_dir():
         errors.append(f"Sibling worktree parent is not usable: {sibling_dir}")
 
-    if require_github_auth:
+    if github_required:
         if shutil.which("gh") is None:
             errors.append("GitHub auth required but `gh` is not installed.")
         else:
@@ -121,7 +176,11 @@ def main(monolith_root: Path, require_github_auth: bool) -> None:
 
     click.echo(f"OK: monolith root={root}")
     click.echo(f"OK: sibling worktree parent={sibling_dir}")
-    if require_github_auth:
+    if normalized_mode is not None:
+        click.echo(f"OK: mode={normalized_mode}")
+    if pr_urls:
+        click.echo(f"OK: pr_url_count={len(pr_urls)}")
+    if github_required:
         click.echo("OK: GitHub auth available")
 
 

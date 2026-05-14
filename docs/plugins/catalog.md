@@ -138,9 +138,9 @@ when command files change.
     (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
-    deterministic worktree reuse/bootstrap, persistent review context across
-    passes, resolved-comment-aware reassessment, and narrow v1 posting
-    boundaries.
+    deterministic exact-head worktree reuse/bootstrap, persistent review context
+    across passes, resolved-comment-aware reassessment, validated live-state
+    posting gates, and narrow v1 posting boundaries.
   - Recent helper additions:
     - monolith PR support without a submodule path
     - external review/artifact and deterministic worktree roots

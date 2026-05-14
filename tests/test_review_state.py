@@ -78,7 +78,7 @@ def partial_batch_entry_review_state_payload() -> dict[str, object]:
         "worktree_path": BATCH_WORKTREE_PATH,
         "artifact_path": BATCH_ARTIFACT_PATH,
         "review_pass_number": 1,
-        "posting_status": "posted_review_comment",
+        "posting_status": "posted_comment",
         "prs": [
             {"repo": "Django4Lyfe", "pr_number": 2912},
             {"repo": "monolith", "pr_number": 291},
@@ -88,7 +88,7 @@ def partial_batch_entry_review_state_payload() -> dict[str, object]:
                 "review_pass_number": 1,
                 "recorded_at_utc": "2026-04-28T00:00:00Z",
                 "artifact_path": BATCH_ARTIFACT_PATH,
-                "posting_status": "posted_review_comment",
+                "posting_status": "posted_comment",
                 "entries": [
                     {
                         "repo": "monolith",
@@ -98,7 +98,7 @@ def partial_batch_entry_review_state_payload() -> dict[str, object]:
                         "merge_base": "merge-base-mono291",
                     }
                 ],
-                "mode": "review",
+                "mode": "status",
                 "recommendation": "comment",
                 "scope_summary": (
                     "Historical pass only covered the monolith side before the "
