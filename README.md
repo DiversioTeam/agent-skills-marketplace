@@ -2,6 +2,8 @@
 
 Agent Skills marketplace for Diversio.
 
+**🌐 Docs & tools → [engineering.diversio.com](https://engineering.diversio.com)**
+
 ## Agent Skills Standard
 
 This repo follows the [Agent Skills standard](https://agentskills.io/specification): an
