@@ -35,6 +35,7 @@ permissions:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
+    environment: dispatch
     steps:
       - name: Dispatch deploy to engineering-website
         shell: bash
