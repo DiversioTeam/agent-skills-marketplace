@@ -1,0 +1,56 @@
+# Trigger an engineering-website deployment when agent-skills-marketplace
+# source content changes on main.
+#
+# Why this workflow exists:
+# - agent-skills-marketplace owns the source-of-truth for Agentic Tools docs
+#   (SKILL.md, README.md, marketplace.json)
+# - the engineering-website repo builds and deploys the public site using
+#   these sources at a pinned SHA
+# - this workflow dispatches a deploy request to engineering-website when
+#   source content merges to main, passing the exact merged SHA
+#
+# Safety:
+# - main-only: no preview deploys from feature branches in ASM
+# - does not deploy directly — only sends a request to engineering-website
+# - requires ENGINEERING_WEBSITE_DISPATCH_TOKEN secret (GitHub PAT with
+#   repo scope on DiversioTeam/engineering-website)
+#
+# After production cutover, the old deploy-website-cloudflare-pages.yml
+# workflow in this repo must be retired — this trigger workflow is the
+# only ASM workflow that interacts with the deployment pipeline.
+name: Trigger Engineering Website Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "plugins/**"
+      - "pi-packages/**"
+      - "website/src/data/marketplace.json"
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch deploy to engineering-website
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ENGINEERING_WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="${GITHUB_SHA}"
+          echo "Dispatching deploy for agent-skills-marketplace SHA: ${sha}"
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/DiversioTeam/engineering-website/dispatches \
+            -f event_type=asm-content-updated \
+            -f "client_payload[sha]=${sha}"
+
+          echo "Dispatch sent successfully."
