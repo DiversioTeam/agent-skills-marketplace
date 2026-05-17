@@ -1,6 +1,7 @@
 ---
 name: monty-v2-code-review
 description: "Deep-coverage code review with mechanical branch enumeration, adversarial inputs, and self-review bias mitigation."
+user-invocable: true
 allowed-tools: [Bash, Read, Edit, Glob, Grep]
 ---
 
