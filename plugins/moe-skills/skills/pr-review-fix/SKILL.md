@@ -191,13 +191,32 @@ options:
 
 ## Step 5: Final Quality Gates
 
-Run `ty` on all modified Python files:
+Run the full CI-matching gate sequence — not just scoped checks. Reviewer
+comments often touch code that interacts with files you didn't edit, and
+scoped checks can miss formatting drift in the full branch diff.
 
 ```bash
-.bin/ty check <modified-files>
+# Run the exact CI gate — this catches what ruff format on single files misses
+./.security/ruff_pr_diff.sh
 ```
 
-If errors: fix, re-run until clean.
+If `ruff_pr_diff.sh` fails:
+1. Apply formatting: `.bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')`
+2. Re-run until clean: `./.security/ruff_pr_diff.sh`
+
+Then run remaining gates:
+
+```bash
+./.security/local_imports_pr_diff.sh
+.bin/ty check $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')
+```
+
+If any gate fails: fix, re-run until clean.
+
+**Do NOT skip `ruff_pr_diff.sh`.** It runs `ruff format --check` on the
+union of branch diff + local changes — this is the exact check CI runs,
+and it's the #1 CI failure pattern. Running `ruff format` on a single
+file is not sufficient.
 
 Then stage:
 
@@ -206,6 +225,126 @@ git add <modified-files>
 ```
 
 Do **not** stage unrelated changes. Do **not** commit.
+
+---
+
+## Step 5.5: Merge Drift Detection
+
+After fixing reviewer comments, verify the branch hasn't accidentally
+regressed files that should only move forward:
+
+```bash
+# Check version metadata — must move forward only
+git diff origin/release...HEAD -- pyproject.toml uv.lock
+
+# Check for unrelated file regression
+git diff --stat origin/release...HEAD -- \
+  $(git diff --name-only origin/release...HEAD | grep -v "$(git diff --name-only HEAD~1)")
+```
+
+If `pyproject.toml` or `uv.lock` show a version downgrade relative to
+`origin/release`, this is `[BLOCKING]` — restore the release version
+and refresh `uv.lock`:
+
+```bash
+git checkout origin/release -- pyproject.toml
+uv lock
+git add pyproject.toml uv.lock
+```
+
+Also check for **WhiteLabel asset drift**, **fixture regression**,
+and **config constant regression** — any file outside the feature area
+that now differs from release. `[BLOCKING]` per silent regression.
+
+---
+
+## Step 5.6: Admin Form / Readonly Interaction Check
+
+If any fix touched admin `get_readonly_fields()`, `ModelForm.__init__()`,
+or inline admin configuration, verify the admin save path is consistent:
+
+```bash
+# Find all InlineModelAdmin classes for the changed model
+grep -rn "class.*Inline.*admin\.TabularInline\|class.*Inline.*admin\.StackedInline" \
+  --include="*.py" <app>/admin/
+
+# Find all ModelForm.__init__ definitions that reference the changed fields
+grep -rn "def __init__" --include="*.py" <app>/admin/ | while read line; do
+  grep -A 30 "$line" | grep -q "<field_name>" && echo "$line — references changed field"
+done
+```
+
+Read the full admin, inline, and form classes. The contract:
+- If `get_readonly_fields()` excludes a field for certain states, NO
+  `InlineModelAdmin` nor `ModelForm.__init__()` should re-add it as
+  required for those same states.
+- A POST of a locked-state record must succeed without the readonly
+  field in form data.
+
+Flag any mismatch as `[BLOCKING]`.
+
+---
+
+## Step 5.7: Historical Data / Config Reuse Check
+
+When a fix prevents new bad data but existing rows may still have stale
+or broken values, check:
+
+```bash
+# Are there existing rows with the affected pattern?
+# Example: legacy sentinel overrides, old enum values, NULL arrays
+grep -rn "<affected-field>\|<old-pattern>" --include="*.py" \
+  | grep -v "tests/" | grep -v "migrations/" | head -20
+```
+
+Ask explicitly:
+> "This fix prevents NEW bad data. Does existing data need cleanup?
+> - Legacy configs can still carry old values through export/import.
+> - Stale rows in the DB can still trigger the old behavior on reprocess."
+
+If historical config reuse or legacy DB rows can reintroduce the bug,
+flag as `[BLOCKING]` and suggest either:
+- A data migration / backfill, or
+- Runtime sanitization on the read path, or
+- Import-time cleanup in config import.
+
+---
+
+## Step 5.8: Consumer Propagation Check (Lifecycle Parity)
+
+If any fix introduced or modified a normalization, remapping, equivalence,
+or canonicalization helper, verify it's applied at EVERY lifecycle stage:
+
+| Stage | Check |
+|-------|-------|
+| Save / `pre_save` signal | Field canonicalized before persistence |
+| Generate / build | Generation routines emit canonical form |
+| Import (CSV / config) | Imported values canonicalized on entry |
+| Export (CSV / config) | Exported values match canonical form |
+| Apply / migrate | One-shot apply scripts canonicalize |
+| Revert / rollback | Revert routines compare against canonical form |
+| Consolidate / dedupe | Equivalence collisions detect canonical match |
+| Admin `TextChoices` enum | The choice surface admits the canonical value |
+
+```bash
+# Grep for the helper name across the entire codebase
+grep -rn "<helper_name>" --include="*.py" | grep -v tests/
+```
+
+For each stage where the helper is NOT applied, either:
+- Apply the helper at that stage, or
+- Document why the stage is explicitly exempt.
+
+Flag each missed stage as `[BLOCKING]`.
+
+Also grep for the OLD inline pattern that the helper replaces:
+
+```bash
+grep -rn "<old_inline_pattern>" --include="*.py" | grep -v tests/
+```
+
+Every consumer of the old pattern must call the new helper or be listed
+as explicitly exempt.
 
 ---
 
@@ -221,7 +360,12 @@ Files modified:
   - path/to/file1.py
   - path/to/file2.py
 
-Quality gates: all passed
+Quality gates: all passed (ruff_pr_diff ✅, local_imports ✅, ty ✅)
+Merge drift: clean / <N issues found and fixed>
+Admin form check: clean / <N issues flagged>
+Historical data: no cleanup needed / <N issues flagged>
+Lifecycle parity: all stages covered / <N stages missed>
+
 Next step: /moe-skills:commit-and-reply
 ```
 
@@ -245,6 +389,9 @@ If **any** of these are true, recommend a full-branch review:
 - More than 3 files were modified across the branch
 - Comments referenced contract changes, API changes, or migration issues
 - The branch has been open for multiple review rounds
+- Merge drift was detected and resolved
+- Admin form/readonly interaction was flagged
+- Historical data cleanup was flagged
 
 Output:
 

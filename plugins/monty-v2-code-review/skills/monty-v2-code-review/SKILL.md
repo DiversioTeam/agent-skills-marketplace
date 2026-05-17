@@ -25,6 +25,29 @@ conventions). Apply those rules alongside this methodology.
 7. Maintainability (naming, structure, reuse)
 8. Style (only after everything above is addressed)
 
+## When to Use This Skill Directly vs Delegate
+
+**Use monty-v2 directly ONLY for PRs with 1-2 files and no correctness-critical changes.**
+
+For any PR that meets ANY of these criteria, you MUST use the master
+orchestrator or invoke the specialized sub-skills directly:
+
+| PR characteristic | Required action |
+|-------------------|----------------|
+| 3+ files changed | Use master orchestrator or run sub-skills alongside monty-v2 |
+| New/changed helper or normalization function | Run `/contract-propagation-check` (P10, P17) |
+| Model field changes or new constraints | Run `/historical-data-check` (P14, P16, P23) |
+| Admin changes (get_readonly_fields, forms, inlines) | Run `/contract-propagation-check` (P18) |
+| pyproject.toml or uv.lock changed | Run `/merge-drift-check` (P22, P24, P25) |
+| Bugfix PR | Run `/test-quality-check` (P1, P12) |
+
+**Why**: The Tier 1 blind-spot checks (P17, P23, P22, P18, P10) are the
+highest-recurring missed patterns because they require deep, systematic
+investigation — grepping ALL consumers, checking ALL lifecycle stages,
+auditing ALL admin surfaces. A single skill with 25 checks cannot do
+all of these deeply. Delegating each Tier 1 check to a focused sub-skill
+forces the AI to complete the investigation before producing a verdict.
+
 ## Diff Scope: Full Branch, Not Latest Commit
 
 **Always review the full branch diff against the base branch.**
@@ -209,8 +232,52 @@ covered, all 4 input combinations tested."
 
 ### Phase 7: Blind-Spot Sweep
 
-Run 22 checks for historically missed patterns. Load
-`references/blind-spot-patterns.md` for the full detailed checklist.
+The 25 historically missed patterns. **Tier 1 checks (P17, P23, P22, P18, P10,
+P1) CANNOT be done inline — they require deep, systematic investigation.
+You MUST delegate them to the focused sub-skills.**
+
+**Tier 1 — Must delegate (highest recurrence, missed in 4-6+ PRs each):**
+
+| Check | Delegate to | Why delegation is mandatory |
+|-------|-----------|---------------------------|
+| P17: Lifecycle parity | `/contract-propagation-check` Step 3 | Must check 9 lifecycle stages per helper — cannot be skimmed |
+| P23: Historical config reuse | `/historical-data-check` Step 2 | Must trace import code paths for legacy config injection |
+| P22: Merge resolution drift | `/merge-drift-check` Steps 1-4 | Must audit pyproject, uv.lock, WhiteLabel, fixtures, config |
+| P18: Admin three-layer surface | `/contract-propagation-check` Step 4 | Must read admin + inline + form classes in full |
+| P10: Change propagation | `/contract-propagation-check` Step 2 | Must grep every consumer across 9 consumer paths |
+| P1: Test depth | `/test-quality-check` Step 1 | Must trace call chain from test to production entry point |
+| P14: Historical data | `/historical-data-check` Step 1 | Must assess existing DB rows for constraint violations |
+
+**You are NOT done with Phase 7 until each delegated sub-skill returns its
+findings.** A sub-skill finding of "clean — all stages covered" is valid
+if it cites evidence. A sub-skill finding of "not checked" is NOT valid —
+you must run the sub-skill.
+
+**Tier 2 — Can do inline, but delegate for deep coverage:**
+- P16: Inverse state-clearing → `/historical-data-check` Step 3
+- P19: Transaction-shape assertions → `/test-quality-check` Step 3
+- P20: CI-tolerant assertion safety → `/test-quality-check` Step 4
+- P12: Wrong bug variant → `/test-quality-check` Step 2
+
+**Tier 3 — Do inline (contextual only):**
+- All remaining checks (P2-P9, P11, P13, P15, P21, P24, P25)
+
+### Phase 7 Completion Gate
+
+Before writing findings (Phase 8), verify:
+
+```text
+☐ P17: /contract-propagation-check returned lifecycle parity results
+☐ P23: /historical-data-check returned legacy config audit results
+☐ P22: /merge-drift-check returned merge drift audit results
+☐ P18: /contract-propagation-check returned admin surface results
+☐ P10: /contract-propagation-check returned consumer obligation results
+☐ P1:  /test-quality-check returned test depth results
+☐ P14: /historical-data-check returned existing data results (if applicable)
+```
+
+**If any Tier 1 check is missing from the review, the review is incomplete.
+Do not produce a verdict.**
 
 **From first 20 PR analysis:**
 1. **Test depth** — does the test hit the production entry point, or just a helper?
@@ -268,7 +335,7 @@ Run 22 checks for historically missed patterns. Load
     generate, import, export, apply, revert, consolidate, and the admin
     `TextChoices` enum. P10 (caller grep) is necessary but not sufficient;
     cite the line at every stage or document why the stage is exempt.
-    `[BLOCKING]` per missed stage. Highest-recurring class in the audit.
+    `[BLOCKING]` per missed stage. **Highest-recurring class in the audit.**
 18. **Admin three-layer surface** — `get_readonly_fields()` changes must be
     mirrored on every `InlineModelAdmin` for the parent and any
     `ModelForm.__init__` that re-adds fields as required. POST-the-locked-
@@ -292,6 +359,24 @@ Run 22 checks for historically missed patterns. Load
     `git diff origin/release -- pyproject.toml uv.lock` and a stat-diff of
     files outside the feature area. CI green does not catch this.
     `[BLOCKING]` per silent regression.
+
+**From latest 15 PR analysis — high-recurrence additions (2026-05):**
+23. **Historical config reuse bypass** — when a fix prevents new bad data,
+    test importing a LEGACY config (pre-fix export) through the new code
+    path. Config export/import can preserve old sentinel values, wrong
+    enum entries, and stale overrides that re-introduce the exact bug the
+    fix is meant to prevent. `[BLOCKING]` if a legacy import recreates
+    the bad state. **Second-highest-recurring class.**
+24. **Merge drift on unrelated files** — beyond pyproject.toml/uv.lock,
+    also check for: WhiteLabel asset regression, fixture type cleanup
+    regression, config constant regression, test utility regression.
+    `git diff origin/release --stat` and audit any file outside the
+    feature area that differs. `[BLOCKING]` per silent regression.
+25. **PR description / migration numbering drift** — the PR body references
+    a migration name/number that no longer matches the branch. Check the
+    PR description's migration references against the actual migration
+    files on the branch. `[SHOULD_FIX]` if mismatched — it confuses
+    operators during deployment.
 
 ### Phase 8: Write Findings
 
@@ -336,8 +421,34 @@ Any `[BLOCKING]` → verdict is "request changes."
 - Missing tests for new behavior = `[SHOULD_FIX]` minimum, often `[BLOCKING]`.
 - Justify clean areas with evidence: "7/7 branches tested, 4/4 input
   combinations covered." Never just "tests look good."
-- For quick-pass mode: skip `[NIT]`, keep Phases 2 and 3 (that's where
-  the real findings hide).
+
+### Review Completeness Rule
+
+**A review is incomplete if ANY Tier 1 blind-spot check (P17, P23, P22, P18,
+P10, P1, P14) was not completed with specific evidence.**
+
+Incomplete review indicators:
+- "Lifecycle parity looks fine" ← NO. Cite each stage with line numbers.
+- "No historical data issues" ← NO. Show grep results.
+- "Merge drift: none" ← NO. Show `git diff --stat` against release.
+- "Admin surface: OK" ← NO. List each admin/inline/form checked.
+- "Tests cover it" ← NO. Show the call chain from test to production entry point.
+
+If you cannot produce the evidence, you have not completed the check. Delegate
+to the sub-skill — it will force you to produce the evidence.
+
+### Review Modes
+
+- **Full review (DEFAULT for 3+ file PRs)**: monty-v2 Phases 1-4 + delegate
+  Tier 1 checks to sub-skills + compile. This is the ONLY mode that produces
+  complete reviews for non-trivial PRs.
+- **Quick-pass mode (1-2 file PRs only)**: Phases 2 (branch enumeration),
+  3 (adversarial inputs). Skip `[NIT]`. Do NOT use for PRs touching helpers,
+  admin, models, or config.
+- **Self-review mode**: Full review + Phase 6 (bias check) is mandatory.
+- **Deep-coverage mode**: Full review + load `references/per-lens-checklist.md`
+  for Phase 4 + ALL sub-skills + full blind-spot-patterns.md. For security-
+  sensitive, data-migration, or multi-tenant boundary PRs.
 
 ## References
 

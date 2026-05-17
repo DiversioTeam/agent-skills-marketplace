@@ -5,7 +5,7 @@ description: >
     status, and highlights PRs needing attention. Supports filtering by repo,
     count, or specific PR numbers.
 user-invocable: true
-argument-hint: '[pr-numbers...] [--repo OWNER/REPO] [--merged] [--all]'
+argument-hint: '[pr-numbers...] [--repo OWNER/REPO] [--merged] [--all] [--refresh]'
 allowed-tools: [Bash, Read]
 ---
 
@@ -13,6 +13,24 @@ allowed-tools: [Bash, Read]
 
 Quick dashboard for your GitHub PRs. Shows what needs attention, what's
 approved, what has changes requested, and what merged recently.
+
+## Freshness Guarantee
+
+**The #1 bug in this skill is stale data.** `gh pr list` returns cached
+results that can be minutes to hours old. This skill MUST use the freshest
+available data path for each field:
+
+| Field | Freshness path | Reason |
+|-------|---------------|--------|
+| Review decision | `gh pr view --json reviewDecision` | Per-PR fetch, not list cache |
+| CI status | `gh pr checks` | Real-time check run API |
+| Mergeable | `gh pr view --json mergeable,mergeStateStatus` | Requires real-time computation |
+| Review threads | GraphQL query | `gh pr list` reviewDecision is aggregate only |
+| Comment count | GraphQL unresolved threads | More accurate than list rollup |
+
+**Always prefer `gh pr view` over `gh pr list` for detail fields.**
+`gh pr list` is acceptable for discovery (finding which PRs exist) but
+not for the status data displayed to the user.
 
 ---
 
@@ -25,6 +43,10 @@ Parse arguments to decide what to fetch:
 - **`--repo OWNER/REPO`**: target a different repo (default: detect from `gh repo view`)
 - **`--merged`**: include PRs you were involved in that merged in the last 48 hours
 - **`--all`**: all open PRs across all your repos
+- **`--refresh`**: force-refresh all data — skip `gh pr list` cache, use `gh pr view` for every PR
+
+**When `--refresh` is passed**: do NOT use `gh pr list` at all. Fetch PR numbers
+directly via the search API, then enrich each one with `gh pr view`.
 
 ```bash
 ME="$(gh api user --jq '.login')"
@@ -32,17 +54,19 @@ ME="$(gh api user --jq '.login')"
 
 ### Default (current repo, open PRs involving you)
 
-Fetch three sets and deduplicate by PR number:
+**Discovery step** — use `gh pr list` only for discovery (finding which PRs
+exist). Do NOT use its `reviewDecision`, `statusCheckRollup`, or other
+detail fields.
 
 ```bash
-# PRs you authored
-gh pr list --author "$ME" --state open --json number,title,url,headRefName,reviewDecision,statusCheckRollup,isDraft,createdAt,updatedAt
+# PRs you authored — numbers only for discovery
+gh pr list --author "$ME" --state open --json number,title,url,headRefName,isDraft,createdAt,updatedAt
 
 # PRs assigned to you
-gh pr list --assignee "$ME" --state open --json number,title,url,headRefName,reviewDecision,statusCheckRollup,isDraft,createdAt,updatedAt
+gh pr list --assignee "$ME" --state open --json number,title,url,headRefName,isDraft,createdAt,updatedAt
 
 # PRs where you are a requested reviewer
-gh pr list --search "review-requested:$ME state:open" --json number,title,url,headRefName,reviewDecision,statusCheckRollup,isDraft,createdAt,updatedAt
+gh pr list --search "review-requested:$ME state:open" --json number,title,url,headRefName,isDraft,createdAt,updatedAt
 ```
 
 Merge all results, deduplicate by PR number. Tag each PR with your role:
@@ -51,6 +75,34 @@ Merge all results, deduplicate by PR number. Tag each PR with your role:
 - **Reviewer** — your review is requested
 
 A PR can have multiple roles.
+
+**Enrichment step** — for every discovered PR, fetch fresh detail via
+`gh pr view`. This bypasses `gh pr list` caching:
+
+```bash
+# For each PR number discovered above, get FRESH detail:
+gh pr view "$PR_NUMBER" --json number,title,url,headRefName,reviewDecision,isDraft,state,mergeable,mergeStateStatus,createdAt,updatedAt
+```
+
+### With --refresh
+
+Skip `gh pr list` entirely. Use the search API to discover PR numbers,
+then `gh pr view` for every PR:
+
+```bash
+# Discover via search (author, assignee, review-requested)
+gh api "search/issues?q=type:pr+state:open+author:$ME+repo:$OWNER/$REPO" \
+  --jq '.items[].number'
+gh api "search/issues?q=type:pr+state:open+assignee:$ME+repo:$OWNER/$REPO" \
+  --jq '.items[].number'
+gh api "search/issues?q=type:pr+state:open+review-requested:$ME+repo:$OWNER/$REPO" \
+  --jq '.items[].number'
+
+# Enrich EACH one — no caching
+for pr in $ALL_PR_NUMBERS; do
+  gh pr view "$pr" --json number,title,url,headRefName,reviewDecision,statusCheckRollup,isDraft,state,mergeable,mergeStateStatus,createdAt,updatedAt
+done
+```
 
 ### Specific PRs
 
@@ -90,13 +142,35 @@ draft state. Limit enrichment to the first 20 results to avoid rate limits.
 
 ## Step 2: Enrich with Review and Merge Details
 
-`gh pr list` already returns `reviewDecision` (APPROVED, CHANGES_REQUESTED,
-REVIEW_REQUIRED). Only call the reviews API when you need **per-reviewer
-breakdown** (e.g. which specific reviewer requested changes):
+**Use the `gh pr view` detail data from Step 1 enrichment.** Do not use
+`gh pr list` reviewDecision — it's cached and can be stale.
+
+### Staleness Detection
+
+Before displaying any PR, check if the data is fresh:
+
+```bash
+# Check if updatedAt is older than the last known review activity
+LAST_REVIEW=$(gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" --paginate \
+  --jq '[.[] | select(.user.login != "'"$ME"'")] | sort_by(.submitted_at) | last.submitted_at')
+
+PR_UPDATED=$(gh pr view "$PR" --json updatedAt --jq '.updatedAt')
+```
+
+If `updatedAt` is older than the last review submission, or if the data
+is more than 5 minutes old while the user reports it looks wrong, add
+a warning:
+
+> "⚠️ Data may be stale. Last updated: <timestamp>. Run with --refresh to force re-fetch."
+
+### Per-Reviewer Breakdown
+
+Only call the reviews API when you need **per-reviewer breakdown**
+(e.g. which specific reviewer requested changes):
 
 ```bash
 gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" --paginate \
-  --jq '[.[] | {user: .user.login, state}] | group_by(.user) | map({user: .[0].user, state: last.state})'
+  --jq '[.[] | {user: .user.login, state, submitted_at}] | group_by(.user) | map({user: .[0].user, state: last.state})'
 ```
 
 Classify each reviewer's latest state:
@@ -105,12 +179,18 @@ Classify each reviewer's latest state:
 - **COMMENTED** (reviewed but no decision)
 - **PENDING** (requested but hasn't reviewed)
 
-Also fetch merge conflict status and unresolved comment count:
+### Merge Status (fresh)
 
 ```bash
-gh pr view <number> --json mergeable,mergeStateStatus
+gh pr view "$PR" --json mergeable,mergeStateStatus
+```
 
-# Count unresolved review threads
+- `MERGEABLE` — no conflicts
+- `CONFLICTING` — has merge conflicts (status = Blocked)
+
+### Unresolved Threads (GraphQL — freshest)
+
+```bash
 gh api graphql -f query='
   query($owner:String!, $repo:String!, $pr:Int!) {
     repository(owner:$owner, name:$repo) {
@@ -124,8 +204,6 @@ gh api graphql -f query='
   --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length'
 ```
 
-- `MERGEABLE` — no conflicts
-- `CONFLICTING` — has merge conflicts (status = Blocked)
 - Unresolved threads > 0 — show count in Reviews column (e.g. "Changes req. (3 unresolved)")
 
 ---
@@ -207,6 +285,13 @@ Action Items
 - **Your PRs** — authored by, assigned to, or review requested from `$ME`.
 - **Concise output** — summary table first, details only for PRs needing action.
 - **Stale detection** — flag PRs with no activity for 7+ days as stale.
+- **FRESH DATA MANDATORY** — Never display `reviewDecision` or CI status from
+  `gh pr list`. Always enrich with `gh pr view` (per-PR, not cached).
+  This is the #1 cause of "showing old status" bugs.
+- **`--refresh`** uses search API for discovery and `gh pr view` for every PR.
+  Use it when the user reports stale data.
+- **Staleness warning** — if `updatedAt` suggests cached data, show a
+  warning and suggest `--refresh`.
 
 ---
 

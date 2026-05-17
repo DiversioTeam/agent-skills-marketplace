@@ -88,6 +88,26 @@ The commit exists only locally. You MUST continue with Steps 3–9 below
 (pull, re-gate, push, get SHA, reply to comments, dedupe audit, summary).
 Do not treat the atomic-commit completion as the end of this workflow.
 
+### Step 2b: Hardened Ruff Format Gate
+
+**After the atomic commit succeeds**, run the exact CI gate that will
+validate this branch. The atomic-commit runs `ruff format` on staged files,
+but CI runs `ruff_pr_diff.sh` which checks the union of branch diff +
+local changes. Run it explicitly to catch formatting drift before push:
+
+```bash
+./.security/ruff_pr_diff.sh
+```
+
+If this fails:
+1. Apply formatting: `.bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')`
+2. Re-check: `./.security/ruff_pr_diff.sh`
+3. Amend the commit: `git add <formatted-files> && git commit --amend --no-edit`
+
+**Do not proceed to push until `ruff_pr_diff.sh` passes.** This is the #1
+CI failure pattern — `ruff format` alone is not enough; the diff-based
+check catches files that `ruff format` on staged files alone can miss.
+
 ---
 
 ## Step 3: Pull Latest from Release, Resolve Conflicts, Re-Gate, and Push
@@ -195,7 +215,12 @@ branch alone. Run the full gate sequence:
 ./.security/local_imports_pr_diff.sh
 ```
 
-If any gate fails, fix the issue, stage, and amend the merge commit:
+If `ruff_pr_diff.sh` fails (the #1 CI failure pattern):
+1. Apply formatting to the specific files Ruff reports
+2. Re-run `./.security/ruff_pr_diff.sh` until clean
+3. Stage and amend: `git add <formatted-files> && git commit --amend --no-edit`
+
+If any other gate fails, fix the issue, stage, and amend the merge commit:
 
 ```bash
 git add <fixed-files>
