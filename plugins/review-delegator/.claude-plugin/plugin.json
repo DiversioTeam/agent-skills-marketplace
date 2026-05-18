@@ -1,0 +1,8 @@
+{
+  "name": "review-delegator",
+  "version": "1.0.0",
+  "description": "Review delegator. Runs monty-v2 core analysis, delegates Tier 1 blind-spot checks to focused sub-skills, and compiles a single review. Use for PRs with 3+ files where a monolithic review would miss systemic issues.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

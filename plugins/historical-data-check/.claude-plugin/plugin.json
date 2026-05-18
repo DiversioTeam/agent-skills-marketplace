@@ -1,0 +1,8 @@
+{
+  "name": "historical-data-check",
+  "version": "1.0.0",
+  "description": "Focused sub-skill: verify fixes handle existing DB rows, legacy config import reuse, rollback/reprocess safety, and inverse state-clearing. Covers monty-v2 blind-spots P14, P16, P23.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

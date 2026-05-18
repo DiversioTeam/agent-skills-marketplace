@@ -1,0 +1,8 @@
+{
+  "name": "monty-v2-code-review",
+  "version": "2.6.0",
+  "description": "Deep-coverage code review with mandatory delegation to specialized sub-skills for Tier 1 blind-spot checks. 8-phase methodology, 25 blind-spot patterns, review completeness enforcement.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}
