@@ -29,27 +29,50 @@ gh pr view --json mergeable,mergeStateStatus
 - `CONFLICTING` → must resolve before anything else
 - `UNKNOWN` → GitHub hasn't computed it yet (recent push)
 
-If `CONFLICTING`, stop. Don't run other gates — fix conflicts first:
+If `CONFLICTING` or `UNKNOWN`, check locally:
 
 ```bash
-# Pull and attempt merge
-git pull origin release --no-rebase
+# Fetch and attempt merge (always merge, never rebase)
+git fetch origin release
+git merge origin/release --no-edit --no-ff
+```
 
-# If conflicts, list them
+### If merge fails with "unrelated histories"
+
+This happens in shallow clones (CI, fresh worktrees). Unshallow first:
+
+```bash
+# Unshallow the repo to get full history
+git fetch --unshallow origin 2>/dev/null || true
+
+# Retry the merge
+git merge origin/release --no-edit --no-ff --allow-unrelated-histories
+```
+
+The `--allow-unrelated-histories` flag is safe here because `git fetch`
+already fetched the actual release branch — it's not truly unrelated,
+it's just that the shallow clone doesn't have the common ancestor.
+
+### If merge succeeds but has conflicts
+
+```bash
+# List conflicting files
 git diff --name-only --diff-filter=U
 
-# Resolve, then:
+# Resolve each conflict, then:
 git add <resolved-files>
 git commit --no-edit
 ```
 
-Also check if the branch is behind release (needs a merge to pick up new
-migrations, lockfile changes, etc.):
+### Check if branch is behind release
 
 ```bash
 git fetch origin release
 git merge-base --is-ancestor HEAD origin/release && echo "up to date" || echo "⚠️ branch behind release — merge before pushing"
 ```
+
+**Always merge, never rebase.** Rebasing rewrites history and can silently
+lose merge fixes, drop migration ordering, or create duplicate commits.
 
 **Flag**: `[BLOCKING]` — cannot proceed if branch has conflicts or is
 significantly behind release.
