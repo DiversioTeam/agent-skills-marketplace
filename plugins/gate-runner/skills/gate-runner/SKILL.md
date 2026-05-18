@@ -39,19 +39,21 @@ git merge origin/release --no-edit --no-ff
 
 ### If merge fails with "unrelated histories"
 
-This happens in shallow clones (CI, fresh worktrees). Unshallow first:
+This happens in shallow clones (CI, fresh worktrees) where git doesn't
+have the common ancestor. Unshallow to fetch the full history, then retry
+with a normal merge:
 
 ```bash
-# Unshallow the repo to get full history
+# Unshallow the repo to get full history (fetches the common ancestor)
 git fetch --unshallow origin 2>/dev/null || true
 
-# Retry the merge
-git merge origin/release --no-edit --no-ff --allow-unrelated-histories
+# Retry with a normal merge — histories should now be related
+git merge origin/release --no-edit --no-ff
 ```
 
-The `--allow-unrelated-histories` flag is safe here because `git fetch`
-already fetched the actual release branch — it's not truly unrelated,
-it's just that the shallow clone doesn't have the common ancestor.
+**Do NOT use `--allow-unrelated-histories`** — if the merge still fails
+after unshallowing, the branches are genuinely unrelated and forcing it
+would create a broken merge. Stop and investigate.
 
 ### If merge succeeds but has conflicts
 
