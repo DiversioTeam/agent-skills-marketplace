@@ -17,6 +17,45 @@ commands to fix them.
 
 ---
 
+## Step 0: Merge Conflict Check
+
+Before running any other gate, verify the branch can merge cleanly.
+
+```bash
+gh pr view --json mergeable,mergeStateStatus
+```
+
+- `MERGEABLE` → no conflicts ✅
+- `CONFLICTING` → must resolve before anything else
+- `UNKNOWN` → GitHub hasn't computed it yet (recent push)
+
+If `CONFLICTING`, stop. Don't run other gates — fix conflicts first:
+
+```bash
+# Pull and attempt merge
+git pull origin release --no-rebase
+
+# If conflicts, list them
+git diff --name-only --diff-filter=U
+
+# Resolve, then:
+git add <resolved-files>
+git commit --no-edit
+```
+
+Also check if the branch is behind release (needs a merge to pick up new
+migrations, lockfile changes, etc.):
+
+```bash
+git fetch origin release
+git merge-base --is-ancestor HEAD origin/release && echo "up to date" || echo "⚠️ branch behind release — merge before pushing"
+```
+
+**Flag**: `[BLOCKING]` — cannot proceed if branch has conflicts or is
+significantly behind release.
+
+---
+
 ## Step 1: ruff_pr_diff.sh
 
 The #1 CI failure pattern. Runs `ruff check` and `ruff format --check` on
@@ -126,6 +165,8 @@ Gate Runner
 ===========
 Branch: <branch>
 
+merge conflict:     ✅ MERGEABLE / ❌ CONFLICTING — <N files>
+release sync:       ✅ up to date / ⚠️ behind release
 ruff_pr_diff:       ✅ PASS / ❌ FAIL — <N> file(s) need formatting
 local_imports:      ✅ PASS / ❌ FAIL — <N> import(s) to fix
 ty check:           ✅ PASS / ❌ FAIL — <N> error(s) in <M> file(s)
@@ -134,9 +175,10 @@ django checks:      ✅ PASS / ❌ FAIL / ⏭️ SKIPPED
 targeted pytest:    ✅ PASS (<N> passed) / ❌ FAIL / ⏭️ SKIPPED
 
 Fix commands:
-  ruff:   .bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')
-  ty:     .bin/ty check <files>
-  squash: .bin/django makemigrations <app>
+  conflicts: git pull origin release --no-rebase
+  ruff:      .bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')
+  ty:        .bin/ty check <files>
+  squash:    .bin/django makemigrations <app>
 
 Overall: ✅ ALL GREEN / ❌ <N> GATES FAILING
 ```
