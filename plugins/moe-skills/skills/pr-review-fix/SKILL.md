@@ -3,7 +3,7 @@ name: pr-review-fix
 description: >
     Fetch and address PR reviewer comments from GitHub. Reads reviewer feedback,
     presents each with code context, implements fixes, runs quality gates, and
-    stages changes. Does NOT commit — use /commit-and-reply after.
+    stages changes. Does NOT commit — use /moe-skills:commit-and-reply after.
 user-invocable: true
 argument-hint: '[pr-number] [--auto]'
 allowed-tools: [Bash, Read, Edit]
@@ -29,58 +29,102 @@ REPO="$(echo "$REPO_INFO" | jq -r '.name')"
 If a PR number is provided as argument, use it. Otherwise detect from branch:
 
 ```bash
-gh pr view --json number,title,url,headRefName
+gh pr view --json number,title,url,headRefName,baseRefName
+
+# Derive the branch diff base from the PR target branch.
+# Override by exporting BASE_BRANCH before invoking if needed.
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName')"
+fi
 ```
 
 If no PR found, stop and tell the user.
 
 ---
 
-## Step 2: Fetch All Comments
+## Step 2: Fetch Thread-Aware Review Feedback
 
-Fetch counts first, then fetch full comments. This prevents pagination
-truncation — if the full fetch returns fewer than the count, you know
-you missed some.
+Do **not** build the action queue from flat REST review-comment lists. They do
+not expose `isResolved` or `isOutdated`, so they cannot safely distinguish open
+review threads from stale history.
+
+### Step 2a: Fetch review threads via GraphQL (thread-aware)
 
 ```bash
-# Step 2a: Get counts to verify completeness
-REVIEW_COUNT=$(gh api "repos/$OWNER/$REPO/pulls/$PR/comments" \
-  --paginate --jq 'length' | paste -sd+ - | bc)
-ISSUE_COUNT=$(gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
-  --paginate --jq 'length' | paste -sd+ - | bc)
-echo "Expected: $REVIEW_COUNT inline + $ISSUE_COUNT general comments"
+gh api graphql -f query='
+  query($owner:String!, $repo:String!, $pr:Int!) {
+    repository(owner:$owner, name:$repo) {
+      pullRequest(number:$pr) {
+        reviewThreads(first:100) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            id
+            isResolved
+            isOutdated
+            path
+            line
+            comments(first:100) {
+              pageInfo { hasNextPage endCursor }
+              nodes {
+                databaseId
+                body
+                createdAt
+                author { login }
+              }
+            }
+          }
+        }
+      }
+    }
+  }' -f owner="$OWNER" -f repo="$REPO" -F pr="$PR"
 ```
 
+**Pagination rule:** If `reviewThreads.pageInfo.hasNextPage` is `true`, keep
+paginating (or stop and tell the user the thread data is incomplete). If any
+thread reports `comments.pageInfo.hasNextPage`, keep paginating that thread's
+comments before proceeding.
+
+Build two buckets from this response:
+- **Actionable inline review threads**: `isResolved == false` and
+  `isOutdated == false`
+- **Context-only review threads**: resolved or outdated threads (read them for
+  history, but do not queue them for fixes unless the user explicitly asks)
+
+Filter out:
+- your own comments
+- bot comments (`[bot]`, `github-actions`, etc.)
+
+### Step 2b: Fetch general PR comments separately
+
+Issue-level PR comments do not have review-thread resolution state, so treat
+them as conversation context rather than unresolved-review-thread evidence.
+
 ```bash
-# Step 2b: Fetch full inline review comments (exclude self, pipe to jq)
-gh api "repos/$OWNER/$REPO/pulls/$PR/comments" --paginate \
-  --jq "[.[] | select(.user.login != \"$ME\") | {id, path, line, body, user: .user.login, created_at, in_reply_to_id}]"
-
-# Step 2c: Fetch full general PR comments (exclude self)
 gh api "repos/$OWNER/$REPO/issues/$PR/comments" --paginate \
-  --jq "[.[] | select(.user.login != \"$ME\") | {id, body, user: .user.login, created_at}]"
+  --jq "[.[] | select(.user.login != \"$ME\" and (.user.login | contains(\"[bot]\") | not)) | {id, body, user: .user.login, created_at}]"
+```
 
-# Step 2d: Fetch review submissions for context
+### Step 2c: Fetch review submissions for context
+
+```bash
 gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" --paginate \
   --jq "[.[] | select(.user.login != \"$ME\") | {id, state, body, user: .user.login}]"
 ```
 
-**Verify completeness:** After fetching, count the results. If the fetched
-count is less than the expected count from Step 2a (after accounting for
-self-exclusion), re-fetch. Do NOT proceed with partial data.
+### Step 2d: Build the action queue
+
+Queue comments in this order:
+1. comments from open, non-outdated review threads
+2. actionable general PR comments
+3. non-actionable questions / context-only items
+
+When you summarize the fetch, separate the counts clearly:
 
 ```bash
-echo "Fetched: <N> inline + <M> general (after filtering self/bots)"
+echo "Open review threads: <N>; context-only threads: <M>; general comments: <K>"
 ```
 
-Filter out:
-
-- Your own comments (`user.login == $ME`) — already filtered in jq above
-- Bot comments (GitHub Actions, CI bots) — filter `user.login` containing
-  `[bot]` or known bot names like `github-actions`
-- Reply chains you started
-
-Classify each by severity:
+Classify each actionable item by severity:
 
 | Tag | Criteria |
 |-----|----------|
@@ -133,7 +177,7 @@ If the fix is obvious, include a short proposed diff summary under the prompt.
 4. **On Skip**: record the comment ID as skipped, move on.
 
 5. **On Reply only**: draft a reply message, record the comment ID for
-   `/commit-and-reply` to post.
+   `/moe-skills:commit-and-reply` to post.
 
 6. **Track progress** — after each comment, show a brief status line
    (e.g. `3/12 done — 2 fixed, 1 skipped`).
@@ -155,7 +199,7 @@ migrations for the same app:
 
 ```bash
 # Find new migration files on this branch vs release
-git diff --name-only origin/release...HEAD -- '*/migrations/*.py' \
+git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/migrations/*.py' \
   | grep -v '__init__' \
   | awk -F'/migrations/' '{print $1}' \
   | sort | uniq -c | sort -rn
@@ -191,14 +235,14 @@ scoped checks can miss formatting drift in the full branch diff.
 ```
 
 If `ruff_pr_diff.sh` fails:
-1. Apply formatting: `.bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')`
+1. Apply formatting: `.bin/ruff format $(git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep '\.py$')`
 2. Re-run until clean: `./.security/ruff_pr_diff.sh`
 
 Then run remaining gates:
 
 ```bash
 ./.security/local_imports_pr_diff.sh
-.bin/ty check $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')
+.bin/ty check $(git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep '\.py$')
 ```
 
 If any gate fails: fix, re-run until clean.
@@ -225,19 +269,19 @@ regressed files that should only move forward:
 
 ```bash
 # Check version metadata — must move forward only
-git diff origin/release...HEAD -- pyproject.toml uv.lock
+git diff origin/$BASE_BRANCH...HEAD -- pyproject.toml uv.lock
 
 # Check for unrelated file regression
-git diff --stat origin/release...HEAD -- \
-  $(git diff --name-only origin/release...HEAD | grep -v "$(git diff --name-only HEAD~1)")
+git diff --stat origin/$BASE_BRANCH...HEAD -- \
+  $(git diff --name-only origin/$BASE_BRANCH...HEAD | grep -v "$(git diff --name-only HEAD~1)")
 ```
 
 If `pyproject.toml` or `uv.lock` show a version downgrade relative to
-`origin/release`, this is `[BLOCKING]` — restore the release version
+`origin/$BASE_BRANCH`, this is `[BLOCKING]` — restore the base-branch version
 and refresh `uv.lock`:
 
 ```bash
-git checkout origin/release -- pyproject.toml
+git checkout origin/$BASE_BRANCH -- pyproject.toml
 uv lock
 git add pyproject.toml uv.lock
 ```
@@ -360,7 +404,7 @@ Next step: /moe-skills:commit-and-reply
 ```
 
 Track addressed comment IDs in conversation context (both inline and general)
-so `/commit-and-reply` knows which comments to reply to.
+so `/moe-skills:commit-and-reply` knows which comments to reply to.
 
 ---
 
@@ -370,7 +414,7 @@ After fixing comments, check whether a full-branch review is warranted:
 
 ```bash
 # How many files does this branch touch total?
-git diff --name-only origin/release...HEAD | wc -l
+git diff --name-only origin/$BASE_BRANCH...HEAD | wc -l
 ```
 
 If **any** of these are true, recommend a full-branch review:
@@ -401,7 +445,7 @@ this recommendation.
 - **Respect the Diversio/Optimo product boundary** — `optimo_*` must not import
   from `dashboardapp/`/`survey/`/`pulse_iq/`/`titan/` and vice versa. `utils/`
   is shared.
-- **Track addressed comment IDs** for `/commit-and-reply`.
+- **Track addressed comment IDs** for `/moe-skills:commit-and-reply`.
 - **Run ruff after every fix** — do not accumulate lint errors.
 - **Do not modify files** not referenced by reviewer comments.
 
@@ -409,8 +453,8 @@ this recommendation.
 
 ## Example Prompts
 
-> `/pr-review-fix` — detect PR from branch, walk through comments interactively.
+> `/moe-skills:pr-review-fix` — detect PR from branch, walk through comments interactively.
 
-> `/pr-review-fix 2750` — fetch comments for PR #2750.
+> `/moe-skills:pr-review-fix 2750` — fetch comments for PR #2750.
 
-> `/pr-review-fix --auto` — auto-fix all comments on current branch's PR.
+> `/moe-skills:pr-review-fix --auto` — auto-fix all comments on current branch's PR.

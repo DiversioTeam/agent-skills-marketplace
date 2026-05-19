@@ -43,7 +43,16 @@ claude plugin uninstall visual-explainer@visual-explainer-marketplace
 
 ```bash
 PLUGINS=(
+  monolith-review-orchestrator
   monty-code-review
+  monty-v2-code-review
+  moe-skills
+  review-delegator
+  contract-propagation-check
+  merge-drift-check
+  historical-data-check
+  test-quality-check
+  gate-runner
   backend-atomic-commit
   backend-pr-workflow
   bruno-api
@@ -83,7 +92,16 @@ Then uninstall the user-scoped copies:
 
 ```bash
 PLUGINS=(
+  monolith-review-orchestrator
   monty-code-review
+  monty-v2-code-review
+  moe-skills
+  review-delegator
+  contract-propagation-check
+  merge-drift-check
+  historical-data-check
+  test-quality-check
+  gate-runner
   backend-atomic-commit
   backend-pr-workflow
   bruno-api

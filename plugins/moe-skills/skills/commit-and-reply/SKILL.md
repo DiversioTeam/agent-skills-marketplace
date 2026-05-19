@@ -39,7 +39,7 @@ Check that there are staged changes and detect the PR:
 git diff --cached --name-only
 
 # Detect PR from current branch
-gh pr view --json number,url,headRefName
+gh pr view --json number,url,headRefName,baseRefName
 ```
 
 Set up environment:
@@ -50,6 +50,12 @@ REPO_INFO="$(gh repo view --json owner,name)"
 OWNER="$(echo "$REPO_INFO" | jq -r '.owner.login')"
 REPO="$(echo "$REPO_INFO" | jq -r '.name')"
 PR=<detected-pr-number>
+
+# Derive the branch diff base from the PR target branch.
+# Override by exporting BASE_BRANCH before invoking if needed.
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName')"
+fi
 ```
 
 **If nothing is staged**, stop and tell the user:
@@ -100,7 +106,7 @@ local changes. Run it explicitly to catch formatting drift before push:
 ```
 
 If this fails:
-1. Apply formatting: `.bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')`
+1. Apply formatting: `.bin/ruff format $(git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep '\.py$')`
 2. Re-check: `./.security/ruff_pr_diff.sh`
 3. Amend the commit: `git add <formatted-files> && git commit --amend --no-edit`
 
@@ -110,12 +116,12 @@ check catches files that `ruff format` on staged files alone can miss.
 
 ---
 
-## Step 3: Pull Latest from Release, Resolve Conflicts, Re-Gate, and Push
+## Step 3: Pull Latest from Base Branch, Resolve Conflicts, Re-Gate, and Push
 
-Pull latest from release:
+Pull latest from the PR base branch:
 
 ```bash
-git pull origin release --no-rebase
+git pull origin "$BASE_BRANCH" --no-rebase
 ```
 
 ### If merge conflicts occur — resolve them by type
@@ -132,7 +138,7 @@ Resolve each file according to its type:
 
 Two branches added migrations with overlapping numbers for the same app.
 
-1. Accept the **release** version of the conflicting migration (it's already
+1. Accept the **base branch** version of the conflicting migration (it's already
    deployed or ahead in the pipeline):
    ```bash
    git checkout --theirs <app>/migrations/<conflicting_file>.py
@@ -171,7 +177,7 @@ both sides, verify they don't interact, then edit the file to include both.
 
 #### Code conflicts — same function, additive changes
 
-If both sides added different logic to the same function (e.g., release added
+If both sides added different logic to the same function (e.g., base branch added
 a new field and the branch added a new condition), merge both changes
 manually. Read the full function, understand both intents, combine them.
 
@@ -190,7 +196,7 @@ For these, show the conflict diff and ask:
 > "Conflict in `<file>` involves <security/schema/business logic>. This
 > needs your judgment. Here's what each side did:
 >
-> - **Release**: <summary>
+> - **Base branch**: <summary>
 > - **Branch**: <summary>
 >
 > How should I resolve this?"
@@ -260,24 +266,56 @@ Three modes for selecting which comments get replies:
 
 ### Mode A: Conversation Context (default)
 
-If `/pr-review-fix` was run earlier in this conversation, use the addressed
+If `/moe-skills:pr-review-fix` was run earlier in this conversation, use the addressed
 comment IDs it tracked. This is the preferred flow.
 
 ### Mode B: `--all` Flag
 
-If `--all` is passed, fetch all reviewer comments (the REST endpoints do not
-expose thread resolution, so this fetches ALL comments — the pre-audit
-step below handles deduplication and stale-thread detection):
+If `--all` is passed, use a **thread-aware** acquisition path for inline review
+comments. Do not use flat REST comment lists to decide which inline comments are
+still open.
 
 ```bash
-# Inline comments from other reviewers
-gh api "repos/$OWNER/$REPO/pulls/$PR/comments" --paginate \
-  --jq "[.[] | select(.user.login != \"$ME\") | {id, path, body}]"
+# Inline review threads — keep only open, non-outdated threads for reply targets
+gh api graphql -f query='
+  query($owner:String!, $repo:String!, $pr:Int!) {
+    repository(owner:$owner, name:$repo) {
+      pullRequest(number:$pr) {
+        reviewThreads(first:100) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            isResolved
+            isOutdated
+            path
+            comments(first:100) {
+              pageInfo { hasNextPage endCursor }
+              nodes {
+                databaseId
+                body
+                author { login }
+              }
+            }
+          }
+        }
+      }
+    }
+  }' -f owner="$OWNER" -f repo="$REPO" -F pr="$PR"
 
-# General comments from other reviewers
+# General PR comments — these do not have thread resolution metadata, so keep
+# them in a separate conversation-comment bucket.
 gh api "repos/$OWNER/$REPO/issues/$PR/comments" --paginate \
-  --jq "[.[] | select(.user.login != \"$ME\") | {id, body}]"
+  --jq "[.[] | select(.user.login != \"$ME\" and (.user.login | contains(\"[bot]\") | not)) | {id, body, user: .user.login}]"
 ```
+
+**Pagination rule:** If the GraphQL response reports more review-thread pages or
+more comments within a thread, keep paginating (or stop and tell the user the
+thread data is incomplete).
+
+Reply-target rules for `--all`:
+- inline review comments → only comments in threads where
+  `isResolved == false && isOutdated == false`
+- general PR comments → include them only as conversation comments; they do not
+  prove unresolved review-thread state
 
 ### Mode C: No IDs, No `--all`
 
@@ -286,16 +324,17 @@ If no addressed IDs are available and `--all` was not passed, ask the user:
 > "I don't have a list of addressed comments from a prior `/moe-skills:pr-review-fix` run.
 > Would you like me to:
 >
-> 1. Reply to **all** reviewer comments with this commit SHA
+> 1. Reply to **all open inline review threads** plus general PR comments with this commit SHA
 > 2. **Skip** replies (just commit and push)
 > 3. **List** reviewer comments so you can pick which ones to reply to"
 
 ---
 
-## Step 6: Pre-Audit for Duplicates
+## Step 6: Pre-Audit for Duplicates and Stale Targets
 
 Before posting any replies, check for existing replies from self to avoid
-duplicates (per `pr-review-posting-hygiene.md` MUST_04):
+duplicates (per `pr-review-posting-hygiene.md` MUST_04), and re-validate that
+any inline review-comment targets still belong to open, non-outdated threads.
 
 ```bash
 # Check existing inline comment replies from self
@@ -307,12 +346,20 @@ gh api "repos/$OWNER/$REPO/issues/$PR/comments" --paginate \
   --jq "[.[] | select(.user.login == \"$ME\") | {id, body, created_at}]"
 ```
 
+If your reply-target source was conversation context rather than a fresh `--all`
+thread fetch, re-run the Step 5 GraphQL query and confirm every inline target
+comment ID still lives in a thread where `isResolved == false` and
+`isOutdated == false`. If you cannot confirm that state, stop and ask the user
+which comments should receive replies instead of guessing from stale history.
+
 For each comment we plan to reply to:
 
 - If a reply from self already exists with the same SHA → **skip** (already
   replied)
 - If a reply from self exists with a different SHA → **skip** (previous
   attempt, don't double-post)
+- If the inline comment's thread is now resolved or outdated → **skip** unless
+  the user explicitly asks to reply anyway
 
 ---
 
@@ -436,12 +483,12 @@ Dedupe audit: clean (no duplicates) | removed <N> duplicates
 
 ## Example Prompts
 
-> `/commit-and-reply`
+> `/moe-skills:commit-and-reply`
 >
-> After running `/pr-review-fix`, commits staged changes, pushes, and replies
+> After running `/moe-skills:pr-review-fix`, commits staged changes, pushes, and replies
 > to each addressed comment with the commit SHA.
 
-> `/commit-and-reply --all`
+> `/moe-skills:commit-and-reply --all`
 >
-> Commits, pushes, and replies to ALL reviewer comments on the PR (not just
-> those addressed in the current session).
+> Commits, pushes, and replies to all open inline review-thread comments plus
+> general PR comments on the PR (not just those addressed in the current session).

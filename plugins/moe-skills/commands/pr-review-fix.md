@@ -11,7 +11,7 @@ quality gates defined in its SKILL.md.
 Focus order:
 
 1. Identify the PR (from argument or current branch).
-2. Fetch all reviewer comments (reviews, inline, general).
+2. Fetch thread-aware review threads plus general PR comments and review submissions.
 3. Classify by severity and present one-by-one with plain chat prompts.
 4. On Fix: edit code, run ruff immediately.
 5. After all comments: run ty, stage modified files.

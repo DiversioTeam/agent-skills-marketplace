@@ -270,6 +270,12 @@ agent-skills-marketplace/
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
 | `monty-v2-code-review` | Deep-coverage Django/Python code review with mechanical branch enumeration, adversarial inputs, test mapping, and self-review bias mitigation |
 | `moe-skills` | Backend workflow helpers for PR review fixes, commit-and-reply with SHA links, PR status, and codebase reuse scanning |
+| `review-delegator` | Review delegator that runs monty-v2 core analysis, fans out mandatory deep checks to focused sub-skills, and compiles one final verdict |
+| `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle parity, and admin three-layer surface |
+| `merge-drift-check` | Merge-drift audit for version files, unrelated file regressions, and PR description accuracy |
+| `historical-data-check` | Historical-data and legacy-config audit for existing bad rows, import reuse, rollback safety, and inverse state-clearing |
+| `test-quality-check` | Test-depth and assertion-quality audit for branch coverage, mock realism, transaction shape, and CI-safe assertions |
+| `gate-runner` | Exact CI gate runner for ruff diff checks, ty, local-import checks, and migration squash verification |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
@@ -300,7 +306,7 @@ sub-package so pi can discover them from a single clone - see
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
 | `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
-| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+| `skills-bridge` | Auto-discovers Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
@@ -453,6 +459,12 @@ claude plugin install monolith-review-orchestrator@diversiotech
 claude plugin install monty-code-review@diversiotech
 claude plugin install monty-v2-code-review@diversiotech
 claude plugin install moe-skills@diversiotech
+claude plugin install review-delegator@diversiotech
+claude plugin install contract-propagation-check@diversiotech
+claude plugin install merge-drift-check@diversiotech
+claude plugin install historical-data-check@diversiotech
+claude plugin install test-quality-check@diversiotech
+claude plugin install gate-runner@diversiotech
 claude plugin install backend-atomic-commit@diversiotech
 claude plugin install backend-pr-workflow@diversiotech
 claude plugin install bruno-api@diversiotech
@@ -490,6 +502,12 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Monty backend code review | `claude plugin install monty-code-review@diversiotech` |
 | Monty v2 deep code review | `claude plugin install monty-v2-code-review@diversiotech` |
 | Moe backend workflow helpers | `claude plugin install moe-skills@diversiotech` |
+| Review delegator | `claude plugin install review-delegator@diversiotech` |
+| Contract propagation audit | `claude plugin install contract-propagation-check@diversiotech` |
+| Merge-drift audit | `claude plugin install merge-drift-check@diversiotech` |
+| Historical-data audit | `claude plugin install historical-data-check@diversiotech` |
+| Test-quality audit | `claude plugin install test-quality-check@diversiotech` |
+| Gate runner | `claude plugin install gate-runner@diversiotech` |
 | Backend pre-commit / atomic commit | `claude plugin install backend-atomic-commit@diversiotech` |
 | Backend PR workflow | `claude plugin install backend-pr-workflow@diversiotech` |
 | Bruno API docs generator | `claude plugin install bruno-api@diversiotech` |

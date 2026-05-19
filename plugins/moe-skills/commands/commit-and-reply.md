@@ -19,5 +19,5 @@ Focus order:
 6. Post replies with commit SHA link.
 7. Post-audit for duplicates.
 
-If `--all` is provided, reply to all unresolved reviewer comments.
+If `--all` is provided, use thread-aware review-thread data for inline comments and include general PR comments separately.
 No AI signatures in commits or GitHub comments.

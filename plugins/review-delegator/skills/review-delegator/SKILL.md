@@ -35,11 +35,11 @@ For simple 1-2 file bugfixes, use `/monty-v2-code-review:code-review` directly.
 Review Delegator
 ├── Phase 1-3: monty-v2 core (understand, enumerate, adversarial)
 ├── Phase 4 (delegated): Sub-skills in parallel
-│   ├── /contract-propagation-check    ← P10, P17, P18
-│   ├── /merge-drift-check             ← P22, P24, P25
-│   ├── /historical-data-check         ← P14, P16, P23
-│   ├── /test-quality-check            ← P1, P12, P19, P20
-│   └── /gate-runner                   ← ruff, ty, imports, migrate
+│   ├── /contract-propagation-check:check ← P10, P17, P18
+│   ├── /merge-drift-check:check        ← P22, P24, P25
+│   ├── /historical-data-check:check    ← P14, P16, P23
+│   ├── /test-quality-check:check       ← P1, P12, P19, P20
+│   └── /gate-runner:run                ← ruff, ty, imports, migrate
 ├── Phase 5-6: monty-v2 (bias check, blind-spot sweep)
 └── Phase 8: Compile & write review
 ```
@@ -106,21 +106,21 @@ correctness-critical change. Skip only for trivial 1-2 file changes
 with no helpers, admin, models, or config changes.
 
 ```
-/contract-propagation-check:contract-propagation-check
+/contract-propagation-check:check
 ```
 Covers: P10 (change propagation), P17 (lifecycle parity), P18 (admin
 three-layer surface). Greps ALL consumers of every changed function,
 model field, and utility. Verifies lifecycle parity at every stage.
 
 ```
-/merge-drift-check:merge-drift-check
+/merge-drift-check:check
 ```
 Covers: P22 (merge drift), P24 (unrelated file regression), P25 (PR
 description drift). Checks pyproject.toml/uv.lock, WhiteLabel assets,
 fixture regression, and PR description accuracy.
 
 ```
-/gate-runner:gate-runner
+/gate-runner:run
 ```
 Covers: ruff_pr_diff.sh, ty check, local_imports_pr_diff.sh, migration
 squash check. Runs the exact CI gate sequence.
@@ -128,13 +128,13 @@ squash check. Runs the exact CI gate sequence.
 ### Run when relevant
 
 ```
-/historical-data-check:historical-data-check
+/historical-data-check:check
 ```
 Run when: migrations, config import/export, data processing, field
 constraints, or sentinel values are touched. Covers: P14, P16, P23.
 
 ```
-/test-quality-check:test-quality-check
+/test-quality-check:check
 ```
 Run when: new tests added, test assertions changed, or CI tolerance
 adjustments made. Covers: P1, P12, P19, P20.
@@ -144,11 +144,11 @@ adjustments made. Covers: P1, P12, P19, P20.
 Each sub-skill has its own completion gate. Before moving to Step 4, verify:
 
 ```text
-☐ /contract-propagation-check:contract-propagation-check returned with evidence (not "looks fine")
-☐ /merge-drift-check:merge-drift-check returned with evidence (not "no drift found")
-☐ /gate-runner:gate-runner returned with pass/fail for each gate
-☐ /historical-data-check returned (if applicable)
-☐ /test-quality-check returned (if applicable)
+☐ /contract-propagation-check:check returned with evidence (not "looks fine")
+☐ /merge-drift-check:check returned with evidence (not "no drift found")
+☐ /gate-runner:run returned with pass/fail for each gate
+☐ /historical-data-check:check returned (if applicable)
+☐ /test-quality-check:check returned (if applicable)
 ```
 
 **If any sub-skill returned without evidence, re-invoke it.** "No findings"
@@ -239,11 +239,11 @@ Run ALL sub-skills + monty-v2 deep-coverage mode (load per-lens-checklist.md
 and full blind-spot-patterns.md).
 
 ```
-/contract-propagation-check:contract-propagation-check
-/merge-drift-check:merge-drift-check
-/historical-data-check:historical-data-check
-/test-quality-check:test-quality-check
-/gate-runner:gate-runner
+/contract-propagation-check:check
+/merge-drift-check:check
+/historical-data-check:check
+/test-quality-check:check
+/gate-runner:run
 /monty-v2-code-review:code-review deep-coverage
 ```
 

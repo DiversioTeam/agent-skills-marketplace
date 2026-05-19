@@ -36,11 +36,11 @@ orchestrator or invoke the specialized sub-skills directly:
 | PR characteristic | Required action |
 |-------------------|----------------|
 | 3+ files changed | Use master orchestrator or run sub-skills alongside monty-v2 |
-| New/changed helper or normalization function | Run `/contract-propagation-check:contract-propagation-check` (P10, P17) |
-| Model field changes or new constraints | Run `/historical-data-check:historical-data-check` (P14, P16, P23) |
-| Admin changes (get_readonly_fields, forms, inlines) | Run `/contract-propagation-check:contract-propagation-check` (P18) |
-| pyproject.toml or uv.lock changed | Run `/merge-drift-check:merge-drift-check` (P22, P24, P25) |
-| Bugfix PR | Run `/test-quality-check:test-quality-check` (P1, P12) |
+| New/changed helper or normalization function | Run `/contract-propagation-check:check` (P10, P17) |
+| Model field changes or new constraints | Run `/historical-data-check:check` (P14, P16, P23) |
+| Admin changes (get_readonly_fields, forms, inlines) | Run `/contract-propagation-check:check` (P18) |
+| pyproject.toml or uv.lock changed | Run `/merge-drift-check:check` (P22, P24, P25) |
+| Bugfix PR | Run `/test-quality-check:check` (P1, P12) |
 
 **Why**: The Tier 1 blind-spot checks (P17, P23, P22, P18, P10) are the
 highest-recurring missed patterns because they require deep, systematic
@@ -247,13 +247,13 @@ You MUST delegate them to the focused sub-skills.**
 
 | Check | Delegate to | Why delegation is mandatory |
 |-------|-----------|---------------------------|
-| P17: Lifecycle parity | `/contract-propagation-check:contract-propagation-check` Step 3 | Must check 9 lifecycle stages per helper — cannot be skimmed |
-| P23: Historical config reuse | `/historical-data-check:historical-data-check` Step 2 | Must trace import code paths for legacy config injection |
-| P22: Merge resolution drift | `/merge-drift-check:merge-drift-check` Steps 1-4 | Must audit pyproject, uv.lock, WhiteLabel, fixtures, config |
-| P18: Admin three-layer surface | `/contract-propagation-check:contract-propagation-check` Step 4 | Must read admin + inline + form classes in full |
-| P10: Change propagation | `/contract-propagation-check:contract-propagation-check` Step 2 | Must grep every consumer across 9 consumer paths |
-| P1: Test depth | `/test-quality-check:test-quality-check` Step 1 | Must trace call chain from test to production entry point |
-| P14: Historical data | `/historical-data-check:historical-data-check` Step 1 | Must assess existing DB rows for constraint violations |
+| P17: Lifecycle parity | `/contract-propagation-check:check` Step 3 | Must check 9 lifecycle stages per helper — cannot be skimmed |
+| P23: Historical config reuse | `/historical-data-check:check` Step 2 | Must trace import code paths for legacy config injection |
+| P22: Merge resolution drift | `/merge-drift-check:check` Steps 1-4 | Must audit pyproject, uv.lock, WhiteLabel, fixtures, config |
+| P18: Admin three-layer surface | `/contract-propagation-check:check` Step 4 | Must read admin + inline + form classes in full |
+| P10: Change propagation | `/contract-propagation-check:check` Step 2 | Must grep every consumer across 9 consumer paths |
+| P1: Test depth | `/test-quality-check:check` Step 1 | Must trace call chain from test to production entry point |
+| P14: Historical data | `/historical-data-check:check` Step 1 | Must assess existing DB rows for constraint violations |
 
 **You are NOT done with Phase 7 until each delegated sub-skill returns its
 findings.** A sub-skill finding of "clean — all stages covered" is valid
@@ -261,10 +261,10 @@ if it cites evidence. A sub-skill finding of "not checked" is NOT valid —
 you must run the sub-skill.
 
 **Tier 2 — Can do inline, but delegate for deep coverage:**
-- P16: Inverse state-clearing → `/historical-data-check:historical-data-check` Step 3
-- P19: Transaction-shape assertions → `/test-quality-check:test-quality-check` Step 3
-- P20: CI-tolerant assertion safety → `/test-quality-check:test-quality-check` Step 4
-- P12: Wrong bug variant → `/test-quality-check:test-quality-check` Step 2
+- P16: Inverse state-clearing → `/historical-data-check:check` Step 3
+- P19: Transaction-shape assertions → `/test-quality-check:check` Step 3
+- P20: CI-tolerant assertion safety → `/test-quality-check:check` Step 4
+- P12: Wrong bug variant → `/test-quality-check:check` Step 2
 
 **Tier 3 — Do inline (contextual only):**
 - All remaining checks (P2-P9, P11, P13, P15, P21, P24, P25)
@@ -274,13 +274,13 @@ you must run the sub-skill.
 Before writing findings (Phase 8), verify:
 
 ```text
-☐ P17: /contract-propagation-check:contract-propagation-check returned lifecycle parity results
-☐ P23: /historical-data-check:historical-data-check returned legacy config audit results
-☐ P22: /merge-drift-check:merge-drift-check returned merge drift audit results
-☐ P18: /contract-propagation-check:contract-propagation-check returned admin surface results
-☐ P10: /contract-propagation-check:contract-propagation-check returned consumer obligation results
-☐ P1:  /test-quality-check:test-quality-check returned test depth results
-☐ P14: /historical-data-check:historical-data-check returned existing data results (if applicable)
+☐ P17: /contract-propagation-check:check returned lifecycle parity results
+☐ P23: /historical-data-check:check returned legacy config audit results
+☐ P22: /merge-drift-check:check returned merge drift audit results
+☐ P18: /contract-propagation-check:check returned admin surface results
+☐ P10: /contract-propagation-check:check returned consumer obligation results
+☐ P1:  /test-quality-check:check returned test depth results
+☐ P14: /historical-data-check:check returned existing data results (if applicable)
 ```
 
 **If any Tier 1 check is missing from the review, the review is incomplete.
