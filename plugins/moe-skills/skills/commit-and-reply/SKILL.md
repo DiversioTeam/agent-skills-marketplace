@@ -265,7 +265,9 @@ comment IDs it tracked. This is the preferred flow.
 
 ### Mode B: `--all` Flag
 
-If `--all` is passed, fetch all unresolved reviewer comments:
+If `--all` is passed, fetch all reviewer comments (the REST endpoints do not
+expose thread resolution, so this fetches ALL comments — the pre-audit
+step below handles deduplication and stale-thread detection):
 
 ```bash
 # Inline comments from other reviewers

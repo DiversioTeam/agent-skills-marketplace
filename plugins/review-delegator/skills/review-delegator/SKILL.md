@@ -53,13 +53,19 @@ The delegator compiles all findings into a single review document.
 
 ```bash
 # Basic PR info
-gh pr view --json number,title,url,headRefName,body
+gh pr view --json number,title,url,headRefName,body,baseRefName
+
+# Detect the base branch — defaults to the PR's target branch.
+# Override by setting BASE_BRANCH before invoking.
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName')"
+fi
 
 # Files changed
-git diff --name-only origin/release...HEAD
+git diff --name-only origin/$BASE_BRANCH...HEAD
 
 # Diff size
-git diff --stat origin/release...HEAD
+git diff --stat origin/$BASE_BRANCH...HEAD
 ```
 
 Classify the PR:
@@ -100,21 +106,21 @@ correctness-critical change. Skip only for trivial 1-2 file changes
 with no helpers, admin, models, or config changes.
 
 ```
-/contract-propagation-check
+/contract-propagation-check:contract-propagation-check
 ```
 Covers: P10 (change propagation), P17 (lifecycle parity), P18 (admin
 three-layer surface). Greps ALL consumers of every changed function,
 model field, and utility. Verifies lifecycle parity at every stage.
 
 ```
-/merge-drift-check
+/merge-drift-check:merge-drift-check
 ```
 Covers: P22 (merge drift), P24 (unrelated file regression), P25 (PR
 description drift). Checks pyproject.toml/uv.lock, WhiteLabel assets,
 fixture regression, and PR description accuracy.
 
 ```
-/gate-runner
+/gate-runner:gate-runner
 ```
 Covers: ruff_pr_diff.sh, ty check, local_imports_pr_diff.sh, migration
 squash check. Runs the exact CI gate sequence.
@@ -122,13 +128,13 @@ squash check. Runs the exact CI gate sequence.
 ### Run when relevant
 
 ```
-/historical-data-check
+/historical-data-check:historical-data-check
 ```
 Run when: migrations, config import/export, data processing, field
 constraints, or sentinel values are touched. Covers: P14, P16, P23.
 
 ```
-/test-quality-check
+/test-quality-check:test-quality-check
 ```
 Run when: new tests added, test assertions changed, or CI tolerance
 adjustments made. Covers: P1, P12, P19, P20.
@@ -138,9 +144,9 @@ adjustments made. Covers: P1, P12, P19, P20.
 Each sub-skill has its own completion gate. Before moving to Step 4, verify:
 
 ```text
-☐ /contract-propagation-check returned with evidence (not "looks fine")
-☐ /merge-drift-check returned with evidence (not "no drift found")
-☐ /gate-runner returned with pass/fail for each gate
+☐ /contract-propagation-check:contract-propagation-check returned with evidence (not "looks fine")
+☐ /merge-drift-check:merge-drift-check returned with evidence (not "no drift found")
+☐ /gate-runner:gate-runner returned with pass/fail for each gate
 ☐ /historical-data-check returned (if applicable)
 ☐ /test-quality-check returned (if applicable)
 ```
@@ -233,11 +239,11 @@ Run ALL sub-skills + monty-v2 deep-coverage mode (load per-lens-checklist.md
 and full blind-spot-patterns.md).
 
 ```
-/contract-propagation-check
-/merge-drift-check
-/historical-data-check
-/test-quality-check
-/gate-runner
+/contract-propagation-check:contract-propagation-check
+/merge-drift-check:merge-drift-check
+/historical-data-check:historical-data-check
+/test-quality-check:test-quality-check
+/gate-runner:gate-runner
 /monty-v2-code-review:code-review deep-coverage
 ```
 

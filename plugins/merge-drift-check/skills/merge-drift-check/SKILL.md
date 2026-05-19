@@ -14,9 +14,19 @@ allowed-tools: [Bash, Read, Glob, Grep]
 Focused sub-skill that detects silent regressions from merge resolution.
 Covers monty-v2 blind-spot checks P22, P24, and P25.
 
+## Base Branch Detection
+
+```bash
+# Detect the base branch — defaults to the repo's default branch.
+# Override by setting BASE_BRANCH before invoking (e.g., BASE_BRANCH=release).
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+fi
+```
+
 **This skill is NOT done until you have:**
-- Compared pyproject.toml version against origin/release (not just `git diff`)
-- Audited EVERY file outside the feature area that differs from release
+- Compared pyproject.toml version against origin/$BASE_BRANCH (not just `git diff`)
+- Audited EVERY file outside the feature area that differs from $BASE_BRANCH
 - Checked WhiteLabel assets, fixture types, config constants explicitly
 - Verified PR description migration/file references match reality
 
@@ -28,14 +38,14 @@ The #1 silent regression: `pyproject.toml` and `uv.lock` moving backwards.
 
 ```bash
 # Check if pyproject.toml version is being downgraded vs release
-git diff origin/release...HEAD -- pyproject.toml | grep -E '^[-+].*version'
+git diff origin/$BASE_BRANCH...HEAD -- pyproject.toml | grep -E '^[-+].*version'
 
 # Check if uv.lock differs from release
-git diff --stat origin/release...HEAD -- uv.lock
+git diff --stat origin/$BASE_BRANCH...HEAD -- uv.lock
 ```
 
 If `pyproject.toml` shows a version downgrade (e.g., `2026.04.29` → `2026.04.28`):
-- `[BLOCKING]` — restore release version: `git checkout origin/release -- pyproject.toml && uv lock`
+- `[BLOCKING]` — restore release version: `git checkout origin/$BASE_BRANCH -- pyproject.toml && uv lock`
 - This is release metadata, not feature behavior. Merging it regresses the package version.
 
 If `uv.lock` differs without a corresponding `pyproject.toml` change:
@@ -49,7 +59,7 @@ Check ALL files outside the feature area for silent drift:
 
 ```bash
 # Full stat diff against release
-git diff --stat origin/release...HEAD
+git diff --stat origin/$BASE_BRANCH...HEAD
 
 # Focus on files that should NOT change in this PR
 # (everything outside the feature's app directories)
@@ -59,21 +69,21 @@ git diff --stat origin/release...HEAD
 
 **WhiteLabel assets:**
 ```bash
-git diff origin/release...HEAD -- dashboardapp/utility/white_label.py
+git diff origin/$BASE_BRANCH...HEAD -- dashboardapp/utility/white_label.py
 ```
 Does the branch revert hard-coded prod S3 URLs that release replaced with
 `settings.DASHBOARD_URL`-based dynamic URLs? `[BLOCKING]` if yes.
 
 **Fixture type regression:**
 ```bash
-git diff origin/release...HEAD -- dashboardapp/tests/test_models.py
+git diff origin/$BASE_BRANCH...HEAD -- dashboardapp/tests/test_models.py
 ```
 Does the branch revert typed fixtures or helpers that release cleaned up?
 `[SHOULD_FIX]` if yes — `ty` will fail CI on the regressed file.
 
 **Config constant regression:**
 ```bash
-git diff origin/release...HEAD -- */constants.py */settings.py
+git diff origin/$BASE_BRANCH...HEAD -- */constants.py */settings.py
 ```
 Does the branch change config defaults, feature flags, or environment
 settings that release intentionally set? `[BLOCKING]` if the change is
@@ -81,7 +91,7 @@ unrelated to the feature.
 
 **Test utility regression:**
 ```bash
-git diff origin/release...HEAD -- */tests/conftest.py */tests/utils.py
+git diff origin/$BASE_BRANCH...HEAD -- */tests/conftest.py */tests/utils.py
 ```
 Does the branch remove or change shared test utilities that other tests
 depend on? `[BLOCKING]` if breakage is likely.
@@ -97,7 +107,7 @@ Verify the PR description matches the actual branch:
 gh pr view --json body --jq '.body'
 
 # List actual migration files on this branch
-git diff --name-only origin/release...HEAD -- '*/migrations/*.py' | grep -v __init__
+git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/migrations/*.py' | grep -v __init__
 ```
 
 Check:
@@ -113,7 +123,7 @@ Check:
 
 ```bash
 # Full file list
-CHANGED=$(git diff --name-only origin/release...HEAD)
+CHANGED=$(git diff --name-only origin/$BASE_BRANCH...HEAD)
 echo "$CHANGED" | wc -l
 
 # Feature-area files (the files the PR is SUPPOSED to touch)
@@ -160,7 +170,7 @@ Findings:
 ### Completion Gate
 
 ```text
-☐ pyproject.toml version compared against origin/release (actual values, not just diff)
+☐ pyproject.toml version compared against origin/$BASE_BRANCH (actual values, not just diff)
 ☐ uv.lock diff-stat reviewed — lock churn must be intentional
 ☐ WhiteLabel assets checked for dynamic URL vs hardcoded S3 regression
 ☐ Fixture files checked for type cleanup regression (ty will fail CI)

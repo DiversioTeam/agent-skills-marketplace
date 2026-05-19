@@ -14,6 +14,16 @@ allowed-tools: [Bash, Read, Glob, Grep]
 Focused sub-skill that verifies tests actually prove the behavior they claim.
 Covers monty-v2 blind-spot checks P1, P12, P19, and P20.
 
+## Base Branch Detection
+
+```bash
+# Detect the base branch — defaults to the repo's default branch.
+# Override by setting BASE_BRANCH before invoking (e.g., BASE_BRANCH=release).
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+fi
+```
+
 **This skill is NOT done until you have:**
 - Traced the call chain from EVERY new test to its production entry point
 - Verified bugfix tests reproduce the REPORTED scenario, not a different variant
@@ -29,7 +39,7 @@ entry point:
 
 ```bash
 # Find new or modified tests
-git diff --name-only origin/release...HEAD -- '*/tests/*.py'
+git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/tests/*.py'
 ```
 
 For each test:
@@ -91,7 +101,7 @@ test must prove the transaction shape, not just the final row state:
 ```bash
 # Find tests that claim to test transactional behavior
 grep -rn "atomic\|transaction\|savepoint" --include="*.py" \
-  $(git diff --name-only origin/release...HEAD -- '*/tests/*.py')
+  $(git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/tests/*.py')
 ```
 
 ### Required assertions
@@ -131,7 +141,7 @@ verify exact-multiplicity is preserved for test-owned data:
 ```bash
 # Find tests with set(), >=, or subset assertions
 grep -rn "set(\|>=\|\.issubset\|Counter(" --include="*.py" \
-  $(git diff --name-only origin/release...HEAD -- '*/tests/*.py')
+  $(git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/tests/*.py')
 ```
 
 ### The relaxed assertion trap
@@ -164,7 +174,7 @@ assert set(result_org_ids) >= {org1.id, org2.id}  # extra orgs ok
 ### Mock realism
 ```bash
 grep -rn "Mock\|patch\|MagicMock" --include="*.py" \
-  $(git diff --name-only origin/release...HEAD -- '*/tests/*.py')
+  $(git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/tests/*.py')
 ```
 - Do mocks return shapes that real functions can return?
 - `[SHOULD_FIX]` if mock shape diverges from production shape.
@@ -172,7 +182,7 @@ grep -rn "Mock\|patch\|MagicMock" --include="*.py" \
 ### Time-dependent logic
 ```bash
 grep -rn "freeze_time\|now()\|today()\|datetime" --include="*.py" \
-  $(git diff --name-only origin/release...HEAD -- '*/tests/*.py')
+  $(git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/tests/*.py')
 ```
 - Time-sensitive logic must use `@freeze_time`.
 - `[SHOULD_FIX]` if time-dependent logic has no freeze.

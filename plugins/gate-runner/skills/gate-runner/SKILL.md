@@ -15,6 +15,16 @@ Focused sub-skill that runs the exact CI gate sequence and reports results.
 Does NOT fix issues — it diagnoses what gates fail and provides the exact
 commands to fix them.
 
+## Base Branch Detection
+
+```bash
+# Detect the base branch — defaults to the repo's default branch.
+# Override by setting BASE_BRANCH before invoking (e.g., BASE_BRANCH=release).
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+fi
+```
+
 ---
 
 ## Step 0: Merge Conflict Check
@@ -34,7 +44,7 @@ If `CONFLICTING` or `UNKNOWN`, check locally:
 ```bash
 # Fetch and attempt merge (always merge, never rebase)
 git fetch origin release
-git merge origin/release --no-edit --no-ff
+git merge origin/$BASE_BRANCH --no-edit --no-ff
 ```
 
 ### If merge fails with "unrelated histories"
@@ -48,7 +58,7 @@ with a normal merge:
 git fetch --unshallow origin 2>/dev/null || true
 
 # Retry with a normal merge — histories should now be related
-git merge origin/release --no-edit --no-ff
+git merge origin/$BASE_BRANCH --no-edit --no-ff
 ```
 
 **Do NOT use `--allow-unrelated-histories`** — if the merge still fails
@@ -70,7 +80,7 @@ git commit --no-edit
 
 ```bash
 git fetch origin release
-git merge-base --is-ancestor HEAD origin/release && echo "up to date" || echo "⚠️ branch behind release — merge before pushing"
+git merge-base --is-ancestor HEAD origin/$BASE_BRANCH && echo "up to date" || echo "⚠️ branch behind release — merge before pushing"
 ```
 
 **Always merge, never rebase.** Rebasing rewrites history and can silently
@@ -94,7 +104,7 @@ the union of branch diff + local changes:
 - The output will show exactly which files need formatting.
 - Fix command:
   ```bash
-  .bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')
+  .bin/ruff format $(git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep '\.py$')
   ```
 - Re-run until clean: `./.security/ruff_pr_diff.sh`
 
@@ -125,7 +135,7 @@ Run the active type checker on changed Python files:
 
 ```bash
 # On all changed Python files
-.bin/ty check $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')
+.bin/ty check $(git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep '\.py$')
 ```
 
 **If it fails:**
@@ -146,7 +156,7 @@ Check if the branch introduced multiple migrations for the same app:
 
 ```bash
 # Find new migration files on this branch vs release
-git diff --name-only origin/release...HEAD -- '*/migrations/*.py' \
+git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/migrations/*.py' \
   | grep -v '__init__' \
   | awk -F'/migrations/' '{print $1}' \
   | sort | uniq -c | sort -rn
@@ -208,7 +218,7 @@ Run when models, migrations, or admin registrations are changed.
 
 ### Targeted pytest (for risky changes)
 ```bash
-.bin/pytest $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep 'tests/.*\.py$')
+.bin/pytest $(git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep 'tests/.*\.py$')
 ```
 
 Run when core logic is changed. **Flag**: `[SHOULD_FIX]` if tests fail.
@@ -233,7 +243,7 @@ targeted pytest:    ✅ PASS (<N> passed) / ❌ FAIL / ⏭️ SKIPPED
 
 Fix commands:
   conflicts: git pull origin release --no-rebase
-  ruff:      .bin/ruff format $(git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$')
+  ruff:      .bin/ruff format $(git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep '\.py$')
   ty:        .bin/ty check <files>
   squash:    .bin/django makemigrations <app>
 

@@ -649,10 +649,10 @@ once:
 
 ```bash
 # Version files must move forward, never backward
-git diff origin/release -- pyproject.toml uv.lock
+git diff origin/$BASE_BRANCH -- pyproject.toml uv.lock
 
 # Anything in unrelated areas that the branch reverted
-git diff origin/release --stat -- ':!<your-feature-area>'
+git diff origin/$BASE_BRANCH --stat -- ':!<your-feature-area>'
 ```
 
 For each non-zero diff outside the stated feature area, justify the change

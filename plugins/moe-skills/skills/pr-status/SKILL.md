@@ -50,6 +50,16 @@ directly via the search API, then enrich each one with `gh pr view`.
 
 ```bash
 ME="$(gh api user --jq '.login')"
+
+# Derive repo scope — override with --repo OWNER/REPO if passed
+if [ -n "$REPO_ARG" ]; then
+  OWNER="${REPO_ARG%%/*}"
+  REPO="${REPO_ARG##*/}"
+else
+  REPO_INFO="$(gh repo view --json owner,name)"
+  OWNER="$(echo "$REPO_INFO" | jq -r '.owner.login')"
+  REPO="$(echo "$REPO_INFO" | jq -r '.name')"
+fi
 ```
 
 ### Default (current repo, open PRs involving you)

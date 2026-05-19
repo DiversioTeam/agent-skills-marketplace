@@ -34,8 +34,14 @@ From the branch diff, list every changed function, model field, utility,
 helper, queryset filter, and serializer:
 
 ```bash
+# Detect the base branch — defaults to the repo's default branch.
+# Override by setting BASE_BRANCH before invoking (e.g., BASE_BRANCH=release).
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+fi
+
 # List all changed Python files
-git diff --name-only origin/release...HEAD --diff-filter=ACMRT | grep '\.py$'
+git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT | grep '\.py$'
 ```
 
 For each changed file, extract:
