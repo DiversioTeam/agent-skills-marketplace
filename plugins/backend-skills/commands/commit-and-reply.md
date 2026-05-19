@@ -19,5 +19,7 @@ Focus order:
 6. Post replies with commit SHA link.
 7. Post-audit for duplicates.
 
-If `--all` is provided, reply to all unresolved reviewer comments.
+If `--all` is provided, reply to all reviewer comments. REST comment
+endpoints do not expose thread resolution, so the command's pre-audit
+and dedupe steps handle stale-thread safety.
 No AI signatures in commits or GitHub comments.

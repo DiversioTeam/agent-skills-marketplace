@@ -7,7 +7,7 @@ description: >
     Respects the Diversio/Optimo product boundary.
 user-invocable: true
 argument-hint: '[file-or-directory] [--apply]'
-allowed-tools: [Bash, Read, Glob, Grep, Edit]
+allowed-tools: [Bash, Read, Edit]
 ---
 
 # Codebase Reuse Finder Skill

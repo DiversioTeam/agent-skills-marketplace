@@ -6,7 +6,7 @@ description: >
     GitHub with the commit SHA link. No AI signatures anywhere.
 user-invocable: true
 argument-hint: '[--all]'
-allowed-tools: [Bash, Read, Edit, Glob, Grep, Skill]
+allowed-tools: [Bash, Read]
 ---
 
 # Commit and Reply Skill
@@ -117,7 +117,9 @@ comment IDs it tracked. This is the preferred flow.
 
 ### Mode B: `--all` Flag
 
-If `--all` is passed, fetch all unresolved reviewer comments:
+If `--all` is passed, fetch all reviewer comments (the REST endpoints do not
+expose thread resolution, so this fetches ALL comments — the pre-audit
+step below handles deduplication and stale-thread detection):
 
 ```bash
 # Inline comments from other reviewers

@@ -6,7 +6,7 @@ description: >
     stages changes. Does NOT commit — use /commit-and-reply after.
 user-invocable: true
 argument-hint: '[pr-number] [--auto]'
-allowed-tools: [Bash, Read, Edit, Glob, Grep, AskUserQuestion]
+allowed-tools: [Bash, Read, Edit]
 ---
 
 # PR Review Fix Skill
@@ -78,23 +78,17 @@ For each comment:
 1. **Display context** — show the reviewer's comment, the diff hunk (for inline
    comments), and ~10 lines of current code around the referenced location.
 
-2. **Prompt with `AskUserQuestion`** — use the interactive selection UI:
+2. **Prompt the user in plain chat** — present a concise multiple-choice prompt:
 
-```yaml
-question: "[SEVERITY] @reviewer on file.py:L120 — How should I handle this?"
-header: "Action"
-options:
-  - label: "Fix (Recommended)"
-    description: "Implement the requested change"
-    preview: |
-      <proposed diff when inferable from the comment>
-  - label: "Skip"
-    description: "Leave for now, move to next comment"
-  - label: "More context"
-    description: "Show more surrounding code, then ask again"
-  - label: "Reply only"
-    description: "Don't change code, draft a reply to the reviewer"
+```text
+[SEVERITY] @reviewer on file.py:L120 — How should I handle this?
+- Fix (Recommended): Implement the requested change
+- Skip: Leave for now, move to next comment
+- More context: Show more surrounding code, then ask again
+- Reply only: Don't change code, draft a reply to the reviewer
 ```
+
+If the fix is obvious, include a short proposed diff summary under the prompt.
 
 3. **On Fix**: edit the code, then run ruff on that file immediately:
 

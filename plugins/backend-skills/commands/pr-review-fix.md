@@ -12,7 +12,7 @@ Focus order:
 
 1. Identify the PR (from argument or current branch).
 2. Fetch all reviewer comments (reviews, inline, general).
-3. Classify by severity and present one-by-one using AskUserQuestion.
+3. Classify by severity and present one-by-one with plain chat prompts.
 4. On Fix: edit code, run ruff immediately.
 5. After all comments: run ty, stage modified files.
 6. Output summary with addressed comment IDs.
