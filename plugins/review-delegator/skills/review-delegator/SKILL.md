@@ -8,7 +8,7 @@ description: >
     multiple subsystems where a single-skill review would miss systemic issues.
 user-invocable: true
 argument-hint: '[--quick] [--deep] [--self-review]'
-allowed-tools: [Bash, Read, Edit, Glob, Grep, Skill]
+allowed-tools: [Bash, Read, Edit]
 ---
 
 # Review Delegator

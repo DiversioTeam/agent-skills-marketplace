@@ -6,7 +6,7 @@ description: >
     assertions, and CI-tolerant assertion safety. Returns findings tagged
     [BLOCKING]/[SHOULD_FIX]/[NIT].
 user-invocable: true
-allowed-tools: [Bash, Read, Glob, Grep]
+allowed-tools: [Bash, Read]
 ---
 
 # Test Quality Check

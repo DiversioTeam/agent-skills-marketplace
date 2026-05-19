@@ -6,7 +6,7 @@ description: >
     regression, and PR description accuracy. Returns findings tagged
     [BLOCKING]/[SHOULD_FIX].
 user-invocable: true
-allowed-tools: [Bash, Read, Glob, Grep]
+allowed-tools: [Bash, Read]
 ---
 
 # Merge Drift Check

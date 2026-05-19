@@ -6,7 +6,7 @@ description: >
     GitHub with the commit SHA link. No AI signatures anywhere.
 user-invocable: true
 argument-hint: '[--all]'
-allowed-tools: [Bash, Read, Edit, Glob, Grep, Skill]
+allowed-tools: [Bash, Read]
 ---
 
 # Commit and Reply Skill

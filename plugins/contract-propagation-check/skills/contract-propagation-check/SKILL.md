@@ -7,7 +7,7 @@ description: >
     (get_readonly_fields, InlineModelAdmin, ModelForm.__init__). Returns
     findings tagged [BLOCKING]/[SHOULD_FIX]/[NIT].
 user-invocable: true
-allowed-tools: [Bash, Read, Glob, Grep]
+allowed-tools: [Bash, Read]
 ---
 
 # Contract Propagation Check

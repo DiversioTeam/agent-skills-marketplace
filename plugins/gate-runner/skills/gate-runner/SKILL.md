@@ -6,7 +6,7 @@ description: >
     pass/fail for each gate with actionable fix commands. Returns findings
     tagged [BLOCKING]/[SHOULD_FIX].
 user-invocable: true
-allowed-tools: [Bash, Read, Glob, Grep]
+allowed-tools: [Bash, Read]
 ---
 
 # Gate Runner
