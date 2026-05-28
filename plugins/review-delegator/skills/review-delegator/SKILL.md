@@ -4,11 +4,11 @@ description: >
     Review delegator. Runs monty-v2's core analysis (intent,
     branch enumeration, adversarial inputs), then delegates specialized
     checks to focused sub-skills in parallel for deep coverage. Compiles
-    findings into a single review. Use for PRs that touch 3+ files or
+    findings into a single review. Use for PRs that touch 5+ files or
     multiple subsystems where a single-skill review would miss systemic issues.
 user-invocable: true
-argument-hint: '[--quick] [--deep] [--self-review]'
-allowed-tools: [Bash, Read, Edit]
+argument-hint: '[--quick] [--deep] [--self-review] [--lanes=auto|on|off]'
+allowed-tools: [Bash, Read, Edit, subagent, intercom]
 ---
 
 # Review Delegator
@@ -20,7 +20,7 @@ that a monolithic review overlooks.
 
 ## When to Use
 
-- PR touches **3+ files** or multiple subsystems
+- PR touches **5+ files** or multiple subsystems
 - PR involves **contract changes** (new fields, changed signatures)
 - PR touches **models, serializers, CSV import/export, management commands,
   admin forms, or config files** — any path where data shape changes
@@ -131,8 +131,41 @@ Hold these results — they'll be incorporated into the final review.
 
 ## Step 3: Delegate Specialized Checks (Parallel)
 
-Based on the PR classification, delegate to the relevant sub-skills.
-Run them in parallel — each focuses on ONE concern:
+Determine lane mode first:
+- `--lanes=off` → do not spawn delegated lanes; run only inline checks.
+- `--lanes=on` → run delegated lanes when possible.
+- `--lanes=auto` (default) → optional lanes by risk.
+
+Risk heuristic:
+- low-risk: 1-2 files and no model/risk markers
+- medium/high-risk: >=3 files, models/admin/service/API changes, migrations,
+  or any clear correctness-critical scope.
+
+Transport ladder:
+1. Subagent tool present → spawn dedicated review lanes as subagents.
+2. Subagent unavailable + cmux/in-session split available + intercom available → spawn cmux fallback lanes and coordinate via intercom.
+3. Subagent unavailable + cmux available, no intercom → spawn cmux lanes and coordinate via artifacts.
+4. Neither subagent nor cmux available → inline, sequential review.
+
+Build lane prompts from these targets:
+- `reviewer-1` (correctness/regressions): contract and lifecycle risks.
+- `reviewer-2` (tests/validation): test coverage, assertion strength, regressions.
+- `reviewer-3` (maintainability): clarity, duplication, complexity,
+  and long-term cost of implementation choices.
+
+Use this transport preference matrix:
+
+- Subagent path:
+  - `/reviewer` style roles should call:
+    `subagent({ agent: "reviewer", task: "<lane prompt>", context: "fresh" })`
+  - Use `subagent({ action: "status", id: "<id>" })` to join results.
+  - If a child needs blocking decision handling, use
+    `intercom({ action: "ask", to: "reviewer-<n>", message: "..." })`
+    and wait for `intercom({ action: "reply", to: "reviewer-<n>", message: "..." })` before continuing.
+- cmux fallback path (no subagent):
+  - Write lane prompt to `.pi/delegator-runs/<run-id>/reviewer-<n>-prompt.md`.
+  - Spawn lane split, have child write findings to the matching `*-findings.md`.
+  - Parent reads artifacts after completion.
 
 ### Always run (Tier 1 checks — highest-recurring missed patterns)
 
@@ -239,6 +272,12 @@ Checklist:
 ☐ Breaking changes in published packages have a migration path or deprecation notice
 ```
 
+For each lane, collect findings as machine-parseable snippets:
+
+```text
+[LANE]/[source] | [SEVERITY] | file:line | issue_class | short_issue_hash | detail | fix
+```
+
 ### Delegation Completion Gate
 
 Each sub-skill has its own completion gate. Before moving to Step 4, verify:
@@ -286,16 +325,18 @@ This covers:
 
 ## Step 5: Compile Findings
 
-Merge all findings from all sources. Deduplicate — the same issue
-found by both monty-v2 and a sub-skill should appear once.
+Merge all findings from all sources using deterministic signatures:
+`severity | file | issue_class | anchor_line | short_issue_hash`.
+If the same signature reappears, keep one copy with stronger evidence and
+clearer fix guidance.
 
 ### Deduplication rules
-- Same file, same line, same issue class → keep the more detailed version
-- Same issue class across different files → flag as a **systemic pattern**
-  (stronger signal than isolated occurrences)
+- Same signature, same issue class, same file/anchor → keep richer evidence version.
+- Same issue class across different files or the same file/line from multiple lanes
+  becomes a **systemic pattern** (stronger signal than isolated findings).
 
 ### Systemic patterns
-When the same finding appears in 2+ sub-skills or 2+ files, flag it as a
+When the same issue class appears in 2+ sub-skills or 2+ files, flag it as a
 **systemic pattern** in the review summary:
 
 ```
@@ -303,7 +344,7 @@ When the same finding appears in 2+ sub-skills or 2+ files, flag it as a
 and <stage2> but missed at <stage3>, <stage4>, <stage5> across 3 files.
 ```
 
-Systemic patterns are always `[BLOCKING]`.
+Systemic patterns are always `[BLOCKING]` unless there is explicit evidence that each finding is independent and low impact.
 
 ---
 
@@ -331,6 +372,12 @@ Structure the final review:
 ### Default (medium/large PRs)
 Run all of the above. Sub-skills: always contract-propagation + merge-drift +
 gate-runner; conditionally historical-data + test-quality.
+
+### --lanes
+Optional lane policy for delegated transport:
+- `--lanes=auto` (default): small/low-risk PRs may stay inline; medium/high-risk PRs use delegated lanes when available.
+- `--lanes=on`: always attempt delegated lanes (subject to env/runtime availability).
+- `--lanes=off`: inline-only review, no delegated lanes.
 
 ### --quick
 For small PRs (1-4 files). Skip sub-skills, run monty-v2 quick-pass directly.

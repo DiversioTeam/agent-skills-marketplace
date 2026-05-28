@@ -9,15 +9,18 @@ cleanly when a mechanism is missing.
 
 ## What The User Wants
 
-- The delegator runs subagents when `pi-subagents` is available.
-- When `pi-subagents` is **not** available, fall back to **cmux side splits**
-  that start fresh Pi sessions, seed them with the review prompt, and collect
-  results.
-- Helper lanes should communicate results back to the parent (ideally via
-  `pi-intercom`; otherwise via shared markdown artifacts).
-- Split layout should stay readable: split right for the first lane, split
-  down on the right side for the second, and so on. Stop before the surface
-  gets too messy (max ~4 visible panes).
+- Keep **all model behavior changes in `review-delegator` only**.
+- The delegator runs helper work through `subagent` transport when available, then
+  can use `pi-intercom` for lane stop/decision handoff.
+- If `pi-subagents` is missing, degrade to cmux fallback; if cmux is also unavailable,
+  degrade to inline sequential review.
+- Lanes are optional, driven by PR size/risk and feature flag:
+  - `--lanes=auto` (default): enable lanes for medium/high-risk reviews,
+    disable for low-risk small reviews.
+  - `--lanes=on`: always attempt lane transport.
+  - `--lanes=off`: force inline-only.
+- Split layout should stay readable: right first, then down on the right, max ~4 visible panes.
+- Default reviewer lane roles should be concise and machine-comprehensible.
 
 ## Architecture Decision: Transport Abstraction
 
@@ -30,9 +33,9 @@ Internal abstraction: `spawnReviewLane(role, prompt) -> LaneHandle`
 | Capability detected | Transport used | Parent sees |
 |---|---|---|
 | `subagent` tool present | `subagent({ agent: "reviewer", task, context: "fresh" })` | Native subagent result + status tracking |
-| No `subagent`, but inside cmux + `pi-intercom` available | Seeded cmux split + intercom coordination | Intercom messages; parent can `ask`/`reply` |
-| No `subagent`, inside cmux, no `pi-intercom` | Seeded cmux split + shared markdown artifact | Parent reads artifact after child writes |
-| No `subagent`, not inside cmux | Inline sequential review passes | Same-session multi-pass review |
+| `subagent` unavailable, inside cmux + `pi-intercom` available | Seeded cmux split + intercom coordination | `intercom` message stream, including `ask/ reply` prompts and stop signals |
+| `subagent` unavailable, inside cmux, no `pi-intercom` | Seeded cmux split + shared markdown artifact | Parent reads artifact after child writes |
+| `subagent` unavailable, no cmux | Inline sequential review passes | Same-session multi-pass review |
 
 ## Transport Detail: Seeded cmux Split (Fallback)
 
@@ -115,14 +118,31 @@ Default: max **3** parallel review lanes in cmux fallback mode.
 3. Run inline sequential review passes in current session
 ```
 
+### Duplicate detection policy (best-effort deterministic)
+- Normalize each finding into a dedupe key:
+  `severity | file | issue_class | anchor_line | short_issue_hash`
+- If two findings produce same key, keep one instance (prefer richer evidence).
+- If same issue_class appears across >=2 lanes or across monty + lanes, emit
+  as `[SYSTEMIC]` and mark severity as at least `[SHOULD_FIX]`.
+- Do not let a higher-priority source suppress a finding with stronger evidence.
+
+
 ## Constraints
 
+- Model is owned exclusively by `review-delegator` (no changes in review-orchestrator).
 - The parent session is the **sole synthesizer** and the **sole writer**.
 - Helper lanes are **read-only** — they inspect and report, never edit files.
 - If a child encounters an unapproved product/scope decision, it escalates
-  (via intercom `ask` or artifact flag) rather than guessing.
+  via `intercom ask` (if available) or `ESCALATE` artifact flag; never guess.
 - No helper lane runs its own subagent orchestration.
 - Children do not post to GitHub, create commits, or mutate the repo.
+
+- Full-check policy:
+  - `--quick` = mandatory monty core + guard checks for PRs with obvious risk markers.
+  - `auto` = PR classification drives lanes: small/low-risk stays monty-only,
+    medium/high-risk runs lane set.
+  - `--deep` = all Tier-1 + Tier-2 lanes + explicit bias pass.
+  - `--self-review` = enforce bias-first and full evidence-before-accept requirement.
 
 ## Non-Goals for v1
 
