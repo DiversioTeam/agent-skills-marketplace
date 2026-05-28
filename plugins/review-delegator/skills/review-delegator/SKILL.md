@@ -156,12 +156,22 @@ Build lane prompts from these targets:
 Use this transport preference matrix:
 
 - Subagent path:
-  - `/reviewer` style roles should call:
-    `subagent({ agent: "reviewer", task: "<lane prompt>", context: "fresh" })`
-  - Use `subagent({ action: "status", id: "<id>" })` to join results.
-  - If a child needs blocking decision handling, use
-    `intercom({ action: "ask", to: "reviewer-<n>", message: "..." })`
-    and wait for `intercom({ action: "reply", to: "reviewer-<n>", message: "..." })` before continuing.
+  - Launch lanes in one async parallel fanout so all reviewers run concurrently:
+  ```text
+  subagent({
+    async: true,
+    context: "fresh",
+    parallel: [
+      { agent: "reviewer", task: "reviewer-1: <correctness lane prompt>", context: "fresh" },
+      { agent: "reviewer", task: "reviewer-2: <tests lane prompt>", context: "fresh" },
+      { agent: "reviewer", task: "reviewer-3: <maintainability lane prompt>" }
+    ]
+  })
+  ```
+  - Use `subagent({ action: "status", id: "<run-id>" })` on the fanout run id; use `subagent({ action: "status" })` to inspect active runs when needed.
+  - If a child needs blocking decision handling, the child should use:
+    `intercom({ action: "ask", message: "..." })`
+    and wait for the parent answer via `intercom({ action: "reply", message: "..." })` (or `reply` with `to` when multiple pending asks).
 - cmux fallback path (no subagent):
   - Write lane prompt to `.pi/delegator-runs/<run-id>/reviewer-<n>-prompt.md`.
   - Spawn lane split, have child write findings to the matching `*-findings.md`.
