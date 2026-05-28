@@ -273,7 +273,7 @@ agent-skills-marketplace/
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
 | `monty-v2-code-review` | Deep-coverage Django/Python code review with mechanical branch enumeration, adversarial inputs, test mapping, and self-review bias mitigation |
 | `moe-skills` | Backend workflow helpers for PR review fixes, commit-and-reply with SHA links, PR status, and codebase reuse scanning |
-| `review-delegator` | Review delegator that runs monty-v2 core analysis, fans out mandatory deep checks to focused sub-skills, and compiles one final verdict |
+| `review-delegator` | Risk-gated review delegator with feature-detected parallel lanes, import/export and tenant/API checks, and one compiled verdict |
 | `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle parity, admin surface, concurrency races, and edge-state gaps |
 | `import-export-roundtrip-check` | Import/export round-trip audit for CSV, config, serialized dict, admin import/export, and command I/O parity |
 | `merge-drift-check` | Merge-drift audit for version files, lockfiles/build artifacts, unrelated file regressions, and PR description accuracy |
@@ -554,7 +554,8 @@ Once plugins are installed:
    /moe-skills:commit-and-reply              # Commit, push, and reply to reviewer comments with the commit SHA
    /moe-skills:pr-status                     # Show PR review/CI/merge status dashboard
    /moe-skills:codebase-reuse-finder         # Find hardcoded values and reimplemented repo patterns
-   /review-delegator:delegate                # Orchestrate a multi-skill review pass
+   /review-delegator:review-delegator        # Canonical risk-gated multi-skill review pass
+   /review-delegator:delegate                # Legacy alias for the same review behavior
    /contract-propagation-check:check         # Audit propagation, lifecycle parity, admin surface, concurrency, and edge states
    /import-export-roundtrip-check:check      # Audit CSV/config/admin/command round-trip safety
    /merge-drift-check:check                  # Audit merge drift, lockfiles, and PR description accuracy

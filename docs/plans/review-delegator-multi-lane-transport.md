@@ -32,10 +32,10 @@ Internal abstraction: `spawnReviewLane(role, prompt) -> LaneHandle`
 
 | Capability detected | Transport used | Parent sees |
 |---|---|---|
-| `subagent` tool present | `subagent({ agent: "reviewer", task, context: "fresh" })` | Native subagent result + status tracking |
-| `subagent` unavailable, inside cmux + `pi-intercom` available | Seeded cmux split + intercom coordination | `intercom` message stream, including `ask/ reply` prompts and stop signals |
-| `subagent` unavailable, inside cmux, no `pi-intercom` | Seeded cmux split + shared markdown artifact | Parent reads artifact after child writes |
-| `subagent` unavailable, no cmux | Inline sequential review passes | Same-session multi-pass review |
+| Native subagent transport present | Feature-detect and use the runtime's documented fresh-context parallel-review interface | Native subagent result + status tracking |
+| Native subagent transport unavailable, inside cmux + `pi-intercom` available | Seeded cmux split + intercom coordination | Explicitly addressed intercom messages, decision prompts, and stop signals |
+| Native subagent transport unavailable, inside cmux, no `pi-intercom` | Seeded cmux split + shared markdown artifact | Parent reads artifact after child writes |
+| Native subagent transport unavailable, no cmux | Inline sequential review passes | Same-session multi-pass review |
 
 ## Transport Detail: Seeded cmux Split (Fallback)
 
@@ -66,19 +66,28 @@ When a cmux split opens as a review lane:
 
 - Parent writes review prompt into a stable artifact path.
 - Child reads that prompt, runs review, writes findings to artifact.
-- Parent polls/reads that artifact after the child session finishes.
+- Parent reads that artifact after the child session finishes.
 
 Artifact layout:
 
 ```
 .pi/delegator-runs/<run-id>/
-├── reviewer-1-prompt.md     # parent writes this before spawning
-├── reviewer-1-findings.md   # child writes this
+├── reviewer-1-prompt.md
+├── reviewer-1-findings.md
+├── reviewer-1-questions.md    # decision requests (if any)
 ├── reviewer-2-prompt.md
 ├── reviewer-2-findings.md
+├── reviewer-2-questions.md
 ├── reviewer-3-prompt.md
 ├── reviewer-3-findings.md
-└── synthesis.md             # parent writes final synthesis
+├── reviewer-3-questions.md
+├── reviewer-4-prompt.md       # security lane (when enabled)
+├── reviewer-4-findings.md
+├── reviewer-4-questions.md
+├── reviewer-5-prompt.md       # data-integrity lane (when enabled)
+├── reviewer-5-findings.md
+├── reviewer-5-questions.md
+└── synthesis.md               # parent writes final synthesis
 ```
 
 ## Split Layout Strategy
@@ -97,9 +106,11 @@ Default: max **3** parallel review lanes in cmux fallback mode.
 
 | Lane | Role | Prompt Angle |
 |---|---|---|
-| `reviewer-1` | correctness / regressions | Inspect diff for bugs, edge cases, contract violations |
+| `reviewer-1` | correctness / regressions | Inspect diff for bugs, edge cases, contract and lifecycle violations |
 | `reviewer-2` | tests / validation | Inspect test quality, coverage gaps, assertion strength |
 | `reviewer-3` | simplicity / maintainability | Inspect for unnecessary complexity, duplication, readability |
+| `reviewer-4` | security / trust | Inspect authz/authn checks, secret handling, boundary validation |
+| `reviewer-5` | data integrity | Inspect migrations, backfills, idempotency, rollback safety |
 
 ## Fallback Chain (Single Lane)
 
@@ -121,10 +132,11 @@ Default: max **3** parallel review lanes in cmux fallback mode.
 ### Duplicate detection policy (best-effort deterministic)
 - Normalize each finding into a dedupe key:
   `severity | file | issue_class | anchor_line | short_issue_hash`
-- If two findings produce same key, keep one instance (prefer richer evidence).
-- If same issue_class appears across >=2 lanes or across monty + lanes, emit
-  as `[SYSTEMIC]` and mark severity as at least `[SHOULD_FIX]`.
-- Do not let a higher-priority source suppress a finding with stronger evidence.
+- Keep exact duplicates only when evidence provenance and line anchor are equivalent.
+- Preserve independent findings with same issue_class if root-cause evidence differs.
+- Emit `[SYSTEMIC]` only when same issue_class appears across >=2 files/lane paths
+  with shared mechanism evidence.
+- Do not let a higher-priority source suppress a finding with stronger, non-overlapping evidence.
 
 
 ## Constraints
@@ -133,12 +145,13 @@ Default: max **3** parallel review lanes in cmux fallback mode.
 - The parent session is the **sole synthesizer** and the **sole writer**.
 - Helper lanes are **read-only** — they inspect and report, never edit files.
 - If a child encounters an unapproved product/scope decision, it escalates
-  via `intercom ask` (if available) or `ESCALATE` artifact flag; never guess.
+  via `intercom ask` when available, or via `<lane>-questions.md` artifact
+  (required when intercom is unavailable); never guess.
 - No helper lane runs its own subagent orchestration.
 - Children do not post to GitHub, create commits, or mutate the repo.
 
 - Full-check policy:
-  - `--quick` = mandatory monty core + guard checks for PRs with obvious risk markers.
+  - `--quick` = only for low-risk PRs; run monty quick-pass + mandatory guard lanes (contract propagation + merge drift + gate). Escalate to full mode immediately for medium/high risk.
   - `auto` = PR classification drives lanes: small/low-risk stays monty-only,
     medium/high-risk runs lane set.
   - `--deep` = all Tier-1 + Tier-2 lanes + explicit bias pass.
@@ -147,7 +160,7 @@ Default: max **3** parallel review lanes in cmux fallback mode.
 ## Non-Goals for v1
 
 - Workspace-tab fallback (splits only for cmux mode).
-- 5+ helper lanes.
+- More than 5 lanes in a single cmux split mode (cmux fallback caps visible lanes; higher parallelism stays async/subagent or inline).
 - Resume / restart of completed cmux sessions.
 - Async status tracking for cmux lanes (subagent mode already has it).
 - Custom agent creation or chain files.

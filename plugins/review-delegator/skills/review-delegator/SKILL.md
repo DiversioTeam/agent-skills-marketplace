@@ -4,11 +4,11 @@ description: >
     Review delegator. Runs monty-v2's core analysis (intent,
     branch enumeration, adversarial inputs), then delegates specialized
     checks to focused sub-skills in parallel for deep coverage. Compiles
-    findings into a single review. Use for PRs that touch 5+ files or
+    findings into a single review. Use for PRs that touch 3+ files or
     multiple subsystems where a single-skill review would miss systemic issues.
 user-invocable: true
 argument-hint: '[--quick] [--deep] [--self-review] [--lanes=auto|on|off]'
-allowed-tools: [Bash, Read, Edit, subagent, intercom]
+allowed-tools: [Bash, Read, Edit]
 ---
 
 # Review Delegator
@@ -20,7 +20,7 @@ that a monolithic review overlooks.
 
 ## When to Use
 
-- PR touches **5+ files** or multiple subsystems
+- PR touches **3+ files** or multiple subsystems
 - PR involves **contract changes** (new fields, changed signatures)
 - PR touches **models, serializers, CSV import/export, management commands,
   admin forms, or config files** — any path where data shape changes
@@ -105,8 +105,15 @@ git diff --stat origin/$BASE_BRANCH...HEAD
 
 Classify the PR:
 - **Size**: small (1-2 files), medium (3-10 files), large (10+ files)
+- **Risk level**:
+  - `low` = 1-2 files, no high-risk markers, no cross-cutting patterns.
+  - `medium` = 3-7 files, or clearly scoped but with one risk marker.
+  - `high` = 8+ files, or any security/contract/data/migration/correctness-critical scope.
+- **Risk markers** (each adds +1): models/admin, API/serializers/contracts, migrations, auth/rbac/permissions, background jobs, settings/feature flags, raw SQL/reporting queries, financial/stateful workflows.
 - **Type**: bugfix, feature, refactor, migration, chore
-- **Risk areas**: models, admin, services, API, migrations, config
+
+Optional preflight risk score (>=3 => high):
+`risk_score = model_risk_count + critical_path_files + dependency_risk + change_surface`.
 
 ---
 
@@ -132,56 +139,51 @@ Hold these results — they'll be incorporated into the final review.
 ## Step 3: Delegate Specialized Checks (Parallel)
 
 Determine lane mode first:
-- `--lanes=off` → do not spawn delegated lanes; run only inline checks.
-- `--lanes=on` → run delegated lanes when possible.
-- `--lanes=auto` (default) → optional lanes by risk.
+- `--lanes=off` → do not spawn delegated lanes; run all relevant checks inline.
+- `--lanes=on` → always attempt delegated transport.
+- `--lanes=auto` (default) → auto-expand by risk.
 
-Risk heuristic:
-- low-risk: 1-2 files and no model/risk markers
-- medium/high-risk: >=3 files, models/admin/service/API changes, migrations,
-  or any clear correctness-critical scope.
+Lane policy in `auto`:
+- `low` risk: keep inline-first; run 1 focused delegated lane if no clear blocker.
+- `medium` risk: run 3 baseline lanes.
+- `high` risk: run baseline lanes + all applicable specialist lanes.
+
+Build reviewer lane map from PR risk profile:
+
+**Baseline lanes (always enabled when lanes are enabled):**
+- `reviewer-1` (correctness/regressions): contract, lifecycle, and data-shape risks.
+- `reviewer-2` (tests/validation): test coverage, assertion strength, regressions.
+- `reviewer-3` (maintainability): duplication, complexity, API ergonomics, long-term debt.
+
+**Specialist lanes (high-risk only):**
+- `reviewer-4` (security & trust): auth, RBAC, boundary checks, secret handling, injection surface.
+- `reviewer-5` (data integrity): migrations, backfills, idempotency, historical state cleanup, rollback behavior.
 
 Transport ladder:
-1. Subagent tool present → spawn dedicated review lanes as subagents.
-2. Subagent unavailable + cmux/in-session split available + intercom available → spawn cmux fallback lanes and coordinate via intercom.
-3. Subagent unavailable + cmux available, no intercom → spawn cmux lanes and coordinate via artifacts.
-4. Neither subagent nor cmux available → inline, sequential review.
+1. Subagent tool present: spawn lanes as async parallel fanout (`parallel`).
+2. Subagent unavailable + cmux split present + `pi-intercom` available: spawn seeded cmux lanes and coordinate with intercom.
+3. Subagent unavailable + cmux split present, no intercom: spawn seeded cmux lanes and coordinate via artifacts.
+4. Neither subagent nor cmux available: inline specialist pass in the current session for each active lane in sequence (no silent downgrade).
 
-Build lane prompts from these targets:
-- `reviewer-1` (correctness/regressions): contract and lifecycle risks.
-- `reviewer-2` (tests/validation): test coverage, assertion strength, regressions.
-- `reviewer-3` (maintainability): clarity, duplication, complexity,
-  and long-term cost of implementation choices.
-
-Use this transport preference matrix:
-
-- Subagent path:
-  - Launch lanes in one async parallel fanout so all reviewers run concurrently:
-  ```text
-  subagent({
-    async: true,
-    context: "fresh",
-    parallel: [
-      { agent: "reviewer", task: "reviewer-1: <correctness lane prompt>", context: "fresh" },
-      { agent: "reviewer", task: "reviewer-2: <tests lane prompt>", context: "fresh" },
-      { agent: "reviewer", task: "reviewer-3: <maintainability lane prompt>" }
-    ]
-  })
-  ```
-  - Use `subagent({ action: "status", id: "<run-id>" })` on the fanout run id; use `subagent({ action: "status" })` to inspect active runs when needed.
-  - If a child needs blocking decision handling, the child should use:
-    `intercom({ action: "ask", message: "..." })`
-    and wait for the parent answer via `intercom({ action: "reply", message: "..." })` (or `reply` with `to` when multiple pending asks).
-- cmux fallback path (no subagent):
-  - Write lane prompt to `.pi/delegator-runs/<run-id>/reviewer-<n>-prompt.md`.
-  - Spawn lane split, have child write findings to the matching `*-findings.md`.
-  - Parent reads artifacts after completion.
+Transport requirements:
+- Feature-detect tools and use only their documented runtime signatures; do not
+  assume a specific subagent or messaging schema.
+- With native subagents, launch the enabled lanes as one fresh-context,
+  read-only parallel fanout and join them through the runtime's documented
+  status or wait mechanism.
+- Include only lanes justified by the risk profile.
+- With cmux, write each prompt to
+  `.pi/delegator-runs/<run-id>/reviewer-<n>-prompt.md`, then collect the matching
+  `*-findings.md` and `*-done.md` artifacts.
+- Route blocking decisions through verified, explicitly addressed child-parent
+  messaging. If unavailable, use `*-questions.md` artifacts; never guess.
+- The parent is the sole synthesizer and writer under every transport.
 
 ### Always run (Tier 1 checks — highest-recurring missed patterns)
 
-These sub-skills MUST be invoked for EVERY PR with 3+ files or any
-correctness-critical change. Skip only for trivial 1-2 file changes
-with no helpers, admin, models, config changes, or I/O format changes.
+Run Tier 1 checks in all delegated modes and for every medium/high-risk or
+correctness-critical change. When `--lanes=off`, run the same relevant checks
+inline rather than silently reducing review depth.
 
 ```
 /contract-propagation-check:check
@@ -290,7 +292,7 @@ For each lane, collect findings as machine-parseable snippets:
 
 ### Delegation Completion Gate
 
-Each sub-skill has its own completion gate. Before moving to Step 4, verify:
+Before moving to Step 4, verify completion with the following minimum evidence:
 
 ```text
 ☐ /contract-propagation-check:check returned with evidence (not "looks fine")
@@ -307,29 +309,43 @@ Each sub-skill has its own completion gate. Before moving to Step 4, verify:
 ☐ API contract compatibility checked (if applicable) — versioning verified
 ```
 
-**If any sub-skill returned without evidence, re-invoke it.** "No findings"
-is only acceptable when accompanied by specific evidence (e.g., line citations,
-grep result counts, lifecycle stage checklist).
+**If any sub-skill returns without evidence, re-invoke it.** Accept "no findings"
+only with explicit evidence such as anchor references, grep counts, checklist
+output, lifecycle-stage analysis, or a full file sweep.
+
+If delegated transport is unavailable, require at least two inline lane prompts
+(`reviewer-1`, `reviewer-2`) plus baseline `monty-v2` phases so review depth is not reduced.
 
 ---
 
 ## Step 4: Run monty-v2 Remaining Phases (4-6)
 
 After sub-skills return findings, run monty-v2's per-file analysis and
-bias check. **Skip Phase 7 (blind-spot sweep)** — Tier 1 checks are
-already handled by the delegated sub-skills. Only run Phase 7 Tier 3
-checks inline if any remain unaddressed.
+bias check, including a full blind-spot sweep when needed.
+
+Always run:
 
 ```
 /monty-v2-code-review:code-review Phases 4-6 only
 ```
 
+Run additional blind-spot coverage when any condition applies:
+- high-risk PR
+- `--quick` path on a medium/high PR
+- only inline transport was possible
+- any lane returned ambiguous or low-confidence findings
+
+```
+/monty-v2-code-review:code-review Phases 4-7 only
+```
+
 This covers:
 - Phase 4: Per-file analysis (correctness, types, performance, migrations)
 - Phase 5: Unchanged code impact (consumer obligation — P10 already covered
-  by contract-propagation-check, but Phase 5 adds the centralization
-  obligation check: "does every old inline pattern now call the new helper?")
+  by contract-propagation-check, but Phase 5 adds centralization verification
+  for helper/lifecycle migration)
 - Phase 6: Bias check (mandatory for self-review)
+- Phase 7: Blind-spot sweep (Tier-3 style systematic gap finder)
 
 ---
 
@@ -341,20 +357,26 @@ If the same signature reappears, keep one copy with stronger evidence and
 clearer fix guidance.
 
 ### Deduplication rules
-- Same signature, same issue class, same file/anchor → keep richer evidence version.
-- Same issue class across different files or the same file/line from multiple lanes
-  becomes a **systemic pattern** (stronger signal than isolated findings).
+- Use this dedupe key exactly: `severity | file | issue_class | anchor_line | short_issue_hash`.
+- Keep **exact duplicates** only when key, source, and root evidence are the same.
+- When sources disagree or add materially different proof, keep both findings and add a short **Evidence Notes** section.
+- Keep all findings with same issue class only if they are truly independent (different root cause or affected surfaces).
+- Same issue class in multiple files is only escalated to systemic when there is
+  shared mechanism evidence (same failing pattern across a shared code path, shared
+  migration boundary, or repeated boundary violation).
 
 ### Systemic patterns
-When the same issue class appears in 2+ sub-skills or 2+ files, flag it as a
-**systemic pattern** in the review summary:
+When the same issue class appears in >=2 files and is traced to a shared mechanism,
+mark as systemic in the summary:
 
 ```
 [SYSTEMIC] Lifecycle parity: the new <helper> is applied at <stage1>
 and <stage2> but missed at <stage3>, <stage4>, <stage5> across 3 files.
 ```
 
-Systemic patterns are always `[BLOCKING]` unless there is explicit evidence that each finding is independent and low impact.
+Systemic patterns are `[BLOCKING]` unless evidence explicitly shows each finding is
+independent and low impact. If evidence is mixed (systemic + local), keep one
+systemic summary plus individual local findings.
 
 ---
 
@@ -390,12 +412,19 @@ Optional lane policy for delegated transport:
 - `--lanes=off`: inline-only review, no delegated lanes.
 
 ### --quick
-For small PRs (1-4 files). Skip sub-skills, run monty-v2 quick-pass directly.
-Only invoke sub-skills if monty-v2 quick-pass flags a Tier 1 concern.
+For low-risk PRs only (typically small PRs: 1-2 files, no high-risk markers).
+Run one-pass monty-v2 quick and then run at least one guard-lane baseline check:
 
-```
+```bash
 /monty-v2-code-review:code-review quick-pass
+/contract-propagation-check:check
+/merge-drift-check:check
+/gate-runner:run
 ```
+
+For medium/high-risk PRs, do not use quick as a blind pass; escalate to default mode
+with lanes and full minimum gate. Use `--quick` only when the user explicitly wants a
+preliminary signal, then call for full mode next.
 
 ### --deep
 For security-sensitive, data-migration, or multi-tenant boundary PRs.
@@ -430,8 +459,9 @@ Bias check findings are listed before all other findings.
 - **Flag systemic** — patterns across files/skills are stronger signals.
 - **Sub-skills are focused** — each handles ONE concern. Don't ask
   contract-propagation-check to also check formatting.
-- **Tier 1 checks are mandatory** — all six Tier 1 patterns (P10, P17, P18,
-  P22, P26, CI gates) are the highest-recurring missed patterns. Never skip.
+- **Tier 1 checks are mandatory unless explicitly constrained by `--quick` low-risk mode:**
+  P10, P17, P18, P22, P23, P24, P25, P26, and CI gates. Never skip them for
+  medium/high-risk PRs.
 - **Import/export round-trip is the #1 newly-identified gap** — any PR
   touching data shapes runs this check. CSV export→import round-trip bugs
   account for the most review rounds across 2026 H1.

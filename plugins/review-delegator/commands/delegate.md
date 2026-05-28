@@ -7,13 +7,13 @@ review, following the architecture defined in its SKILL.md.
 
 **Arguments:** `$ARGUMENTS`
 
-`/review-delegator:delegate` is retained for compatibility and forwards to the
-canonical `/review-delegator:review-delegator` behavior.
+`/review-delegator:delegate` is retained for compatibility and invokes the same
+skill behavior as the canonical `/review-delegator:review-delegator` command.
 
 Focus order:
 1. Understand the PR (size, type, risk areas).
 2. Run monty-v2 Phases 1-3 (intent, branch enumeration, adversarial inputs).
-3. Determine lane policy (`--lanes=auto|on|off`) and dispatch via the subagent/cmux/inline fallback.
+3. Determine lane policy (`--lanes=auto|on|off`) and use the best feature-detected transport.
 4. Delegate Tier 1 checks to focused sub-skills in parallel:
    - /contract-propagation-check (P10, P17, P18 + concurrency/atomicity/edge-state extensions)
    - /import-export-roundtrip-check (round-trip I/O parity)
@@ -33,6 +33,6 @@ Lane policy flags: `--lanes=auto|on|off`.
 - on: force delegated lanes when transport is available.
 - off: inline-only.
 
-For --quick: skip sub-skills unless monty-v2 flags a Tier 1 concern.
+For --quick: low-risk PRs still run contract-propagation, merge-drift, and gate guard checks.
 For --deep: run all sub-skills plus the inline Tier 2 checks.
 For --self-review: bias check runs first.

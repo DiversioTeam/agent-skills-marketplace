@@ -103,8 +103,8 @@
     },
     {
       "name": "review-delegator",
-      "description": "Review delegator. Runs monty-v2 core analysis, delegates Tier 1 blind-spot checks to focused sub-skills in parallel, runs inline tenant/API compatibility checks when relevant, and compiles findings.",
-      "version": "1.0.1",
+      "description": "Review delegator. Runs monty-v2 core analysis, delegates specialized parallel check-lanes, runs inline tenant/API compatibility checks when relevant, and compiles a single review.",
+      "version": "1.0.2",
       "author": {
         "name": "MakoSlay"
       },

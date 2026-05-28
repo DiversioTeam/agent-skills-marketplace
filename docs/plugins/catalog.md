@@ -215,10 +215,10 @@ when command files change.
     `/moe-skills:commit-and-reply`, `/moe-skills:pr-status`,
     `/moe-skills:codebase-reuse-finder`
 - `review-delegator`
-  - Purpose: orchestrated multi-skill review flow that runs monty-v2 core analysis, delegates mandatory deep checks in parallel, runs inline tenant/API checks when relevant, then compiles one verdict.
+  - Purpose: risk-gated multi-skill review flow with feature-detected parallel lanes, import/export round-trip coverage, inline tenant/API checks, and one compiled verdict.
   - Marketplace install: `claude plugin install review-delegator@diversiotech`
   - Skill path: `plugins/review-delegator/skills/review-delegator`
-  - Slash commands: `/review-delegator:delegate`
+  - Slash commands: `/review-delegator:review-delegator`, `/review-delegator:delegate` (legacy alias)
 - `contract-propagation-check`
   - Purpose: audit changed helpers, fields, and query contracts for consumer propagation, lifecycle parity, admin three-layer safety, stale-read races, atomicity, and edge states.
   - Marketplace install: `claude plugin install contract-propagation-check@diversiotech`
