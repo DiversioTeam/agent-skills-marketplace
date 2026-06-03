@@ -55,9 +55,9 @@
  *
  * Why is there a hidden widget if there is no visible bottom panel?
  * ---------------------------------------------------------------
- * Relative strings like "11s ago" only stay fresh if the TUI rerenders.
- * We mount a zero-height hidden widget purely so we can keep a TUI handle and
- * request those rerenders once per second while timestamps are visible.
+ * The zero-height hidden widget keeps a TUI handle so we can request a rerender
+ * after appending/toggling timestamp rows and keep `... ago` honest. The ticker
+ * is adaptive: quick updates while a row is new, slower updates after that.
  */
 
 import type { Message } from "@mariozechner/pi-ai";
@@ -84,17 +84,64 @@ const SETTINGS_ENTRY_TYPE = "pi-timestamps-settings";
  * Hidden widget key.
  *
  * The widget renders nothing. Its only job is to keep a live TUI handle around
- * so relative times can keep updating.
+ * so the extension can request rerenders after rows are appended/toggled.
  */
 const WIDGET_KEY = "pi-timestamps";
 
 /**
  * Re-render cadence for relative timestamps.
  *
- * One second is frequent enough to keep "11s ago" feeling live without making
- * the UI noisy or wasteful.
+ * `11s ago` is only useful if it is true. So live relative updates are enabled
+ * by default, but the ticker is adaptive so it does not repaint forever every
+ * second:
+ *
+ * - under 1 minute old: update every second (`11s ago`, `12s ago`, ...)
+ * - under 1 hour old: update every minute (`2m ago`, `3m ago`, ...)
+ * - older: update hourly (`2h ago`, `1d ago` change slowly)
  */
-const TICK_MS = 1_000;
+const SECOND_MS = 1_000;
+const MINUTE_MS = 60 * SECOND_MS;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/**
+ * Live relative-age updates are enabled unless explicitly disabled.
+ *
+ * First principles:
+ * - If we show `11s ago`, it must keep moving without waiting for the user to
+ *   type, scroll, or otherwise cause a redraw.
+ * - Repainting every second forever makes copying harder.
+ * - Adaptive repainting keeps the label honest while reducing redraws after the
+ *   label naturally becomes less granular.
+ *
+ * Users who strongly prefer a fully stable transcript can disable the relative
+ * label and ticker with:
+ *
+ *   export PI_TIMESTAMPS_LIVE_RELATIVE="false"
+ */
+const LIVE_RELATIVE_UPDATES = !["0", "false", "no", "off"].includes(
+  process.env.PI_TIMESTAMPS_LIVE_RELATIVE?.trim().toLowerCase() ?? "",
+);
+
+/**
+ * Poll briefly after agent_end until Pi has fully returned to idle.
+ *
+ * Why polling at all?
+ * Pi emits `agent_end` before the run is fully idle. If we append a custom
+ * message during that window, Pi treats it as a steering/follow-up message and
+ * may ask the LLM to continue. Waiting for idle keeps this row display-only.
+ */
+const IDLE_APPEND_POLL_MS = 50;
+
+/**
+ * Safety cap so a stuck streaming state cannot leave a timer loop running
+ * forever.
+ *
+ * Keep this long enough for other `agent_end` extensions that may show post-turn
+ * UI and wait for a human before Pi becomes idle. If Pi is still not idle after
+ * this window, dropping one timing row is safer than leaking timers or nudging
+ * the model with a queued message.
+ */
+const MAX_IDLE_APPEND_WAIT_MS = 10 * 60 * 1_000;
 
 /** Timestamps are visible by default unless the session says otherwise. */
 const DEFAULT_VISIBILITY_MODE: VisibilityMode = "visible";
@@ -161,7 +208,28 @@ type LiveTurn = {
 let visibilityMode: VisibilityMode = DEFAULT_VISIBILITY_MODE;
 let currentTurn: LiveTurn | undefined;
 let activeTui: TUI | undefined;
-let tickTimer: ReturnType<typeof setInterval> | undefined;
+let tickTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Newest completion timestamp among rendered timing rows.
+ *
+ * The adaptive ticker only needs the newest row because it is the fastest-moving
+ * relative label. If the newest row only needs minute-level updates, all older
+ * rows are safe at that cadence too.
+ *
+ * Empty sessions intentionally leave this undefined so the hidden widget does
+ * not schedule pointless redraws before any timing row exists.
+ */
+let latestRelativeTimestamp: number | undefined;
+
+/**
+ * Whether this extension runtime is still allowed to append rows.
+ *
+ * A delayed idle-poll callback can outlive `/reload` or session shutdown. This
+ * flag gives those callbacks a simple, explicit exit path so an old runtime
+ * cannot write stale timestamp rows into a new session/runtime.
+ */
+let runtimeActive = false;
 
 /**
  * Timers waiting to append timing rows after the current turn settles.
@@ -194,26 +262,66 @@ function isTurnTimingDetails(value: unknown): value is TurnTimingDetails {
   );
 }
 
+function nextTickerDelayMs(): number {
+  const timestamp = latestRelativeTimestamp;
+  if (timestamp === undefined) return MINUTE_MS;
+
+  const ageMs = Math.max(0, Date.now() - timestamp);
+
+  /**
+   * Match the visible precision of formatRelative():
+   *
+   *   just now / 11s ago  -> can change every second
+   *   2m ago              -> can change every minute
+   *   2h ago / 1d ago     -> hourly is enough for a subtle transcript row
+   */
+  if (ageMs < MINUTE_MS) return SECOND_MS;
+  if (ageMs < HOUR_MS) return MINUTE_MS;
+  return HOUR_MS;
+}
+
+function clearTicker(): void {
+  if (tickTimer) {
+    clearTimeout(tickTimer);
+    tickTimer = undefined;
+  }
+}
+
 /**
- * Start or stop the periodic rerender tick.
+ * Start or stop the adaptive rerender tick.
  *
- * We only need live rerenders while timestamps are visible and we have a TUI
- * handle to refresh.
+ * Why adaptive?
+ *
+ *   11s ago  -> changes every second, so update every second
+ *   12m ago  -> changes every minute, so update every minute
+ *   2h ago   -> changes hourly, so hourly is enough
+ *
+ * This keeps the `... ago` text truthful without repainting the whole transcript
+ * every second forever.
  */
 function syncTicker(): void {
-  if (activeTui && visibilityMode === "visible") {
-    if (!tickTimer) {
-      tickTimer = setInterval(() => {
-        activeTui?.requestRender();
-      }, TICK_MS);
-    }
+  if (!LIVE_RELATIVE_UPDATES || !activeTui || visibilityMode !== "visible" || latestRelativeTimestamp === undefined) {
+    clearTicker();
     return;
   }
 
-  if (tickTimer) {
-    clearInterval(tickTimer);
+  if (tickTimer) return;
+
+  tickTimer = setTimeout(() => {
     tickTimer = undefined;
-  }
+    activeTui?.requestRender();
+    syncTicker();
+  }, nextTickerDelayMs());
+}
+
+function restartTicker(): void {
+  /**
+   * A newly appended row may need second-level updates even if an older row had
+   * already slowed the ticker to minute/hour cadence. Restarting recalculates
+   * from the fresh latestRelativeTimestamp immediately.
+   */
+  clearTicker();
+  syncTicker();
 }
 
 /**
@@ -371,7 +479,10 @@ function buildTranscriptLine(details: TurnTimingDetails, theme: Theme): string {
   if (details.assistantTimestamp !== undefined) {
     const total = details.totalDurationMs ?? Math.max(0, details.assistantTimestamp - details.userTimestamp);
     parts.push(`${theme.fg("muted", "total")} ${theme.fg("accent", formatDuration(total))}`);
-    parts.push(theme.fg("warning", formatRelative(details.assistantTimestamp)));
+
+    if (LIVE_RELATIVE_UPDATES) {
+      parts.push(theme.fg("warning", formatRelative(details.assistantTimestamp)));
+    }
   } else {
     parts.push(theme.fg("warning", "reply incomplete"));
   }
@@ -409,7 +520,7 @@ class TurnTimingMessageComponent implements Component {
  * This component deliberately renders nothing.
  *
  * It exists only so the extension has a stable TUI handle (`activeTui`) for
- * periodic rerenders. Without that, "11s ago" would go stale.
+ * explicit rerenders after appends/toggles and adaptive live relative updates.
  */
 class HiddenTickerComponent implements Component {
   render(_width: number): string[] {
@@ -429,20 +540,29 @@ class HiddenTickerComponent implements Component {
 function restoreStateFromSession(ctx: ExtensionContext): void {
   visibilityMode = DEFAULT_VISIBILITY_MODE;
   currentTurn = undefined;
+  latestRelativeTimestamp = undefined;
 
   for (const entry of ctx.sessionManager.getBranch()) {
-    if (entry.type !== "custom" || entry.customType !== SETTINGS_ENTRY_TYPE || !isRecord(entry.data)) {
+    if (entry.type === "custom" && entry.customType === SETTINGS_ENTRY_TYPE && isRecord(entry.data)) {
+      /**
+       * Backward compatibility:
+       * older session entries stored this under `widgetMode` before we renamed
+       * the field to `visibilityMode` to better reflect what it actually controls.
+       */
+      const maybeMode = entry.data["visibilityMode"] ?? entry.data["widgetMode"];
+      if (isVisibilityMode(maybeMode)) {
+        visibilityMode = maybeMode;
+      }
       continue;
     }
 
     /**
-     * Backward compatibility:
-     * older session entries stored this under `widgetMode` before we renamed
-     * the field to `visibilityMode` to better reflect what it actually controls.
+     * On resume/reload, existing rows may already show `... ago`. Restore the
+     * newest completed timestamp so the adaptive ticker can keep those labels
+     * moving without waiting for a brand-new turn.
      */
-    const maybeMode = entry.data["visibilityMode"] ?? entry.data["widgetMode"];
-    if (isVisibilityMode(maybeMode)) {
-      visibilityMode = maybeMode;
+    if (entry.type === "custom_message" && entry.customType === TURN_MESSAGE_TYPE && isTurnTimingDetails(entry.details)) {
+      latestRelativeTimestamp = entry.details.assistantTimestamp ?? latestRelativeTimestamp;
     }
   }
 }
@@ -476,25 +596,73 @@ function parseVisibilityMode(input: string): VisibilityMode | undefined {
 /**
  * Queue a timing row after the current run settles.
  *
- * We intentionally do not append synchronously inside `agent_end`, because that
- * can make the row behave like part of the active turn.
+ * Important Pi behavior:
+ *
+ *   inside agent_end
+ *         ↓
+ *   Pi is still streaming
+ *         ↓
+ *   pi.sendMessage(...) defaults to "steer"
+ *         ↓
+ *   queued custom message can cause another LLM continuation
+ *
+ * That is exactly the bug this helper avoids. We wait until `ctx.isIdle()` is
+ * true, then append with `{ triggerTurn: false }` so the row is just transcript
+ * UI and not work for the model.
+ *
+ * The runtimeActive checks protect `/reload` and shutdown:
+ *
+ *   old runtime schedules callback
+ *         ↓
+ *   /reload tears old runtime down
+ *         ↓
+ *   callback wakes up later
+ *         ↓
+ *   runtimeActive=false, so it exits without appending stale rows
  */
-function scheduleTimingRowAppend(pi: ExtensionAPI, details: TurnTimingDetails): void {
-  /**
-   * `setTimeout(..., 0)` means "run this on the next event-loop turn".
-   *
-   * That tiny delay is intentional. It lets the active agent lifecycle finish
-   * first, then appends the timing row as plain transcript/UI data.
-   */
+function scheduleTimingRowAppend(pi: ExtensionAPI, ctx: ExtensionContext, details: TurnTimingDetails): void {
+  const deadline = Date.now() + MAX_IDLE_APPEND_WAIT_MS;
+
+  const appendWhenIdle = () => {
+    if (!runtimeActive) {
+      return;
+    }
+
+    if (!ctx.isIdle()) {
+      if (Date.now() >= deadline) {
+        return;
+      }
+
+      const nextTimer = setTimeout(() => {
+        pendingAppendTimers.delete(nextTimer);
+        appendWhenIdle();
+      }, IDLE_APPEND_POLL_MS);
+      pendingAppendTimers.add(nextTimer);
+      return;
+    }
+
+    if (!runtimeActive) {
+      return;
+    }
+
+    pi.sendMessage(
+      {
+        customType: TURN_MESSAGE_TYPE,
+        content: plainSummary(details),
+        display: true,
+        details,
+      },
+      { triggerTurn: false },
+    );
+
+    latestRelativeTimestamp = details.assistantTimestamp ?? latestRelativeTimestamp;
+    restartTicker();
+    activeTui?.requestRender();
+  };
+
   const timer = setTimeout(() => {
     pendingAppendTimers.delete(timer);
-    pi.sendMessage({
-      customType: TURN_MESSAGE_TYPE,
-      content: plainSummary(details),
-      display: true,
-      details,
-    });
-    activeTui?.requestRender();
+    appendWhenIdle();
   }, 0);
 
   pendingAppendTimers.add(timer);
@@ -570,6 +738,7 @@ export default function (pi: ExtensionAPI) {
    * - start relative-time rerenders when needed
    */
   pi.on("session_start", async (_event, ctx) => {
+    runtimeActive = true;
     restoreStateFromSession(ctx);
 
     if (ctx.hasUI) {
@@ -588,6 +757,7 @@ export default function (pi: ExtensionAPI) {
    * runtime would otherwise keep firing against the new one.
    */
   pi.on("session_shutdown", async () => {
+    runtimeActive = false;
     activeTui = undefined;
     currentTurn = undefined;
     clearPendingAppendTimers();
@@ -680,7 +850,7 @@ export default function (pi: ExtensionAPI) {
    * closest thing to "the visible turn is fully done and back in the user's
    * hands".
    */
-  pi.on("agent_end", async (event) => {
+  pi.on("agent_end", async (event, ctx) => {
     /**
      * No `currentTurn` means we have nothing to measure.
      * This can happen if the runtime resumed mid-conversation or if a command
@@ -721,7 +891,7 @@ export default function (pi: ExtensionAPI) {
       status,
     };
 
-    scheduleTimingRowAppend(pi, details);
+    scheduleTimingRowAppend(pi, ctx, details);
 
     currentTurn = undefined;
     activeTui?.requestRender();

@@ -114,7 +114,7 @@ when command files change.
 - `pi-timestamps` (pi package)
   - Purpose: adds subtle per-turn transcript timing rows so Pi sessions show
     exact timestamps, reply-start timing when available, timezone-aware
-    absolute times, and always-updating relative times.
+    absolute times, and live relative-age labels.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/pi-timestamps"`
   - Package path: `pi-packages/pi-timestamps`

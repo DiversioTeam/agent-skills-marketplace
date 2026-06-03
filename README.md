@@ -302,7 +302,7 @@ sub-package so pi can discover them from a single clone - see
 | `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
 | `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
-| `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps, reply-start timing, timezone-aware absolute times, and always-updating relative times |
+| `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps, reply-start timing, timezone-aware absolute times, and live relative-age labels |
 | `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
