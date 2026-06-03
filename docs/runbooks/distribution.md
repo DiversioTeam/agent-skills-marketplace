@@ -266,8 +266,8 @@ The `oh-my-pi` package provides explicit `/omp-split-*` and
 `/omp-workspace*` cmux commands plus native cmux notifications.
 
 The `pi-timestamps` package provides `/timestamps`, subtle transcript timing
-rows, timezone-aware absolute timestamps, and always-updating relative times
-like `2m ago`.
+rows, timezone-aware absolute timestamps, and live relative-age labels like
+`2m ago`.
 
 ## Codex Skill Installation
 

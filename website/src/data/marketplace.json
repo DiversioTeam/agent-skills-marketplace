@@ -309,8 +309,8 @@
     {
       "name": "pi-timestamps",
       "title": "Pi Timestamps",
-      "description": "Subtle per-turn transcript timing rows for exact timestamps, reply-start timing, timezone-aware absolute times, and live relative-time updates.",
-      "version": "v0.1.0"
+      "description": "Subtle per-turn transcript timing rows for exact timestamps, reply-start timing, timezone-aware absolute times, and live relative-age labels.",
+      "version": "v0.1.1"
     }
   ]
 }

@@ -30,7 +30,7 @@ Current highlighting:
 
 - completion time uses a success color
 - `reply in` and `total` values use an accent color
-- relative age like `11s ago` uses a warning color
+- live relative age like `11s ago` uses a warning color
 - the hide shortcut stays dimmer than the timing data
 
 Labeling note:
@@ -92,11 +92,21 @@ The current design aims for:
 
 ### Why is there still a hidden widget internally?
 
-Relative text like `11s ago` needs the TUI to re-render periodically.
 The extension mounts a **zero-height hidden widget** only so it can keep a TUI
-handle and refresh those relative timestamps once per second.
+handle and request rerenders after timing rows are appended or visibility is
+toggled.
 
-Users do not see that widget.
+Users do not see that widget. The extension uses it to keep `... ago` honest:
+relative ages should update on their own, not only when the user starts typing.
+
+To reduce selection/copying pain, the ticker is adaptive instead of repainting
+once per second forever:
+
+```text
+first minute  -> update every second  -> 11s ago, 12s ago, ...
+first hour    -> update every minute  -> 2m ago, 3m ago, ...
+after that    -> update hourly        -> 2h ago, 1d ago change slowly
+```
 
 ## What gets shown
 
@@ -107,7 +117,7 @@ Each timing row can show:
 - reply-start timing when visible text appeared
 - fallback assistant-start timing if the provider does not emit a text-start event
 - total turn duration
-- relative age like `11s ago`
+- live relative age like `11s ago`
 - inline "hide row" shortcut text
 
 Visual map:
@@ -115,7 +125,7 @@ Visual map:
 ```text
 2026-06-02 19:18:01 EDT · done 2026-06-02 19:18:08 EDT · reply in 3s · total 7s · 11s ago · hide row: ctrl+shift+h
 │                        │                              │             │          │          └─ quick hide-row hint
-│                        │                              │             │          └─ relative age, kept live
+│                        │                              │             │          └─ live relative age, refreshed by the adaptive ticker
 │                        │                              │             └─ full turn duration
 │                        │                              └─ time until the reply became visible
 │                        └─ exact completion time
@@ -247,14 +257,79 @@ Then run `/reload` in Pi.
 Optional environment variables:
 
 ```bash
+# Render absolute times in a known timezone instead of the machine default.
 export PI_TIMESTAMPS_TIME_ZONE="America/Toronto"
+
+# Change the hide/show shortcut and the inline hint text.
 export PI_TIMESTAMPS_TOGGLE_SHORTCUT="ctrl+shift+h"
+
+# Optional stable/copy mode: hide `... ago` and disable the relative-age ticker.
+export PI_TIMESTAMPS_LIVE_RELATIVE="false"
 ```
 
 Notes:
 
 - If `PI_TIMESTAMPS_TIME_ZONE` is unset, the extension uses your local system timezone.
 - `PI_TIMESTAMPS_TOGGLE_SHORTCUT` changes both the registered shortcut and the inline hint text.
+- `PI_TIMESTAMPS_LIVE_RELATIVE=false` disables `... ago` labels and the relative-age ticker for a maximally stable transcript.
+
+Relative-age tradeoff:
+
+```text
+show `11s ago`
+        ↓
+must update without waiting for typing/scrolling
+        ↓
+requires terminal redraws
+        ↓
+use adaptive redraws so the label stays honest without repainting every second forever
+```
+
+Adaptive ticker mental model:
+
+```text
+newest timestamp row is 0-59s old
+        ↓
+relative label can change every second
+        ↓
+ticker wakes every 1s
+
+newest timestamp row is 1-59m old
+        ↓
+relative label can change every minute
+        ↓
+ticker wakes every 1m
+
+newest timestamp row is 1h+ old
+        ↓
+relative label changes slowly
+        ↓
+ticker wakes hourly
+```
+
+Why use the newest row?
+
+```text
+newest row changes fastest
+        ↓
+older rows are already less granular
+        ↓
+if the newest row is safe at a cadence, older rows are safe too
+        ↓
+one timer is enough for the whole transcript
+```
+
+Stable/copy mode tradeoff:
+
+```text
+PI_TIMESTAMPS_LIVE_RELATIVE=false
+        ↓
+no relative `... ago` label
+        ↓
+no ticker-driven transcript redraws
+        ↓
+exact prompt/completion timestamps still remain visible
+```
 
 ## Local testing
 
@@ -271,10 +346,20 @@ Suggested smoke test:
 2. Send a prompt
 3. Confirm a subtle timing row appears immediately after the turn
 4. Confirm `done`, `reply in`, `total`, and `11s ago` are easy to spot
-5. Press Ctrl+Shift+H
-6. Confirm timing rows disappear
-7. Press Ctrl+Shift+H again
-8. Confirm timing rows return
+5. Wait without typing and confirm `11s ago` updates on its own
+6. Press Ctrl+Shift+H
+7. Confirm timing rows disappear
+8. Press Ctrl+Shift+H again
+9. Confirm timing rows return
+```
+
+Stable/copy mode smoke test:
+
+```text
+1. Restart Pi with PI_TIMESTAMPS_LIVE_RELATIVE=false
+2. Send a prompt
+3. Confirm the row still shows exact times, `reply in`, and `total`
+4. Confirm `... ago` is hidden and no ticker-driven redraws happen
 ```
 
 Provider-behavior smoke test:
@@ -300,14 +385,66 @@ Here is the simple why behind each one.
 Why it exists:
 
 ```text
-relative age text changes over time
+timing rows are appended after the agent returns to idle
         ↓
-UI must rerender periodically
+visibility can be toggled later
         ↓
-extension needs a stable TUI handle
+`... ago` needs occasional redraws to stay honest
         ↓
-hidden widget keeps that handle alive
+extension needs a stable TUI handle to request rerenders
+        ↓
+hidden widget keeps that handle available
 ```
+
+Why it renders nothing:
+
+```text
+widget exists for a TUI handle, not user content
+        ↓
+render() returns []
+        ↓
+no bottom panel, no visual noise
+        ↓
+transcript rows remain the only visible UI
+```
+
+### Adaptive relative-age ticker
+
+The relative label is useful only when it updates by itself.
+
+```text
+bad behavior
+  `11s ago` sits still
+  user starts typing
+  label jumps to `2m ago`
+  -> looks stale and misleading
+
+good behavior
+  `11s ago` updates on its own
+  redraw cadence slows as the label becomes less precise
+  -> truthful without constant repainting forever
+```
+
+The implementation tracks `latestRelativeTimestamp`:
+
+```text
+new row appended
+        ↓
+latestRelativeTimestamp = row completion time
+        ↓
+restartTicker()
+        ↓
+nextTickerDelayMs() chooses 1s / 1m / 1h cadence
+```
+
+Stable/copy mode disables this entire path:
+
+```bash
+export PI_TIMESTAMPS_LIVE_RELATIVE=false
+```
+
+In that mode exact absolute timestamps remain visible, but `... ago` is hidden
+so the transcript does not repaint just for timestamp freshness.
 
 ### Deferred timing-row append
 
@@ -318,18 +455,108 @@ append too early
   -> row can behave like part of the active model turn
   -> assistant may appear to reply to it
 
-append one event-loop tick later
+wait until Pi reports idle, then append with triggerTurn: false
   -> current run settles first
-  -> row still appears immediately to the user
+  -> row appears without queueing a steering/follow-up LLM turn
+```
+
+The important Pi behavior is:
+
+```text
+inside agent_end
+        ↓
+Pi is still streaming
+        ↓
+pi.sendMessage(...) uses the streaming path
+        ↓
+default streaming delivery is "steer"
+        ↓
+the LLM may continue and respond to the timing row
+```
+
+So the extension uses this safer shape:
+
+```text
+agent_end computes timing data
+        ↓
+schedule a tiny callback
+        ↓
+callback polls ctx.isIdle()
+        ↓
+only when idle: pi.sendMessage(..., { triggerTurn: false })
+        ↓
+row is saved/rendered, but no LLM turn starts
 ```
 
 In code, that is this pattern:
 
 ```ts
-setTimeout(() => {
-  pi.sendMessage({ ...timingRow });
-}, 0);
+const deadline = Date.now() + 10 * 60 * 1_000;
+const appendWhenIdle = () => {
+  if (!runtimeActive) return;
+
+  if (!ctx.isIdle()) {
+    if (Date.now() < deadline) setTimeout(appendWhenIdle, 50);
+    return;
+  }
+
+  if (!runtimeActive) return;
+  pi.sendMessage({ ...timingRow }, { triggerTurn: false });
+};
+setTimeout(appendWhenIdle, 0);
 ```
+
+Why the 10 minute deadline?
+
+```text
+normal case: Pi becomes idle almost immediately
+edge case: another extension opens post-turn UI and waits for a human
+bad case: Pi gets stuck streaming forever
+
+10 minute cap
+  -> does not drop rows during normal human-paced post-turn UI
+  -> still prevents an infinite timer loop if something breaks
+```
+
+Why `runtimeActive`?
+
+```text
+old runtime schedules callback
+        ↓
+user runs /reload or switches sessions
+        ↓
+old runtime shuts down
+        ↓
+old callback wakes up later
+        ↓
+runtimeActive=false, so it exits without writing stale rows
+```
+
+### Why not `deliverAs: "nextTurn"`?
+
+`nextTurn` sounds tempting, but it means something different in Pi:
+
+```text
+deliverAs: "nextTurn"
+        ↓
+wait for the next user prompt
+        ↓
+inject the custom message alongside that prompt
+        ↓
+the timestamp becomes next-turn context, not an immediate transcript row
+```
+
+For timestamps we want:
+
+```text
+current turn finishes
+        ↓
+append display-only transcript row now
+        ↓
+do not start or steer the LLM
+```
+
+That is why the extension waits for idle and uses `{ triggerTurn: false }`.
 
 ### Backward-compatible visibility restore
 
@@ -350,10 +577,11 @@ We read both so existing sessions do not lose their saved hide/show state.
 ## Notes for maintainers
 
 - Timing rows are stored as display-only custom messages and filtered out of LLM context.
-- Timing rows are appended with a tiny deferred `pi.sendMessage(...)` call after the current run settles, so they still appear in the live transcript without being treated as part of the active model turn.
+- Timing rows are appended only after `ctx.isIdle()` is true, with `{ triggerTurn: false }`, so they do not get delivered as steering messages during the active model turn.
 - Visibility mode is stored as a session custom entry, so `/reload` preserves it inside the current session branch.
-- Relative-time updates depend on a lightweight 1s TUI re-render tick.
-- The hidden zero-height widget exists only to keep that re-render loop alive.
+- Relative-time live updates are enabled by default and use an adaptive ticker: every second for fresh rows, every minute after the first minute, hourly after the first hour.
+- `PI_TIMESTAMPS_LIVE_RELATIVE=false` hides `... ago` and disables ticker-driven redraws for stable/copy mode.
+- The hidden zero-height widget exists only to keep a TUI handle for timestamp-row rerenders.
 
 Troubleshooting map:
 
@@ -362,18 +590,34 @@ No timing row appears
   -> check timestamps are visible
   -> run /timestamps status
   -> verify the package is loaded with pi --no-extensions -e ./pi-packages/pi-timestamps
+  -> if another extension held Pi non-idle for >10 minutes, the row is intentionally dropped
 
 Assistant seems to respond to the timing row
   -> timing row append is happening too early in the active run
   -> inspect scheduleTimingRowAppend()
+  -> confirm the append path waits for ctx.isIdle()
+  -> confirm sendMessage uses { triggerTurn: false }
+
+No "11s ago" label appears
+  -> check PI_TIMESTAMPS_LIVE_RELATIVE is not set to false/off/0/no
+  -> exact prompt and completion timestamps are still shown
 
 Rows stop updating "11s ago"
   -> inspect the hidden widget mount
   -> inspect syncTicker()
+  -> remember updates become minute-based after the first minute
+
+Rows are hard to copy/select around
+  -> set PI_TIMESTAMPS_LIVE_RELATIVE=false for stable/copy mode
+  -> or use /timestamps hidden for a clean transcript
 
 Rows do not preserve hidden/visible state after /reload
   -> inspect restoreStateFromSession()
   -> inspect persistVisibilityMode()
+
+Rows appear after /reload from an old turn
+  -> inspect runtimeActive guards in scheduleTimingRowAppend()
+  -> inspect clearPendingAppendTimers()
 ```
 
 Code-reading map:
@@ -383,7 +627,7 @@ restoreStateFromSession()
   -> load visible/hidden mode from session
 
 syncTicker()
-  -> start/stop the 1s relative-time rerender loop
+  -> start/stop the adaptive relative-time rerender loop
 
 message_end(role=user)
   -> start the turn clock
@@ -401,5 +645,7 @@ agent_end()
 
 scheduleTimingRowAppend()
   -> defer one tick
-  -> append the display-only timing row safely
+  -> wait for ctx.isIdle()
+  -> guard against old runtimes with runtimeActive
+  -> append the display-only timing row safely with triggerTurn: false
 ```
