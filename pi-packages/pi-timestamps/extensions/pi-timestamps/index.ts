@@ -419,7 +419,13 @@ class HiddenTickerComponent implements Component {
   invalidate(): void {}
 }
 
-/** Restore visibility mode from the current session branch. */
+/**
+ * Restore visibility mode from the current session branch.
+ *
+ * First principles:
+ * session history is the source of truth for user-facing extension state.
+ * On reload or resume we reconstruct from saved entries instead of guessing.
+ */
 function restoreStateFromSession(ctx: ExtensionContext): void {
   visibilityMode = DEFAULT_VISIBILITY_MODE;
   currentTurn = undefined;
@@ -441,7 +447,12 @@ function restoreStateFromSession(ctx: ExtensionContext): void {
   }
 }
 
-/** Persist visible/hidden mode so `/reload` and resumes keep the same state. */
+/**
+ * Persist visible/hidden mode so `/reload` and resumes keep the same state.
+ *
+ * This is the only user preference we store today, which keeps migration logic
+ * small and easy to reason about.
+ */
 function persistVisibilityMode(pi: ExtensionAPI, nextMode: VisibilityMode): void {
   visibilityMode = nextMode;
   const settings: VisibilitySettings = { visibilityMode: nextMode };
@@ -449,7 +460,12 @@ function persistVisibilityMode(pi: ExtensionAPI, nextMode: VisibilityMode): void
   syncTicker();
 }
 
-/** Accept a few human-friendly command aliases. */
+/**
+ * Accept a few human-friendly command aliases.
+ *
+ * We keep this parser deliberately tiny so `/timestamps` behavior stays
+ * predictable and easy to explain in docs.
+ */
 function parseVisibilityMode(input: string): VisibilityMode | undefined {
   if (input === "visible" || input === "hidden") return input;
   if (input === "on") return "visible";
@@ -612,7 +628,11 @@ export default function (pi: ExtensionAPI) {
   pi.on("message_end", async (event) => {
     /**
      * The user message ending is our clean "turn start" signal.
-     * We store that timestamp and then wait for assistant activity.
+     *
+     * Why not `input` or `message_start(role=user)`?
+     * Because `message_end(role=user)` is the point where Pi has actually
+     * accepted the prompt into the conversation history, which makes the timing
+     * row line up with what the transcript shows.
      */
     if (event.message.role === "user") {
       currentTurn = { userTimestamp: event.message.timestamp };
@@ -661,6 +681,11 @@ export default function (pi: ExtensionAPI) {
    * hands".
    */
   pi.on("agent_end", async (event) => {
+    /**
+     * No `currentTurn` means we have nothing to measure.
+     * This can happen if the runtime resumed mid-conversation or if a command
+     * path never produced a normal user->assistant turn.
+     */
     if (!currentTurn) return;
 
     const userMessage = event.messages.find((message) => message.role === "user");

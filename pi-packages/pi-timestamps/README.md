@@ -122,6 +122,16 @@ Visual map:
 └─ exact prompt time
 ```
 
+## Quick use
+
+Mental model:
+
+```text
+want timing rows?        leave them visible
+want a clean transcript? press Ctrl+Shift+H or run /timestamps hidden
+want them back?          press Ctrl+Shift+H again or run /timestamps visible
+```
+
 ## Commands
 
 ```text
@@ -282,7 +292,7 @@ C. Tool-call-only / no visible assistant reply
 
 ## Implementation notes
 
-A few implementation choices may look unusual at first glance.
+A few implementation choices may look unusual when you first read the code.
 Here is the simple why behind each one.
 
 ### Hidden zero-height widget
@@ -344,6 +354,27 @@ We read both so existing sessions do not lose their saved hide/show state.
 - Visibility mode is stored as a session custom entry, so `/reload` preserves it inside the current session branch.
 - Relative-time updates depend on a lightweight 1s TUI re-render tick.
 - The hidden zero-height widget exists only to keep that re-render loop alive.
+
+Troubleshooting map:
+
+```text
+No timing row appears
+  -> check timestamps are visible
+  -> run /timestamps status
+  -> verify the package is loaded with pi --no-extensions -e ./pi-packages/pi-timestamps
+
+Assistant seems to respond to the timing row
+  -> timing row append is happening too early in the active run
+  -> inspect scheduleTimingRowAppend()
+
+Rows stop updating "11s ago"
+  -> inspect the hidden widget mount
+  -> inspect syncTicker()
+
+Rows do not preserve hidden/visible state after /reload
+  -> inspect restoreStateFromSession()
+  -> inspect persistVisibilityMode()
+```
 
 Code-reading map:
 
