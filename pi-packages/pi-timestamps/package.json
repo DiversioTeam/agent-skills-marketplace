@@ -1,0 +1,14 @@
+{
+  "name": "pi-timestamps",
+  "version": "0.1.0",
+  "description": "Pi extension that adds subtle per-turn transcript timing rows with exact timestamps, reply-start timing, timezone-aware absolute times, and live relative-time updates.",
+  "keywords": ["pi-package", "timestamps", "observability"],
+  "files": ["extensions/", "README.md"],
+  "pi": {
+    "extensions": ["./extensions/pi-timestamps/index.ts"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  }
+}

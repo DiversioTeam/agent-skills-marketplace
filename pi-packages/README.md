@@ -10,6 +10,7 @@ Pi-native packages that extend pi with tools, commands, skills, and UI widgets.
 | [`dev-workflow`](./dev-workflow) | 15 core workflow prompts (`/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`), CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and seeded cmux split launching for subagent-style prompts |
 | [`image-router`](./image-router) | Routes image inputs through a vision-capable model when the active model is text-only, with per-model routing modes and a TUI settings panel |
 | [`oh-my-pi`](./oh-my-pi) | Pi-native cmux integration with notifications, readable split commands, and workspace tabs |
+| [`pi-timestamps`](./pi-timestamps) | Adds subtle per-turn transcript timing rows for exact timestamps, reply-start timing, timezone-aware absolute times, and always-updating relative times |
 | [`skills-bridge`](./skills-bridge) | Auto-discovers all 21 Claude Code plugin skills from `plugins/*/skills/` and registers them as pi skills — one install bridges the entire plugin ecosystem into pi |
 
 ## Install
@@ -24,7 +25,7 @@ pi install git:github.com/DiversioTeam/agent-skills-marketplace
 published on the public npm registry — no auth or `.npmrc` setup needed.
 
 The root `package.json` at the top of this repo tells pi where to find every
-package, so one clone discovers all five. Run `/reload` after installing.
+package, so one clone discovers all six. Run `/reload` after installing.
 
 To pull the latest updates later:
 
@@ -45,6 +46,7 @@ pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
 pi install "$PWD/pi-packages/image-router"
 pi install "$PWD/pi-packages/oh-my-pi"
+pi install "$PWD/pi-packages/pi-timestamps"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
 
@@ -83,6 +85,10 @@ pi-packages/
 │   ├── README.md
 │   └── extensions/
 ├── oh-my-pi/
+│   ├── package.json
+│   ├── README.md
+│   └── extensions/
+├── pi-timestamps/
 │   ├── package.json
 │   ├── README.md
 │   └── extensions/
