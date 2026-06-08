@@ -2,6 +2,8 @@
 
 Agent Skills marketplace for Diversio.
 
+**🌐 Docs & tools → [engineering.diversio.com](https://engineering.diversio.com)**
+
 ## Agent Skills Standard
 
 This repo follows the [Agent Skills standard](https://agentskills.io/specification): an
@@ -93,6 +95,7 @@ agent-skills-marketplace/
 │   ├── dev-workflow/                  # Pi-native daily developer workflow extension + skills
 │   ├── image-router/                  # Pi-native vision bridge for text-only models
 │   ├── oh-my-pi/                      # Pi-native cmux integration (notifications, split panes, workspace tabs)
+│   ├── pi-timestamps/                 # Pi-native subtle transcript timing rows
 │   └── skills-bridge/                 # Pi-native bridge to Claude Code plugin skills
 ├── website/                           # Astro site for engineering.diversio.com
 │   ├── src/pages/                     # Homepage, /agentic-tools, registry, docs, /skills/*, /pi/*, /blog/*
@@ -296,7 +299,7 @@ agent-skills-marketplace/
 
 ## Available Pi Packages
 
-All four packages are installable together from one git URL (recommended) or
+All six packages are installable together from one git URL (recommended) or
 individually from a local checkout. The root `package.json` declares every
 sub-package so pi can discover them from a single clone - see
 [Git-based install](#git-based-install-recommended) for the one-liner.
@@ -305,8 +308,10 @@ sub-package so pi can discover them from a single clone - see
 |---------|-------------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
 | `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
+| `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
-| `skills-bridge` | Auto-discovers Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+| `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps, reply-start timing, timezone-aware absolute times, and live relative-age labels |
+| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
@@ -374,7 +379,7 @@ of the Claude Code marketplace.
 #### Git-based install (recommended)
 
 A root `package.json` at the top of this repo declares every sub-package so pi
-can discover `ci-status`, `dev-workflow`, `oh-my-pi`, and `skills-bridge` from one clone:
+can discover `ci-status`, `dev-workflow`, `image-router`, `oh-my-pi`, `pi-timestamps`, and `skills-bridge` from one clone:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -413,7 +418,9 @@ local change before pushing:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/image-router"
 pi install "$PWD/pi-packages/oh-my-pi"
+pi install "$PWD/pi-packages/pi-timestamps"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
 
@@ -433,7 +440,8 @@ the duplicate project package entry from `.pi/settings.json` or uninstall the
 global copy before reloading.
 
 Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`,
-`pi-packages/dev-workflow/README.md`, and `pi-packages/oh-my-pi/README.md` for
+`pi-packages/dev-workflow/README.md`, `pi-packages/image-router/README.md`,
+`pi-packages/oh-my-pi/README.md`, and `pi-packages/pi-timestamps/README.md` for
 command inventory, contribution workflow, and local testing commands.
 
 ### Monolith Review Orchestrator

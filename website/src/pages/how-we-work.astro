@@ -1,0 +1,367 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import FeatureList from "../components/FeatureList.astro";
+import { getGeneratedOgImage } from "../utils/og-image";
+import { getEngineeringHighlightsBySlug } from "../utils/engineering-content";
+import { engineeringHighlights } from "../data/engineering-highlights";
+import { featuredHowWeWorkHighlightSlugs, howWeWorkNotice } from "../data/how-we-work";
+import { engineeringPractices } from "../data/engineering-practices";
+import { engineeringPrinciples } from "../data/engineering-principles";
+import { siteEntryPoints } from "../data/site-entry-points";
+
+const ogImage = getGeneratedOgImage("/og/how-we-work.png", "/og-default.png");
+const howWeWorkPage = {
+  title: "How We Work",
+  metaDescription: "Engineering habits, review standards, and working practices that shape how Diversio builds software.",
+  heroTitle: "How Diversio Engineering works",
+  heroDescription: "The habits, standards, and decision rules that keep our work fast, reviewable, and trustworthy.",
+} as const;
+const featuredHighlights = getEngineeringHighlightsBySlug(engineeringHighlights, [...featuredHowWeWorkHighlightSlugs]);
+---
+
+<PageLayout
+  title={howWeWorkPage.title}
+  description={howWeWorkPage.metaDescription}
+  ogImage={ogImage}
+  socialImageAlt="How Diversio Engineering works"
+  currentNav="howWeWork"
+>
+  <section class="page-section page-hero">
+    <SectionHeader
+      label="How We Work"
+      title={howWeWorkPage.heroTitle}
+      titleLevel="h1"
+      description={howWeWorkPage.heroDescription}
+      variant="editorial"
+    />
+    <div class="notice-card">
+      <h2 class="headline-sm">{howWeWorkNotice.title}</h2>
+      <p class="body-md">
+        {howWeWorkNotice.body}
+      </p>
+    </div>
+  </section>
+
+  <section class="page-section">
+    <SectionHeader
+      label="Principles"
+      title="What we optimize for"
+      description="The standards that shape our decisions before the implementation details show up."
+      variant="editorial"
+    />
+    <FeatureList features={engineeringPrinciples} class="how-we-work-principles" />
+  </section>
+
+  <section class="page-section">
+    <SectionHeader
+      label="Practices"
+      title="What good engineering looks like here"
+      description="The habits that show up under real feature work, bug fixes, review pressure, and operational risk."
+      variant="editorial"
+    />
+    <div class="practice-list">
+      {engineeringPractices.map((practice, index) => (
+        <article class="practice-row">
+          <div class="practice-row-meta">
+            <span class="code-text-sm practice-row-index">0{index + 1}</span>
+            <span class="label-caps practice-row-kicker">Working habit</span>
+          </div>
+          <div class="practice-row-main">
+            <h3 class="headline-sm">{practice.title}</h3>
+            <p class="body-md practice-summary">{practice.summary}</p>
+          </div>
+          <div class="practice-row-detail">
+            <span class="label-caps practice-detail-label">In practice</span>
+            <p class="body-md practice-detail-copy">{practice.detail}</p>
+            {practice.relatedHref && (
+              <a href={practice.relatedHref} class="practice-link label-caps">{practice.relatedLabel ?? "Related reading"} →</a>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="page-section">
+    <SectionHeader
+      label="Examples"
+      title="Where those habits show up"
+      description="A few examples of the same habits turning into tooling, review flow, and faster context recovery."
+      variant="editorial"
+    />
+    <div class="highlight-list">
+      {featuredHighlights.map((highlight, index) => (
+        <article class="highlight-row">
+          <div class="highlight-row-meta">
+            <span class="code-text-sm highlight-row-index">0{index + 1}</span>
+            <span class="label-caps highlight-row-lane">{highlight.lane}</span>
+          </div>
+          <div class="highlight-row-body">
+            <h3 class="headline-sm">{highlight.title}</h3>
+            <p class="body-md highlight-copy">{highlight.summary}</p>
+            <p class="body-md highlight-proof"><strong>Why it matters:</strong> {highlight.proof}</p>
+            {highlight.href && (
+              <a href={highlight.href} class="highlight-link label-caps">
+                {highlight.hrefLabel ?? "Read more"} →
+              </a>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="page-section">
+    <SectionHeader
+      label="Go Deeper"
+      title="Follow the thread that matches your interest"
+      description="Once you have the working model, go deeper into systems, tools, or longer-form writing."
+      variant="editorial"
+    />
+    <div class="route-panels">
+      <a href={siteEntryPoints.systems.href} class="route-panel route-panel--systems">
+        <span class="label-caps route-panel-label">{siteEntryPoints.systems.label}</span>
+        <h3 class="headline-sm route-panel-title">{siteEntryPoints.systems.title}</h3>
+        <p class="body-md route-panel-copy">{siteEntryPoints.systems.description}</p>
+        <span class="label-caps route-panel-link">{siteEntryPoints.systems.cta} →</span>
+      </a>
+      <a href={siteEntryPoints.tools.href} class="route-panel route-panel--tools">
+        <span class="label-caps route-panel-label">{siteEntryPoints.tools.label}</span>
+        <h3 class="headline-sm route-panel-title">{siteEntryPoints.tools.title}</h3>
+        <p class="body-md route-panel-copy">{siteEntryPoints.tools.description}</p>
+        <span class="label-caps route-panel-link">{siteEntryPoints.tools.cta} →</span>
+      </a>
+      <a href={siteEntryPoints.blog.href} class="route-panel route-panel--writing">
+        <span class="label-caps route-panel-label">{siteEntryPoints.blog.label}</span>
+        <h3 class="headline-sm route-panel-title">{siteEntryPoints.blog.title}</h3>
+        <p class="body-md route-panel-copy">{siteEntryPoints.blog.description}</p>
+        <span class="label-caps route-panel-link">{siteEntryPoints.blog.cta} →</span>
+      </a>
+    </div>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+
+  .page-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+
+  .notice-card,
+  .practice-row,
+  .route-panel,
+  .highlight-row {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .notice-card {
+    padding: var(--space-lg);
+  }
+
+  .notice-card p,
+  .practice-summary,
+  .practice-detail-copy,
+  .route-panel-copy,
+  .highlight-copy,
+  .highlight-proof {
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+
+  :global(.how-we-work-principles) {
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .practice-list,
+  .route-panels,
+  .highlight-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  .practice-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+  }
+
+  .practice-row h3,
+  .highlight-row h3 {
+    text-wrap: balance;
+  }
+
+  .practice-row-meta,
+  .highlight-row-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--color-text-muted);
+  }
+
+  .practice-row-index,
+  .highlight-row-index {
+    color: var(--color-primary);
+  }
+
+  .practice-row-main,
+  .practice-row-detail,
+  .highlight-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    min-width: 0;
+  }
+
+  .practice-detail {
+    padding-top: var(--space-sm);
+    border-top: var(--border-hairline);
+  }
+
+  .practice-detail-label,
+  .route-panel-label,
+  .route-panel-link {
+    color: var(--color-primary);
+  }
+
+  .practice-link,
+  .highlight-link {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .practice-link {
+    margin-top: var(--space-sm);
+  }
+
+  .practice-link:hover,
+  .highlight-link:hover {
+    text-decoration: underline;
+  }
+
+  .highlight-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+  }
+
+  .route-panels {
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 700px) {
+    .route-panels {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 960px) {
+    .practice-row {
+      grid-template-columns: 8rem minmax(0, 1.15fr) minmax(0, 0.85fr);
+      align-items: start;
+    }
+
+    .practice-row-meta,
+    .highlight-row-meta {
+      flex-direction: column;
+      align-items: flex-start;
+      padding-top: 0.2rem;
+    }
+
+    .practice-detail {
+      padding-top: 0;
+      padding-left: var(--space-lg);
+      border-top: 0;
+      border-left: var(--border-hairline);
+    }
+
+    .highlight-row {
+      grid-template-columns: 12rem minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .route-panels {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .route-panel {
+    padding: var(--space-lg);
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .route-panel:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-block);
+    transform: translateY(-1px);
+  }
+
+  .route-panel-title {
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .route-panel-link {
+    margin-top: auto;
+  }
+
+  .route-panel--systems {
+    background: linear-gradient(180deg, var(--color-surface), var(--color-surface-low));
+  }
+
+  .route-panel--tools {
+    background: linear-gradient(180deg, var(--color-surface), color-mix(in srgb, var(--color-primary-container) 35%, var(--color-surface)));
+  }
+
+  .route-panel--writing {
+    background: linear-gradient(180deg, var(--color-surface), color-mix(in srgb, var(--color-accent-container) 35%, var(--color-surface)));
+  }
+
+  @media (max-width: 860px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+
+    .page-hero,
+    .page-section + .page-section {
+      padding-top: var(--space-2xl);
+    }
+
+    .notice-card,
+    .practice-row,
+    .route-panel,
+    .highlight-row {
+      padding-left: var(--space-md);
+      padding-right: var(--space-md);
+    }
+
+    .practice-row-meta,
+    .highlight-row-meta {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>
