@@ -10,7 +10,7 @@ In practice, people want simple answers to simple questions:
 - When did I send that prompt?
 - How long did the model take to start replying?
 - How long did the full turn take?
-- How long ago did this happen?
+- How long ago did the last reply happen?
 
 ## Solution
 
@@ -30,8 +30,9 @@ Current highlighting:
 
 - completion time uses a success color
 - `reply in` and `total` values use an accent color
-- live relative age like `11s ago` uses a warning color
 - the hide shortcut stays dimmer than the timing data
+- the bottom status line keeps the flavor text dimmer
+- the live relative age in the bottom status bar is the part that pops most
 
 Labeling note:
 
@@ -59,7 +60,14 @@ extension appends one tiny display-only timing row
 Example row:
 
 ```text
-2026-06-02 19:18:01 EDT · done 2026-06-02 19:18:08 EDT · reply in 3s · total 7s · 11s ago · hide row: ctrl+shift+h
+2026-06-02 19:18:01 EDT · done 2026-06-02 19:18:08 EDT · reply in 3s · total 7s · hide row: ctrl+shift+h
+```
+
+Example status line snippets:
+
+```text
+⚽ Cooking, the tin monk is. Glass, tap not.
+⚽ 11s ago · Replied, the tin monk has. Your move, captain.
 ```
 
 ## Why it works this way
@@ -90,17 +98,16 @@ The current design aims for:
 - useful timing at a glance
 - no persistent second panel competing with the conversation
 
-### Why is there still a hidden widget internally?
+### Why move the live relative age to the status bar?
 
-The extension mounts a **zero-height hidden widget** only so it can keep a TUI
-handle and request rerenders after timing rows are appended or visibility is
-toggled.
+A changing `11s ago` label inside historical transcript rows forces Pi to
+rerender old chat lines. That is fragile when you have scrolled up and are
+trying to read a long response.
 
-Users do not see that widget. The extension uses it to keep `... ago` honest:
-relative ages should update on their own, not only when the user starts typing.
+So the extension now keeps transcript rows **static** and moves only the newest
+relative age to the bottom status bar.
 
-To reduce selection/copying pain, the ticker is adaptive instead of repainting
-once per second forever:
+The ticker is still adaptive instead of repainting once per second forever:
 
 ```text
 first minute  -> update every second  -> 11s ago, 12s ago, ...
@@ -117,19 +124,24 @@ Each timing row can show:
 - reply-start timing when visible text appeared
 - fallback assistant-start timing if the provider does not emit a text-start event
 - total turn duration
-- live relative age like `11s ago`
 - inline "hide row" shortcut text
+
+The bottom status bar shows playful Yoda-ish lines for the newest turn. While the model is working it rotates through in-progress messages; after completion it rotates through replied/fumbled messages and appends the newest relative age. The flavor text stays relatively dim while the age label is the colorful part that stands out.
+
+Animations come from a pool of ten. On session start an animation is chosen, and each new human message re-rolls the animation for the next turn. The little Yoda-ish bot nickname now shuffles along with the status text itself instead of getting stuck for a whole turn. For now, the football-themed animations are weighted more heavily through July 19.
 
 Visual map:
 
 ```text
-2026-06-02 19:18:01 EDT · done 2026-06-02 19:18:08 EDT · reply in 3s · total 7s · 11s ago · hide row: ctrl+shift+h
-│                        │                              │             │          │          └─ quick hide-row hint
-│                        │                              │             │          └─ live relative age, refreshed by the adaptive ticker
+2026-06-02 19:18:01 EDT · done 2026-06-02 19:18:08 EDT · reply in 3s · total 7s · hide row: ctrl+shift+h
+│                        │                              │             │          └─ quick hide-row hint
 │                        │                              │             └─ full turn duration
 │                        │                              └─ time until the reply became visible
 │                        └─ exact completion time
 └─ exact prompt time
+
+status: 🥾⚽ Cooking, the tin monk is. Glass, tap not.
+status: ⚽ 11s ago · Replied, the tin monk has. Your move, captain.
 ```
 
 ## Quick use
@@ -206,7 +218,7 @@ What it includes:
 - exact prompt and completion timestamps
 - `reply in` timing
 - `total` timing
-- live relative age like `11s ago`
+- newest live relative age in the bottom status bar
 - one visibility toggle command and shortcut
 
 What it intentionally does **not** include:
@@ -263,7 +275,7 @@ export PI_TIMESTAMPS_TIME_ZONE="America/Toronto"
 # Change the hide/show shortcut and the inline hint text.
 export PI_TIMESTAMPS_TOGGLE_SHORTCUT="ctrl+shift+h"
 
-# Optional stable/copy mode: hide `... ago` and disable the relative-age ticker.
+# Optional stable/copy mode: disable the bottom-status relative-age ticker.
 export PI_TIMESTAMPS_LIVE_RELATIVE="false"
 ```
 
@@ -271,16 +283,16 @@ Notes:
 
 - If `PI_TIMESTAMPS_TIME_ZONE` is unset, the extension uses your local system timezone.
 - `PI_TIMESTAMPS_TOGGLE_SHORTCUT` changes both the registered shortcut and the inline hint text.
-- `PI_TIMESTAMPS_LIVE_RELATIVE=false` disables `... ago` labels and the relative-age ticker for a maximally stable transcript.
+- `PI_TIMESTAMPS_LIVE_RELATIVE=false` disables the bottom-status `... ago` ticker for a maximally stable UI.
 
 Relative-age tradeoff:
 
 ```text
-show `11s ago`
+show `11s ago` in the bottom status bar
         ↓
 must update without waiting for typing/scrolling
         ↓
-requires terminal redraws
+requires footer/status redraws
         ↓
 use adaptive redraws so the label stays honest without repainting every second forever
 ```
@@ -288,35 +300,23 @@ use adaptive redraws so the label stays honest without repainting every second f
 Adaptive ticker mental model:
 
 ```text
-newest timestamp row is 0-59s old
+newest completed turn is 0-59s old
         ↓
 relative label can change every second
         ↓
 ticker wakes every 1s
 
-newest timestamp row is 1-59m old
+newest completed turn is 1-59m old
         ↓
 relative label can change every minute
         ↓
 ticker wakes every 1m
 
-newest timestamp row is 1h+ old
+newest completed turn is 1h+ old
         ↓
 relative label changes slowly
         ↓
 ticker wakes hourly
-```
-
-Why use the newest row?
-
-```text
-newest row changes fastest
-        ↓
-older rows are already less granular
-        ↓
-if the newest row is safe at a cadence, older rows are safe too
-        ↓
-one timer is enough for the whole transcript
 ```
 
 Stable/copy mode tradeoff:
@@ -324,9 +324,9 @@ Stable/copy mode tradeoff:
 ```text
 PI_TIMESTAMPS_LIVE_RELATIVE=false
         ↓
-no relative `... ago` label
+no bottom-status `... ago` ticker
         ↓
-no ticker-driven transcript redraws
+no ticker-driven redraws
         ↓
 exact prompt/completion timestamps still remain visible
 ```
@@ -345,12 +345,14 @@ Suggested smoke test:
 1. Start Pi with the package loaded
 2. Send a prompt
 3. Confirm a subtle timing row appears immediately after the turn
-4. Confirm `done`, `reply in`, `total`, and `11s ago` are easy to spot
-5. Wait without typing and confirm `11s ago` updates on its own
-6. Press Ctrl+Shift+H
-7. Confirm timing rows disappear
-8. Press Ctrl+Shift+H again
-9. Confirm timing rows return
+4. Confirm `done`, `reply in`, and `total` are easy to spot inline
+5. While the model is responding, confirm the bottom status bar shows rotating Yoda-ish in-progress messages
+6. After completion, confirm it flips to rotating Yoda-ish replied messages with a relative age like `11s ago` near the front so it stands out
+7. Wait without typing and confirm the bottom status bar updates on its own
+8. Press Ctrl+Shift+H
+9. Confirm timing rows disappear and the status entry clears
+10. Press Ctrl+Shift+H again
+11. Confirm timing rows return and the status entry comes back
 ```
 
 Stable/copy mode smoke test:
@@ -359,7 +361,7 @@ Stable/copy mode smoke test:
 1. Restart Pi with PI_TIMESTAMPS_LIVE_RELATIVE=false
 2. Send a prompt
 3. Confirm the row still shows exact times, `reply in`, and `total`
-4. Confirm `... ago` is hidden and no ticker-driven redraws happen
+4. Confirm the bottom status bar shows the fun status text without a changing `... ago` label
 ```
 
 Provider-behavior smoke test:
@@ -380,32 +382,18 @@ C. Tool-call-only / no visible assistant reply
 A few implementation choices may look unusual when you first read the code.
 Here is the simple why behind each one.
 
-### Hidden zero-height widget
+### Bottom-status relative-age ticker
 
 Why it exists:
 
 ```text
-timing rows are appended after the agent returns to idle
+historical transcript rows should stay stable
         ↓
-visibility can be toggled later
+the newest turn still benefits from a live `11s ago` label
         ↓
-`... ago` needs occasional redraws to stay honest
+move only that newest relative age into the status bar
         ↓
-extension needs a stable TUI handle to request rerenders
-        ↓
-hidden widget keeps that handle available
-```
-
-Why it renders nothing:
-
-```text
-widget exists for a TUI handle, not user content
-        ↓
-render() returns []
-        ↓
-no bottom panel, no visual noise
-        ↓
-transcript rows remain the only visible UI
+status updates stay local to the footer instead of mutating old chat rows
 ```
 
 ### Adaptive relative-age ticker
@@ -425,12 +413,12 @@ good behavior
   -> truthful without constant repainting forever
 ```
 
-The implementation tracks `latestRelativeTimestamp`:
+The implementation tracks the newest timing row details:
 
 ```text
 new row appended
         ↓
-latestRelativeTimestamp = row completion time
+latestStatusDetails = newest row details
         ↓
 restartTicker()
         ↓
@@ -443,8 +431,8 @@ Stable/copy mode disables this entire path:
 export PI_TIMESTAMPS_LIVE_RELATIVE=false
 ```
 
-In that mode exact absolute timestamps remain visible, but `... ago` is hidden
-so the transcript does not repaint just for timestamp freshness.
+In that mode exact absolute timestamps remain visible, but the bottom-status
+relative label stops ticking.
 
 ### Deferred timing-row append
 
@@ -578,10 +566,11 @@ We read both so existing sessions do not lose their saved hide/show state.
 
 - Timing rows are stored as display-only custom messages and filtered out of LLM context.
 - Timing rows are appended only after `ctx.isIdle()` is true, with `{ triggerTurn: false }`, so they do not get delivered as steering messages during the active model turn.
-- Visibility mode is stored as a session custom entry, so `/reload` preserves it inside the current session branch.
-- Relative-time live updates are enabled by default and use an adaptive ticker: every second for fresh rows, every minute after the first minute, hourly after the first hour.
-- `PI_TIMESTAMPS_LIVE_RELATIVE=false` hides `... ago` and disables ticker-driven redraws for stable/copy mode.
-- The hidden zero-height widget exists only to keep a TUI handle for timestamp-row rerenders.
+- Visibility mode and the current status animation are stored as session custom state, so `/reload` preserves them inside the current session branch.
+- Relative-time live updates are enabled by default and use an adaptive ticker in the bottom status bar: every second for fresh turns, every minute after the first minute, hourly after the first hour.
+- `PI_TIMESTAMPS_LIVE_RELATIVE=false` disables the bottom-status `... ago` ticker for stable/copy mode.
+- Transcript rows stay static; only the newest relative age is dynamic.
+- The status animation comes from a pool of ten and re-rolls on each new human message. The Yoda-ish bot nickname rotates with the status text itself. Football-themed animations get extra weight through July 19.
 
 Troubleshooting map:
 
@@ -598,13 +587,13 @@ Assistant seems to respond to the timing row
   -> confirm the append path waits for ctx.isIdle()
   -> confirm sendMessage uses { triggerTurn: false }
 
-No "11s ago" label appears
+No bottom-status "11s ago" label appears
   -> check PI_TIMESTAMPS_LIVE_RELATIVE is not set to false/off/0/no
-  -> exact prompt and completion timestamps are still shown
+  -> exact prompt and completion timestamps are still shown inline
 
-Rows stop updating "11s ago"
-  -> inspect the hidden widget mount
+Bottom-status age stops updating
   -> inspect syncTicker()
+  -> inspect syncStatusBar()
   -> remember updates become minute-based after the first minute
 
 Rows are hard to copy/select around
@@ -613,7 +602,7 @@ Rows are hard to copy/select around
 
 Rows do not preserve hidden/visible state after /reload
   -> inspect restoreStateFromSession()
-  -> inspect persistVisibilityMode()
+  -> inspect persistSettings()
 
 Rows appear after /reload from an old turn
   -> inspect runtimeActive guards in scheduleTimingRowAppend()
@@ -627,7 +616,7 @@ restoreStateFromSession()
   -> load visible/hidden mode from session
 
 syncTicker()
-  -> start/stop the adaptive relative-time rerender loop
+  -> start/stop the adaptive bottom-status relative-time loop
 
 message_end(role=user)
   -> start the turn clock
