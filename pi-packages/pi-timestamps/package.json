@@ -1,7 +1,7 @@
 {
   "name": "pi-timestamps",
-  "version": "0.1.1",
-  "description": "Pi extension that adds subtle per-turn transcript timing rows with exact timestamps, reply-start timing, timezone-aware absolute times, and live relative-age labels.",
+  "version": "0.2.0",
+  "description": "Pi extension that adds subtle per-turn transcript timing rows with exact timestamps, reply-start timing, timezone-aware absolute times, and a playful live status line for the newest turn.",
   "keywords": ["pi-package", "timestamps", "observability"],
   "files": ["extensions/", "README.md"],
   "pi": {
