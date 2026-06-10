@@ -114,7 +114,7 @@ when command files change.
 - `pi-timestamps` (pi package)
   - Purpose: adds subtle per-turn transcript timing rows so Pi sessions show
     exact timestamps, reply-start timing when available, timezone-aware
-    absolute times, and live relative-age labels.
+    absolute times, and a playful live status line for the newest turn.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/pi-timestamps"`
   - Package path: `pi-packages/pi-timestamps`
@@ -123,7 +123,7 @@ when command files change.
     `/timestamps hidden`, `/timestamps status`
   - Shortcut: `Ctrl+Shift+H` by default toggles timestamps on/off
   - Configuration: `PI_TIMESTAMPS_TIME_ZONE`,
-    `PI_TIMESTAMPS_TOGGLE_SHORTCUT`
+    `PI_TIMESTAMPS_TOGGLE_SHORTCUT`, `PI_TIMESTAMPS_LIVE_RELATIVE`
   - One-off local test from repo root:
     `pi --no-extensions -e ./pi-packages/pi-timestamps`
 - `skills-bridge` (pi package)
