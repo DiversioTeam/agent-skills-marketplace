@@ -626,7 +626,7 @@ function buildStatusText(theme: Theme): string | undefined {
 
 /** Keep the bottom status line in sync with the latest timing row. */
 function syncStatusBar(ctx = activeCtx): void {
-  if (!ctx?.hasUI) return;
+  if (!ctx?.hasUI || ctx.mode !== "tui") return;
   ctx.ui.setStatus(STATUS_KEY, buildStatusText(ctx.ui.theme));
 }
 
@@ -645,6 +645,7 @@ function syncTicker(): void {
   if (
     !LIVE_RELATIVE_UPDATES
     || !activeCtx?.hasUI
+    || activeCtx.mode !== "tui"
     || visibilityMode !== "visible"
     || (currentTurn === undefined && latestStatusDetails === undefined)
   ) {
@@ -1110,7 +1111,9 @@ export default function (pi: ExtensionAPI) {
     currentTurn = undefined;
     clearPendingAppendTimers();
     clearTicker();
-    activeCtx?.ui.setStatus(STATUS_KEY, undefined);
+    if (activeCtx?.mode === "tui") {
+      activeCtx.ui.setStatus(STATUS_KEY, undefined);
+    }
     activeCtx = undefined;
   });
 
