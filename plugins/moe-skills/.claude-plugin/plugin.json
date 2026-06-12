@@ -1,0 +1,8 @@
+{
+  "name": "moe-skills",
+  "version": "0.9.0",
+  "description": "Backend workflow skills for Django4Lyfe: interactive PR review fix with merge-drift/lifecycle/historical checks, commit-and-reply with hardened ruff format gate, PR status with freshness guarantee, and codebase reuse finder.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

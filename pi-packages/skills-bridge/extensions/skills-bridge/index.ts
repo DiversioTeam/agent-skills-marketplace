@@ -2,8 +2,8 @@
  * skills-bridge
  * ============
  *
- * PROBLEM: The Diversio team has 21 agent skills (release-manager,
- * monty-code-review, backend-atomic-commit, etc.) in the shared
+ * PROBLEM: The Diversio team has a growing catalog of agent skills
+ * (release-manager, monty-code-review, backend-atomic-commit, etc.) in the shared
  * agent-skills-marketplace repo. These skills follow the agentskills.io
  * standard — each is a directory with a SKILL.md file. Claude Code and
  * Codex discover them automatically because those tools scan
@@ -16,8 +16,8 @@
  * `resources_discover` extension hook (the official mechanism for extensions
  * to contribute skill paths), it scans the `plugins/* /skills/` directory
  * tree under a skills root and registers every discovered `SKILL.md`
- * directory as a pi skill. One `pi install`, then `/reload`, and all 21
- * skills appear.
+ * directory as a pi skill. One `pi install`, then `/reload`, and the full
+ * marketplace skill catalog appears.
  *
  * HOW IT WORKS — high-level flow:
  *
@@ -44,7 +44,7 @@
  * tells pi where the skill directories are. Pi's built-in progressive
  * disclosure model handles the rest: at startup, only the skill's `name` and
  * `description` (from SKILL.md YAML frontmatter) enter the system prompt
- * (~5-10KB total for 21 skills). The full SKILL.md body only loads when the
+ * (~5-10KB total for names + descriptions only). The full SKILL.md body only loads when the
  * user explicitly invokes the skill via `/skill:name`. No context bloat.
  *
  * DEPENDENCIES: None beyond Node.js built-ins and pi's ExtensionAPI.

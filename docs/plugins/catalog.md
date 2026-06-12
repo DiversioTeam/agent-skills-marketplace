@@ -129,8 +129,8 @@ when command files change.
 - `skills-bridge` (pi package)
   - Purpose: auto-discovers Claude Code plugin skills from
     `plugins/*/skills/` directories and registers them as pi
-    skills via the `resources_discover` extension hook. One install makes all
-    21 plugin skills available in pi without restructuring the
+    skills via the `resources_discover` extension hook. One install makes the
+    whole marketplace skill catalog available in pi without restructuring the
     repo.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/skills-bridge"`
@@ -141,14 +141,18 @@ when command files change.
     `~/.config/pi/skills-bridge.json` config file, cwd walk-up
     (repo-agnostic: checks for `plugins/` at each ancestor, plus
     `agent-skills-marketplace/plugins/` for the monolith submodule).
-  - Skills bridged: `release-manager`, `monty-code-review`,
+  - Skills bridged: every marketplace plugin skill under `plugins/*/skills/`
+    (currently 32 skills in this checkout), including
+    `monolith-review-orchestrator`, `monty-code-review`,
+    `monty-v2-code-review`, `moe-skills`, `review-delegator`,
+    `contract-propagation-check`, `merge-drift-check`,
+    `historical-data-check`, `test-quality-check`, `gate-runner`,
     `backend-atomic-commit`, `backend-pr-workflow`, `plan-directory`,
     `backend-ralph-plan`, `pr-description-writer`, `process-code-review`,
     `bruno-api`, `code-review-digest-writer`, `mixpanel-analytics`,
     `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
-    `terraform-pr-workflow`, `login-cta-attribution-skill`,
-    `monolith-review-orchestrator`, `frontend` (21 total).
+    `terraform-pr-workflow`, `login-cta-attribution-skill`, and `frontend`.
   - Context safe: only skill names + descriptions enter context at startup
     (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
 - `monolith-review-orchestrator`
@@ -191,6 +195,52 @@ when command files change.
     `plugins/monty-code-review/skills/monty-code-review/references/review-memory-protocol.md`
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
+- `monty-v2-code-review`
+  - Purpose: deep-coverage Django/Python code review using mechanical branch enumeration, adversarial inputs, test mapping, and bias mitigation.
+  - Claude install: `claude plugin install monty-v2-code-review@diversiotech`
+  - Skill path: `plugins/monty-v2-code-review/skills/monty-v2-code-review`
+  - References: `plugins/monty-v2-code-review/skills/monty-v2-code-review/references/`
+  - Slash commands: `/monty-v2-code-review:code-review`
+- `moe-skills`
+  - Purpose: backend workflow helpers for PR review fixes, commit-and-reply, PR status, and codebase reuse scanning.
+  - Claude install: `claude plugin install moe-skills@diversiotech`
+  - Skill paths: `plugins/moe-skills/skills/pr-review-fix`,
+    `plugins/moe-skills/skills/commit-and-reply`,
+    `plugins/moe-skills/skills/pr-status`,
+    `plugins/moe-skills/skills/codebase-reuse-finder`
+  - Slash commands: `/moe-skills:pr-review-fix`,
+    `/moe-skills:commit-and-reply`, `/moe-skills:pr-status`,
+    `/moe-skills:codebase-reuse-finder`
+- `review-delegator`
+  - Purpose: orchestrated multi-skill review flow that runs monty-v2 core analysis, delegates mandatory deep checks in parallel, then compiles one verdict.
+  - Claude install: `claude plugin install review-delegator@diversiotech`
+  - Skill path: `plugins/review-delegator/skills/review-delegator`
+  - Slash commands: `/review-delegator:review-delegator`
+- `contract-propagation-check`
+  - Purpose: audit changed helpers, fields, and query contracts for consumer propagation, lifecycle parity, and admin three-layer safety.
+  - Claude install: `claude plugin install contract-propagation-check@diversiotech`
+  - Skill path: `plugins/contract-propagation-check/skills/contract-propagation-check`
+  - Slash commands: `/contract-propagation-check:check`
+- `merge-drift-check`
+  - Purpose: audit merge-resolution drift in version files, unrelated assets, fixtures, config constants, and PR description accuracy.
+  - Claude install: `claude plugin install merge-drift-check@diversiotech`
+  - Skill path: `plugins/merge-drift-check/skills/merge-drift-check`
+  - Slash commands: `/merge-drift-check:check`
+- `historical-data-check`
+  - Purpose: audit fixes for existing bad rows, legacy config reuse, rollback safety, and inverse state-clearing gaps.
+  - Claude install: `claude plugin install historical-data-check@diversiotech`
+  - Skill path: `plugins/historical-data-check/skills/historical-data-check`
+  - Slash commands: `/historical-data-check:check`
+- `test-quality-check`
+  - Purpose: audit test depth, wrong-bug variants, transaction-shape assertions, and CI-tolerant assertion safety.
+  - Claude install: `claude plugin install test-quality-check@diversiotech`
+  - Skill path: `plugins/test-quality-check/skills/test-quality-check`
+  - Slash commands: `/test-quality-check:check`
+- `gate-runner`
+  - Purpose: run the exact CI gate sequence and report pass/fail with fix commands.
+  - Claude install: `claude plugin install gate-runner@diversiotech`
+  - Skill path: `plugins/gate-runner/skills/gate-runner`
+  - Slash commands: `/gate-runner:run`
 - `backend-atomic-commit`
   - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene.
   - Claude install: `claude plugin install backend-atomic-commit@diversiotech`

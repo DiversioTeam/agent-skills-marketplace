@@ -1,12 +1,12 @@
 # skills-bridge
 
-Pi extension that auto-discovers Claude Code plugin skills from `plugins/*/skills/` directories and registers them as pi skills. One install bridges all 21 plugin skills into pi without restructuring the repo.
+Pi extension that auto-discovers Claude Code plugin skills from `plugins/*/skills/` directories and registers them as pi skills. One install bridges the whole marketplace skill catalog into pi without restructuring the repo.
 
 ## What it does
 
-The Diversio team has 21 Claude Code skills (`release-manager`, `monty-code-review`, `backend-atomic-commit`, etc.) in the shared repo. Claude Code and Codex users see them automatically. Pi users don't — pi only discovers skills from `~/.pi/agent/skills/` and `pi-packages/*/skills/`, not from `plugins/*/skills/`.
+The Diversio team has a growing shared catalog of Claude Code skills (`release-manager`, `monty-code-review`, `review-delegator`, `gate-runner`, etc.) in this repo. Claude Code and Codex users see them automatically. Pi users don't — pi only discovers skills from `~/.pi/agent/skills/` and `pi-packages/*/skills/`, not from `plugins/*/skills/`.
 
-This extension bridges that gap. It uses pi's `resources_discover` hook to scan the plugins directory and register skill paths. One `pi install` per team member, then `/reload`, and all 21 skills appear.
+This extension bridges that gap. It uses pi's `resources_discover` hook to scan the plugins directory and register skill paths. One `pi install` per team member, then `/reload`, and the full marketplace skill catalog appears.
 
 **Context safety:** The extension only exposes skill names + descriptions (~5-10KB total) at startup. Full `SKILL.md` bodies load on demand when a skill is invoked. No context bloat.
 
@@ -110,9 +110,9 @@ console.log('Skills discovered:', total);
 
 ## Skills bridged
 
-The extension discovers all 21 skills from these plugins:
+The extension discovers every skill directory under `plugins/*/skills/` in the checked-out marketplace. In this checkout that is 32 skills across plugins such as `monolith-review-orchestrator`, `monty-code-review`, `monty-v2-code-review`, `moe-skills`, `review-delegator`, `contract-propagation-check`, `merge-drift-check`, `historical-data-check`, `test-quality-check`, `gate-runner`, `backend-atomic-commit`, and `frontend`.
 
-`release-manager`, `monty-code-review`, `backend-atomic-commit`, `backend-pr-workflow`, `plan-directory`, `backend-ralph-plan`, `pr-description-writer`, `process-code-review`, `bruno-api`, `code-review-digest-writer`, `mixpanel-analytics`, `clickup-ticket`, `github-ticket`, `repo-docs-generator`, `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`, `terraform-pr-workflow`, `login-cta-attribution-skill`, `monolith-review-orchestrator`, `frontend`
+Run the verification snippet above if you want the exact live count from your checkout instead of a stale hardcoded number.
 
 ## Team setup
 

@@ -271,6 +271,14 @@ agent-skills-marketplace/
 |--------|-------------|
 | `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worker-owned review worktrees, persistent review context, and author-guiding review output |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
+| `monty-v2-code-review` | Deep-coverage Django/Python code review with mechanical branch enumeration, adversarial inputs, test mapping, and self-review bias mitigation |
+| `moe-skills` | Backend workflow helpers for PR review fixes, commit-and-reply with SHA links, PR status, and codebase reuse scanning |
+| `review-delegator` | Review delegator that runs monty-v2 core analysis, fans out mandatory deep checks to focused sub-skills, and compiles one final verdict |
+| `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle parity, and admin three-layer surface |
+| `merge-drift-check` | Merge-drift audit for version files, unrelated file regressions, and PR description accuracy |
+| `historical-data-check` | Historical-data and legacy-config audit for existing bad rows, import reuse, rollback safety, and inverse state-clearing |
+| `test-quality-check` | Test-depth and assertion-quality audit for branch coverage, mock realism, transaction shape, and CI-safe assertions |
+| `gate-runner` | Exact CI gate runner for ruff diff checks, ty, local-import checks, and migration squash verification |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
@@ -457,6 +465,14 @@ Copy-paste these commands in your terminal:
 ```bash
 claude plugin install monolith-review-orchestrator@diversiotech
 claude plugin install monty-code-review@diversiotech
+claude plugin install monty-v2-code-review@diversiotech
+claude plugin install moe-skills@diversiotech
+claude plugin install review-delegator@diversiotech
+claude plugin install contract-propagation-check@diversiotech
+claude plugin install merge-drift-check@diversiotech
+claude plugin install historical-data-check@diversiotech
+claude plugin install test-quality-check@diversiotech
+claude plugin install gate-runner@diversiotech
 claude plugin install backend-atomic-commit@diversiotech
 claude plugin install backend-pr-workflow@diversiotech
 claude plugin install bruno-api@diversiotech
@@ -492,6 +508,14 @@ claude plugin install monty-code-review@diversiotech --scope project
 |--------|-------------|
 | Monolith PR review orchestrator | `claude plugin install monolith-review-orchestrator@diversiotech` |
 | Monty backend code review | `claude plugin install monty-code-review@diversiotech` |
+| Monty v2 deep code review | `claude plugin install monty-v2-code-review@diversiotech` |
+| Moe backend workflow helpers | `claude plugin install moe-skills@diversiotech` |
+| Review delegator | `claude plugin install review-delegator@diversiotech` |
+| Contract propagation audit | `claude plugin install contract-propagation-check@diversiotech` |
+| Merge-drift audit | `claude plugin install merge-drift-check@diversiotech` |
+| Historical-data audit | `claude plugin install historical-data-check@diversiotech` |
+| Test-quality audit | `claude plugin install test-quality-check@diversiotech` |
+| Gate runner | `claude plugin install gate-runner@diversiotech` |
 | Backend pre-commit / atomic commit | `claude plugin install backend-atomic-commit@diversiotech` |
 | Backend PR workflow | `claude plugin install backend-pr-workflow@diversiotech` |
 | Bruno API docs generator | `claude plugin install bruno-api@diversiotech` |
@@ -522,6 +546,11 @@ Once plugins are installed:
    /monolith-review-orchestrator:post-review   # Narrow v1 posting path; backend-safe path should reuse Monty machinery
    /monty-code-review:code-review            # Hyper-pedantic backend code review
    /monty-code-review:test-hardening         # Pytest-only dangerous-pattern hardening lane
+   /monty-v2-code-review:code-review         # Deep-coverage code review with branch/input enumeration
+   /moe-skills:pr-review-fix                 # Fetch and fix PR review comments without committing
+   /moe-skills:commit-and-reply              # Commit, push, and reply to reviewer comments with the commit SHA
+   /moe-skills:pr-status                     # Show PR review/CI/merge status dashboard
+   /moe-skills:codebase-reuse-finder         # Find hardcoded values and reimplemented repo patterns
    /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
    /backend-atomic-commit:atomic-commit      # Strict atomic commit helper (all gates green, no AI signature)
    /backend-atomic-commit:commit             # Run all gates, fix, and create commit (full closure)
