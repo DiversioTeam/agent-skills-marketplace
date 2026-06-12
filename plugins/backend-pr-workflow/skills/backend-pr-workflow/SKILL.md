@@ -290,8 +290,8 @@ For hotfixes, enforce:
     developed against an integration branch missing code already in production.
   - A GitHub Release is created and tagged using the same CalVer scheme.
 
-If a supposed hotfix PR is targeting `release`, or a hotfix is not planned to
-be merged back into `release` **and `dev`**, emit `[BLOCKING]`.
+If a supposed hotfix PR is targeting `dev` or `release`, or a hotfix is not
+planned to be merged back into `release` **and `dev`**, emit `[BLOCKING]`.
 
 ## Checklist 5 – Migrations: Cleanup and Regeneration
 
