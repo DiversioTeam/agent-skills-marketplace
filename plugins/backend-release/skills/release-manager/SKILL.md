@@ -57,13 +57,34 @@ git push -u origin promote/YYYY.MM.DD[-N]
 gh pr create --base release --title "Promotion: DDth Month YYYY" --body "..."
 ```
 
-**Why this exists**: Routine feature PRs merge into `dev` with validation only
-— no staging deploy.  The promotion PR is the intentional gate that says
-"these changes are ready for staging."  Merging the promotion PR into
-`release` triggers `run_staging_deploy=true` in CI.
+**First principles — why two phases?**
+
+The old model deployed staging on every merge to `release`:
+
+```
+old:  feature PR → release → staging deploy (every merge!)
+```
+
+This was noisy and expensive.  The new model separates concerns:
+
+```
+new:  feature PR → dev           (validation only, cheap)
+      promotion PR → release     (staging deploy, intentional)
+```
+
+Routine feature PRs merge into `dev` where CI validates but never deploys.
+Only a human opening a `dev → release` promotion PR triggers staging deploy.
+This means:
+
+- **Fewer staging deploys** — only when someone intentionally promotes
+- **Clearer intent** — the promotion PR says "I've reviewed these changes
+  and believe they're ready for staging"
+- **Lower CI cost** — dev merges run `run_tests` (classifier-derived flags),
+  not full `run_staging_deploy`
 
 **After merge**: Validate staging.  If issues are found, fix them on `dev` and
-create a new promotion PR.  Do not fix directly on `release`.
+create a new promotion PR.  Do not fix directly on `release` — `release`
+should only receive changes through promotion PRs.
 
 ### 1. Check What Needs Releasing (release → master)
 
@@ -276,8 +297,8 @@ gh release list --limit 3
 
 ### 7. Merge Master Back Into Release AND Dev
 
-**This step is mandatory after every release PR merge.** It keeps the branches
-in sync so future releases start from a consistent baseline.
+**This step is mandatory after every release PR merge.** It keeps all three
+branches in sync so future work starts from a consistent baseline.
 
 ```bash
 git fetch origin
@@ -291,11 +312,35 @@ git merge origin/release --no-edit
 git push origin dev
 ```
 
-**Why this matters**: After a release PR merges into master, master has a merge
-commit and a version-bump commit that release and dev don't. Without merge-back,
-`git diff --stat origin/master origin/release` shows the version bump as a
-pending difference.  Without the dev sync, the integration branch drifts from
-production, and subsequent feature branches are developed against a stale base.
+**First principles — why sync all three?**
+
+After a production release, the branches look like this:
+
+```
+master   ── has: release content + version bump + merge commit
+release  ── has: release content (stale — missing version bump)
+dev      ── has: release content (stale — missing version bump)
+```
+
+The sync cascade fixes this:
+
+```
+master ─────────────────────────────┐
+  │ merge master → release          │
+  ▼                                 │
+release  (now has version bump) ────┤
+  │ merge release → dev             │
+  ▼                                 │
+dev      (now has version bump) ────┘
+```
+
+Without syncing to release: the next release PR sees a stale diff
+(`git diff --stat origin/master origin/release` shows the version bump as
+"pending") and the release merge conflicts on `pyproject.toml`/`uv.lock`.
+
+Without syncing to dev: the integration branch drifts from production, and
+subsequent feature branches are developed against code that doesn't match
+what's actually running in production.
 
 ## Pre-Release Checks
 
