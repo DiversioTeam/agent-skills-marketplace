@@ -406,8 +406,9 @@ gh pr list --base release --state merged --limit 100 --json number,title,mergedA
 git checkout -b releases/2026.01.21 origin/master
 git merge origin/release --no-edit
 
-# 7. Bump version
-sed -i '' 's/version = ".*"/version = "2026.01.21"/' pyproject.toml
+# 7. Bump version (^ anchors to line start — only matches project-level
+#     version, not python-version or target-version under [tool.*] sections)
+sed -i '' 's/^version = ".*"/version = "2026.01.21"/' pyproject.toml
 uv lock
 git add pyproject.toml uv.lock
 git commit -m "Version bump to 2026.01.21"
