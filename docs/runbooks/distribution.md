@@ -264,7 +264,7 @@ oh-my-pi     -> explicit cmux notifications, split-pane commands,
                 and workspace-tab commands
 
 pi-timestamps -> subtle per-turn transcript timing rows for exact timestamps,
-                 timezone labels, and updating "how long ago"
+                 timezone labels, and a live newest-turn status line
 
 skills-bridge -> exposes marketplace plugin skills inside Pi
 ```
@@ -284,8 +284,8 @@ The `oh-my-pi` package provides explicit `/omp-split-*` and
 `/omp-workspace*` cmux commands plus native cmux notifications.
 
 The `pi-timestamps` package provides `/timestamps`, subtle transcript timing
-rows, timezone-aware absolute timestamps, and live relative-age labels like
-`2m ago`.
+rows, timezone-aware absolute timestamps, and a playful live status line for
+the newest turn with relative-age labels like `2m ago`.
 
 ## Codex Skill Installation
 
