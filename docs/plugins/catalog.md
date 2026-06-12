@@ -198,7 +198,10 @@ when command files change.
   - Slash commands: `/backend-atomic-commit:pre-commit`,
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
-  - Purpose: backend PR workflow, GitHub issue linkage, and migration safety checks.
+  - Purpose: backend PR workflow for the dev→release→master branch model
+    (feature PRs target dev, promotion PRs trigger staging, release PRs deploy
+    production), GitHub issue linkage, Django migration safety, and
+    downtime-safe schema changes.
   - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
   - Slash commands: `/backend-pr-workflow:check-pr`
@@ -208,7 +211,9 @@ when command files change.
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
-  - Purpose: Django4Lyfe backend release management.
+  - Purpose: Django4Lyfe two-phase release workflow — promote staging
+    (dev→release), release to production (release→master), version bumping,
+    GitHub releases, and three-branch post-release sync.
   - Claude install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`
   - Slash commands: `/backend-release:check`, `/backend-release:create`,
