@@ -278,16 +278,20 @@ If any of these are obviously missing from the plan, emit `[SHOULD_FIX]`.
 
 For hotfixes, enforce:
 
-- The hotfix PR targets `master` (not `release`).
+- The hotfix PR targets `master` (not `release` or `dev`).
 - The title clearly indicates a hotfix, e.g.:
   - `Hotfix release: 2025-08-19`
 - After deployment:
   - Changes are merged back into `release` so it stays ahead of or equal to
     `master`.
+  - Changes are also merged or cherry-picked back into **`dev`** so the
+    integration branch does not drift from production.  Without this,
+    subsequent feature branches and the next `dev → release` promotion are
+    developed against an integration branch missing code already in production.
   - A GitHub Release is created and tagged using the same CalVer scheme.
 
 If a supposed hotfix PR is targeting `release`, or a hotfix is not planned to
-be merged back into `release`, emit `[BLOCKING]`.
+be merged back into `release` **and `dev`**, emit `[BLOCKING]`.
 
 ## Checklist 5 – Migrations: Cleanup and Regeneration
 
