@@ -161,11 +161,18 @@ correctly shows only genuinely new commits.
 ### 4. PR Title and Body Format
 
 **Title patterns:**
+- Promotion: `Promotion: 21st January 2026`
 - Regular release: `Release: 21st January 2026`
 - Multiple same-day: `Release 2: 21st January 2026`
 - Hotfix: `Hotfix Release: 21st January 2026`
 
-**Body format:**
+**Promotion PR body format:**
+```markdown
+- https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
+- https://github.com/DiversioTeam/Django4Lyfe/pull/YYYY
+```
+
+**Release/Hotfix PR body format:**
 ```markdown
 - https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
 - https://github.com/DiversioTeam/Django4Lyfe/pull/YYYY
@@ -321,6 +328,18 @@ Before creating a release PR, verify:
    ```
 
 ## Output Shape
+
+When reporting promotion PR status:
+
+```
+Created: https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
+
+**Summary:**
+- Type: Promotion (dev → release, triggers staging deploy)
+- Title: "Promotion: DDth Month YYYY"
+- Target: `release`
+- Conflicts: None / Resolved
+```
 
 When reporting release status:
 
