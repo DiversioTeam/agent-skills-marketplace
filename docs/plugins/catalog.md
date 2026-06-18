@@ -130,7 +130,7 @@ when command files change.
   - Purpose: auto-discovers Claude Code plugin skills from
     `plugins/*/skills/` directories and registers them as pi
     skills via the `resources_discover` extension hook. One install makes all
-    21 plugin skills available in pi without restructuring the
+    22 plugin skills available in pi without restructuring the
     repo.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/skills-bridge"`
@@ -148,7 +148,7 @@ when command files change.
     `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
-    `monolith-review-orchestrator`, `frontend` (21 total).
+    `monolith-review-orchestrator`, `frontend`, `xquik` (22 total).
   - Context safe: only skill names + descriptions enter context at startup
     (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
 - `monolith-review-orchestrator`
@@ -314,6 +314,12 @@ when command files change.
   - Skill path:
     `plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill`
   - Slash commands: `/login-cta-attribution-skill:implement`
+- `xquik`
+  - Purpose: X data workflows through Xquik REST, MCP, SDKs, webhooks, and the
+    `x-developer` package.
+  - Claude install: `claude plugin install xquik@diversiotech`
+  - Skill path: `plugins/xquik/skills/xquik`
+  - Slash commands: `/xquik:work`
 
 ## Frontend
 

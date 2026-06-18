@@ -61,6 +61,7 @@ PLUGINS=(
   terraform
   login-cta-attribution-skill
   frontend
+  xquik
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -101,6 +102,7 @@ PLUGINS=(
   terraform
   login-cta-attribution-skill
   frontend
+  xquik
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -350,6 +352,7 @@ SKILLS=(
   terraform-pr-workflow
   login-cta-attribution-skill
   frontend
+  xquik
 )
 
 for skill in "${SKILLS[@]}"; do

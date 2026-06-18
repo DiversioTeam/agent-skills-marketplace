@@ -258,6 +258,10 @@ agent-skills-marketplace/
 │   │       ├── review.md
 │   │       ├── commit.md
 │   │       └── new-branch.md
+│   └── xquik/                         # X data workflow skill
+│       ├── .claude-plugin/plugin.json
+│       ├── skills/xquik/SKILL.md
+│       └── commands/work.md
 ├── AGENTS.md                          # Source of truth for Claude Code behavior
 ├── CLAUDE.md                          # Sources AGENTS.md
 ├── README.md
@@ -288,6 +292,7 @@ agent-skills-marketplace/
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
 | `frontend` | Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows |
+| `xquik` | X data workflows through Xquik REST, MCP, SDKs, webhooks, and the `x-developer` package |
 
 ## Available Pi Packages
 
@@ -303,7 +308,7 @@ sub-package so pi can discover them from a single clone - see
 | `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
 | `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
-| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+| `skills-bridge` | Auto-discovers all 22 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
@@ -474,6 +479,7 @@ claude plugin install dependabot-remediation@diversiotech
 claude plugin install terraform@diversiotech
 claude plugin install login-cta-attribution-skill@diversiotech
 claude plugin install frontend@diversiotech
+claude plugin install xquik@diversiotech
 ```
 
 For project-scoped installation (shared with collaborators via `.claude/settings.json`):
@@ -509,6 +515,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Terraform workflows | `claude plugin install terraform@diversiotech` |
 | Login CTA attribution | `claude plugin install login-cta-attribution-skill@diversiotech` |
 | Frontend (all lanes) | `claude plugin install frontend@diversiotech` |
+| Xquik X data workflows | `claude plugin install xquik@diversiotech` |
 
 </details>
 
@@ -571,6 +578,7 @@ Once plugins are installed:
    /frontend:review                        # Review a frontend PR using the repo-local digest and Bumang-style priorities
    /frontend:commit                        # Create a digest-aware atomic frontend commit with quality gates
    /frontend:new-branch                    # Create a frontend branch using the repo's detected branch model
+   /xquik:work                             # Use Xquik for X data workflows
    /omp-split-right                          # Recommended default: open new right-side cmux split → fresh Pi session
    /omp-split-right-command <cmd>            # Recommended default: open new right-side cmux split → shell command
    /omp-split-down                           # Recommended default: open new down-side cmux split → fresh Pi session
@@ -687,6 +695,7 @@ claude plugin uninstall dependabot-remediation@diversiotech
 claude plugin uninstall terraform@diversiotech
 claude plugin uninstall login-cta-attribution-skill@diversiotech
 claude plugin uninstall frontend@diversiotech
+claude plugin uninstall xquik@diversiotech
 ```
 
 **Step 3: Uninstall project-scoped plugins (if any)**
@@ -713,6 +722,7 @@ claude plugin uninstall dependabot-remediation@diversiotech --scope project
 claude plugin uninstall terraform@diversiotech --scope project
 claude plugin uninstall login-cta-attribution-skill@diversiotech --scope project
 claude plugin uninstall frontend@diversiotech --scope project
+claude plugin uninstall xquik@diversiotech --scope project
 ```
 
 </details>
@@ -766,7 +776,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/terraform/skills/terraform-atomic-commit \
     plugins/terraform/skills/terraform-pr-workflow \
     plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
-    plugins/frontend/skills/frontend
+    plugins/frontend/skills/frontend \
+    plugins/xquik/skills/xquik
 ```
 
 **Codex console alternative:**
@@ -793,7 +804,8 @@ $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace 
   path=plugins/terraform/skills/terraform-atomic-commit \
   path=plugins/terraform/skills/terraform-pr-workflow \
   path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
-  path=plugins/frontend/skills/frontend
+  path=plugins/frontend/skills/frontend \
+  path=plugins/xquik/skills/xquik
 ```
 
 </details>
@@ -842,7 +854,8 @@ rm -rf "$CODEX_HOME/skills/monty-code-review" \
        "$CODEX_HOME/skills/terraform-atomic-commit" \
        "$CODEX_HOME/skills/terraform-pr-workflow" \
        "$CODEX_HOME/skills/login-cta-attribution-skill" \
-       "$CODEX_HOME/skills/frontend"
+       "$CODEX_HOME/skills/frontend" \
+       "$CODEX_HOME/skills/xquik"
 echo "Done. Restart Codex and reinstall skills."
 ```
 

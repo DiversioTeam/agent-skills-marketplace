@@ -1,0 +1,8 @@
+{
+  "name": "xquik",
+  "version": "0.1.0",
+  "description": "Use Xquik REST, MCP, SDKs, and webhooks for X data workflows.",
+  "author": {
+    "name": "Xquik"
+  }
+}

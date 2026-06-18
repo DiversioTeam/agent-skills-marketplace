@@ -215,6 +215,17 @@
       "source": "./plugins/frontend",
       "category": "process",
       "keywords": ["frontend", "digest", "react", "monorepo", "design-system", "review", "testing", "api", "cicd", "workflow", "diversio"]
+    },
+    {
+      "name": "xquik",
+      "description": "Use Xquik REST, MCP, SDKs, and webhooks for X data workflows.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Xquik"
+      },
+      "source": "./plugins/xquik",
+      "category": "data",
+      "keywords": ["x", "twitter", "mcp", "rest-api", "sdk", "webhooks", "xquik"]
     }
   ]
 }
