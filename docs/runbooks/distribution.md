@@ -49,6 +49,7 @@ PLUGINS=(
   moe-skills
   review-delegator
   contract-propagation-check
+  import-export-roundtrip-check
   merge-drift-check
   historical-data-check
   test-quality-check
@@ -98,6 +99,7 @@ PLUGINS=(
   moe-skills
   review-delegator
   contract-propagation-check
+  import-export-roundtrip-check
   merge-drift-check
   historical-data-check
   test-quality-check
