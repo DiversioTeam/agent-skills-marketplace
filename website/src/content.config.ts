@@ -79,6 +79,7 @@ const blog = defineCollection({
       socialImage: z.string().optional(),
       socialTitle: z.string().optional(),
       socialDescription: z.string().optional(),
+      featured: z.boolean().default(false),
       draft: z.boolean().default(false),
     })
     .superRefine((data, ctx) => {

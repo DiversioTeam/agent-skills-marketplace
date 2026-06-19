@@ -15,12 +15,13 @@ const piLocalSkills = skillDocs.filter((skill) => skill.kind === "pi-skill");
   description={`Browse ${skillDocs.length} individual skill docs across Diversio ${siteConfig.toolsSectionName} plugins and Pi-local packages.`}
   ogImage="/og/skills-index.png"
   socialImageAlt="Skill docs social preview"
-  currentNav="docs"
+  currentNav="tools"
 >
   <section class="page-section page-hero">
     <SectionHeader
       label="Skills"
       title="Individual skill docs"
+      titleLevel="h1"
       description={`${pluginSkills.length} plugin skills and ${piLocalSkills.length} Pi-local skills. Each page documents the skill itself instead of only the parent plugin or package.`}
     />
   </section>

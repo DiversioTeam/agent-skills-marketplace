@@ -2,6 +2,7 @@
 // terms.astro - Terms page
 import PageLayout from "../layouts/PageLayout.astro";
 import SectionHeader from "../components/SectionHeader.astro";
+import EmailLink from "../components/EmailLink.astro";
 import { siteConfig } from "../../site.config.mjs";
 ---
 
@@ -15,6 +16,7 @@ import { siteConfig } from "../../site.config.mjs";
     <SectionHeader
       label="Legal"
       title="Terms of Use"
+      titleLevel="h1"
       description={`${siteConfig.siteName} includes open-source tools and documentation. Published skills are provided as-is under their respective licenses, typically MIT.`}
     />
     <div class="prose">
@@ -28,7 +30,7 @@ import { siteConfig } from "../../site.config.mjs";
         <li>Contributions to the repository are licensed under the project's open-source license (MIT).</li>
       </ul>
       <p class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-xl)">
-        For questions, contact <a href="mailto:tech@diversio.com">tech@diversio.com</a>.
+        For questions, <EmailLink label="contact us" />.
       </p>
     </div>
   </section>

@@ -50,6 +50,7 @@
   /* === Typography === */
   --font-headline: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-reading: "Newsreader", Georgia, serif;
   --font-code: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
 
   /* Type scale */

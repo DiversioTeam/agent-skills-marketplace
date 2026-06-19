@@ -5,13 +5,23 @@ export interface Props {
   title: string;
   description?: string;
   class?: string;
+  titleLevel?: "h1" | "h2" | "h3";
+  variant?: "default" | "hub" | "editorial" | "systems" | "community" | "tools" | "blog";
 }
 
-const { label, title, description, class: extraClass = "" } = Astro.props;
+const {
+  label,
+  title,
+  description,
+  class: extraClass = "",
+  titleLevel = "h2",
+  variant = "default",
+} = Astro.props;
+const TitleTag = titleLevel;
 ---
-<div class={`section-header ${extraClass}`}>
+<div class={`section-header section-header--${variant} ${extraClass}`}>
   {label && <span class="label-caps section-header-label">{label}</span>}
-  <h2 class="headline-md section-header-title">{title}</h2>
+  <TitleTag class="headline-md section-header-title">{title}</TitleTag>
   {description && <p class="body-md section-header-desc">{description}</p>}
 </div>
 
@@ -33,5 +43,66 @@ const { label, title, description, class: extraClass = "" } = Astro.props;
   .section-header-desc {
     color: var(--color-text-secondary);
     max-width: 40rem;
+  }
+
+  .section-header--hub .section-header-title {
+    font-size: clamp(1.75rem, 1.6rem + 0.35vw, 2.2rem);
+  }
+
+  .section-header--hub .section-header-desc {
+    max-width: 42rem;
+  }
+
+  .section-header--editorial {
+    padding-left: var(--space-md);
+    border-left: 3px solid var(--color-primary-container);
+  }
+
+  .section-header--editorial .section-header-title {
+    font-size: clamp(1.75rem, 1.6rem + 0.35vw, 2.15rem);
+  }
+
+  .section-header--editorial .section-header-desc {
+    max-width: 36rem;
+  }
+
+  .section-header--systems .section-header-title {
+    font-size: clamp(1.7rem, 1.55rem + 0.3vw, 2rem);
+  }
+
+  .section-header--systems .section-header-label {
+    color: var(--color-text-muted);
+  }
+
+  .section-header--systems .section-header-desc {
+    max-width: 34rem;
+  }
+
+  .section-header--community .section-header-title {
+    font-size: clamp(1.75rem, 1.6rem + 0.32vw, 2.1rem);
+  }
+
+  .section-header--community .section-header-desc {
+    max-width: 38rem;
+  }
+
+  .section-header--tools .section-header-title {
+    font-size: clamp(1.75rem, 1.62rem + 0.32vw, 2.1rem);
+  }
+
+  .section-header--tools .section-header-label {
+    color: var(--color-text-secondary);
+  }
+
+  .section-header--tools .section-header-desc {
+    max-width: 38rem;
+  }
+
+  .section-header--blog .section-header-title {
+    font-size: clamp(1.9rem, 1.72rem + 0.45vw, 2.4rem);
+  }
+
+  .section-header--blog .section-header-desc {
+    max-width: 44rem;
   }
 </style>

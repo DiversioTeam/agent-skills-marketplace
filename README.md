@@ -2,6 +2,8 @@
 
 Agent Skills marketplace for Diversio.
 
+**🌐 Docs & tools → [engineering.diversio.com](https://engineering.diversio.com)**
+
 ## Agent Skills Standard
 
 This repo follows the [Agent Skills standard](https://agentskills.io/specification): an
@@ -93,7 +95,8 @@ agent-skills-marketplace/
 │   ├── dev-workflow/                  # Pi-native daily developer workflow extension + skills
 │   ├── image-router/                  # Pi-native vision bridge for text-only models
 │   ├── oh-my-pi/                      # Pi-native cmux integration (notifications, split panes, workspace tabs)
-│   └── skills-bridge/                 # Pi-native bridge to Claude Code plugin skills
+│   ├── pi-timestamps/                 # Pi-native subtle transcript timing rows
+│   └── skills-bridge/                 # Pi-native bridge to marketplace plugin skills
 ├── website/                           # Astro site for engineering.diversio.com
 │   ├── src/pages/                     # Homepage, /agentic-tools, registry, docs, /skills/*, /pi/*, /blog/*
 │   ├── src/data/site-docs.ts          # Build-time extraction from SKILL.md + package READMEs
@@ -271,8 +274,9 @@ agent-skills-marketplace/
 | `monty-v2-code-review` | Deep-coverage Django/Python code review with mechanical branch enumeration, adversarial inputs, test mapping, and self-review bias mitigation |
 | `moe-skills` | Backend workflow helpers for PR review fixes, commit-and-reply with SHA links, PR status, and codebase reuse scanning |
 | `review-delegator` | Review delegator that runs monty-v2 core analysis, fans out mandatory deep checks to focused sub-skills, and compiles one final verdict |
-| `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle parity, and admin three-layer surface |
-| `merge-drift-check` | Merge-drift audit for version files, unrelated file regressions, and PR description accuracy |
+| `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle parity, admin surface, concurrency races, and edge-state gaps |
+| `import-export-roundtrip-check` | Import/export round-trip audit for CSV, config, serialized dict, admin import/export, and command I/O parity |
+| `merge-drift-check` | Merge-drift audit for version files, lockfiles/build artifacts, unrelated file regressions, and PR description accuracy |
 | `historical-data-check` | Historical-data and legacy-config audit for existing bad rows, import reuse, rollback safety, and inverse state-clearing |
 | `test-quality-check` | Test-depth and assertion-quality audit for branch coverage, mock realism, transaction shape, and CI-safe assertions |
 | `gate-runner` | Exact CI gate runner for ruff diff checks, ty, local-import checks, and migration squash verification |
@@ -296,7 +300,7 @@ agent-skills-marketplace/
 
 ## Available Pi Packages
 
-All four packages are installable together from one git URL (recommended) or
+All six packages are installable together from one git URL (recommended) or
 individually from a local checkout. The root `package.json` declares every
 sub-package so pi can discover them from a single clone - see
 [Git-based install](#git-based-install-recommended) for the one-liner.
@@ -305,8 +309,10 @@ sub-package so pi can discover them from a single clone - see
 |---------|-------------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
 | `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
+| `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
-| `skills-bridge` | Auto-discovers Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+| `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
+| `skills-bridge` | Auto-discovers marketplace plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
@@ -374,7 +380,7 @@ of the Claude Code marketplace.
 #### Git-based install (recommended)
 
 A root `package.json` at the top of this repo declares every sub-package so pi
-can discover `ci-status`, `dev-workflow`, `oh-my-pi`, and `skills-bridge` from one clone:
+can discover `ci-status`, `dev-workflow`, `image-router`, `oh-my-pi`, `pi-timestamps`, and `skills-bridge` from one clone:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -413,7 +419,9 @@ local change before pushing:
 ```bash
 pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
+pi install "$PWD/pi-packages/image-router"
 pi install "$PWD/pi-packages/oh-my-pi"
+pi install "$PWD/pi-packages/pi-timestamps"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
 
@@ -433,7 +441,8 @@ the duplicate project package entry from `.pi/settings.json` or uninstall the
 global copy before reloading.
 
 Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`,
-`pi-packages/dev-workflow/README.md`, and `pi-packages/oh-my-pi/README.md` for
+`pi-packages/dev-workflow/README.md`, `pi-packages/image-router/README.md`,
+`pi-packages/oh-my-pi/README.md`, and `pi-packages/pi-timestamps/README.md` for
 command inventory, contribution workflow, and local testing commands.
 
 ### Monolith Review Orchestrator
@@ -461,6 +470,7 @@ claude plugin install monty-v2-code-review@diversiotech
 claude plugin install moe-skills@diversiotech
 claude plugin install review-delegator@diversiotech
 claude plugin install contract-propagation-check@diversiotech
+claude plugin install import-export-roundtrip-check@diversiotech
 claude plugin install merge-drift-check@diversiotech
 claude plugin install historical-data-check@diversiotech
 claude plugin install test-quality-check@diversiotech
@@ -504,6 +514,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Moe backend workflow helpers | `claude plugin install moe-skills@diversiotech` |
 | Review delegator | `claude plugin install review-delegator@diversiotech` |
 | Contract propagation audit | `claude plugin install contract-propagation-check@diversiotech` |
+| Import/export round-trip audit | `claude plugin install import-export-roundtrip-check@diversiotech` |
 | Merge-drift audit | `claude plugin install merge-drift-check@diversiotech` |
 | Historical-data audit | `claude plugin install historical-data-check@diversiotech` |
 | Test-quality audit | `claude plugin install test-quality-check@diversiotech` |
@@ -543,6 +554,13 @@ Once plugins are installed:
    /moe-skills:commit-and-reply              # Commit, push, and reply to reviewer comments with the commit SHA
    /moe-skills:pr-status                     # Show PR review/CI/merge status dashboard
    /moe-skills:codebase-reuse-finder         # Find hardcoded values and reimplemented repo patterns
+   /review-delegator:delegate                # Orchestrate a multi-skill review pass
+   /contract-propagation-check:check         # Audit propagation, lifecycle parity, admin surface, concurrency, and edge states
+   /import-export-roundtrip-check:check      # Audit CSV/config/admin/command round-trip safety
+   /merge-drift-check:check                  # Audit merge drift, lockfiles, and PR description accuracy
+   /historical-data-check:check              # Audit existing bad rows, legacy config reuse, rollback safety
+   /test-quality-check:check                 # Audit test depth, branch coverage, transaction assertions
+   /gate-runner:run                          # Run CI gate sequence, report pass/fail with fix commands
    /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
    /backend-atomic-commit:atomic-commit      # Strict atomic commit helper (all gates green, no AI signature)
    /backend-atomic-commit:commit             # Run all gates, fix, and create commit (full closure)

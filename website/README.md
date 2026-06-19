@@ -7,6 +7,12 @@ site.
 
 ## Quick Start
 
+Before making content or structure changes, read:
+- `docs/content-governance.md` for page scope, content ownership, blog ordering, and stack asset provenance
+- `docs/editing-recipes.md` for “change X → edit Y” guidance
+- `docs/editorial-workflow.md` for deciding whether something belongs on a page, in shared data, or in a blog post
+
+
 ```bash
 cd website
 npm install
@@ -17,29 +23,64 @@ npm run preview  # preview the production build locally
 
 Node requirement: Astro 6 in this site currently needs Node `>=22.12.0`.
 
+## Source Repo Resolution
+
+The website reads tool docs and metadata from an `agent-skills-marketplace` checkout.
+
+Current local-resolution order is:
+1. `AGENT_SKILLS_REPO_DIR`
+2. the current git repo root when it contains `plugins/` and `pi-packages/`
+3. `../agent-skills-marketplace`
+4. `../vendor/agent-skills-marketplace`
+5. `./vendor/agent-skills-marketplace`
+
+If local builds cannot find the tool source repo, set:
+
+```bash
+export AGENT_SKILLS_REPO_DIR=/absolute/path/to/agent-skills-marketplace
+```
+
+This applies to both:
+- the Astro build/extraction path
+- `website/scripts/generate-og-images.py`
+
 ## The Big Idea
 
-The website now has **three roles**:
+The website currently works as a small set of connected page families.
 
-1. **Hub**: present Diversio Engineering as the umbrella site
-   - homepage
-   - section routing
-   - shared brand + canonical metadata
+### 1. Hub
+The homepage explains the whole engineering site and routes readers toward the right surface.
 
-2. **Agentic Tools**: power the open tools section
-   - `/agentic-tools`
-   - `/registry`
-   - `/docs/*`
-   - `/skills/*`
-   - `/pi/*`
+Primary routes:
+- `/`
 
-3. **Editorial**: support engineering writing and curated reposts
-   - `/blog`
-   - `/blog/*`
-   - original posts
-   - reposts with explicit attribution and canonical handling
+### 2. Engineering practice and systems
+These pages explain how Diversio Engineering works, what standards shape the work, and how stack and workflow decisions fit together.
 
-The current implementation extends the PR #77 Astro baseline instead of replacing it.
+Primary routes:
+- `/how-we-work`
+- `/systems`
+
+### 3. Agentic Tools
+These pages explain the open tools surface, the package registry, and the deeper docs for plugins, skills, and Pi packages.
+
+Primary routes:
+- `/agentic-tools`
+- `/registry`
+- `/docs/*`
+- `/skills/*`
+- `/pi/*`
+
+### 4. Editorial and community
+These pages carry the publication layer and the broader ways people can follow, engage with, and contribute to the work.
+
+Primary routes:
+- `/blog`
+- `/blog/*`
+- `/authors/*`
+- `/community`
+
+A good maintenance rule: when a change feels like it belongs to two page families, stop and reread `docs/content-governance.md` and `docs/editorial-workflow.md` before editing both.
 
 ## Blog Content Model
 
@@ -60,6 +101,7 @@ author:
   url: https://github.com/author        # optional
 tags: [engineering, tooling]
 sourceType: original
+featured: false                  # optional; set true to pin on hero surfaces
 ---
 
 Post body in markdown.
@@ -142,6 +184,18 @@ frontmatter.sourceType = "original"
 marketplace.json
   -> cards, counts, registry summaries
 
+engineering-principles.ts
+  -> how-we-work principles
+
+engineering-highlights.ts
+  -> systems examples and lane ordering
+
+engineering-stack.ts
+  -> stack layers, logos, supporting tools
+
+site-entry-points.ts
+  -> shared route summaries and CTA wording
+
 plugins/*/skills/*/SKILL.md
 pi-packages/*/skills/*/SKILL.md
 pi-packages/*/README.md
@@ -165,6 +219,14 @@ We do **not** want a second website-only documentation schema that drifts.
 |---|---|---|
 | Shared site name, primary hostname, nav routes | `site.config.mjs` | one place for public brand/domain strings |
 | Homepage counts, registry cards, package summaries | `src/data/marketplace.json` | stable catalog metadata |
+| `/how-we-work` principles | `src/data/engineering-principles.ts` | principles change more slowly and should stay separate from examples |
+| `/how-we-work` practice rows | `src/data/engineering-practices.ts` | concrete engineering habits now live outside page markup for easier maintenance |
+| `/how-we-work` featured example selection | `src/data/how-we-work.ts` | page-specific featured highlight slugs stay out of template code |
+| `/systems` and shared example rows | `src/data/engineering-highlights.ts` | manual summaries are easier to review than build-time aggregation |
+| Stack showcase | `src/data/engineering-stack.ts` | stack layers, logos, and supporting tools stay in one place |
+| Reused route/entry-point summaries | `src/data/site-entry-points.ts` | shared directional copy stays consistent across top-level pages |
+| Tool-section featured plugin curation | `src/data/agentic-tools.ts` | homepage and tools-section featured plugin choices stay out of page templates |
+| Shared broad-site counts | `src/utils/site-metrics.ts` | homepage/community-style counts stay consistent instead of drifting by page |
 | Individual plugin skill pages | `plugins/*/skills/*/SKILL.md` | the skill itself is the canonical behavior |
 | Pi-local skill pages | `pi-packages/*/skills/*/SKILL.md` | same reason: skill behavior lives in markdown |
 | Pi extension pages | `pi-packages/*/README.md` | commands/tools/env vars already live there |
@@ -180,6 +242,10 @@ website/
 ├── site.config.mjs
 ├── tsconfig.json
 ├── README.md
+├── docs/
+│   ├── content-governance.md
+│   ├── editing-recipes.md
+│   └── editorial-workflow.md
 ├── public/
 │   ├── _headers
 │   ├── _redirects
@@ -216,9 +282,25 @@ website/
     ├── data/
     │   ├── marketplace.json
     │   ├── site-docs.ts
+    │   ├── engineering-principles.ts
+    │   ├── engineering-practices.ts
+    │   ├── how-we-work.ts
+    │   ├── engineering-highlights.ts
+    │   ├── engineering-stack.ts
+    │   ├── site-entry-points.ts
+    │   ├── agentic-tools.ts
     │   └── contributors.ts
+    ├── utils/
+    │   ├── blog-posts.ts
+    │   ├── engineering-content.ts
+    │   ├── marketplace-content.ts
+    │   ├── pick-featured-blog-post.ts
+    │   ├── sort-blog-posts.ts
+    │   └── site-metrics.ts
     └── pages/
         ├── index.astro
+        ├── how-we-work.astro
+        ├── systems.astro
         ├── agentic-tools.astro
         ├── registry.astro
         ├── community.astro
@@ -239,6 +321,25 @@ website/
             ├── index.astro
             └── [slug].astro
 ```
+
+## Maintainer Docs Map
+
+Keep the detailed rules in the dedicated docs instead of copying them everywhere:
+
+- `docs/content-governance.md`
+  - page scope
+  - content ownership
+  - stack asset provenance
+  - blog ordering rules
+- `docs/editing-recipes.md`
+  - common "change X → edit Y" tasks
+- `docs/editorial-workflow.md`
+  - judgment calls about page vs post vs shared-data changes
+
+Rule of thumb:
+- use this README for orientation
+- use `content-governance.md` for structure and ownership decisions
+- use `editing-recipes.md` when you already know what you want to change
 
 ## Why the New Files Exist
 
@@ -558,29 +659,13 @@ rg -n '/skills/|/pi/' dist
 
 ## Route Guide
 
-### Hub pages
+For page scope and ownership rules, prefer `docs/content-governance.md`.
 
-- `/`
-- `/agentic-tools`
-- `/blog`
-- `/community`
+Quick classification only:
 
-Use these when you want the high-level engineering hub, tools landing page, editorial index, or collaboration entrypoints.
-
-### Bundle-level pages
-
-- `/docs/<plugin-or-package>`
-- `/registry`
-
-Use these when you want the tools overview for a specific bundle or the full registry inventory.
-
-### Deep docs pages
-
-- `/skills/<skill>`
-- `/pi/<package>`
-- `/blog/<slug>`
-
-Use these when you want the actual behavior, commands, tools, references, installation flow, extension surface, or article body.
+- Top-level hub/editorial pages: `/`, `/how-we-work`, `/systems`, `/agentic-tools`, `/blog`, `/community`
+- Bundle-level pages: `/docs/<plugin-or-package>`, `/registry`
+- Deep docs pages: `/skills/<skill>`, `/pi/<package>`, `/blog/<slug>`
 
 ## Social Sharing Metadata
 

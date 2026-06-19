@@ -91,12 +91,13 @@ open http://localhost:4321/pi`;
   description="Maintainer docs for Agentic Tools: authoring, packaging, distribution, and validation."
   ogImage="/og/docs-index.png"
   socialImageAlt="Agentic Tools docs social preview"
-  currentNav="docs"
+  currentNav="tools"
 >
   <section class="docs-hero">
     <SectionHeader
       label="Documentation"
       title="Build and maintain Agentic Tools"
+      titleLevel="h1"
       description={`${plugins.length} plugins, ${marketplaceSkillCount} plugin skills, ${piLocalSkillCount} Pi-local skills, and ${piPackages.length} pi packages. This page focuses on repo structure, authoring rules, command wrappers, and release checks.`}
     />
     <div class="intro-card">
@@ -416,7 +417,7 @@ open http://localhost:4321/pi`;
     align-items: start;
   }
 
-  @media (min-width: 1024px) {
+  @media (min-width: 1200px) {
     .docs-shell {
       grid-template-columns: minmax(0, 1fr) 16rem;
     }
@@ -438,7 +439,7 @@ open http://localhost:4321/pi`;
     gap: var(--space-xl);
   }
 
-  @media (min-width: 960px) {
+  @media (min-width: 1000px) {
     .split-grid {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       align-items: start;
@@ -520,7 +521,13 @@ open http://localhost:4321/pi`;
     gap: var(--space-lg);
   }
 
-  @media (min-width: 960px) {
+  @media (min-width: 700px) {
+    .runtime-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1200px) {
     .runtime-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -577,7 +584,7 @@ open http://localhost:4321/pi`;
     gap: var(--space-md);
   }
 
-  @media (min-width: 1024px) {
+  @media (min-width: 1200px) {
     .docs-side-rail {
       display: flex;
     }
@@ -621,7 +628,7 @@ open http://localhost:4321/pi`;
     color: var(--color-primary);
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 860px) {
     .docs-hero {
       padding: var(--space-2xl) var(--space-md) 0;
     }
@@ -630,9 +637,20 @@ open http://localhost:4321/pi`;
       padding: var(--space-2xl) var(--space-md);
     }
 
+    .intro-actions > .btn,
+    .runtime-card-actions > .btn {
+      width: 100%;
+    }
+
     .doc-block + .doc-block {
       padding-top: var(--space-2xl);
       margin-top: var(--space-2xl);
+    }
+
+    .runtime-card-header,
+    .category-header {
+      align-items: flex-start;
+      flex-direction: column;
     }
   }
 </style>

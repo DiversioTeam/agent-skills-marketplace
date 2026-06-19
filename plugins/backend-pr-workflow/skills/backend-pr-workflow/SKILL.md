@@ -60,7 +60,7 @@ Before giving a full review, this Skill should gather:
 - The **repository** and context (e.g. Django4Lyfe backend / monolith).
 - The **branch name**.
 - The **PR title** and **PR description** (or the planned ones).
-- The **base branch** (what the PR targets: `release`, `master`, etc.).
+- The **base branch** (what the PR targets: `dev`, `release`, `master`, etc.).
 - Whether the PR:
   - Includes Django model changes.
   - Adds, modifies, or deletes migrations.
@@ -174,15 +174,20 @@ If not, emit:
 Confirm the base branch matches the project’s release workflow:
 
 - **Normal feature / bugfix work**:
-  - Base branch should be `release` (for repos following the Django4Lyfe
-    pattern).
+  - Base branch should be `dev` (the integration branch).
+  - Merging into `dev` runs validation only — no staging deploy.
+- **Staging promotion**:
+  - Base branch should be `release`.
+  - A PR from `dev` → `release` is a **promotion PR** — merging deploys staging.
 - **Hotfix** that must bypass the current `release` contents:
   - Base branch should be `master`.
+- **Production release**:
+  - `release` → `master` after staging validation.
 
 If a PR targets the wrong base branch:
 
 - Emit `[BLOCKING]` and recommend the correct base, explaining whether the
-  change belongs in `release` or should be a `master` hotfix.
+  change belongs in `dev`, `release`, or should be a `master` hotfix.
 
 If the repo’s harness docs specify a different default (e.g. custom long-lived
 branches in `AGENTS.md` or a linked workflow doc), follow that instead.
@@ -242,12 +247,15 @@ generally be `[BLOCKING]` for merge readiness.
 
 This Skill enforces a clean release flow.
 
-### 4.1 Normal release flow (via `release` branch)
+### 4.1 Normal release flow (via `dev` → `release` → `master`)
 
 For normal deployments, check that:
 
-- Feature/bugfix PRs merge into `release`.
-- Before cutting a release:
+- Feature/bugfix PRs merge into `dev` (integration branch).
+- To deploy staging:
+  - A **promotion PR** is opened from `dev` → `release`.
+  - Merging this PR triggers staging deploy (run_staging_deploy=true).
+- Before releasing to production:
   - The version (e.g. in `pyproject.toml`) is bumped to the intended release
     version, using CalVer (e.g. `2025-08-19`).
   - If direct pushes to `release` are not allowed, a small PR is created to
@@ -270,16 +278,20 @@ If any of these are obviously missing from the plan, emit `[SHOULD_FIX]`.
 
 For hotfixes, enforce:
 
-- The hotfix PR targets `master` (not `release`).
+- The hotfix PR targets `master` (not `release` or `dev`).
 - The title clearly indicates a hotfix, e.g.:
   - `Hotfix release: 2025-08-19`
 - After deployment:
   - Changes are merged back into `release` so it stays ahead of or equal to
     `master`.
+  - Changes are also merged or cherry-picked back into **`dev`** so the
+    integration branch does not drift from production.  Without this,
+    subsequent feature branches and the next `dev → release` promotion are
+    developed against an integration branch missing code already in production.
   - A GitHub Release is created and tagged using the same CalVer scheme.
 
-If a supposed hotfix PR is targeting `release`, or a hotfix is not planned to
-be merged back into `release`, emit `[BLOCKING]`.
+If a supposed hotfix PR is targeting `dev` or `release`, or a hotfix is not
+planned to be merged back into `release` **and `dev`**, emit `[BLOCKING]`.
 
 ## Checklist 5 – Migrations: Cleanup and Regeneration
 

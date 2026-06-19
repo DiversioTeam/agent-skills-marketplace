@@ -9,19 +9,10 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
 <section class="hero">
   <div class="hero-grid">
     <div class="hero-left">
-      <div class="hero-brand">
-        <img
-          src="/diversio-logo.svg"
-          alt="Diversio"
-          class="hero-brand-logo"
-          width="116"
-          height="20"
-        />
-        <span class="label-caps hero-brand-note">Engineering</span>
-      </div>
-      <h1 class="hero-title">{siteConfig.toolsSectionName}</h1>
+      <span class="label-caps hero-kicker">{siteConfig.toolsSectionName}</span>
+      <h1 class="hero-title">Open tools for Claude Code, Codex, and Pi</h1>
       <p class="body-lg hero-desc">
-        Open source tools, reusable skills, and Pi extensions from Diversio Engineering for Claude Code, Codex, and Pi.
+        Browse plugins, reusable skills, and Pi extensions from Diversio Engineering.
       </p>
       <div class="hero-actions">
         <a href={siteConfig.routes.docs} class="btn btn-primary btn-md">Read the Docs</a>
@@ -135,29 +126,19 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     min-width: 0;
   }
 
-  .hero-brand {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-  }
-
-  .hero-brand-logo {
-    display: block;
-    width: auto;
-    height: 1.125rem;
-  }
-
-  .hero-brand-note {
+  .hero-kicker {
     color: var(--color-primary);
   }
 
   .hero-title {
     font-family: var(--font-headline);
-    font-size: var(--text-headline-xl);
+    font-size: clamp(2.4rem, 4vw, var(--text-headline-xl));
     font-weight: var(--weight-bold);
     line-height: var(--leading-headline);
     letter-spacing: var(--tracking-headline);
     color: var(--color-text);
+    text-wrap: balance;
+    max-width: 12ch;
   }
 
   .hero-desc {
@@ -169,6 +150,7 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     display: flex;
     gap: var(--space-sm);
     flex-wrap: wrap;
+    align-items: stretch;
     min-width: 0;
   }
 
@@ -308,27 +290,25 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     flex-shrink: 0;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 860px) {
+    .hero {
+      padding: var(--space-2xl) var(--space-md) 0;
+    }
+
     .hero-actions > .btn {
-      flex: 1 1 calc(50% - var(--space-sm));
+      width: 100%;
     }
 
     .hero-stats {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: 1fr;
     }
 
     .stat-card {
-      padding: var(--space-md) var(--space-xs);
+      padding: var(--space-md) var(--space-sm);
     }
 
     .stat-num {
       font-size: 1.75rem;
-    }
-
-    .stat-label {
-      font-size: 0.625rem;
-      line-height: 1.2;
-      text-align: center;
     }
 
     .arch-panel-body {
@@ -348,7 +328,7 @@ const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
     }
   }
 
-  @media (min-width: 1280px) {
+  @media (min-width: 1200px) {
     .hero-grid {
       grid-template-columns: 3fr 2fr;
     }

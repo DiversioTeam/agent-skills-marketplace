@@ -34,7 +34,7 @@ gh pr view --json number,title,url,headRefName,baseRefName
 # Derive the branch diff base from the PR target branch.
 # Override by exporting BASE_BRANCH before invoking if needed.
 if [ -z "$BASE_BRANCH" ]; then
-  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName')"
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null)"
 fi
 ```
 

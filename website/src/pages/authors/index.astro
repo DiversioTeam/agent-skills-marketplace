@@ -1,0 +1,196 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import SectionHeader from "../../components/SectionHeader.astro";
+import { getAuthorHref, summarizeAuthors } from "../../utils/authors";
+import { getPublishedBlogPosts } from "../../utils/blog-posts";
+
+const posts = await getPublishedBlogPosts();
+const authors = summarizeAuthors(posts.map((post) => post.data.author));
+---
+
+<PageLayout
+  title="Authors"
+  description="Browse authors featured on Diversio Engineering and see all of their articles in one place."
+  ogImage="/og/blog-index.png"
+  socialImageAlt="Diversio Engineering authors"
+  currentNav="blog"
+>
+  <section class="page-section page-hero">
+    <SectionHeader
+      label="Authors"
+      title="Writers and contributors"
+      titleLevel="h1"
+      description="Browse every author featured in the engineering blog and jump straight to their writing."
+      variant="blog"
+    />
+  </section>
+
+  <section class="page-section">
+    {authors.length > 0 ? (
+      <>
+        <div class="authors-note">
+          <span class="label-caps authors-note-label">Browse by person</span>
+          <p class="body-md authors-note-copy">Each author page collects articles in one place so readers can follow a specific voice or line of thinking over time.</p>
+        </div>
+        <div class="authors-grid">
+        {authors.map((author) => (
+          <a href={getAuthorHref(author.name)} class="author-card">
+            <div class="author-card-top">
+              <div class="author-avatar" aria-hidden="true">
+                {author.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+              </div>
+              <div>
+                <h2 class="headline-sm author-name">{author.name}</h2>
+                <p class="body-md author-meta">{author.postCount} article{author.postCount === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+            {author.url && <span class="label-caps author-link">External site available</span>}
+            <span class="label-caps author-link">View articles →</span>
+          </a>
+        ))}
+        </div>
+      </>
+    ) : (
+      <div class="empty-state">
+        <h2 class="headline-sm">No authors yet</h2>
+        <p class="body-md empty-copy">Publish a post and its author will appear here automatically.</p>
+      </div>
+    )}
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+
+  .page-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+
+  .authors-note {
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, var(--color-surface), var(--color-surface-low));
+    box-shadow: var(--shadow-block-sm);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+  }
+
+  .authors-note-label {
+    color: var(--color-primary);
+  }
+
+  .authors-note-copy {
+    color: var(--color-text-secondary);
+    max-width: 42rem;
+    margin-top: var(--space-sm);
+  }
+
+  .authors-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  @media (min-width: 700px) {
+    .authors-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .authors-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .author-card,
+  .empty-state {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-block-sm);
+  }
+
+  .author-card {
+    padding: var(--space-lg);
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .author-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-block);
+    transform: translateY(-1px);
+  }
+
+
+  .author-card-top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    min-width: 0;
+  }
+
+  .author-avatar {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-code);
+    font-weight: 700;
+  }
+
+  .author-name {
+    margin: 0 0 0.2rem;
+  }
+
+  .author-meta,
+  .empty-copy {
+    color: var(--color-text-secondary);
+  }
+
+  .author-link {
+    color: var(--color-primary);
+    margin-top: auto;
+  }
+
+  .empty-state {
+    padding: var(--space-lg);
+  }
+
+  @media (max-width: 860px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+
+    .page-hero,
+    .page-section + .page-section {
+      padding-top: var(--space-2xl);
+    }
+
+    .authors-note,
+    .author-card {
+      padding: var(--space-md);
+    }
+
+    .author-card-top {
+      align-items: flex-start;
+    }
+  }
+</style>

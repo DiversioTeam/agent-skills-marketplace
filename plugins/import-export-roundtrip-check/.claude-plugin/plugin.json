@@ -1,0 +1,8 @@
+{
+  "name": "import-export-roundtrip-check",
+  "version": "1.0.0",
+  "description": "Focused sub-skill: verify every changed data shape can round-trip safely across CSV, config, dict/serialized, management-command, and admin import/export paths.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

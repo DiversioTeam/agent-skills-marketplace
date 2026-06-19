@@ -89,28 +89,30 @@ const metadata = [
 
   <section class="doc-section" id="overview">
     <h2 class="headline-md doc-heading">Overview</h2>
-    {isPlugin ? (
-      <>
-        <p>{description}</p>
-        <p style="margin-top: var(--space-md); color: var(--color-text-secondary)">
-          Bundles {item.skills.length} skill{item.skills.length !== 1 ? "s" : ""} with
-          {" "}{item.commands.length} Claude Code wrapper{item.commands.length !== 1 ? "s" : ""}.
-          Codex users install the same skill directories directly from GitHub.
-        </p>
-      </>
-    ) : (
-      <>
-        <p>{description}</p>
-        <p style="margin-top: var(--space-md); color: var(--color-text-secondary)">
-          Pi-native package for the <a href="https://pi.dev">Pi</a> coding agent harness.
-          Packages can add extensions, tools, local skills, notifications, and TUI behavior.
-        </p>
-        <p style="margin-top: var(--space-md)">
-          Need the Pi-native surface instead of the marketplace package summary?
-          Read the extension docs at <a href={`/pi/${name}`}>/pi/{name}</a>.
-        </p>
-      </>
-    )}
+    <div class="overview-card">
+      {isPlugin ? (
+        <>
+          <p>{description}</p>
+          <p style="margin-top: var(--space-md); color: var(--color-text-secondary)">
+            Bundles {item.skills.length} skill{item.skills.length !== 1 ? "s" : ""} with
+            {" "}{item.commands.length} Claude Code wrapper{item.commands.length !== 1 ? "s" : ""}.
+            Codex users install the same skill directories directly from GitHub.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>{description}</p>
+          <p style="margin-top: var(--space-md); color: var(--color-text-secondary)">
+            Pi-native package for the <a href="https://pi.dev">Pi</a> coding agent harness.
+            Packages can add extensions, tools, local skills, notifications, and TUI behavior.
+          </p>
+          <p style="margin-top: var(--space-md)">
+            Need the Pi-native surface instead of the marketplace package summary?
+            Read the extension docs at <a href={`/pi/${name}`}>/pi/{name}</a>.
+          </p>
+        </>
+      )}
+    </div>
   </section>
 
   {isPlugin && (
@@ -152,11 +154,11 @@ const metadata = [
       <>
         <p>Install the plugin for Claude Code, or install one or more skill paths for Codex.</p>
         <div class="install-grid">
-          <div>
+          <div class="install-card">
             <h3 class="install-subheading">Claude Code</h3>
             <CodeBlock lang="bash" code={claudeInstallCode} />
           </div>
-          <div>
+          <div class="install-card">
             <h3 class="install-subheading">Codex</h3>
             <CodeBlock lang="bash" code={codexInstallCode} />
           </div>
@@ -177,22 +179,37 @@ const metadata = [
 
 <style>
   .doc-header { margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: var(--border-hairline); }
-  .doc-tags { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
-  .doc-title { margin-bottom: var(--space-md); }
+  .doc-tags { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); flex-wrap: wrap; }
+  .doc-title { margin-bottom: var(--space-md); text-wrap: balance; }
   .doc-subtitle { color: var(--color-text-secondary); max-width: 36rem; }
-  .doc-section { margin-bottom: var(--space-2xl); }
+  .doc-section { margin-bottom: var(--space-2xl); min-width: 0; }
   .doc-heading { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-lg); }
   .doc-section p { color: var(--color-text-secondary); margin-bottom: var(--space-md); line-height: var(--leading-body); }
-  .doc-section code:not(pre code):not(.command-chip) { font-family: var(--font-code); font-size: var(--text-code-sm); background: var(--color-surface-low); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--color-primary); }
+  .overview-card,
+  .install-card {
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-block-sm);
+    padding: var(--space-lg);
+  }
+  .doc-section code:not(pre code):not(.command-chip) { font-family: var(--font-code); font-size: var(--text-code-sm); background: var(--color-surface-low); padding: 1px 6px; border-radius: var(--radius-sm); color: var(--color-primary); word-break: break-word; }
   .skill-card { background: var(--color-surface); border: var(--border-hairline); border-radius: var(--radius-md); margin-bottom: var(--space-md); overflow: hidden; }
-  .skill-card-header { padding: var(--space-sm) var(--space-md); background: var(--color-surface-low); border-bottom: var(--border-hairline); }
-  .skill-card-body { padding: var(--space-md); }
+  .skill-card-header { padding: var(--space-sm) var(--space-md); background: var(--color-surface-low); border-bottom: var(--border-hairline); min-width: 0; }
+  .skill-card-body { padding: var(--space-md); min-width: 0; }
   .skill-card-body p { margin: 0; font-size: var(--text-body-md); }
-  .skill-path { margin-top: var(--space-sm); color: var(--color-text-muted); }
+  .skill-path { margin-top: var(--space-sm); color: var(--color-text-muted); overflow-wrap: anywhere; }
   .skill-link { display: inline-block; margin-top: var(--space-sm); color: var(--color-primary); text-decoration: none; }
   .command-grid { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
-  .command-chip { display: inline-block; font-family: var(--font-code); font-size: var(--text-code); background: var(--color-code-bg); color: var(--color-code-text); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--color-code-border); white-space: nowrap; }
+  .command-chip { display: inline-flex; max-width: 100%; font-family: var(--font-code); font-size: var(--text-code); background: var(--color-code-bg); color: var(--color-code-text); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--color-code-border); white-space: normal; overflow-wrap: anywhere; }
   .install-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); }
+  .install-card :global(.code-block) { margin-bottom: 0; }
   .install-subheading { margin-bottom: var(--space-sm); }
-  @media (min-width: 960px) { .install-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .install-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 860px) {
+    .doc-heading { align-items: flex-start; }
+    .command-grid { gap: var(--space-xs); }
+    .overview-card,
+    .install-card { padding: var(--space-md); }
+  }
 </style>

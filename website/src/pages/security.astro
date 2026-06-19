@@ -3,6 +3,7 @@
 import PageLayout from "../layouts/PageLayout.astro";
 import SectionHeader from "../components/SectionHeader.astro";
 import FeatureList from "../components/FeatureList.astro";
+import EmailLink from "../components/EmailLink.astro";
 import { siteConfig } from "../../site.config.mjs";
 ---
 
@@ -16,6 +17,7 @@ import { siteConfig } from "../../site.config.mjs";
     <SectionHeader
       label="Security"
       title="Security Policy"
+      titleLevel="h1"
       description="This site links to two main artifact types: markdown skills and Pi packages that may include installable TypeScript extensions. Review both the docs and the source before installing anything into an agent harness."
     />
     <FeatureList
@@ -27,7 +29,7 @@ import { siteConfig } from "../../site.config.mjs";
       ]}
     />
     <p class="body-md" style="color: var(--color-text-secondary); margin-top: var(--space-xl)">
-      To report a security vulnerability, please email <a href="mailto:security@diversio.com">security@diversio.com</a>.
+      To report a security vulnerability, please <EmailLink label="contact us by email" />.
       Do not open a public issue.
     </p>
   </section>

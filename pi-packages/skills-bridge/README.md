@@ -1,10 +1,10 @@
 # skills-bridge
 
-Pi extension that auto-discovers Claude Code plugin skills from `plugins/*/skills/` directories and registers them as pi skills. One install bridges the whole marketplace skill catalog into pi without restructuring the repo.
+Pi extension that auto-discovers marketplace plugin skills from `plugins/*/skills/` directories and registers them as pi skills. One install bridges the whole marketplace skill catalog into pi without restructuring the repo.
 
 ## What it does
 
-The Diversio team has a growing shared catalog of Claude Code skills (`release-manager`, `monty-code-review`, `review-delegator`, `gate-runner`, etc.) in this repo. Claude Code and Codex users see them automatically. Pi users don't — pi only discovers skills from `~/.pi/agent/skills/` and `pi-packages/*/skills/`, not from `plugins/*/skills/`.
+The Diversio team has a growing shared catalog of marketplace skills (`release-manager`, `monty-code-review`, `review-delegator`, `gate-runner`, etc.) in this repo. Supported runtimes can load them directly. Pi users don't — pi only discovers skills from `~/.pi/agent/skills/` and `pi-packages/*/skills/`, not from `plugins/*/skills/`.
 
 This extension bridges that gap. It uses pi's `resources_discover` hook to scan the plugins directory and register skill paths. One `pi install` per team member, then `/reload`, and the full marketplace skill catalog appears.
 
@@ -110,7 +110,7 @@ console.log('Skills discovered:', total);
 
 ## Skills bridged
 
-The extension discovers every skill directory under `plugins/*/skills/` in the checked-out marketplace. In this checkout that is 32 skills across plugins such as `monolith-review-orchestrator`, `monty-code-review`, `monty-v2-code-review`, `moe-skills`, `review-delegator`, `contract-propagation-check`, `merge-drift-check`, `historical-data-check`, `test-quality-check`, `gate-runner`, `backend-atomic-commit`, and `frontend`.
+The extension discovers every skill directory under `plugins/*/skills/` in the checked-out marketplace. In this checkout that includes skills across plugins such as `monolith-review-orchestrator`, `monty-code-review`, `monty-v2-code-review`, `moe-skills`, `review-delegator`, `contract-propagation-check`, `import-export-roundtrip-check`, `merge-drift-check`, `historical-data-check`, `test-quality-check`, `gate-runner`, `backend-atomic-commit`, and `frontend`.
 
 Run the verification snippet above if you want the exact live count from your checkout instead of a stale hardcoded number.
 

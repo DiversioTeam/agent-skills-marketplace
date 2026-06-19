@@ -11,9 +11,11 @@ allowed-tools: [Bash, Read]
 
 # Commit and Reply Skill
 
-Commit staged changes via `/backend-atomic-commit:commit`, push to remote, and
-reply to each addressed PR reviewer comment with a commit SHA link. Designed to
-run after `/moe-skills:pr-review-fix`.
+Commit staged changes via `/backend-atomic-commit:commit`, or auto-stage the
+current PR fixes first when nothing is staged, then push to remote and reply to
+each addressed PR reviewer comment with a commit SHA link. This includes
+resolved/outdated review threads when they became outdated because the fix
+landed or the code moved. Designed to run after `/moe-skills:pr-review-fix`.
 
 **Dependency:** Requires `backend-atomic-commit@diversiotech` plugin to be
 installed (`/backend-atomic-commit:commit` is invoked in Step 2).
@@ -24,19 +26,23 @@ dedupe audit must all complete before this skill is finished.
 
 **Reference documentation:**
 
-- `docs/runbooks/pr-review-posting-hygiene.md` — posting protocol and dedupe rules
+- `references/reply-posting-hygiene.md` — posting protocol, reply targeting, and dedupe rules
 - `docs/quality/gates.md` — quality gate definitions
 - `AGENTS.md` — product boundaries, commit conventions, and global rules
+- `references/merge-conflict-resolution.md` — detailed merge-conflict handling for Step 3
 
 ---
 
-## Step 1: Verify Preconditions
+## Step 1: Verify Preconditions / Auto-Stage If Needed
 
-Check that there are staged changes and detect the PR:
+Check the current git state and detect the PR:
 
 ```bash
-# Verify staged changes exist
+# Inspect git state
+git status --short
 git diff --cached --name-only
+git diff --name-only
+git ls-files --others --exclude-standard
 
 # Detect PR from current branch
 gh pr view --json number,url,headRefName,baseRefName
@@ -54,17 +60,31 @@ PR=<detected-pr-number>
 # Derive the branch diff base from the PR target branch.
 # Override by exporting BASE_BRANCH before invoking if needed.
 if [ -z "$BASE_BRANCH" ]; then
-  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName')"
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null)"
 fi
 ```
 
-**If nothing is staged**, stop and tell the user:
-
-> "No staged changes found. Run `/moe-skills:pr-review-fix` first to address reviewer
-> comments and stage fixes."
-
 **If no PR is found**, stop and tell the user to push the branch and open a PR
 first.
+
+**If nothing is staged but the working tree has changes**, auto-stage them first:
+
+```bash
+git add -A
+git diff --cached --name-only
+```
+
+Auto-stage rules:
+- Stage tracked modifications, deletions, renames, and untracked files.
+- Do **not** stage ignored files.
+- Show the staged file list before moving on.
+- If this stages unrelated work, let `/backend-atomic-commit:commit` fail
+  atomicity rather than silently committing a partial fix set.
+
+**If nothing is staged and the working tree is clean**, stop and tell the user:
+
+> "No staged changes found and no unstaged changes to auto-stage. Run `/moe-skills:pr-review-fix`
+> first or make the intended fixes before using `/moe-skills:commit-and-reply`."
 
 ---
 
@@ -124,7 +144,7 @@ Pull latest from the PR base branch:
 git pull origin "$BASE_BRANCH" --no-rebase
 ```
 
-### If merge conflicts occur — resolve them by type
+### If merge conflicts occur
 
 Check which files are conflicted:
 
@@ -132,78 +152,14 @@ Check which files are conflicted:
 git diff --name-only --diff-filter=U
 ```
 
-Resolve each file according to its type:
+Then resolve them using `references/merge-conflict-resolution.md`.
+That reference covers:
+- migration conflicts
+- lock/generated file conflicts
+- additive code conflicts
+- stop-and-ask categories (schema/security/business-logic/test fixtures)
 
-#### Migration conflicts (most common)
-
-Two branches added migrations with overlapping numbers for the same app.
-
-1. Accept the **base branch** version of the conflicting migration (it's already
-   deployed or ahead in the pipeline):
-   ```bash
-   git checkout --theirs <app>/migrations/<conflicting_file>.py
-   ```
-2. Delete the **branch's** migration file that conflicts.
-3. Regenerate the branch's migration with the next available number:
-   ```bash
-   .bin/django makemigrations <app>
-   ```
-4. Run `.bin/ruff format` on the new migration file.
-5. Verify: `.bin/django migrate --check` (no pending changes).
-6. Stage the resolved files:
-   ```bash
-   git add <app>/migrations/
-   ```
-
-#### Lock files and generated files
-
-Regenerate rather than manually merging:
-
-```bash
-# uv.lock
-uv lock
-git add uv.lock
-
-# requirements.txt (if present)
-git checkout --theirs requirements.txt
-git add requirements.txt
-```
-
-#### Code conflicts — non-overlapping hunks
-
-If git marked a conflict but both changes are in **different parts** of the
-file (different functions, different sections), accept both changes. Read
-both sides, verify they don't interact, then edit the file to include both.
-
-#### Code conflicts — same function, additive changes
-
-If both sides added different logic to the same function (e.g., base branch added
-a new field and the branch added a new condition), merge both changes
-manually. Read the full function, understand both intents, combine them.
-
-#### STOP and ask the user for these conflicts
-
-Do **not** auto-resolve:
-
-- **Model field definition conflicts** — schema changes need human judgment
-- **Security-related code** — auth, permissions, tenant scoping, PII gates
-- **Business logic rewrites** — both sides rewrote the same logic differently
-  with incompatible approaches
-- **Test fixture conflicts** — wrong fixture alignment causes silent failures
-
-For these, show the conflict diff and ask:
-
-> "Conflict in `<file>` involves <security/schema/business logic>. This
-> needs your judgment. Here's what each side did:
->
-> - **Base branch**: <summary>
-> - **Branch**: <summary>
->
-> How should I resolve this?"
-
-#### After all conflicts resolved
-
-Complete the merge:
+After all conflicts are resolved, complete the merge:
 
 ```bash
 git commit --no-edit
@@ -269,14 +225,27 @@ Three modes for selecting which comments get replies:
 If `/moe-skills:pr-review-fix` was run earlier in this conversation, use the addressed
 comment IDs it tracked. This is the preferred flow.
 
+**Important:** addressed comment IDs from conversation context stay eligible even if
+GitHub now marks the thread `isResolved == true` or `isOutdated == true`.
+That state often means the fix landed and the old diff position is stale — not
+that we should skip replying.
+
 ### Mode B: `--all` Flag
 
 If `--all` is passed, use a **thread-aware** acquisition path for inline review
 comments. Do not use flat REST comment lists to decide which inline comments are
 still open.
 
+In `--all` mode, collect two inline-review buckets:
+1. comments in open, non-outdated threads
+2. comments in resolved/outdated threads that still do **not** have a reply from
+   you after the latest reviewer comment in that thread
+
+Bucket (2) is the catch-up path for comments that are "outdated" only because
+we fixed them and the code moved.
+
 ```bash
-# Inline review threads — keep only open, non-outdated threads for reply targets
+# Inline review threads — fetch thread state and all thread comments for reply targeting
 gh api graphql -f query='
   query($owner:String!, $repo:String!, $pr:Int!) {
     repository(owner:$owner, name:$repo) {
@@ -292,6 +261,7 @@ gh api graphql -f query='
               nodes {
                 databaseId
                 body
+                createdAt
                 author { login }
               }
             }
@@ -312,10 +282,12 @@ more comments within a thread, keep paginating (or stop and tell the user the
 thread data is incomplete).
 
 Reply-target rules for `--all`:
-- inline review comments → only comments in threads where
-  `isResolved == false && isOutdated == false`
-- general PR comments → include them only as conversation comments; they do not
-  prove unresolved review-thread state
+- inline review comments → include:
+  - comments in threads where `isResolved == false && isOutdated == false`
+  - comments in resolved/outdated threads **when no reply from self exists after
+    the latest non-self reviewer comment in that thread**
+- general PR comments → include them as conversation comments; these do not
+  have review-thread resolution metadata, so dedupe them only by existing self replies
 
 ### Mode C: No IDs, No `--all`
 
@@ -324,7 +296,7 @@ If no addressed IDs are available and `--all` was not passed, ask the user:
 > "I don't have a list of addressed comments from a prior `/moe-skills:pr-review-fix` run.
 > Would you like me to:
 >
-> 1. Reply to **all open inline review threads** plus general PR comments with this commit SHA
+> 1. Reply to **all open inline review threads**, plus **resolved/outdated threads that still lack a reply from me**, plus general PR comments with this commit SHA
 > 2. **Skip** replies (just commit and push)
 > 3. **List** reviewer comments so you can pick which ones to reply to"
 
@@ -333,8 +305,8 @@ If no addressed IDs are available and `--all` was not passed, ask the user:
 ## Step 6: Pre-Audit for Duplicates and Stale Targets
 
 Before posting any replies, check for existing replies from self to avoid
-duplicates (per `pr-review-posting-hygiene.md` MUST_04), and re-validate that
-any inline review-comment targets still belong to open, non-outdated threads.
+duplicates (per `references/reply-posting-hygiene.md`), and re-validate the
+current thread state for each inline target.
 
 ```bash
 # Check existing inline comment replies from self
@@ -348,18 +320,34 @@ gh api "repos/$OWNER/$REPO/issues/$PR/comments" --paginate \
 
 If your reply-target source was conversation context rather than a fresh `--all`
 thread fetch, re-run the Step 5 GraphQL query and confirm every inline target
-comment ID still lives in a thread where `isResolved == false` and
-`isOutdated == false`. If you cannot confirm that state, stop and ask the user
-which comments should receive replies instead of guessing from stale history.
+comment ID still exists in the fetched thread graph.
+
+Eligibility rules after refresh:
+- **Conversation-context targets**: eligible even if the thread is now resolved
+  or outdated. That is expected when the fix landed.
+- **`--all` targets in open threads**: eligible.
+- **`--all` targets in resolved/outdated threads**: eligible only if there is no
+  later self reply already covering that reviewer comment/thread.
+
+If you cannot find the target comment ID in the refreshed thread graph, stop and
+ask the user which comments should receive replies instead of guessing from stale
+history.
 
 For each comment we plan to reply to:
 
 - If a reply from self already exists with the same SHA → **skip** (already
   replied)
-- If a reply from self exists with a different SHA → **skip** (previous
-  attempt, don't double-post)
-- If the inline comment's thread is now resolved or outdated → **skip** unless
-  the user explicitly asks to reply anyway
+- If a reply from self exists with a different SHA **after the latest reviewer
+  comment on that same review thread** → **skip** (already acknowledged later)
+- For a general PR comment, skip only when a later self-authored issue comment
+  clearly acknowledges that same target comment (for example: it was selected
+  from conversation context, manually chosen by the user, or otherwise tied to
+  that specific reviewer comment) → **skip** (already acknowledged later)
+- If the thread is resolved/outdated **but this comment was explicitly addressed
+  in the current session** → **reply anyway**
+- If the thread is resolved/outdated in `--all` mode and no later self reply
+  exists → **reply** (catch-up acknowledgement)
+- Resolved/outdated status alone is **not** a skip reason
 
 ---
 
@@ -402,7 +390,7 @@ gh api "repos/$OWNER/$REPO/issues/$PR/comments" \
 
 ## Step 8: Post-Audit for Duplicates
 
-Run the dedupe detector from `pr-review-posting-hygiene.md` STEP_05:
+Run the local dedupe detector described in `references/reply-posting-hygiene.md`:
 
 ```bash
 # Check inline comment duplicates
@@ -458,9 +446,10 @@ Commit: <SHORT_SHA> — <commit-message>
 Push: success
 PR: #<number> — <url>
 
+Auto-stage: none needed | staged <N> file(s)
 Replies posted: <N>
   - Comment #<id> by <reviewer> → replied
-  - Comment #<id> by <reviewer> → replied
+  - Comment #<id> by <reviewer> → replied (resolved/outdated thread catch-up)
   - Comment #<id> by <reviewer> → skipped (already replied)
 
 Dedupe audit: clean (no duplicates) | removed <N> duplicates
@@ -470,11 +459,15 @@ Dedupe audit: clean (no duplicates) | removed <N> duplicates
 
 ## Rules
 
-- **No AI signatures** — no `Co-Authored-By: Claude`, no bot tags, no emoji
-  signatures in commits or GitHub comments.
-- **Follow `pr-review-posting-hygiene.md`** — dedupe audit before and after
-  posting, one reply per comment, no blind retries.
+- **No AI signatures** — no AI/vendor co-author tags, no bot tags, and no
+  emoji signatures in commits or GitHub comments.
+- **Follow `references/reply-posting-hygiene.md`** — dedupe audit before and
+  after posting, one reply per comment, no blind retries.
 - **Never post duplicate replies** — always check existing replies first.
+- **Resolved/outdated threads are valid reply targets** when they were addressed
+  by the current fix set or still lack a later self reply.
+- **Auto-stage before failing** — if the worktree has intended changes and the
+  index is empty, stage them instead of stopping with "nothing to commit".
 - **Do not force-push** — if push fails, tell the user to rebase.
 - **Skill invocation** — step 2 must use `/backend-atomic-commit:commit`, not
   manual commit logic. This keeps commit quality gates DRY.

@@ -1,0 +1,215 @@
+---
+import { getCollection } from "astro:content";
+import PageLayout from "../../layouts/PageLayout.astro";
+import SectionHeader from "../../components/SectionHeader.astro";
+import { formatEditorialDate } from "../../utils/format-date";
+import { getAuthorHref, slugifyAuthorName, summarizeAuthors } from "../../utils/authors";
+import { getPublishedBlogPosts } from "../../utils/blog-posts";
+
+const posts = await getPublishedBlogPosts();
+
+export async function getStaticPaths() {
+  const posts = await getPublishedBlogPosts();
+  const authors = summarizeAuthors(posts.map((post) => post.data.author));
+  return authors.map((author) => ({
+    params: { author: author.slug },
+    props: { author },
+  }));
+}
+
+const { author } = Astro.props;
+const authorPosts = posts.filter((post) => slugifyAuthorName(post.data.author.name) === author.slug);
+---
+
+<PageLayout
+  title={author.name}
+  description={`Browse all articles by ${author.name} on Diversio Engineering.`}
+  ogImage="/og/blog-index.png"
+  socialImageAlt={`${author.name} on Diversio Engineering`}
+  currentNav="blog"
+>
+  <section class="page-section page-hero">
+    <SectionHeader
+      label="Author"
+      title={author.name}
+      titleLevel="h1"
+      description={`${author.postCount} article${author.postCount === 1 ? "" : "s"} published on Diversio Engineering.`}
+      variant="blog"
+    />
+    <div class="author-actions">
+      <a href="/authors" class="author-back-link">← All authors</a>
+      {author.url && (
+        <a href={author.url} target="_blank" rel="noopener" class="author-site-link">External site ↗</a>
+      )}
+    </div>
+  </section>
+
+  <section class="page-section">
+    <div class="author-note">
+      <span class="label-caps author-note-label">Author page</span>
+      <p class="body-md author-note-copy">A running list of everything published here by {author.name}.</p>
+    </div>
+    <div class="posts-grid">
+      {authorPosts.map((post) => {
+        const href = `/blog/${(post.data.slug ?? post.id).replace(/\.md$/, "")}`;
+        const isRepost = post.data.sourceType === "repost";
+        return (
+          <article class="post-card">
+            <div class="post-meta-row">
+              <span class={`label-caps post-kind${isRepost ? " post-kind--repost" : ""}`}>
+                {isRepost ? "Curated repost" : "Original post"}
+              </span>
+              <time class="code-text-sm post-date" datetime={post.data.publishDate.toISOString()}>
+                {formatEditorialDate(post.data.publishDate, "short")}
+              </time>
+            </div>
+            <h2 class="headline-sm"><a href={href}>{post.data.title}</a></h2>
+            <p class="body-md post-summary">{post.data.summary}</p>
+            <span class="label-caps post-kind">Read article →</span>
+          </article>
+        );
+      })}
+    </div>
+  </section>
+</PageLayout>
+
+<style>
+  .page-section {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-margin) var(--space-3xl);
+  }
+
+  .page-hero {
+    padding-top: var(--space-3xl);
+  }
+
+  .page-section + .page-section {
+    border-top: var(--border-hairline);
+    padding-top: var(--space-3xl);
+  }
+
+  .author-actions {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    margin-top: calc(-1 * var(--space-sm));
+  }
+
+  .author-note {
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, var(--color-surface), var(--color-surface-low));
+    box-shadow: var(--shadow-block-sm);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+  }
+
+  .author-note-label {
+    color: var(--color-primary);
+  }
+
+  .author-note-copy {
+    color: var(--color-text-secondary);
+    margin-top: var(--space-sm);
+  }
+
+  .author-back-link,
+  .author-site-link {
+    color: var(--color-text-secondary);
+    text-decoration: none;
+  }
+
+  .author-back-link:hover,
+  .author-site-link:hover {
+    color: var(--color-primary);
+  }
+
+  .posts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  @media (min-width: 860px) {
+    .posts-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .post-card {
+    background: var(--color-surface);
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-block-sm);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .post-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-block);
+    transform: translateY(-1px);
+  }
+
+  .post-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .post-kind {
+    color: var(--color-primary);
+  }
+
+  .post-kind--repost {
+    color: var(--color-accent);
+  }
+
+  .post-date,
+  .post-summary {
+    color: var(--color-text-secondary);
+    line-height: 1.65;
+  }
+
+  .post-card h2 {
+    margin: var(--space-sm) 0;
+    text-wrap: balance;
+  }
+
+  .post-card h2 a {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .post-card h2 a:hover {
+    color: var(--color-primary);
+  }
+
+  @media (max-width: 860px) {
+    .page-section {
+      padding: 0 var(--space-md) var(--space-2xl);
+    }
+
+    .page-hero,
+    .page-section + .page-section {
+      padding-top: var(--space-2xl);
+    }
+
+    .author-note,
+    .post-card {
+      padding: var(--space-md);
+    }
+
+    .author-actions,
+    .post-meta-row {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>

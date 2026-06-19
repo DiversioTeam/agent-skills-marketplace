@@ -3,7 +3,7 @@
 import { siteConfig } from "../../site.config.mjs";
 
 export interface Props {
-  currentNav?: "home" | "tools" | "docs" | "blog" | "community";
+  currentNav?: "home" | "howWeWork" | "systems" | "tools" | "blog" | "community";
 }
 
 const { currentNav = "home" } = Astro.props;
@@ -11,16 +11,16 @@ const navItems = siteConfig.navItems;
 ---
 <header class="header">
   <div class="header-inner">
-    <div class="header-left">
-      <a href={siteConfig.routes.home} class="header-brand" aria-label={`${siteConfig.siteName} Home`}>
-        <img
-          src="/diversio-logo.svg"
-          alt="Diversio"
-          class="header-brand-logo"
-          width="116"
-          height="20"
-        />
-      </a>
+    <a href={siteConfig.routes.home} class="header-brand" aria-label={`${siteConfig.siteName} Home`}>
+      <img
+        src="/diversio-logo.svg"
+        alt="Diversio"
+        class="header-brand-logo"
+        width="116"
+        height="20"
+      />
+    </a>
+    <div class="header-right-cluster">
       <nav class="header-nav" aria-label="Main navigation">
         {navItems.map((item) => (
           <a
@@ -32,13 +32,13 @@ const navItems = siteConfig.navItems;
           </a>
         ))}
       </nav>
-    </div>
-    <div class="header-right">
-      <a href={siteConfig.githubUrl} class="header-icon-btn" aria-label="DiversioTeam on GitHub" target="_blank" rel="noopener">
+      <div class="header-right">
+        <a href={siteConfig.githubUrl} class="header-icon-btn" aria-label="DiversioTeam on GitHub" target="_blank" rel="noopener">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
         </svg>
-      </a>
+        </a>
+      </div>
     </div>
   </div>
 </header>
@@ -60,15 +60,19 @@ const navItems = siteConfig.navItems;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-lg);
     padding: 0 var(--space-margin);
     position: relative;
   }
 
-  .header-left {
+  .header-right-cluster {
     display: flex;
     align-items: center;
-    gap: var(--space-xl);
-    height: 100%;
+    justify-content: flex-end;
+    gap: var(--space-md);
+    min-width: 0;
+    flex: 1;
+    flex-wrap: nowrap;
   }
 
   .header-brand {
@@ -93,6 +97,7 @@ const navItems = siteConfig.navItems;
     align-items: stretch;
     height: 100%;
     gap: var(--space-md);
+    min-width: 0;
   }
 
   .header-nav-link {
@@ -140,48 +145,105 @@ const navItems = siteConfig.navItems;
   }
 
   /* Mobile */
-  @media (max-width: 768px) {
+  @media (max-width: 1120px) {
+    .header-inner {
+      padding: 0 var(--space-lg);
+    }
+
+    .header-right-cluster {
+      gap: var(--space-sm);
+    }
+
+    .header-nav {
+      gap: var(--space-sm);
+      flex: 1;
+      justify-content: flex-end;
+    }
+
+    .header-nav-link {
+      font-size: var(--text-body-sm);
+      padding: 0 0.35rem;
+    }
+  }
+
+  @media (max-width: 980px) {
+    .header-right-cluster {
+      width: 100%;
+      order: 3;
+      flex-basis: 100%;
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-xs);
+      padding-bottom: var(--space-xs);
+    }
+
+    .header-right {
+      position: absolute;
+      top: var(--space-xs);
+      right: var(--space-md);
+      height: calc(var(--header-height) - var(--space-xs));
+    }
+
+    .header-nav {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-xs);
+      height: auto;
+      width: 100%;
+      padding-bottom: var(--space-xs);
+      justify-content: stretch;
+    }
+
+    .header-nav-link {
+      justify-content: center;
+      min-height: 2.5rem;
+      padding: 0.55rem 0.75rem;
+      white-space: normal;
+      text-align: center;
+      border: var(--border-hairline);
+      border-radius: var(--radius-md);
+      background: var(--color-surface-low);
+    }
+
+    .header-nav-link--active {
+      border-bottom-color: var(--color-primary);
+      border-color: var(--color-primary);
+      background: var(--color-primary-container);
+    }
+  }
+
+  @media (max-width: 680px) {
+    .header-nav {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 860px) {
     .header {
       height: auto;
     }
+
     .header-inner {
       padding: 0 var(--space-md);
-      align-items: flex-start;
+      flex-wrap: wrap;
+      align-items: center;
+      row-gap: var(--space-xs);
+      padding-top: var(--space-xs);
     }
-    .header-left {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0;
-      width: 100%;
-      min-width: 0;
-    }
+
     .header-brand {
-      min-height: var(--header-height);
-      padding-right: 3rem;
+      min-height: calc(var(--header-height) - var(--space-xs));
+      flex: 1 1 auto;
     }
+
+    .header-right-cluster {
+      gap: var(--space-xs);
+    }
+  }
+
+  @media (max-width: 480px) {
     .header-nav {
-      display: flex;
-      gap: var(--space-md);
-      justify-content: space-between;
-      height: auto;
-      overflow-x: auto;
-      padding: 0 0 var(--space-xs);
-      scrollbar-width: none;
-    }
-    .header-nav::-webkit-scrollbar {
-      display: none;
-    }
-    .header-nav-link {
-      height: auto;
-      padding: var(--space-xs) 0;
-      white-space: nowrap;
-      font-size: var(--text-body-sm);
-    }
-    .header-right {
-      position: absolute;
-      top: 0;
-      right: var(--space-md);
-      height: var(--header-height);
+      grid-template-columns: 1fr;
     }
   }
 

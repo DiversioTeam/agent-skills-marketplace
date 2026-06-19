@@ -72,6 +72,7 @@ jobs:
   # receive repository secrets. That keeps the workflow safe and avoids noisy
   # failures contributors cannot fix from forks.
   deploy-preview:
+    if: false  # RETIRED: deploy ownership moved to DiversioTeam/engineering-website
     name: Deploy preview
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
@@ -131,6 +132,7 @@ jobs:
   # Production deploys only happen from main so the public site matches merged
   # repository state, not ad-hoc branch state.
   deploy-production:
+    if: false  # RETIRED: deploy ownership moved to DiversioTeam/engineering-website
     name: Deploy production
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||

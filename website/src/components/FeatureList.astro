@@ -5,9 +5,9 @@ export interface Props {
   class?: string;
 }
 
-const { features } = Astro.props;
+const { features, class: extraClass = "" } = Astro.props;
 ---
-<div class="feature-list">
+<div class={`feature-list ${extraClass}`}>
   <ul class="feature-items">
     {features.map((f) => (
       <li class="feature-item">

@@ -1,6 +1,6 @@
 {
   "name": "backend-pr-workflow",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Follows Diversio backend repo-local PR workflow docs, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes.",
   "author": {
     "name": "Diversio Devs"

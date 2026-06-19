@@ -59,6 +59,8 @@ const { lang, filename, code } = Astro.props;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-sm);
+    min-width: 0;
     padding: var(--space-xs) var(--space-md);
     background: var(--color-code-bg-header);
     border-bottom: 1px solid var(--color-code-border);
@@ -68,6 +70,10 @@ const { lang, filename, code } = Astro.props;
     font-family: var(--font-code);
     font-size: var(--text-code-sm);
     color: var(--color-text-muted);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .code-block-copy {
@@ -95,10 +101,18 @@ const { lang, filename, code } = Astro.props;
     font-size: var(--text-code);
     line-height: var(--leading-code);
     color: var(--color-code-text);
+    -webkit-overflow-scrolling: touch;
   }
 
   .code-block-body code {
     font-family: inherit;
     white-space: pre;
+  }
+
+  @media (max-width: 860px) {
+    .code-block-body {
+      padding: var(--space-md);
+      font-size: var(--text-code-sm);
+    }
   }
 </style>

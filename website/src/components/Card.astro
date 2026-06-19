@@ -61,6 +61,8 @@ const { category, packageId, title, description, status, version, runtimes, href
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
     padding: var(--space-xs) var(--space-md);
     background: var(--color-surface-low);
     border-bottom: var(--border-hairline);
@@ -77,6 +79,12 @@ const { category, packageId, title, description, status, version, runtimes, href
 
   .card-id {
     color: var(--color-text-muted);
+    max-width: 55%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
   }
 
   .card-body {
@@ -84,6 +92,7 @@ const { category, packageId, title, description, status, version, runtimes, href
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   .card-title {
@@ -92,13 +101,14 @@ const { category, packageId, title, description, status, version, runtimes, href
     font-weight: var(--weight-semibold);
     color: var(--color-text);
     margin: 0 0 var(--space-sm);
+    text-wrap: balance;
   }
 
   .card-desc {
     color: var(--color-text-secondary);
     margin-bottom: var(--space-md);
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }

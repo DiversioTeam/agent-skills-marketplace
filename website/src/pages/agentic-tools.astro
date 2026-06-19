@@ -17,13 +17,12 @@ import Card from "../components/Card.astro";
 import CardGrid from "../components/CardGrid.astro";
 import CodeBlock from "../components/CodeBlock.astro";
 import RuntimeCodeTabs from "../components/RuntimeCodeTabs.astro";
+import { toolsPageFeaturedPluginSlugs } from "../data/agentic-tools";
 import { plugins, piPackages } from "../data/marketplace.json";
+import { getMarketplaceItemsBySlug } from "../utils/marketplace-content";
 import { siteConfig } from "../../site.config.mjs";
 
-const featured = plugins.filter((p) =>
-  ["monty-code-review", "backend-atomic-commit", "backend-release",
-   "visual-explainer", "plan-directory", "clickup-ticket"].includes(p.name)
-);
+const featured = getMarketplaceItemsBySlug(plugins, toolsPageFeaturedPluginSlugs);
 const totalSkills = plugins.reduce((sum, p) => sum + p.skills.length, 0);
 const categories = [...new Set(plugins.map((p) => p.category))];
 
@@ -52,72 +51,75 @@ name: backend-atomic-commit`;
   <Hero />
 
   <section class="page-section">
-    <SectionHeader
-      label={siteConfig.toolsSectionName}
-      title="How Agentic Tools is organized"
-      description="Three layers work together: reusable skills, installable plugin bundles, and Pi-native extensions."
-    />
-    <div class="layers-grid">
-      <div class="layer-card layer-skills">
-        <div class="layer-card-header">
-          <span class="label-caps">Layer 1</span>
-          <span class="code-text-sm" style="color: var(--color-text-muted)">{totalSkills} skills</span>
-        </div>
-        <div class="layer-card-body">
-          <h3 class="headline-sm">Skills</h3>
-          <p class="body-md">The core unit. Each skill is a single <code>SKILL.md</code>, a Markdown file with YAML frontmatter that teaches an agent how to perform one task well.</p>
-          <div class="layer-example">
-            <CodeBlock
-              lang="yaml"
-              filename="monty-code-review/SKILL.md"
-              code={`---
+    <div class="layers-shell">
+      <SectionHeader
+        label={siteConfig.toolsSectionName}
+        title="How Agentic Tools is organized"
+        description="Three layers work together: reusable skills, installable plugin bundles, and Pi-native extensions."
+        variant="tools"
+      />
+      <div class="layers-stack">
+        <article class="layer-row layer-row--skills">
+          <div class="layer-row-meta">
+            <span class="label-caps">Layer 1</span>
+            <span class="code-text-sm">{totalSkills} skills</span>
+          </div>
+          <div class="layer-row-body">
+            <h3 class="headline-sm">Skills</h3>
+            <p class="body-md">The core unit. Each skill is a single <code>SKILL.md</code>, a Markdown file with YAML frontmatter that teaches an agent how to perform one task well.</p>
+            <div class="layer-example">
+              <CodeBlock
+                lang="yaml"
+                filename="monty-code-review/SKILL.md"
+                code={`---
 name: monty-code-review
 description: >-
   Hyper-pedantic Django code review with
   correctness-first, multi-tenant-safe,
   harness-aware review style.
 ---`}
-            />
+              />
+            </div>
           </div>
-        </div>
-      </div>
+        </article>
 
-      <div class="layer-card layer-plugins">
-        <div class="layer-card-header">
-          <span class="label-caps">Layer 2</span>
-          <span class="code-text-sm" style="color: var(--color-text-muted)">{plugins.length} plugins</span>
-        </div>
-        <div class="layer-card-body">
-          <h3 class="headline-sm">Plugins</h3>
-          <p class="body-md">The distribution layer. Each plugin packages one or more related skills with slash-command wrappers for Claude Code, while Codex users install exact skill directories from the repo.</p>
-          <div class="layer-example">
-            <RuntimeCodeTabs
-              tabs={[
-                { label: "Claude Code", code: claudePluginInstallCode },
-                { label: "Codex", code: codexPluginInstallCode },
-              ]}
-            />
+        <article class="layer-row layer-row--plugins">
+          <div class="layer-row-meta">
+            <span class="label-caps">Layer 2</span>
+            <span class="code-text-sm">{plugins.length} plugins</span>
           </div>
-        </div>
-      </div>
+          <div class="layer-row-body">
+            <h3 class="headline-sm">Plugins</h3>
+            <p class="body-md">The distribution layer. Each plugin packages one or more related skills with slash-command wrappers for Claude Code, while Codex users install exact skill directories from the repo.</p>
+            <div class="layer-example">
+              <RuntimeCodeTabs
+                tabs={[
+                  { label: "Claude Code", code: claudePluginInstallCode },
+                  { label: "Codex", code: codexPluginInstallCode },
+                ]}
+              />
+            </div>
+          </div>
+        </article>
 
-      <div class="layer-card layer-pi">
-        <div class="layer-card-header">
-          <span class="label-caps">Layer 3</span>
-          <span class="code-text-sm" style="color: var(--color-text-muted)">{piPackages.length} packages</span>
-        </div>
-        <div class="layer-card-body">
-          <h3 class="headline-sm">Pi Packages</h3>
-          <p class="body-md">Extensions for the <a href="https://pi.dev">Pi</a> coding agent harness. These packages add tools, TUI widgets, notifications, and runtime behavior to Pi itself, while Skills Bridge exposes plugin skills inside Pi.</p>
-          <div class="layer-example">
-            <CodeBlock
-              lang="bash"
-              code={`pi install git:github.com/DiversioTeam/agent-skills-marketplace
+        <article class="layer-row layer-row--pi">
+          <div class="layer-row-meta">
+            <span class="label-caps">Layer 3</span>
+            <span class="code-text-sm">{piPackages.length} packages</span>
+          </div>
+          <div class="layer-row-body">
+            <h3 class="headline-sm">Pi Packages</h3>
+            <p class="body-md">Extensions for the <a href="https://pi.dev">Pi</a> coding agent harness. These packages add tools, TUI widgets, notifications, and runtime behavior to Pi itself, while Skills Bridge exposes plugin skills inside Pi.</p>
+            <div class="layer-example">
+              <CodeBlock
+                lang="bash"
+                code={`pi install git:github.com/DiversioTeam/agent-skills-marketplace
 # installs all pi packages at once:
 # dev-workflow, skills-bridge, ci-status, oh-my-pi, image-router`}
-            />
+              />
+            </div>
           </div>
-        </div>
+        </article>
       </div>
     </div>
   </section>
@@ -128,6 +130,7 @@ description: >-
         label="Registry"
         title="Popular tools"
         description={`${plugins.length} plugins across ${categories.join(", ")}.`}
+        variant="tools"
       />
       <a href={siteConfig.routes.registry} class="catalog-view-all label-caps">View all {plugins.length} →</a>
     </div>
@@ -151,6 +154,7 @@ description: >-
       label="Pi Packages"
       title="Pi extensions"
       description={`${piPackages.length} packages that extend the Pi agent harness.`}
+      variant="tools"
     />
     <CardGrid cols={3}>
       {piPackages.map((p) => (
@@ -169,38 +173,54 @@ description: >-
   <section class="page-section">
     <SectionHeader
       label="Quickstart"
-      title="Get started quickly"
-      description="Pick a runtime, copy the right command, and start using the tool you need."
+      title="The shortest path to useful output"
+      description="Pick a runtime, copy the right command, and move from install to invocation fast."
+      variant="tools"
     />
-    <div class="quickstart-grid">
-      <div class="quickstart-step">
-        <span class="quickstart-num code-text">01</span>
-        <h3 class="headline-sm">Install the tool</h3>
-        <p class="body-md">Pick your runtime, then copy the install command that matches it.</p>
-        <RuntimeCodeTabs
-          tabs={[
-            { label: "Claude Code", code: claudePluginInstallCode },
-            { label: "Codex", code: codexPluginInstallCode },
-          ]}
-        />
-      </div>
-      <div class="quickstart-step">
-        <span class="quickstart-num code-text">02</span>
-        <h3 class="headline-sm">Invoke a skill</h3>
-        <p class="body-md">Switch between Claude Code and Codex so copy-to-clipboard gives you the right invocation.</p>
-        <RuntimeCodeTabs
-          tabs={[
-            { label: "Claude Code", code: claudeInvokeCode },
-            { label: "Codex", code: codexInvokeCode },
-          ]}
-        />
-      </div>
-      <div class="quickstart-step">
-        <span class="quickstart-num code-text">03</span>
-        <h3 class="headline-sm">Ship with confidence</h3>
-        <p class="body-md">Skills enforce repo-local conventions and pre-commit hooks. CI validates every change.</p>
-        <CodeBlock lang="bash" code={"/backend-pr-workflow:check-pr\n# branch → migration safety → PR hygiene"} />
-      </div>
+    <div class="quickstart-stack">
+      <article class="quickstart-row">
+        <div class="quickstart-row-meta">
+          <span class="quickstart-num code-text">01</span>
+          <span class="label-caps">Install</span>
+        </div>
+        <div class="quickstart-row-body">
+          <h3 class="headline-sm">Install the tool</h3>
+          <p class="body-md">Pick your runtime, then copy the install command that matches it.</p>
+          <RuntimeCodeTabs
+            tabs={[
+              { label: "Claude Code", code: claudePluginInstallCode },
+              { label: "Codex", code: codexPluginInstallCode },
+            ]}
+          />
+        </div>
+      </article>
+      <article class="quickstart-row">
+        <div class="quickstart-row-meta">
+          <span class="quickstart-num code-text">02</span>
+          <span class="label-caps">Invoke</span>
+        </div>
+        <div class="quickstart-row-body">
+          <h3 class="headline-sm">Invoke a skill</h3>
+          <p class="body-md">Switch between Claude Code and Codex so copy-to-clipboard gives you the right invocation.</p>
+          <RuntimeCodeTabs
+            tabs={[
+              { label: "Claude Code", code: claudeInvokeCode },
+              { label: "Codex", code: codexInvokeCode },
+            ]}
+          />
+        </div>
+      </article>
+      <article class="quickstart-row quickstart-row--final">
+        <div class="quickstart-row-meta">
+          <span class="quickstart-num code-text">03</span>
+          <span class="label-caps">Ship</span>
+        </div>
+        <div class="quickstart-row-body">
+          <h3 class="headline-sm">Ship with confidence</h3>
+          <p class="body-md">Skills encode project conventions and quality checks. CI validates every change.</p>
+          <CodeBlock lang="bash" code={"/backend-pr-workflow:check-pr\n# branch → migration safety → PR hygiene"} />
+        </div>
+      </article>
     </div>
   </section>
 
@@ -235,53 +255,76 @@ description: >-
     border-top: var(--border-hairline);
   }
 
-  .layers-grid {
+  .layers-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-xl);
-    align-items: start;
-  }
-  @media (min-width: 1024px) {
-    .layers-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
   }
 
-  .layer-card {
-    background: var(--color-surface);
+  .layers-stack {
+    display: grid;
+    gap: var(--space-lg);
+  }
+
+  .layer-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
     border: var(--border-hairline);
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-block-sm);
   }
-  .layer-skills { border-top: 3px solid var(--color-primary); }
-  .layer-plugins { border-top: 3px solid var(--color-primary); }
-  .layer-pi { border-top: 3px solid var(--color-accent); }
 
-  .layer-card-header {
+  .layer-row--skills {
+    background: linear-gradient(180deg, var(--color-surface), var(--color-surface-low));
+  }
+
+  .layer-row--plugins {
+    background: linear-gradient(180deg, var(--color-surface), color-mix(in srgb, var(--color-primary-container) 28%, var(--color-surface)));
+  }
+
+  .layer-row--pi {
+    background: linear-gradient(180deg, var(--color-surface), color-mix(in srgb, var(--color-accent-container) 28%, var(--color-surface)));
+  }
+
+  .layer-row-meta {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-xs) var(--space-md);
-    background: var(--color-surface-low);
-    border-bottom: var(--border-hairline);
+    gap: var(--space-sm);
+    color: var(--color-text-muted);
   }
-  .layer-card-body {
-    padding: var(--space-lg);
+
+  .layer-row-body {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
     min-width: 0;
   }
-  .layer-card-body h3 { margin: 0; }
-  .layer-card-body p { color: var(--color-text-secondary); margin: 0; }
-  .layer-card-body code {
+
+  .layer-row-body h3 { margin: 0; }
+  .layer-row-body p { color: var(--color-text-secondary); margin: 0; }
+  .layer-row-body code {
     font-family: var(--font-code);
     font-size: var(--text-code-sm);
     background: var(--color-surface-low);
     padding: 1px 5px;
     border-radius: var(--radius-sm);
     color: var(--color-primary);
+  }
+
+  @media (min-width: 1100px) {
+    .layer-row {
+      grid-template-columns: 10rem minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .layer-row-meta {
+      flex-direction: column;
+      align-items: flex-start;
+      padding-top: 0.2rem;
+    }
   }
   .layer-example {
     margin-top: var(--space-sm);
@@ -311,27 +354,60 @@ description: >-
   }
   .catalog-view-all:hover { text-decoration: underline; }
 
-  .quickstart-grid {
+  .quickstart-stack {
+    display: grid;
+    gap: var(--space-lg);
+  }
+
+  .quickstart-row {
     display: grid;
     grid-template-columns: 1fr;
-    gap: var(--space-xl);
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    border: var(--border-hairline);
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-block-sm);
   }
-  @media (min-width: 768px) {
-    .quickstart-grid { grid-template-columns: repeat(3, 1fr); }
+
+  .quickstart-row-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--color-text-muted);
   }
-  .quickstart-step {
+
+  .quickstart-row-body {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
+    min-width: 0;
   }
+
   .quickstart-num {
     font-size: var(--text-headline-lg);
     font-weight: 700;
     color: var(--color-primary-container);
     line-height: 1;
   }
-  .quickstart-step p { color: var(--color-text-secondary); }
-  .quickstart-step :global(.code-block) { margin-top: auto; }
+
+  .quickstart-row-body p { color: var(--color-text-secondary); }
+  .quickstart-row-body :global(.code-block),
+  .quickstart-row-body :global(.runtime-code-tabs) { margin-top: auto; }
+
+  @media (min-width: 1100px) {
+    .quickstart-row {
+      grid-template-columns: 9rem minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .quickstart-row-meta {
+      flex-direction: column;
+      align-items: flex-start;
+      padding-top: 0.2rem;
+    }
+  }
 
   .contribute-section { border-top: var(--border-hairline); }
   .contribute-card {
@@ -363,9 +439,29 @@ description: >-
     flex-wrap: wrap;
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 860px) {
     .page-section {
       padding: var(--space-2xl) var(--space-md);
+    }
+
+    .catalog-header,
+    .layer-row-meta,
+    .quickstart-row-meta {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .contribute-card {
+      padding: var(--space-xl);
+      text-align: left;
+    }
+
+    .contribute-actions {
+      justify-content: stretch;
+    }
+
+    .contribute-actions > .btn {
+      width: 100%;
     }
   }
 </style>
