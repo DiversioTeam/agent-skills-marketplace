@@ -272,7 +272,7 @@ agent-skills-marketplace/
 | `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worker-owned review worktrees, persistent review context, and author-guiding review output |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, repo-local commit hygiene, and `local-ci run --no-github` when the repo exposes local-ci |
-| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, migration safety checks, and the local-ci + validated-deploy-helper backend release model |
+| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, migration safety checks, and the local-ci preflight + validated-deploy-helper backend release model |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
@@ -283,7 +283,7 @@ agent-skills-marketplace/
 | `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, repo-local execution routing, and project-board hydration |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
 | `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
-| `backend-release` | Django4Lyfe backend release workflow - promotion/release PRs, exact-head local-ci validation, validated deploy-helper triggers, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
+| `backend-release` | Django4Lyfe backend release workflow - promotion/release PR preflights, exact-head local-ci validation after merge, validated deploy-helper triggers, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |

@@ -64,6 +64,9 @@ when command files change.
   - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /
     `ci_fetch_job_logs` only when the current harness exposes those tools.
+    In Django4Lyfe-style backend release flows, PR-head local-ci is treated as
+    a preflight; exact merged-head validation still happens on clean
+    `origin/release` / `origin/master` checkouts.
 - `image-router` (pi package)
   - Purpose: routes image inputs through a vision-capable model when the
     active model cannot see images, including pasted screenshots, `@path`
@@ -199,7 +202,8 @@ when command files change.
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
   - Purpose: backend PR workflow for the dev→release→master branch model
-    (feature PRs target dev, release/master deploys use local-ci plus the
+    (feature PRs target dev, promotion/release PR heads can run local-ci
+    preflight parity, and release/master deploys use local-ci plus the
     validated deploy helper instead of auto-deploying on PR merge), GitHub
     issue linkage, Django migration safety, and downtime-safe schema changes.
   - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
@@ -211,9 +215,10 @@ when command files change.
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
-  - Purpose: Django4Lyfe two-phase release workflow — promotion/release PRs,
-    exact-head local-ci validation, validated deploy-helper triggers,
-    version bumping, GitHub releases, and three-branch post-release sync.
+  - Purpose: Django4Lyfe two-phase release workflow — promotion/release PR
+    preflights, exact-head local-ci validation after merge, validated
+    deploy-helper triggers, version bumping, GitHub releases, and three-branch
+    post-release sync.
   - Claude install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`
   - Slash commands: `/backend-release:check`, `/backend-release:create`,

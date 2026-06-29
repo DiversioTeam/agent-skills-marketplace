@@ -1,6 +1,6 @@
 {
   "name": "dev-workflow",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Daily developer workflow for pi — workflow prompt registry, plan review, self-review, standards, remote CI, local-ci-aware ship/release prompts, PR review comments, docs, and shipping. 15 core prompts plus help, run, prompts, and flow.",
   "keywords": ["pi-package"],
   "files": ["extensions/", "skills/", "agents/", "README.md"],

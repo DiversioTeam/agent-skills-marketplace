@@ -93,7 +93,7 @@ Make the outcome legible. Document all updated code, especially new additions, i
 Finalize and ship the work:
 
 1. **Verify remote CI green** — prefer `/ci` and `/ci-detail`; fall back to available CI tools if the harness exposes them
-2. **Run repo-owned local validation** — if `local-ci` is on PATH and repo root contains `.local-ci.toml`, run `local-ci run --no-github` (or the repo-local equivalent) before finalizing
+2. **Run repo-owned local validation** — if `local-ci` is on PATH and repo root contains `.local-ci.toml`, run `local-ci run --no-github` (or the repo-local equivalent) before finalizing. If it fails, stop and dig into the failure instead of treating it as a status footnote.
 3. **Discover context** — check the current branch, look for existing GitHub PRs and issues
 4. **Update existing PR** if one already exists for this branch
 5. **Create new PR** if none exists, linking any related GitHub issues
@@ -102,7 +102,7 @@ Finalize and ship the work:
 8. **PR description** — use the PR description writer skill for a reviewer-friendly summary
 9. **Open the PR** on GitHub
 
-For backend release/master deploy flows, if `scripts/deploy/trigger_validated_backend_deploy.sh` exists, use it from the exact clean `origin/release` or `origin/master` head instead of assuming merge deploys automatically.
+For backend release/master deploy flows, a PR-head local-ci run is only a preflight; exact target-branch parity still happens from the clean `origin/release` or `origin/master` head. If `scripts/deploy/trigger_validated_backend_deploy.sh` exists, use it there instead of assuming merge deploys automatically.
 
 Never compromise by excluding files that are part of the change. Everything touched must be improved.
 

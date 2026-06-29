@@ -61,6 +61,12 @@ Routine feature PRs still merge into `dev` where CI validates but never
 deploys. The promotion PR is the intentional step that moves the candidate onto
 `release`.
 
+A `local-ci` run on the open `promote/*` branch is still only a preflight. In
+Django4Lyfe today that preflight can run the full parity lanes, but it still
+does not replace exact target-head validation after merge. If the preflight
+fails, stop and dig into the harness/code before calling the promotion ready.
+Exact `release` parity still happens on the clean merged `origin/release` head.
+
 **After merge**: use the exact `origin/release` head from a clean checkout.
 If the validated deploy helper exists, prefer it — it runs local-ci and then
 triggers staging deploy. Otherwise, if the repo supports local-ci, run
@@ -153,11 +159,15 @@ git push -u origin releases/YYYY.MM.DD[-N]
 gh pr create --base master --title "Release: DDth Month YYYY" --body "..."
 ```
 
-Merging the release PR does **not** deploy production automatically. After it
-lands, use the exact `origin/master` head from a clean checkout. If the
-validated deploy helper exists, prefer it — it runs local-ci and then triggers
-production deploy. Otherwise, if the repo supports local-ci, run `local-ci`
-manually and follow the repo-local deploy steps.
+Merging the release PR does **not** deploy production automatically. A
+`local-ci` run on the open `release -> master` PR head is only a preflight. In
+Django4Lyfe today that preflight can run the full parity lanes, but exact
+`origin/master` validation still happens after merge. If it fails, stop and dig
+into it before calling the release ready. After the PR lands, use the exact
+`origin/master` head from a clean checkout. If the validated deploy helper
+exists, prefer it — it runs local-ci and then triggers production deploy.
+Otherwise, if the repo supports local-ci, run `local-ci` manually and follow
+the repo-local deploy steps.
 
 ```bash
 git fetch origin

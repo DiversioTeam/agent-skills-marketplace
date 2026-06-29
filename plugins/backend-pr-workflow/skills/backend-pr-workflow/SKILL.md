@@ -180,6 +180,8 @@ Confirm the base branch matches the project’s release workflow:
 - **Normal feature / bugfix work**:
   - Base branch should be `dev` (the integration branch).
   - Merging into `dev` runs validation only — no staging deploy.
+  - On an open PR to `dev`, local-ci on the exact PR head is the real backend
+    validation path; GitHub Actions may still show only safety or advisory jobs.
 - **Staging promotion**:
   - Base branch should be `release`.
   - A PR from `dev` → `release` is a **promotion PR** — merging moves the
@@ -239,6 +241,8 @@ Prompt the author to confirm they have checked:
 - Remote CI is green when applicable.
 - If the repo supports local-ci (`command -v local-ci` + `.local-ci.toml`),
   repo-owned local validation has been run on the intended commit/worktree.
+  If that local-ci run fails, treat it as blocking and dig into the failure
+  before calling the PR ready.
 - Active Python type gate is passing for touched files:
   - Detect in this order unless repo docs/CI differ: `ty`, then `pyright`,
     then `mypy`.
@@ -263,6 +267,11 @@ For normal deployments, check that:
 - Feature/bugfix PRs merge into `dev` (integration branch).
 - To stage changes:
   - A **promotion PR** is opened from `dev` → `release`.
+  - A local-ci run on that promotion PR head is only a preflight. In
+    Django4Lyfe today it can run the full parity lanes, but exact
+    `origin/release` validation still happens after merge.
+  - If that preflight fails, stop and dig into the harness/code instead of
+    treating it as a footnote.
   - Merging that PR does **not** deploy automatically.
   - If the validated deploy helper exists, use it from the clean
     `origin/release` checkout; it validates with local-ci and then triggers
@@ -276,6 +285,9 @@ For normal deployments, check that:
   - A PR is created from `release` → `master` with a title like
     `Release: 21st January 2026` or `Release 2: 21st January 2026`.
   - The release PR **lists all tickets / PRs included** in the description.
+  - A local-ci run on that release PR head is still only a preflight. In
+    Django4Lyfe today it can run the full parity lanes, but exact
+    `origin/master` parity happens on the clean merged branch head.
   - If the validated deploy helper exists, use it from the clean
     `origin/master` checkout; it validates with local-ci and then triggers
     production deploy.

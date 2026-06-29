@@ -25,6 +25,9 @@ Fallback tools, when exposed by the current harness:
 - If `local-ci` is on PATH and the repo root contains `.local-ci.toml`, treat
   local-ci as the repo-owned **local validation** path instead of a CI-status
   replacement.
+- Some repos may still show safety workflows or temporary compatibility stubs
+  in remote CI; missing local-ci contexts usually means local-ci has not been
+  run on that exact SHA yet.
 - Deploy helpers such as `scripts/deploy/trigger_validated_backend_deploy.sh`
   belong to release/deploy workflows, not this status-check skill.
 
