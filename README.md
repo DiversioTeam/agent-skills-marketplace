@@ -271,8 +271,8 @@ agent-skills-marketplace/
 |--------|-------------|
 | `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worker-owned review worktrees, persistent review context, and author-guiding review output |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
-| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, and repo-local commit hygiene without AI signatures |
-| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, and migration safety checks |
+| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, repo-local commit hygiene, and `local-ci run --no-github` when the repo exposes local-ci |
+| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, migration safety checks, and the local-ci + validated-deploy-helper backend release model |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
@@ -283,7 +283,7 @@ agent-skills-marketplace/
 | `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, repo-local execution routing, and project-board hydration |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
 | `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
-| `backend-release` | Django4Lyfe backend release workflow - create release PRs, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
+| `backend-release` | Django4Lyfe backend release workflow - promotion/release PRs, exact-head local-ci validation, validated deploy-helper triggers, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
@@ -299,7 +299,7 @@ sub-package so pi can discover them from a single clone - see
 | Package | Description |
 |---------|-------------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
-| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
+| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, remote CI analysis, local-ci-aware ship/release prompts, PR review feedback, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
 | `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
 | `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |

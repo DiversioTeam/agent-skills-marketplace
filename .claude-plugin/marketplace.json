@@ -42,8 +42,8 @@
     },
     {
       "name": "backend-pr-workflow",
-      "description": "Diversio backend PR workflow plugin that follows repo-local PR docs, GitHub issue linkage, safe migrations, and downtime-safe schema changes.",
-      "version": "0.1.6",
+      "description": "Diversio backend PR workflow plugin that follows repo-local PR docs, GitHub issue linkage, local-ci-aware release semantics, safe migrations, and downtime-safe schema changes.",
+      "version": "0.1.7",
       "author": {
         "name": "Diversio Devs"
       },
@@ -53,8 +53,8 @@
     },
     {
       "name": "backend-atomic-commit",
-      "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, repo-local docs, pre-commit hooks, .security/* helpers, and repo-local commit hygiene without AI signatures.",
-      "version": "0.2.6",
+      "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, repo-local docs, pre-commit hooks, .security/* helpers, repo-local commit hygiene, and local-ci validation when the repo exposes it.",
+      "version": "0.2.7",
       "author": {
         "name": "Diversio Devs"
       },
@@ -174,8 +174,8 @@
     },
     {
       "name": "backend-release",
-      "description": "Manages Django4Lyfe release workflow: dev→release promotion PRs (staging deploy), release→master production PRs, version bumping, conflict resolution, GitHub releases, and post-release branch sync.",
-      "version": "0.3.1",
+      "description": "Manages Django4Lyfe release workflow: promotion/release PRs, exact-head local-ci validation, validated deploy-helper triggers, version bumping, conflict resolution, GitHub releases, and post-release branch sync.",
+      "version": "0.3.2",
       "author": {
         "name": "Diversio Devs"
       },

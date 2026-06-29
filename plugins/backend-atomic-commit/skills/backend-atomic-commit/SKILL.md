@@ -109,6 +109,8 @@ When this Skill runs, you should first gather context using `Bash`, `Read`,
   - `uv` and `.bin/` wrappers:
     - `.bin/ruff`, `.bin/ty`, `.bin/pyright`, `.bin/mypy`, `.bin/django`,
       `.bin/pytest`.
+  - Detect repo-owned local-ci support only when `local-ci` is on PATH **and**
+    repo root contains `.local-ci.toml`.
   - Fallback to `uv run` or plain `python` / `pytest` / `ruff` where necessary.
   - Read local typing policy docs when present (for example:
     `docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`) and
@@ -304,6 +306,14 @@ In **both** `pre-commit` and `atomic-commit` modes, follow this pipeline:
    results directly in the final output using the existing severity-tagged
    sections (`Checks run`, `Needs changes`, etc.).
 
+8. **Repo-owned local-ci validation (when available)**
+   - Only after the normal gates above are green and the tree is stable, run:
+     ```bash
+     local-ci run --no-github
+     ```
+   - Do this only when `local-ci` is on PATH and repo root has `.local-ci.toml`.
+   - This skill must **not** publish GitHub statuses or trigger deploy helpers.
+
 ## Backend Fix Rules
 
 When you need concrete auto-fix heuristics, load:
@@ -343,6 +353,7 @@ you must be **very strict**:
      - `.bin/django check` / `manage.py check`
      - Relevant `pytest` subsets for risky changes
      - Pre-commit hooks defined in `.pre-commit-config.yaml`
+     - `local-ci run --no-github` when the repo supports local-ci
    - A passing pre-commit hook execution counts as satisfying the matching gate.
      Do not require duplicate direct-command reruns unless diagnosing failures.
    - Where available, heavy gates should run via `./.security/gate_cache.sh`

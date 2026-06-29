@@ -52,7 +52,11 @@ git commit -m "Merge origin/release into releases/YYYY.MM.DD"
 
 ## Publishing a GitHub Release
 
-After the release PR is merged to master, create a GitHub release.
+After the release PR is merged to master, use the exact clean
+`origin/master` head. If `scripts/deploy/trigger_validated_backend_deploy.sh`
+exists, prefer it — it runs local-ci and then triggers deploy. Otherwise,
+validate that head with local-ci manually and follow the repo-local deploy
+path. GitHub release publication is separate from that deploy trigger.
 
 **IMPORTANT: Merge Strategy** — Release PRs to master MUST be merged using
 **"Create a merge commit"** (not squash). Squash merging breaks commit ancestry
@@ -150,7 +154,12 @@ gh pr create --base release \
   --title "Promotion: 21st January 2026" \
   --body "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607"
 
-# 3. After promotion PR is merged, staging deploy triggers automatically.
+# 3. After promotion PR is merged, use the exact release head and trigger staging deploy
+git fetch origin
+git worktree add ../backend-release origin/release
+cd ../backend-release
+CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
+cd -
 #    Validate staging before proceeding.
 
 # ============================================
@@ -188,14 +197,21 @@ gh pr create --base master \
   --title "Release: 21st January 2026" \
   --body "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607"
 
-# 9. After PR is merged, publish GitHub release
+# 9. After PR is merged, use the exact master head and trigger production deploy
 gh pr view 2608 --json state  # Verify merged
+git fetch origin
+git worktree add ../backend-master origin/master
+cd ../backend-master
+CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
+cd -
+
+# 10. Publish GitHub release
 gh release create 2026.01.21 \
   --title "January 21st 2026" \
   --notes "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607" \
   --target master
 
-# 10. Merge master back into release AND dev (MANDATORY)
+# 11. Merge master back into release AND dev (MANDATORY)
 git fetch origin
 git checkout release
 git merge origin/master --no-edit
@@ -204,7 +220,7 @@ git checkout dev
 git merge origin/release --no-edit
 git push origin dev
 
-# 11. Verify
+# 12. Verify
 gh release list --limit 3
 git diff --stat origin/master origin/release  # Should be empty
 git diff --stat origin/release origin/dev      # Should be empty

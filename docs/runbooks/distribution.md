@@ -238,9 +238,10 @@ Quick mental model:
 ```text
 ci-status    -> CI visibility and job logs
 
-dev-workflow -> workflow prompts, review passes, shipping, and
-                automatic seeded cmux splits for subagent-style prompts
-                when Pi is inside cmux and the parent session is idle
+dev-workflow -> workflow prompts, remote CI checks, local-ci-aware
+                shipping/release steps, and automatic seeded cmux splits
+                for subagent-style prompts when Pi is inside cmux and the
+                parent session is idle
 
 oh-my-pi     -> explicit cmux notifications, split-pane commands,
                 and workspace-tab commands
@@ -258,9 +259,12 @@ UI widgets, notifications, and LLM tools (`get_ci_status`,
 The `dev-workflow` package provides `/workflow:*` commands,
 `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, the
 `dev-workflow` and `ci` skills, XDG/project prompt config, and a bundled
-`agents/workflow-pipeline.chain.md` file for pi-subagents. If your
-pi-subagents setup only scans `.pi/agents/`, copy that chain file there
-manually.
+`agents/workflow-pipeline.chain.md` file for pi-subagents. When `local-ci` is
+on PATH and repo root contains `.local-ci.toml`, its ship/release prompts treat
+local-ci as the repo-owned validation path and use
+`scripts/deploy/trigger_validated_backend_deploy.sh` for backend release/master
+deploys when present. If your pi-subagents setup only scans `.pi/agents/`,
+copy that chain file there manually.
 
 The `oh-my-pi` package provides explicit `/omp-split-*` and
 `/omp-workspace*` cmux commands plus native cmux notifications.

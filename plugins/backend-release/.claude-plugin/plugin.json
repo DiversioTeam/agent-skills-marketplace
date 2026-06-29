@@ -1,7 +1,7 @@
 {
   "name": "backend-release",
-  "version": "0.3.1",
-  "description": "Manages Django4Lyfe release workflow: dev→release promotion PRs (staging deploy), release→master production PRs, version bumping, conflict resolution, GitHub releases, and post-release branch sync across all three branches.",
+  "version": "0.3.2",
+  "description": "Manages Django4Lyfe release workflow: promotion/release PRs, exact-head local-ci validation, validated deploy-helper triggers, version bumping, conflict resolution, GitHub releases, and post-release branch sync.",
   "author": {
     "name": "Diversio Devs"
   }

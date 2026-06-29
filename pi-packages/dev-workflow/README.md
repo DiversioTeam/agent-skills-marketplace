@@ -1,6 +1,6 @@
 # dev-workflow
 
-Daily developer workflow for pi: plan review, self-review, standards, CI, documentation, PR review feedback, release PR prep, handoff, and shipping. Ships `15` core workflow prompts plus `/workflow:help`, `/workflow:flow`, `/workflow:run`, and `/workflow:prompts`, with XDG/project prompt customization.
+Daily developer workflow for pi: plan review, self-review, standards, remote CI, local-ci-aware shipping/release prompts, documentation, PR review feedback, release PR prep, handoff, and shipping. Ships `15` core workflow prompts plus `/workflow:help`, `/workflow:flow`, `/workflow:run`, and `/workflow:prompts`, with XDG/project prompt customization.
 
 ## Install
 
@@ -359,4 +359,4 @@ Optional environment variables:
   `ci-status` both globally and from a different project-local path; duplicated
   CI tools can conflict.
 
-Subagent commands can use [pi-subagents](https://github.com/nicobailon/pi-subagents) for true agent isolation. When Pi is inside cmux, the default workflow behavior is to open a seeded split for subagent-style prompts; inside that split, the prompt still asks the AI to use the `subagent` tool when available and to fall back gracefully when it is not. CI prompts prefer the `ci-status` package when installed and only fall back to `get_ci_status` / `ci_fetch_job_logs` when the current harness exposes those tools.
+Subagent commands can use [pi-subagents](https://github.com/nicobailon/pi-subagents) for true agent isolation. When Pi is inside cmux, the default workflow behavior is to open a seeded split for subagent-style prompts; inside that split, the prompt still asks the AI to use the `subagent` tool when available and to fall back gracefully when it is not. CI prompts prefer the `ci-status` package when installed and only fall back to `get_ci_status` / `ci_fetch_job_logs` when the current harness exposes those tools. In repos where `local-ci` is on PATH and repo root contains `.local-ci.toml`, ship/release prompts treat local-ci as the repo-owned local validation path; backend release/master deploys use `scripts/deploy/trigger_validated_backend_deploy.sh` when present.
