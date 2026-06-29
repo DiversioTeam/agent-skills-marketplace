@@ -43,7 +43,7 @@
     {
       "name": "backend-pr-workflow",
       "description": "Diversio backend PR workflow plugin that follows repo-local PR docs, GitHub issue linkage, local-ci-aware release semantics, safe migrations, and downtime-safe schema changes.",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "author": {
         "name": "Diversio Devs"
       },
@@ -175,7 +175,7 @@
     {
       "name": "backend-release",
       "description": "Manages Django4Lyfe release workflow: promotion/release PRs, exact-head local-ci validation, validated deploy-helper triggers, version bumping, conflict resolution, GitHub releases, and post-release branch sync.",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "author": {
         "name": "Diversio Devs"
       },
