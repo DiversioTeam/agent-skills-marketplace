@@ -1,7 +1,7 @@
 {
   "name": "backend-atomic-commit",
-  "version": "0.2.6",
-  "description": "Pedantic backend pre-commit and atomic-commit Skill for Django/Optimo-style repos, enforcing local AGENTS.md, repo-local docs, pre-commit hooks, and repo-local commit hygiene with an explicit fix-retry convergence protocol.",
+  "version": "0.2.7",
+  "description": "Pedantic backend pre-commit and atomic-commit Skill for Django/Optimo-style repos, enforcing local AGENTS.md, repo-local docs, pre-commit hooks, repo-local commit hygiene, and local-ci validation when the repo exposes it.",
   "author": {
     "name": "Diversio Devs"
   }

@@ -62,3 +62,8 @@ Also checks:
 - Recommended next version (YYYY.MM.DD format)
 
 Use this before creating a release to understand what will be included.
+
+If the repo exposes `scripts/deploy/trigger_validated_backend_deploy.sh`,
+prefer that helper from the exact clean `origin/release` or `origin/master`
+head because it validates with local-ci and then triggers deploy. Release PR
+merges do not deploy automatically.

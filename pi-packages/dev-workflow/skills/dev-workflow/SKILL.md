@@ -71,6 +71,10 @@ Before manual verification, check CI for the current branch using the separate *
 **Orchestration command:**
 - `/workflow:ci` — guides the AI through the full CI check: run `/ci` or `/ci-detail`, analyze each failure (ours vs flake), propose fixes, summarize.
 
+Boundary: `/workflow:ci` is for remote CI status. If `local-ci` is on PATH and
+repo root contains `.local-ci.toml`, use local-ci later as the repo-owned local
+validation path; do not replace `/ci` with local-ci here.
+
 The ci-status extension auto-watches CI on startup and after git pushes. Failure notifications appear automatically. Covers GitHub Actions and CircleCI (set `CIRCLECI_TOKEN` for CircleCI enrichment).
 
 **Command:** `/workflow:ci` (orchestrated) or `/ci-detail` (direct interactive UI)
@@ -88,14 +92,17 @@ Make the outcome legible. Document all updated code, especially new additions, i
 ### Step 8: Ship It
 Finalize and ship the work:
 
-1. **Verify CI green** — prefer `/ci` and `/ci-detail`; fall back to available CI tools if the harness exposes them
-2. **Discover context** — check the current branch, look for existing GitHub PRs and issues
-3. **Update existing PR** if one already exists for this branch
-4. **Create new PR** if none exists, linking any related GitHub issues
-5. **Ask questions** if uncertain about anything (existing PRs, issue linking, branch targets)
-6. **Atomic commit** — use the atomic commit skill, ensure everything passes (lint, types, tests, pre-commit)
-7. **PR description** — use the PR description writer skill for a reviewer-friendly summary
-8. **Open the PR** on GitHub
+1. **Verify remote CI green** — prefer `/ci` and `/ci-detail`; fall back to available CI tools if the harness exposes them
+2. **Run repo-owned local validation** — if `local-ci` is on PATH and repo root contains `.local-ci.toml`, run `local-ci run --no-github` (or the repo-local equivalent) before finalizing
+3. **Discover context** — check the current branch, look for existing GitHub PRs and issues
+4. **Update existing PR** if one already exists for this branch
+5. **Create new PR** if none exists, linking any related GitHub issues
+6. **Ask questions** if uncertain about anything (existing PRs, issue linking, branch targets)
+7. **Atomic commit** — use the atomic commit skill, ensure everything passes (lint, types, tests, pre-commit)
+8. **PR description** — use the PR description writer skill for a reviewer-friendly summary
+9. **Open the PR** on GitHub
+
+For backend release/master deploy flows, if `scripts/deploy/trigger_validated_backend_deploy.sh` exists, use it from the exact clean `origin/release` or `origin/master` head instead of assuming merge deploys automatically.
 
 Never compromise by excluding files that are part of the change. Everything touched must be improved.
 

@@ -24,10 +24,10 @@ when command files change.
 - `dev-workflow` (pi package)
   - Purpose: pi-native daily developer workflow with TypeScript extension
     commands, stable workflow prompt codes, XDG/project prompt config,
-    interactive TUI help panel, CI analysis, PR review feedback handling,
-    release PR prep prompts, local skills, optional pi-subagents chain, and
-    default seeded cmux split launching for subagent-style workflow prompts when
-    Pi runs inside cmux.
+    interactive TUI help panel, CI analysis, local-ci-aware ship/release
+    prompts, PR review feedback handling, local skills, optional pi-subagents
+    chain, and default seeded cmux split launching for subagent-style workflow
+    prompts when Pi runs inside cmux.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/dev-workflow"`
   - Package path: `pi-packages/dev-workflow`
@@ -192,16 +192,16 @@ when command files change.
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
 - `backend-atomic-commit`
-  - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene.
+  - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene, including `local-ci run --no-github` when the repo exposes local-ci.
   - Claude install: `claude plugin install backend-atomic-commit@diversiotech`
   - Skill path: `plugins/backend-atomic-commit/skills/backend-atomic-commit`
   - Slash commands: `/backend-atomic-commit:pre-commit`,
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
   - Purpose: backend PR workflow for the dev→release→master branch model
-    (feature PRs target dev, promotion PRs trigger staging, release PRs deploy
-    production), GitHub issue linkage, Django migration safety, and
-    downtime-safe schema changes.
+    (feature PRs target dev, release/master deploys use local-ci plus the
+    validated deploy helper instead of auto-deploying on PR merge), GitHub
+    issue linkage, Django migration safety, and downtime-safe schema changes.
   - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
   - Slash commands: `/backend-pr-workflow:check-pr`
@@ -211,9 +211,9 @@ when command files change.
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
-  - Purpose: Django4Lyfe two-phase release workflow — promote staging
-    (dev→release), release to production (release→master), version bumping,
-    GitHub releases, and three-branch post-release sync.
+  - Purpose: Django4Lyfe two-phase release workflow — promotion/release PRs,
+    exact-head local-ci validation, validated deploy-helper triggers,
+    version bumping, GitHub releases, and three-branch post-release sync.
   - Claude install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`
   - Slash commands: `/backend-release:check`, `/backend-release:create`,

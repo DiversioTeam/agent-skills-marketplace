@@ -12,6 +12,12 @@ Creates a release PR by merging release into a branch from master:
 4. Runs `uv lock` to update lock file
 5. Pushes and creates PR against `master`
 
+Creating the PR does **not** deploy production. After merge, if the repo
+exposes `scripts/deploy/trigger_validated_backend_deploy.sh`, prefer that
+helper from the exact clean `origin/master` checkout because it runs local-ci
+and then triggers deploy. Otherwise, if the repo supports local-ci, validate
+that head locally and follow the repo-local deploy steps.
+
 **Why merge (not cherry-pick)?** Cherry-picking creates duplicate commits with
 different SHAs on master vs release. This causes `git log master..release` to
 permanently show already-shipped commits as "pending". Merging preserves the
