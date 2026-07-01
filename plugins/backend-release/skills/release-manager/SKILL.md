@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: "Create and manage promotion and release PRs for Django4Lyfe. Use this when preparing staging promotion PRs (dev→release), production release PRs (release→master), bumping versions, resolving merge conflicts, and publishing GitHub releases. Handles the full three-branch workflow."
+description: "Create and manage promotion and release PRs for Django4Lyfe. Use this when preparing dev→release promotion PRs, release→master release PRs, validating exact branch heads with local-ci, triggering validated backend deploys, bumping versions, resolving merge conflicts, and publishing GitHub releases."
 allowed-tools: Bash Read Edit Grep Glob
 argument-hint: "[action] (e.g., promote-staging, release-prod, publish, check)"
 ---
@@ -11,23 +11,23 @@ Manages the full release workflow for Django4Lyfe backend releases.
 
 ## Branch Model
 
+```text
+feature PRs -> dev        (validation only)
+promotion PRs -> release  (move staging candidate)
+origin/release head -> local-ci -> validated deploy helper -> staging deploy
+release PRs -> master     (move production candidate)
+origin/master head -> local-ci -> validated deploy helper -> production deploy
 ```
-feature PRs
-    │  merge to dev (validation only, no deploy)
-    ▼
-   dev    ── integration branch
-    │  promotion PR (dev → release) → staging deploy
-    ▼
-release   ── staging promotion branch
-    │  release PR (release → master) → production deploy
-    ▼
-master    ── production branch
-```
+
+## Repo Feature Detection
+
+- local-ci support: `command -v local-ci` succeeds and repo root contains `.local-ci.toml`
+- validated deploy helper: `scripts/deploy/trigger_validated_backend_deploy.sh` exists
 
 ## When to Use This Skill
 
-- Creating **promotion PRs** from `dev` → `release` to deploy staging
-- Creating **release PRs** from `release` → `master` to deploy production
+- Creating **promotion PRs** from `dev` → `release` to move a staging candidate onto `release`
+- Creating **release PRs** from `release` → `master` to move a production candidate onto `master`
 - Preparing hotfix releases
 - Bumping versions in pyproject.toml
 - Resolving merge conflicts between branches
@@ -36,10 +36,10 @@ master    ── production branch
 
 ## Core Workflow
 
-### 0. Promotion PR: dev → release (Staging Deploy)
+### 0. Promotion PR: dev → release (prepare staging candidate)
 
-Before a production release, promote changes from the integration branch to
-the staging branch. This is the ONLY path that triggers staging deploy.
+Before a production release, promote reviewed changes from `dev` to `release`.
+Merging the promotion PR does **not** deploy staging automatically.
 
 ```bash
 # 1. Check what's on dev but not yet on release
@@ -57,34 +57,30 @@ git push -u origin promote/YYYY.MM.DD[-N]
 gh pr create --base release --title "Promotion: DDth Month YYYY" --body "..."
 ```
 
-**First principles — why two phases?**
+Routine feature PRs still merge into `dev` where CI validates but never
+deploys. The promotion PR is the intentional step that moves the candidate onto
+`release`.
 
-The old model deployed staging on every merge to `release`:
+A `local-ci` run on the open `promote/*` branch is still only a preflight. In
+Django4Lyfe today that preflight can run the full parity lanes, but it still
+does not replace exact target-head validation after merge. If the preflight
+fails, stop and dig into the harness/code before calling the promotion ready.
+Exact `release` parity still happens on the clean merged `origin/release` head.
 
+**After merge**: use the exact `origin/release` head from a clean checkout.
+If the validated deploy helper exists, prefer it — it runs local-ci and then
+triggers staging deploy. Otherwise, if the repo supports local-ci, run
+`local-ci` manually and follow the repo-local deploy steps.
+
+```bash
+git fetch origin
+git worktree add ../backend-release origin/release
+cd ../backend-release
+CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
 ```
-old:  feature PR → release → staging deploy (every merge!)
-```
 
-This was noisy and expensive.  The new model separates concerns:
-
-```
-new:  feature PR → dev           (validation only, cheap)
-      promotion PR → release     (staging deploy, intentional)
-```
-
-Routine feature PRs merge into `dev` where CI validates but never deploys.
-Only a human opening a `dev → release` promotion PR triggers staging deploy.
-This means:
-
-- **Fewer staging deploys** — only when someone intentionally promotes
-- **Clearer intent** — the promotion PR says "I've reviewed these changes
-  and believe they're ready for staging"
-- **Lower CI cost** — dev merges run `run_tests` (classifier-derived flags),
-  not full `run_staging_deploy`
-
-**After merge**: Validate staging.  If issues are found, fix them on `dev` and
-create a new promotion PR.  Do not fix directly on `release` — `release`
-should only receive changes through promotion PRs.
+Validate staging before proceeding. If issues are found, fix them on `dev` and
+create a new promotion PR instead of patching `release` directly.
 
 ### 1. Check What Needs Releasing (release → master)
 
@@ -161,6 +157,23 @@ git commit -m "Version bump to YYYY.MM.DD[-N]"
 # 6. Push and create PR
 git push -u origin releases/YYYY.MM.DD[-N]
 gh pr create --base master --title "Release: DDth Month YYYY" --body "..."
+```
+
+Merging the release PR does **not** deploy production automatically. A
+`local-ci` run on the open `release -> master` PR head is only a preflight. In
+Django4Lyfe today that preflight can run the full parity lanes, but exact
+`origin/master` validation still happens after merge. If it fails, stop and dig
+into it before calling the release ready. After the PR lands, use the exact
+`origin/master` head from a clean checkout. If the validated deploy helper
+exists, prefer it — it runs local-ci and then triggers production deploy.
+Otherwise, if the repo supports local-ci, run `local-ci` manually and follow
+the repo-local deploy steps.
+
+```bash
+git fetch origin
+git worktree add ../backend-master origin/master
+cd ../backend-master
+CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
 ```
 
 **Why merge instead of cherry-pick?** Cherry-picking creates new commits with
@@ -264,10 +277,11 @@ When reporting promotion PR status:
 Created: https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
 
 **Summary:**
-- Type: Promotion (dev → release, triggers staging deploy)
+- Type: Promotion (dev → release, staging candidate only)
 - Title: "Promotion: DDth Month YYYY"
 - Target: `release`
 - Conflicts: None / Resolved
+- Deploy: run the validated deploy helper from the clean `origin/release` head
 ```
 
 When reporting release status:
@@ -280,6 +294,7 @@ Created: https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
 - Title: "Release: DDth Month YYYY"
 - Target: `master`
 - Conflicts: None / Resolved
+- Deploy: run the validated deploy helper from the clean `origin/master` head
 
 **Included PRs:**
 - #XXXX - Description
@@ -306,7 +321,7 @@ When listing releases:
 8. **Tag must match version in pyproject.toml** — e.g., version `2026.01.21-2` = tag `2026.01.21-2`
 9. **Always merge master back into release AND dev after publish** — Run `git merge origin/master --no-edit` on release, then merge release into dev. Without this, the version bump stays only on master, causing stale diffs and future merge conflicts.
 10. **Never squash-merge release PRs** — Release PRs to master MUST use "Create a merge commit". Squash merging breaks commit ancestry tracking.
-11. **Staging deploy only on promotion PRs** — Only a `dev → release` promotion PR triggers staging deploy. Routine feature merges to `dev` run validation only.
+11. **Promotion/release PR merges do not deploy automatically** — After `dev → release` or `release → master` merges, use `scripts/deploy/trigger_validated_backend_deploy.sh` from the exact clean branch head when the repo exposes it; otherwise validate that head with `local-ci` and follow the repo-local deploy path.
 
 ## Full End-to-End Example
 
@@ -335,17 +350,25 @@ LAST_RELEASE_DATE=$(gh pr list --base master --state merged --limit 100 \
   gh pr list --base release --state merged --limit 100 --json number,title,mergedAt \
     --jq "[.[] | select(.mergedAt > \"${LAST_RELEASE_DATE}\")] | sort_by(.mergedAt) | .[] | \"#\\(.number): \\(.title)\""
 
-# Create promotion PR (dev → release, triggers staging deploy)
+# Create promotion PR (dev → release, prepare staging candidate)
 git checkout -b promote/YYYY.MM.DD[-N] origin/release
 git merge origin/dev --no-edit
 git push -u origin promote/YYYY.MM.DD[-N]
 gh pr create --base release --title "Promotion: DDth Month YYYY"
 
-# Create release PR (release → master, triggers production deploy)
+# Create release PR (release → master, prepare production candidate)
 git checkout -b releases/YYYY.MM.DD[-N] origin/master
 git merge origin/release --no-edit
 # (bump version, uv lock, commit, then:)
 gh pr create --base master --title "Release: DDth Month YYYY"
+
+# Validate + deploy exact release head after promotion PR merge
+git fetch origin && git worktree add ../backend-release origin/release && cd ../backend-release
+CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
+
+# Validate + deploy exact master head after release PR merge
+git fetch origin && git worktree add ../backend-master origin/master && cd ../backend-master
+CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
 
 # Check current version
 grep '^version' pyproject.toml

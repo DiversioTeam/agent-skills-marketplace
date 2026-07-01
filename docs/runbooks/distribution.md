@@ -258,9 +258,10 @@ Quick mental model:
 ```text
 ci-status    -> CI visibility and job logs
 
-dev-workflow -> workflow prompts, review passes, shipping, and
-                automatic seeded cmux splits for subagent-style prompts
-                when Pi is inside cmux and the parent session is idle
+dev-workflow -> workflow prompts, remote CI checks, local-ci-aware
+                shipping/release steps, and automatic seeded cmux splits
+                for subagent-style prompts when Pi is inside cmux and the
+                parent session is idle
 
 oh-my-pi     -> explicit cmux notifications, split-pane commands,
                 and workspace-tab commands
@@ -278,8 +279,14 @@ UI widgets, notifications, and LLM tools (`get_ci_status`,
 The `dev-workflow` package provides `/workflow:*` commands,
 `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, the
 `dev-workflow` and `ci` skills, XDG/project prompt config, and a bundled
-`agents/workflow-pipeline.chain.md` file for pi-subagents. If your
-pi-subagents setup only scans `.pi/agents/`, copy that chain file there
+`agents/workflow-pipeline.chain.md` file for pi-subagents. When `local-ci` is
+on PATH and repo root contains `.local-ci.toml`, its ship/release prompts treat
+local-ci as the repo-owned validation path. In Django4Lyfe-style backend
+release flows, PR-head local-ci is a preflight that should be investigated if
+it fails; exact merged-head validation still happens on clean `origin/release`
+/ `origin/master` checkouts, with
+`scripts/deploy/trigger_validated_backend_deploy.sh` preferred when present.
+If your pi-subagents setup only scans `.pi/agents/`, copy that chain file there
 manually.
 
 The `oh-my-pi` package provides explicit `/omp-split-*` and

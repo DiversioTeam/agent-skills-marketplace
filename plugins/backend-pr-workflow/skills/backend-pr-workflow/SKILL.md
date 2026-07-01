@@ -74,6 +74,10 @@ Before applying the checklist, inspect the repo harness:
 - Read `AGENTS.md` first.
 - Load linked workflow/release/runbook docs or relevant directory-scoped
   `AGENTS.md` files when they exist.
+- Detect local-ci support only when `local-ci` is on PATH **and** repo root
+  contains `.local-ci.toml`.
+- Detect the validated deploy helper when
+  `scripts/deploy/trigger_validated_backend_deploy.sh` exists.
 - If workflow rules are tribal knowledge or only implied by stale docs, emit a
   `[SHOULD_FIX]` harness finding recommending a `repo-docs` update.
 
@@ -176,13 +180,18 @@ Confirm the base branch matches the project’s release workflow:
 - **Normal feature / bugfix work**:
   - Base branch should be `dev` (the integration branch).
   - Merging into `dev` runs validation only — no staging deploy.
+  - On an open PR to `dev`, local-ci on the exact PR head is the real backend
+    validation path; GitHub Actions may still show only safety or advisory jobs.
 - **Staging promotion**:
   - Base branch should be `release`.
-  - A PR from `dev` → `release` is a **promotion PR** — merging deploys staging.
+  - A PR from `dev` → `release` is a **promotion PR** — merging moves the
+    candidate to `release`; staging deploy then happens from the exact
+    `origin/release` head via repo-local local-ci / deploy helper steps.
 - **Hotfix** that must bypass the current `release` contents:
   - Base branch should be `master`.
 - **Production release**:
-  - `release` → `master` after staging validation.
+  - `release` → `master` after staging validation; production deploy then runs
+    from the exact `origin/master` head, not from PR merge itself.
 
 If a PR targets the wrong base branch:
 
@@ -229,7 +238,11 @@ Prompt the author to confirm they have checked:
 - All debugging code is removed:
   - No `print()` / `ipdb` / `pdb` left behind.
 - Tests have been added or updated for new functionality.
-- Tests are passing in CI.
+- Remote CI is green when applicable.
+- If the repo supports local-ci (`command -v local-ci` + `.local-ci.toml`),
+  repo-owned local validation has been run on the intended commit/worktree.
+  If that local-ci run fails, treat it as blocking and dig into the failure
+  before calling the PR ready.
 - Active Python type gate is passing for touched files:
   - Detect in this order unless repo docs/CI differ: `ty`, then `pyright`,
     then `mypy`.
@@ -252,25 +265,37 @@ This Skill enforces a clean release flow.
 For normal deployments, check that:
 
 - Feature/bugfix PRs merge into `dev` (integration branch).
-- To deploy staging:
+- To stage changes:
   - A **promotion PR** is opened from `dev` → `release`.
-  - Merging this PR triggers staging deploy (run_staging_deploy=true).
+  - A local-ci run on that promotion PR head is only a preflight. In
+    Django4Lyfe today it can run the full parity lanes, but exact
+    `origin/release` validation still happens after merge.
+  - If that preflight fails, stop and dig into the harness/code instead of
+    treating it as a footnote.
+  - Merging that PR does **not** deploy automatically.
+  - If the validated deploy helper exists, use it from the clean
+    `origin/release` checkout; it validates with local-ci and then triggers
+    staging deploy.
+  - Otherwise, if the repo supports local-ci, validate the exact
+    `origin/release` head locally and follow the repo-local deploy path.
 - Before releasing to production:
   - The version (e.g. in `pyproject.toml`) is bumped to the intended release
-    version, using CalVer (e.g. `2025-08-19`).
-  - If direct pushes to `release` are not allowed, a small PR is created to
-    bump the version on `release`.
-- When ready to deploy:
-  - A PR is created from `release` → `master` with a title like:
-    - `Release: 2025-08-19`
-    - `Release 2: 2025-08-19` (for multiple releases in one day).
+    version using `YYYY.MM.DD` or `YYYY.MM.DD-N`.
+- When ready to release:
+  - A PR is created from `release` → `master` with a title like
+    `Release: 21st January 2026` or `Release 2: 21st January 2026`.
   - The release PR **lists all tickets / PRs included** in the description.
-
-Post-deployment:
-
-- A GitHub Release is created targeting `master`.
-- Tag name uses date-based versioning (CalVer):
-  - `YYYY-MM-DD` or `YYYY-MM-DD-2`.
+  - A local-ci run on that release PR head is still only a preflight. In
+    Django4Lyfe today it can run the full parity lanes, but exact
+    `origin/master` parity happens on the clean merged branch head.
+  - If the validated deploy helper exists, use it from the clean
+    `origin/master` checkout; it validates with local-ci and then triggers
+    production deploy.
+  - Otherwise, if the repo supports local-ci, validate the exact
+    `origin/master` head locally and follow the repo-local deploy path.
+- Post-release:
+  - Create a GitHub Release targeting `master`.
+  - Sync `master` back into `release` and `dev` per repo docs.
 
 If any of these are obviously missing from the plan, emit `[SHOULD_FIX]`.
 
@@ -279,16 +304,16 @@ If any of these are obviously missing from the plan, emit `[SHOULD_FIX]`.
 For hotfixes, enforce:
 
 - The hotfix PR targets `master` (not `release` or `dev`).
-- The title clearly indicates a hotfix, e.g.:
-  - `Hotfix release: 2025-08-19`
-- After deployment:
-  - Changes are merged back into `release` so it stays ahead of or equal to
-    `master`.
-  - Changes are also merged or cherry-picked back into **`dev`** so the
-    integration branch does not drift from production.  Without this,
-    subsequent feature branches and the next `dev → release` promotion are
-    developed against an integration branch missing code already in production.
-  - A GitHub Release is created and tagged using the same CalVer scheme.
+- The title clearly indicates a hotfix, e.g. `Hotfix Release: 21st January 2026`.
+- After merge:
+  - if the validated deploy helper exists, use it from the clean
+    `origin/master` checkout; it validates with local-ci and then triggers
+    deploy
+  - otherwise, validate the exact `origin/master` head with local-ci when
+    supported and follow the repo-local deploy path
+  - merge changes back into `release` and **`dev`** so the integration branch
+    does not drift from production
+  - create a GitHub Release with the same `YYYY.MM.DD[-N]` version
 
 If a supposed hotfix PR is targeting `dev` or `release`, or a hotfix is not
 planned to be merged back into `release` **and `dev`**, emit `[BLOCKING]`.

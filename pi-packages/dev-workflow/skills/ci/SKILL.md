@@ -18,6 +18,19 @@ Fallback tools, when exposed by the current harness:
 - `get_ci_status` — Fetch the latest CI status for the current git branch/PR. Returns a per-job breakdown with IDs, URLs, and durations. Uses gh CLI for GitHub Actions. Set `CIRCLECI_TOKEN` for CircleCI enrichment.
 - `ci_fetch_job_logs` — Fetch failure logs for a specific CI job. Pass the job id from `get_ci_status` output, a GitHub run databaseId (for GH Actions), or a CircleCI job number. Returns the log output truncated to 500 lines.
 
+## Scope boundary
+
+- This skill is for **remote CI status**: `/ci`, `/ci-detail`, `/ci-logs`,
+  `get_ci_status`, and `ci_fetch_job_logs`.
+- If `local-ci` is on PATH and the repo root contains `.local-ci.toml`, treat
+  local-ci as the repo-owned **local validation** path instead of a CI-status
+  replacement.
+- Some repos may still show safety workflows or temporary compatibility stubs
+  in remote CI; missing local-ci contexts usually means local-ci has not been
+  run on that exact SHA yet.
+- Deploy helpers such as `scripts/deploy/trigger_validated_backend_deploy.sh`
+  belong to release/deploy workflows, not this status-check skill.
+
 ## Process
 
 1. **Fetch status.**

@@ -8,6 +8,7 @@ workflow aspects:
 - Repo-local branch naming and PR title/body conventions.
 - Commit message clarity and any documented repo-local commit rules.
 - Correct base branch for normal vs hotfix releases.
+- Local-ci-backed validation and validated deploy-helper steps when the repo exposes them.
 - PR description quality and self-review checklist completion.
 - Django migrations cleanup and downtime-safe schema changes.
 - Repo-local workflow docs / harness clarity when rules are non-obvious.

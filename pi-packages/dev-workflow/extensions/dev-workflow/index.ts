@@ -151,6 +151,8 @@ Please check all of the following:
 
 For a specific failing job, use /ci-logs <job-name> to pull its logs directly. If the ci-status package is not installed or the slash commands are unavailable, use get_ci_status and ci_fetch_job_logs if those tools are available. If neither path is available, ask the user to install ci-status before proceeding.
 
+If this repo supports local-ci (repo root has .local-ci.toml and local-ci is on PATH), note that local-ci is the repo-owned local validation path. Missing local-ci contexts in remote CI usually means nobody has run local-ci on that exact SHA yet. Keep this prompt focused on remote CI status unless I explicitly ask to run local-ci.
+
 For every failing job:
 - **Ours or flake?** Is this failure caused by our changes, or is it a pre-existing flake?
 - **Root cause.** If ours, what's the actual problem?
@@ -197,6 +199,8 @@ Use commands, docs, strings, and anything else helpful so that future readers of
     prompt: `Let's finalize and ship this work.
 
 First, check CI. Prefer the ci-status extension commands if they are available: /ci, /ci-detail, and /ci-logs <job>. If those commands are not available, use get_ci_status and ci_fetch_job_logs if those tools are available. If neither path is available, ask the user to install ci-status before proceeding.
+
+If this repo supports local-ci (repo root has .local-ci.toml and local-ci is on PATH), run it as the repo-owned local validation path before the final commit/PR. If local-ci fails, stop and dig into the failure properly instead of treating it as a footnote. If this is a backend release/master deploy flow and scripts/deploy/trigger_validated_backend_deploy.sh exists, remember that PR-head local-ci is only a preflight; use the helper from the exact clean merged branch head instead of assuming merge deploys automatically.
 
 If anything is failing:
 - Determine if failures are from our changes or pre-existing flakes
@@ -281,6 +285,9 @@ Safety rules:
 
 Important context:
 - Use the backend-release / release-manager skill for the backend release workflow.
+- If backend exposes .local-ci.toml and local-ci is on PATH, a PR-head local-ci run is only a preflight; exact origin/release / origin/master validation still happens on the clean merged branch head.
+- If that backend preflight fails, stop and dig into it before calling the release ready.
+- If backend exposes scripts/deploy/trigger_validated_backend_deploy.sh, that helper is the backend deploy trigger; PR merges alone do not deploy.
 - For frontend, optimo-frontend, and design-system, first read and follow each repo's own guidelines if available (AGENTS.md, CLAUDE.md, README, CONTRIBUTING, release docs, package scripts, or repo-local docs).
 - These repos may have different base branches, release branches, versioning rules, build steps, and PR body expectations.
 

@@ -68,4 +68,8 @@ Ship the work. First discover context:
 3. If no PR exists, create one, linking any related issues
 4. Ask me if you're unsure about anything
 
+If the repo supports local-ci (repo root `.local-ci.toml` + `local-ci` on PATH), run it as the repo-owned local validation path before finalizing. If it fails, stop and dig into the failure.
+
+For backend release/master deploy flows, remember that PR-head local-ci is only a preflight. If `scripts/deploy/trigger_validated_backend_deploy.sh` exists, use it from the exact clean release/master head instead of assuming merge deploys automatically.
+
 Then: atomic commit (ensure everything passes), generate a PR description, and open the PR on GitHub.

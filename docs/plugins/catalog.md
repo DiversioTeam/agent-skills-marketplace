@@ -24,10 +24,10 @@ when command files change.
 - `dev-workflow` (pi package)
   - Purpose: pi-native daily developer workflow with TypeScript extension
     commands, stable workflow prompt codes, XDG/project prompt config,
-    interactive TUI help panel, CI analysis, PR review feedback handling,
-    release PR prep prompts, local skills, optional pi-subagents chain, and
-    default seeded cmux split launching for subagent-style workflow prompts when
-    Pi runs inside cmux.
+    interactive TUI help panel, CI analysis, local-ci-aware ship/release
+    prompts, PR review feedback handling, local skills, optional pi-subagents
+    chain, and default seeded cmux split launching for subagent-style workflow
+    prompts when Pi runs inside cmux.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/dev-workflow"`
   - Package path: `pi-packages/dev-workflow`
@@ -64,6 +64,9 @@ when command files change.
   - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /
     `ci_fetch_job_logs` only when the current harness exposes those tools.
+    In Django4Lyfe-style backend release flows, PR-head local-ci is treated as
+    a preflight; exact merged-head validation still happens on clean
+    `origin/release` / `origin/master` checkouts.
 - `image-router` (pi package)
   - Purpose: routes image inputs through a vision-capable model when the
     active model cannot see images, including pasted screenshots, `@path`
@@ -247,16 +250,17 @@ when command files change.
   - Skill path: `plugins/gate-runner/skills/gate-runner`
   - Slash commands: `/gate-runner:run`
 - `backend-atomic-commit`
-  - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene.
+  - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene, including `local-ci run --no-github` when the repo exposes local-ci.
   - Marketplace install: `claude plugin install backend-atomic-commit@diversiotech`
   - Skill path: `plugins/backend-atomic-commit/skills/backend-atomic-commit`
   - Slash commands: `/backend-atomic-commit:pre-commit`,
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
   - Purpose: backend PR workflow for the dev→release→master branch model
-    (feature PRs target dev, promotion PRs trigger staging, release PRs deploy
-    production), GitHub issue linkage, Django migration safety, and
-    downtime-safe schema changes.
+    (feature PRs target dev, promotion/release PR heads can run local-ci
+    preflight parity, and release/master deploys use local-ci plus the
+    validated deploy helper instead of auto-deploying on PR merge), GitHub
+    issue linkage, Django migration safety, and downtime-safe schema changes.
   - Marketplace install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
   - Slash commands: `/backend-pr-workflow:check-pr`
@@ -266,9 +270,10 @@ when command files change.
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
-  - Purpose: Django4Lyfe two-phase release workflow — promote staging
-    (dev→release), release to production (release→master), version bumping,
-    GitHub releases, and three-branch post-release sync.
+  - Purpose: Django4Lyfe two-phase release workflow — promotion/release PR
+    preflights, exact-head local-ci validation after merge, validated
+    deploy-helper triggers, version bumping, GitHub releases, and three-branch
+    post-release sync.
   - Marketplace install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`
   - Slash commands: `/backend-release:check`, `/backend-release:create`,
