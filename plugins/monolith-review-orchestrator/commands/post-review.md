@@ -7,6 +7,8 @@ Use the `monolith-review-orchestrator` skill.
 Operate in posting mode:
 - load the latest local review artifacts and PR context
 - load the latest compact review context before drafting the final review
+- validate that the live PR heads still match the latest recorded batch state
+- require a prior substantive pass on the exact same heads before posting
 - treat thread-resolution status as reliable when it came from the orchestrator's
   thread-aware `fetch_review_threads.py` helper
 - keep one authoritative top-level review per PR

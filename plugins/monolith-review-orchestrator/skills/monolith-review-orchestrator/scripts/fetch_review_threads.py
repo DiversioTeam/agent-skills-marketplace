@@ -26,25 +26,22 @@ from __future__ import annotations
 import json
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
+import sys
 from typing import Literal, TypedDict
 from urllib.parse import urlparse
 
 import click
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from review_targets import REVIEW_TARGETS, format_known_review_targets
+
 
 PR_PATH_PARTS = 4
 THREAD_STATUS = {True: "resolved", False: "open"}
-KNOWN_REPOS: dict[str, tuple[str, str | None]] = {
-    "monolith": ("mono", None),
-    "Django4Lyfe": ("bk", "backend"),
-    "Diversio-Frontend": ("fe", "frontend"),
-    "Optimo-Frontend": ("of", "optimo-frontend"),
-    "diversio-ds": ("ds", "design-system"),
-    "infrastructure": ("infra", "infrastructure"),
-    "diversio-serverless": ("sls", "diversio-serverless"),
-    "agent-skills-marketplace": ("asm", "agent-skills-marketplace"),
-    "terraform-modules": ("tfm", "terraform-modules"),
-}
 
 MAIN_QUERY = """\
 query(
@@ -61,6 +58,7 @@ query(
       url
       title
       state
+      isDraft
       body
       baseRefName
       headRefName
@@ -260,6 +258,7 @@ class RawPullRequest(TypedDict, total=False):
     url: str
     title: str
     state: str
+    isDraft: bool
     body: str | None
     baseRefName: str | None
     headRefName: str | None
@@ -294,6 +293,7 @@ class PullRequestMetadata(TypedDict, total=False):
     url: str
     title: str
     state: str
+    is_draft: bool
     body: str
     author_login: str | None
     base_ref_name: str | None
@@ -497,18 +497,21 @@ def parse_pr_url(pr_url: str) -> PullRequestRef:
     except ValueError as exc:
         raise click.ClickException(f"Invalid PR number in URL: {pr_url}") from exc
 
-    alias: str | None = None
-    submodule_path: str | None = None
-    if repo in KNOWN_REPOS:
-        alias, submodule_path = KNOWN_REPOS[repo]
+    repo_key = (owner, repo)
+    target = REVIEW_TARGETS.get(repo_key)
+    if target is None:
+        raise click.ClickException(
+            f"Unknown monolith review target `{owner}/{repo}` in {pr_url}. "
+            f"Known targets: {format_known_review_targets()}"
+        )
 
     return PullRequestRef(
         owner=owner,
         repo=repo,
         pr_number=pr_number,
         pr_url=pr_url,
-        alias=alias,
-        submodule_path=submodule_path,
+        alias=target["alias"],
+        submodule_path=target["submodule_path"],
     )
 
 
@@ -524,6 +527,18 @@ def ensure_unique_prs(pr_refs: list[PullRequestRef]) -> list[PullRequestRef]:
         seen.add(identity)
         unique.append(pr_ref)
     return unique
+
+
+def ensure_v1_scope(pr_refs: list[PullRequestRef]) -> list[PullRequestRef]:
+    if len(pr_refs) > 2:
+        raise click.ClickException(
+            "V1 only supports one PR or one explicitly linked cross-repo PR pair."
+        )
+    if len(pr_refs) == 2 and pr_refs[0].repo == pr_refs[1].repo:
+        raise click.ClickException(
+            "V1 linked pairs must be cross-repo. Use a single PR batch for same-repo review."
+        )
+    return pr_refs
 
 
 def ensure_gh_authenticated() -> None:
@@ -788,6 +803,9 @@ def fetch_pull_request_context(pr_ref: PullRequestRef) -> PullRequestReviewConte
                 "url": require_str(pull_request.get("url"), "pull_request.url"),
                 "title": require_str(pull_request.get("title"), "pull_request.title"),
                 "state": require_str(pull_request.get("state"), "pull_request.state"),
+                "is_draft": require_bool(
+                    pull_request.get("isDraft"), "pull_request.isDraft"
+                ),
                 "body": optional_str(pull_request.get("body"), "pull_request.body")
                 or "",
                 "author_login": parse_author_login(
@@ -936,7 +954,9 @@ def main(pr_urls: tuple[str, ...]) -> None:
     """Fetch thread-aware PR review context for one PR or a linked PR set."""
 
     ensure_gh_authenticated()
-    pr_refs = ensure_unique_prs([parse_pr_url(pr_url) for pr_url in pr_urls])
+    pr_refs = ensure_v1_scope(
+        ensure_unique_prs([parse_pr_url(pr_url) for pr_url in pr_urls])
+    )
     pr_refs.sort(key=lambda pr_ref: ((pr_ref.alias or pr_ref.repo), pr_ref.pr_number))
 
     payload: FetchResult = {

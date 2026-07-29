@@ -43,11 +43,16 @@ def build_fake_click() -> ModuleType:
     def fake_path(*_args: object, **_kwargs: object) -> object:
         return object()
 
+    class FakeChoice:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
     fake_click.ClickException = FakeClickException
     fake_click.command = fake_command
     fake_click.option = fake_option
     fake_click.echo = fake_echo
     fake_click.Path = fake_path
+    fake_click.Choice = FakeChoice
     return fake_click
 
 
@@ -101,7 +106,6 @@ class ResolveReviewBatchTests(unittest.TestCase):
         self.assertEqual(payload["alias"], "tfm")
         self.assertEqual(payload["submodule_path"], "terraform-modules")
         self.assertEqual(payload["entry_key"], "tfm42")
-
     def test_review_and_worktree_roots_are_applied(self) -> None:
         monolith_root = Path("/tmp/monolith-root")
         review_root = Path("/tmp/review-root")

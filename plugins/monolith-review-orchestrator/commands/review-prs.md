@@ -6,6 +6,8 @@ Use the `monolith-review-orchestrator` skill.
 
 Default to v1 intake, deterministic worktree reuse/bootstrap, deep PR/context
 review, structured local state, and a final synthesis for the invoker.
+Default to `review` mode whenever the user is asking for a new correctness
+judgment.
 
 Read existing review comments thoroughly, including resolved ones when they add
 context about prior concerns or fixes.
