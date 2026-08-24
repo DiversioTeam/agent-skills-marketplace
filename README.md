@@ -96,7 +96,7 @@ agent-skills-marketplace/
 │   ├── image-router/                  # Pi-native vision bridge for text-only models
 │   ├── oh-my-pi/                      # Pi-native cmux integration (notifications, split panes, workspace tabs)
 │   ├── pi-timestamps/                 # Pi-native subtle transcript timing rows
-│   └── skills-bridge/                 # Pi-native bridge to Claude Code plugin skills
+│   └── skills-bridge/                 # Pi-native bridge to marketplace plugin skills
 ├── website/                           # Astro site for engineering.diversio.com
 │   ├── src/pages/                     # Homepage, /agentic-tools, registry, docs, /skills/*, /pi/*, /blog/*
 │   ├── src/data/site-docs.ts          # Build-time extraction from SKILL.md + package READMEs
@@ -271,6 +271,15 @@ agent-skills-marketplace/
 |--------|-------------|
 | `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worker-owned review worktrees, persistent review context, and author-guiding review output |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
+| `monty-v2-code-review` | Deep-coverage Django/Python code review with full-branch analysis, mechanical branch enumeration, adversarial inputs, test mapping, precise-type checks, and self-review bias mitigation |
+| `moe-skills` | Backend workflow helpers for root-cause PR review fixes, thread-aware commit-and-reply with SHA links, fresh PR status, and codebase reuse/type-precision scanning |
+| `review-delegator` | Risk-gated review delegator with evidence-based specialist lanes, import/export and tenant/API checks, reuse/precise-type sweeps, and one compiled verdict |
+| `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle/admin parity, concurrency and transaction scope, and evidence-based boundary handling |
+| `import-export-roundtrip-check` | Import/export round-trip audit for CSV, config, serialized dict, admin import/export, and command I/O parity |
+| `merge-drift-check` | Merge-drift audit for version files, lockfiles/build artifacts, unrelated file regressions, and PR description accuracy |
+| `historical-data-check` | Historical-data and legacy-config audit for existing bad rows, import reuse, rollback safety, and inverse state-clearing |
+| `test-quality-check` | Test-depth and assertion-quality audit for production-path behavior, mock realism, test economy, transaction claims, and CI-safe assertions |
+| `gate-runner` | Exact PR-base CI gate runner for ruff diff checks, ty, local-import checks, and migration squash verification |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, repo-local commit hygiene, and `local-ci run --no-github` when the repo exposes local-ci |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, migration safety checks, and the local-ci preflight + validated-deploy-helper backend release model |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
@@ -303,7 +312,7 @@ sub-package so pi can discover them from a single clone - see
 | `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
 | `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
-| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+| `skills-bridge` | Auto-discovers marketplace plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
@@ -457,6 +466,15 @@ Copy-paste these commands in your terminal:
 ```bash
 claude plugin install monolith-review-orchestrator@diversiotech
 claude plugin install monty-code-review@diversiotech
+claude plugin install monty-v2-code-review@diversiotech
+claude plugin install moe-skills@diversiotech
+claude plugin install review-delegator@diversiotech
+claude plugin install contract-propagation-check@diversiotech
+claude plugin install import-export-roundtrip-check@diversiotech
+claude plugin install merge-drift-check@diversiotech
+claude plugin install historical-data-check@diversiotech
+claude plugin install test-quality-check@diversiotech
+claude plugin install gate-runner@diversiotech
 claude plugin install backend-atomic-commit@diversiotech
 claude plugin install backend-pr-workflow@diversiotech
 claude plugin install bruno-api@diversiotech
@@ -492,6 +510,15 @@ claude plugin install monty-code-review@diversiotech --scope project
 |--------|-------------|
 | Monolith PR review orchestrator | `claude plugin install monolith-review-orchestrator@diversiotech` |
 | Monty backend code review | `claude plugin install monty-code-review@diversiotech` |
+| Monty v2 deep code review | `claude plugin install monty-v2-code-review@diversiotech` |
+| Moe backend workflow helpers | `claude plugin install moe-skills@diversiotech` |
+| Review delegator | `claude plugin install review-delegator@diversiotech` |
+| Contract propagation audit | `claude plugin install contract-propagation-check@diversiotech` |
+| Import/export round-trip audit | `claude plugin install import-export-roundtrip-check@diversiotech` |
+| Merge-drift audit | `claude plugin install merge-drift-check@diversiotech` |
+| Historical-data audit | `claude plugin install historical-data-check@diversiotech` |
+| Test-quality audit | `claude plugin install test-quality-check@diversiotech` |
+| Gate runner | `claude plugin install gate-runner@diversiotech` |
 | Backend pre-commit / atomic commit | `claude plugin install backend-atomic-commit@diversiotech` |
 | Backend PR workflow | `claude plugin install backend-pr-workflow@diversiotech` |
 | Bruno API docs generator | `claude plugin install bruno-api@diversiotech` |
@@ -522,6 +549,19 @@ Once plugins are installed:
    /monolith-review-orchestrator:post-review   # Narrow v1 posting path; backend-safe path should reuse Monty machinery
    /monty-code-review:code-review            # Hyper-pedantic backend code review
    /monty-code-review:test-hardening         # Pytest-only dangerous-pattern hardening lane
+   /monty-v2-code-review:code-review         # Deep-coverage code review with branch/input enumeration
+   /moe-skills:pr-review-fix                 # Fetch and fix PR review comments without committing
+   /moe-skills:commit-and-reply              # Commit, push, and reply to reviewer comments with the commit SHA
+   /moe-skills:pr-status                     # Show PR review/CI/merge status dashboard
+   /moe-skills:codebase-reuse-finder         # Find hardcoded values and reimplemented repo patterns
+   /review-delegator:review-delegator        # Canonical risk-gated multi-skill review pass
+   /review-delegator:delegate                # Legacy alias for the same review behavior
+   /contract-propagation-check:check         # Audit propagation, lifecycle parity, admin surface, concurrency, and edge states
+   /import-export-roundtrip-check:check      # Audit CSV/config/admin/command round-trip safety
+   /merge-drift-check:check                  # Audit merge drift, lockfiles, and PR description accuracy
+   /historical-data-check:check              # Audit existing bad rows, legacy config reuse, rollback safety
+   /test-quality-check:check                 # Audit test depth, branch coverage, transaction assertions
+   /gate-runner:run                          # Run CI gate sequence, report pass/fail with fix commands
    /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
    /backend-atomic-commit:atomic-commit      # Strict atomic commit helper (all gates green, no AI signature)
    /backend-atomic-commit:commit             # Run all gates, fix, and create commit (full closure)

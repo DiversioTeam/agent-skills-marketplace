@@ -1,0 +1,8 @@
+{
+  "name": "test-quality-check",
+  "version": "1.0.1",
+  "description": "Focused sub-skill: verify production-path test depth, behavior value, test economy, transaction claims, and safe CI-tolerant assertions. Covers P1, P12, P19, P20.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "moe-skills",
+  "version": "0.9.2",
+  "description": "Backend workflow skills for Django4Lyfe: root-cause PR review fix with specialist routing, thread-aware commit-and-reply, fresh PR status, and codebase reuse/type precision scanning.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "diversiotech",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Claude Code plugins curated by Diversio (internal/team-focused tools).",
   "owner": {
     "name": "Diversio",
@@ -16,7 +16,13 @@
       },
       "source": "./plugins/code-review-digest-writer",
       "category": "documentation",
-      "keywords": ["django", "docs", "code-review", "digest", "diversio"]
+      "keywords": [
+        "django",
+        "docs",
+        "code-review",
+        "digest",
+        "diversio"
+      ]
     },
     {
       "name": "monolith-review-orchestrator",
@@ -27,7 +33,17 @@
       },
       "source": "./plugins/monolith-review-orchestrator",
       "category": "process",
-      "keywords": ["monolith", "worktree", "code-review", "github", "submodules", "backend", "reassessment", "harness", "diversio"]
+      "keywords": [
+        "monolith",
+        "worktree",
+        "code-review",
+        "github",
+        "submodules",
+        "backend",
+        "reassessment",
+        "harness",
+        "diversio"
+      ]
     },
     {
       "name": "monty-code-review",
@@ -38,7 +54,170 @@
       },
       "source": "./plugins/monty-code-review",
       "category": "code-analysis",
-      "keywords": ["django", "backend", "code-review", "pytest", "tests", "optimo", "diversio"]
+      "keywords": [
+        "django",
+        "backend",
+        "code-review",
+        "pytest",
+        "tests",
+        "optimo",
+        "diversio"
+      ]
+    },
+    {
+      "name": "monty-v2-code-review",
+      "description": "Deep-coverage code review with mandatory specialist delegation, full-branch analysis, and canonical P1-P29 blind-spot enforcement including precise types, defensive-code necessity, and reuse.",
+      "version": "2.6.1",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/monty-v2-code-review",
+      "category": "code-analysis",
+      "keywords": [
+        "code-review",
+        "testing",
+        "branches",
+        "adversarial",
+        "bias-mitigation",
+        "django"
+      ]
+    },
+    {
+      "name": "moe-skills",
+      "description": "Backend workflow skills: root-cause PR review fix with specialist routing, thread-aware commit-and-reply, fresh PR status, and codebase reuse/type precision scanning.",
+      "version": "0.9.2",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/moe-skills",
+      "category": "process",
+      "keywords": [
+        "django",
+        "backend",
+        "pr-review",
+        "commit",
+        "pr-status",
+        "reuse",
+        "constants"
+      ]
+    },
+    {
+      "name": "review-delegator",
+      "description": "Review delegator. Runs monty-v2 core analysis, selects evidence-based specialist lanes including reuse/precise-type sweeps, and compiles one review.",
+      "version": "1.0.3",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/review-delegator",
+      "category": "code-analysis",
+      "keywords": [
+        "code-review",
+        "delegation",
+        "orchestrator",
+        "multi-skill"
+      ]
+    },
+    {
+      "name": "contract-propagation-check",
+      "description": "Focused sub-skill: grep ALL consumers, verify lifecycle/admin parity, audit concurrency and transaction scope, and reject speculative boundary handling on stable internal contracts.",
+      "version": "1.0.2",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/contract-propagation-check",
+      "category": "code-analysis",
+      "keywords": [
+        "consumer",
+        "lifecycle",
+        "admin",
+        "propagation",
+        "parity"
+      ]
+    },
+    {
+      "name": "import-export-roundtrip-check",
+      "description": "Focused sub-skill: verify changed data shapes round-trip safely across CSV, config, serialized dict, admin import/export, and command I/O paths.",
+      "version": "1.0.0",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/import-export-roundtrip-check",
+      "category": "code-analysis",
+      "keywords": [
+        "import",
+        "export",
+        "csv",
+        "round-trip",
+        "config"
+      ]
+    },
+    {
+      "name": "merge-drift-check",
+      "description": "Focused sub-skill: detect merge regressions in pyproject.toml/uv.lock/yarn.lock, WhiteLabel, fixtures/build artifacts, config constants, and PR description accuracy. Covers P22, P24, P25.",
+      "version": "1.0.1",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/merge-drift-check",
+      "category": "code-analysis",
+      "keywords": [
+        "merge",
+        "drift",
+        "version",
+        "whitelabel",
+        "fixtures"
+      ]
+    },
+    {
+      "name": "historical-data-check",
+      "description": "Focused sub-skill: verify fixes handle existing DB rows, legacy config import reuse, rollback/reprocess safety, and inverse state-clearing. Covers P14, P16, P23.",
+      "version": "1.0.0",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/historical-data-check",
+      "category": "code-analysis",
+      "keywords": [
+        "historical",
+        "legacy",
+        "config",
+        "rollback",
+        "backfill"
+      ]
+    },
+    {
+      "name": "test-quality-check",
+      "description": "Focused sub-skill: verify production-path test depth, behavior value, test economy, transaction claims, and safe CI-tolerant assertions. Covers P1, P12, P19, P20.",
+      "version": "1.0.1",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/test-quality-check",
+      "category": "code-analysis",
+      "keywords": [
+        "testing",
+        "depth",
+        "transaction",
+        "assertions",
+        "coverage"
+      ]
+    },
+    {
+      "name": "gate-runner",
+      "description": "Focused sub-skill: run the exact CI gate sequence against the PR base branch and report read-only pass/fail with fix commands.",
+      "version": "1.0.1",
+      "author": {
+        "name": "MakoSlay"
+      },
+      "source": "./plugins/gate-runner",
+      "category": "process",
+      "keywords": [
+        "ci",
+        "ruff",
+        "ty",
+        "imports",
+        "migration"
+      ]
     },
     {
       "name": "backend-pr-workflow",
@@ -49,7 +228,14 @@
       },
       "source": "./plugins/backend-pr-workflow",
       "category": "process",
-      "keywords": ["django", "backend", "workflow", "github", "migrations", "diversio"]
+      "keywords": [
+        "django",
+        "backend",
+        "workflow",
+        "github",
+        "migrations",
+        "diversio"
+      ]
     },
     {
       "name": "backend-atomic-commit",
@@ -60,7 +246,14 @@
       },
       "source": "./plugins/backend-atomic-commit",
       "category": "process",
-      "keywords": ["django", "backend", "pre-commit", "atomic-commit", "optimo", "diversio"]
+      "keywords": [
+        "django",
+        "backend",
+        "pre-commit",
+        "atomic-commit",
+        "optimo",
+        "diversio"
+      ]
     },
     {
       "name": "bruno-api",
@@ -71,7 +264,15 @@
       },
       "source": "./plugins/bruno-api",
       "category": "documentation",
-      "keywords": ["django", "api", "docs", "bruno", "drf", "ninja", "diversio"]
+      "keywords": [
+        "django",
+        "api",
+        "docs",
+        "bruno",
+        "drf",
+        "ninja",
+        "diversio"
+      ]
     },
     {
       "name": "plan-directory",
@@ -82,7 +283,16 @@
       },
       "source": "./plugins/plan-directory",
       "category": "process",
-      "keywords": ["planning", "project-management", "markdown", "checklists", "task-tracking", "ralph-wiggum", "backend", "django"]
+      "keywords": [
+        "planning",
+        "project-management",
+        "markdown",
+        "checklists",
+        "task-tracking",
+        "ralph-wiggum",
+        "backend",
+        "django"
+      ]
     },
     {
       "name": "pr-description-writer",
@@ -93,7 +303,13 @@
       },
       "source": "./plugins/pr-description-writer",
       "category": "documentation",
-      "keywords": ["github", "pull-request", "documentation", "workflow", "diversio"]
+      "keywords": [
+        "github",
+        "pull-request",
+        "documentation",
+        "workflow",
+        "diversio"
+      ]
     },
     {
       "name": "process-code-review",
@@ -104,7 +320,13 @@
       },
       "source": "./plugins/process-code-review",
       "category": "code-analysis",
-      "keywords": ["django", "backend", "code-review", "workflow", "diversio"]
+      "keywords": [
+        "django",
+        "backend",
+        "code-review",
+        "workflow",
+        "diversio"
+      ]
     },
     {
       "name": "mixpanel-analytics",
@@ -115,7 +337,14 @@
       },
       "source": "./plugins/mixpanel-analytics",
       "category": "code-analysis",
-      "keywords": ["django", "mixpanel", "analytics", "optimo", "tracking", "diversio"]
+      "keywords": [
+        "django",
+        "mixpanel",
+        "analytics",
+        "optimo",
+        "tracking",
+        "diversio"
+      ]
     },
     {
       "name": "clickup-ticket",
@@ -126,7 +355,17 @@
       },
       "source": "./plugins/clickup-ticket",
       "category": "project-management",
-      "keywords": ["clickup", "tickets", "project-management", "tasks", "backlog", "sprints", "multi-org", "filter", "search"]
+      "keywords": [
+        "clickup",
+        "tickets",
+        "project-management",
+        "tasks",
+        "backlog",
+        "sprints",
+        "multi-org",
+        "filter",
+        "search"
+      ]
     },
     {
       "name": "github-ticket",
@@ -137,7 +376,16 @@
       },
       "source": "./plugins/github-ticket",
       "category": "project-management",
-      "keywords": ["github", "issues", "project-management", "planning", "backlog", "routing", "monolith", "gh-cli"]
+      "keywords": [
+        "github",
+        "issues",
+        "project-management",
+        "planning",
+        "backlog",
+        "routing",
+        "monolith",
+        "gh-cli"
+      ]
     },
     {
       "name": "repo-docs",
@@ -148,7 +396,17 @@
       },
       "source": "./plugins/repo-docs",
       "category": "documentation",
-      "keywords": ["documentation", "agents-md", "readme", "claude-md", "architecture", "quality-gates", "runbooks", "canonicalize", "harness"]
+      "keywords": [
+        "documentation",
+        "agents-md",
+        "readme",
+        "claude-md",
+        "architecture",
+        "quality-gates",
+        "runbooks",
+        "canonicalize",
+        "harness"
+      ]
     },
     {
       "name": "visual-explainer",
@@ -159,7 +417,17 @@
       },
       "source": "./plugins/visual-explainer",
       "category": "documentation",
-      "keywords": ["html", "diagrams", "visualization", "stakeholder", "architecture", "plans", "diffs", "netlify", "diversio"]
+      "keywords": [
+        "html",
+        "diagrams",
+        "visualization",
+        "stakeholder",
+        "architecture",
+        "plans",
+        "diffs",
+        "netlify",
+        "diversio"
+      ]
     },
     {
       "name": "dependabot-remediation",
@@ -170,7 +438,19 @@
       },
       "source": "./plugins/dependabot-remediation",
       "category": "process",
-      "keywords": ["dependabot", "security", "dependency-management", "backend", "frontend", "python", "uv", "npm", "yarn", "workflow", "github"]
+      "keywords": [
+        "dependabot",
+        "security",
+        "dependency-management",
+        "backend",
+        "frontend",
+        "python",
+        "uv",
+        "npm",
+        "yarn",
+        "workflow",
+        "github"
+      ]
     },
     {
       "name": "backend-release",
@@ -181,7 +461,16 @@
       },
       "source": "./plugins/backend-release",
       "category": "process",
-      "keywords": ["django", "backend", "release", "version", "github", "pr", "deployment", "diversio"]
+      "keywords": [
+        "django",
+        "backend",
+        "release",
+        "version",
+        "github",
+        "pr",
+        "deployment",
+        "diversio"
+      ]
     },
     {
       "name": "terraform",
@@ -192,7 +481,17 @@
       },
       "source": "./plugins/terraform",
       "category": "process",
-      "keywords": ["terraform", "terragrunt", "workflow", "pre-commit", "atomic-commit", "pr", "versioning", "infrastructure", "diversio"]
+      "keywords": [
+        "terraform",
+        "terragrunt",
+        "workflow",
+        "pre-commit",
+        "atomic-commit",
+        "pr",
+        "versioning",
+        "infrastructure",
+        "diversio"
+      ]
     },
     {
       "name": "login-cta-attribution-skill",
@@ -203,7 +502,18 @@
       },
       "source": "./plugins/login-cta-attribution-skill",
       "category": "code-analysis",
-      "keywords": ["django", "cta", "attribution", "login", "tracking", "slack", "teams", "email", "optimo", "diversio"]
+      "keywords": [
+        "django",
+        "cta",
+        "attribution",
+        "login",
+        "tracking",
+        "slack",
+        "teams",
+        "email",
+        "optimo",
+        "diversio"
+      ]
     },
     {
       "name": "frontend",
@@ -214,7 +524,19 @@
       },
       "source": "./plugins/frontend",
       "category": "process",
-      "keywords": ["frontend", "digest", "react", "monorepo", "design-system", "review", "testing", "api", "cicd", "workflow", "diversio"]
+      "keywords": [
+        "frontend",
+        "digest",
+        "react",
+        "monorepo",
+        "design-system",
+        "review",
+        "testing",
+        "api",
+        "cicd",
+        "workflow",
+        "diversio"
+      ]
     }
   ]
 }

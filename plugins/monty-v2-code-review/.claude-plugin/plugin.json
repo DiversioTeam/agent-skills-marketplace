@@ -1,0 +1,8 @@
+{
+  "name": "monty-v2-code-review",
+  "version": "2.6.1",
+  "description": "Deep-coverage code review with mandatory specialist delegation, full-branch analysis, and canonical P1-P29 blind-spot enforcement including precise types, defensive-code necessity, and reuse.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

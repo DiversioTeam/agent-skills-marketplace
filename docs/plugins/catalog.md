@@ -130,10 +130,10 @@ when command files change.
   - One-off local test from repo root:
     `pi --no-extensions -e ./pi-packages/pi-timestamps`
 - `skills-bridge` (pi package)
-  - Purpose: auto-discovers Claude Code plugin skills from
+  - Purpose: auto-discovers marketplace plugin skills from
     `plugins/*/skills/` directories and registers them as pi
-    skills via the `resources_discover` extension hook. One install makes all
-    21 plugin skills available in pi without restructuring the
+    skills via the `resources_discover` extension hook. One install makes the
+    whole marketplace skill catalog available in pi without restructuring the
     repo.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/skills-bridge"`
@@ -144,14 +144,18 @@ when command files change.
     `~/.config/pi/skills-bridge.json` config file, cwd walk-up
     (repo-agnostic: checks for `plugins/` at each ancestor, plus
     `agent-skills-marketplace/plugins/` for the monolith submodule).
-  - Skills bridged: `release-manager`, `monty-code-review`,
+  - Skills bridged: every marketplace plugin skill under `plugins/*/skills/`,
+    including
+    `monolith-review-orchestrator`, `monty-code-review`,
+    `monty-v2-code-review`, `moe-skills`, `review-delegator`,
+    `contract-propagation-check`, `import-export-roundtrip-check`,
+    `merge-drift-check`, `historical-data-check`, `test-quality-check`, `gate-runner`,
     `backend-atomic-commit`, `backend-pr-workflow`, `plan-directory`,
     `backend-ralph-plan`, `pr-description-writer`, `process-code-review`,
     `bruno-api`, `code-review-digest-writer`, `mixpanel-analytics`,
     `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
-    `terraform-pr-workflow`, `login-cta-attribution-skill`,
-    `monolith-review-orchestrator`, `frontend` (21 total).
+    `terraform-pr-workflow`, `login-cta-attribution-skill`, and `frontend`.
   - Context safe: only skill names + descriptions enter context at startup
     (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
 - `monolith-review-orchestrator`
@@ -163,7 +167,7 @@ when command files change.
     - monolith PR support without a submodule path
     - external review/artifact and deterministic worktree roots
     - repair mode for dirty worker-owned deterministic worktrees
-  - Claude install:
+  - Marketplace install:
     `claude plugin install monolith-review-orchestrator@diversiotech`
   - Plugin README:
     `plugins/monolith-review-orchestrator/README.md`
@@ -186,7 +190,7 @@ when command files change.
     `/monolith-review-orchestrator:post-review`
 - `monty-code-review`
   - Purpose: hyper-pedantic Django4Lyfe backend code review with persistent JSON-first review memory.
-  - Claude install: `claude plugin install monty-code-review@diversiotech`
+  - Marketplace install: `claude plugin install monty-code-review@diversiotech`
   - Skill path: `plugins/monty-code-review/skills/monty-code-review`
   - Memory helper:
     `plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py`
@@ -194,9 +198,62 @@ when command files change.
     `plugins/monty-code-review/skills/monty-code-review/references/review-memory-protocol.md`
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
+- `monty-v2-code-review`
+  - Purpose: deep-coverage Django/Python code review using full-branch analysis, mechanical branch enumeration, adversarial inputs, test mapping, precise-type checks, defensive-code necessity checks, and bias mitigation.
+  - Marketplace install: `claude plugin install monty-v2-code-review@diversiotech`
+  - Skill path: `plugins/monty-v2-code-review/skills/monty-v2-code-review`
+  - References: `plugins/monty-v2-code-review/skills/monty-v2-code-review/references/`
+  - Slash commands: `/monty-v2-code-review:code-review`
+- `moe-skills`
+  - Purpose: backend workflow helpers for root-cause PR review fixes, thread-aware commit-and-reply, fresh PR status, and codebase reuse/type-precision scanning.
+  - Marketplace install: `claude plugin install moe-skills@diversiotech`
+  - Skill paths: `plugins/moe-skills/skills/pr-review-fix`,
+    `plugins/moe-skills/skills/commit-and-reply`,
+    `plugins/moe-skills/skills/pr-status`,
+    `plugins/moe-skills/skills/codebase-reuse-finder`
+  - Slash commands: `/moe-skills:pr-review-fix`,
+    `/moe-skills:commit-and-reply`, `/moe-skills:pr-status`,
+    `/moe-skills:codebase-reuse-finder`
+- `review-delegator`
+  - Purpose: risk-gated multi-skill review flow with evidence-based specialist lane selection, import/export round-trip coverage, inline tenant/API checks, reuse/precise-type sweeps, and one compiled verdict.
+  - Marketplace install: `claude plugin install review-delegator@diversiotech`
+  - Skill path: `plugins/review-delegator/skills/review-delegator`
+  - Historical-pattern routing reference:
+    `plugins/review-delegator/skills/review-delegator/references/historical-pattern-routing.md`
+  - Slash commands: `/review-delegator:review-delegator`, `/review-delegator:delegate` (legacy alias)
+- `contract-propagation-check`
+  - Purpose: audit changed helpers, fields, and query contracts for consumer propagation, lifecycle/admin parity, stale-read races, transaction scope, atomicity, and evidence-based boundary handling.
+  - Marketplace install: `claude plugin install contract-propagation-check@diversiotech`
+  - Skill path: `plugins/contract-propagation-check/skills/contract-propagation-check`
+  - Slash commands: `/contract-propagation-check:check`
+- `import-export-roundtrip-check`
+  - Purpose: audit CSV/config/dict/admin/command import-export round-trip safety, field parity, and cross-path type coherence.
+  - Marketplace install: `claude plugin install import-export-roundtrip-check@diversiotech`
+  - Skill path: `plugins/import-export-roundtrip-check/skills/import-export-roundtrip-check`
+  - Slash commands: `/import-export-roundtrip-check:check`
+- `merge-drift-check`
+  - Purpose: audit merge-resolution drift in version files, unrelated assets, fixtures, config constants, and PR description accuracy.
+  - Marketplace install: `claude plugin install merge-drift-check@diversiotech`
+  - Skill path: `plugins/merge-drift-check/skills/merge-drift-check`
+  - Slash commands: `/merge-drift-check:check`
+- `historical-data-check`
+  - Purpose: audit fixes for existing bad rows, legacy config reuse, rollback safety, and inverse state-clearing gaps.
+  - Marketplace install: `claude plugin install historical-data-check@diversiotech`
+  - Skill path: `plugins/historical-data-check/skills/historical-data-check`
+  - Slash commands: `/historical-data-check:check`
+- `test-quality-check`
+  - Purpose: audit production-path test depth, wrong-bug variants, behavior value, test economy, transaction claims, and CI-tolerant assertion safety.
+  - Marketplace install: `claude plugin install test-quality-check@diversiotech`
+  - Skill path: `plugins/test-quality-check/skills/test-quality-check`
+  - Slash commands: `/test-quality-check:check`
+- `gate-runner`
+  - Purpose: run the exact PR-base CI gate sequence in read-only mode and report pass/fail with fix commands.
+  - Marketplace install: `claude plugin install gate-runner@diversiotech`
+  - Skill path: `plugins/gate-runner/skills/gate-runner`
+  - Slash commands: `/gate-runner:run`
 - `backend-atomic-commit`
   - Purpose: backend pre-commit fixes and strict atomic commits aligned to repo-local commit hygiene, including `local-ci run --no-github` when the repo exposes local-ci.
-  - Claude install: `claude plugin install backend-atomic-commit@diversiotech`
+  - Marketplace install: `claude plugin install backend-atomic-commit@diversiotech`
   - Skill path: `plugins/backend-atomic-commit/skills/backend-atomic-commit`
   - Slash commands: `/backend-atomic-commit:pre-commit`,
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
@@ -206,12 +263,12 @@ when command files change.
     preflight parity, and release/master deploys use local-ci plus the
     validated deploy helper instead of auto-deploying on PR merge), GitHub
     issue linkage, Django migration safety, and downtime-safe schema changes.
-  - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
+  - Marketplace install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
   - Slash commands: `/backend-pr-workflow:check-pr`
 - `process-code-review`
   - Purpose: process findings from `monty-code-review`.
-  - Claude install: `claude plugin install process-code-review@diversiotech`
+  - Marketplace install: `claude plugin install process-code-review@diversiotech`
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
@@ -219,14 +276,14 @@ when command files change.
     preflights, exact-head local-ci validation after merge, validated
     deploy-helper triggers, version bumping, GitHub releases, and three-branch
     post-release sync.
-  - Claude install: `claude plugin install backend-release@diversiotech`
+  - Marketplace install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`
   - Slash commands: `/backend-release:check`, `/backend-release:create`,
     `/backend-release:publish`
 - `dependabot-remediation`
   - Purpose: backend and frontend Dependabot triage, execution, and release
     closure.
-  - Claude install:
+  - Marketplace install:
     `claude plugin install dependabot-remediation@diversiotech`
   - Skill path:
     `plugins/dependabot-remediation/skills/dependabot-remediation`
@@ -234,7 +291,7 @@ when command files change.
     `/dependabot-remediation:frontend`
 - `terraform`
   - Purpose: Terraform/Terragrunt atomic-commit and PR workflow checks.
-  - Claude install: `claude plugin install terraform@diversiotech`
+  - Marketplace install: `claude plugin install terraform@diversiotech`
   - Skill paths: `plugins/terraform/skills/terraform-atomic-commit`,
     `plugins/terraform/skills/terraform-pr-workflow`
   - Slash commands: `/terraform:pre-commit`, `/terraform:atomic-commit`,
@@ -245,12 +302,12 @@ when command files change.
 - `bruno-api`
   - Purpose: generate API docs from Bruno collections by tracing Django
     implementations.
-  - Claude install: `claude plugin install bruno-api@diversiotech`
+  - Marketplace install: `claude plugin install bruno-api@diversiotech`
   - Skill path: `plugins/bruno-api/skills/bruno-api`
   - Slash commands: `/bruno-api:docs`
 - `code-review-digest-writer`
   - Purpose: generate weekly code-review digest docs from PR comments.
-  - Claude install:
+  - Marketplace install:
     `claude plugin install code-review-digest-writer@diversiotech`
   - Skill path:
     `plugins/code-review-digest-writer/skills/code-review-digest-writer`
@@ -258,7 +315,7 @@ when command files change.
 - `plan-directory`
   - Purpose: create structured plan directories and backend RALPH execution
     plans.
-  - Claude install: `claude plugin install plan-directory@diversiotech`
+  - Marketplace install: `claude plugin install plan-directory@diversiotech`
   - Skill paths: `plugins/plan-directory/skills/plan-directory`,
     `plugins/plan-directory/skills/backend-ralph-plan`
   - Slash commands: `/plan-directory:plan`,
@@ -266,20 +323,20 @@ when command files change.
 - `pr-description-writer`
   - Purpose: reviewer-friendly pull request descriptions with diagrams, tables,
     and repo-local workflow context.
-  - Claude install:
+  - Marketplace install:
     `claude plugin install pr-description-writer@diversiotech`
   - Skill path:
     `plugins/pr-description-writer/skills/pr-description-writer`
   - Slash commands: `/pr-description-writer:write-pr`
 - `repo-docs`
   - Purpose: generate and canonicalize repository harness docs.
-  - Claude install: `claude plugin install repo-docs@diversiotech`
+  - Marketplace install: `claude plugin install repo-docs@diversiotech`
   - Skill path: `plugins/repo-docs/skills/repo-docs-generator`
   - Slash commands: `/repo-docs:generate`, `/repo-docs:canonicalize`
 - `visual-explainer`
   - Purpose: presentation-ready HTML explainers for plans, diffs, diagrams,
     and stakeholder updates, with optional fresh Netlify preview publishing.
-  - Claude install: `claude plugin install visual-explainer@diversiotech`
+  - Marketplace install: `claude plugin install visual-explainer@diversiotech`
   - Skill path: `plugins/visual-explainer/skills/visual-explainer`
   - Slash commands: `/visual-explainer:explain`
 
@@ -287,7 +344,7 @@ when command files change.
 
 - `clickup-ticket`
   - Purpose: legacy ClickUp ticket management during the GitHub migration.
-  - Claude install: `claude plugin install clickup-ticket@diversiotech`
+  - Marketplace install: `claude plugin install clickup-ticket@diversiotech`
   - Skill path: `plugins/clickup-ticket/skills/clickup-ticket`
   - Slash commands: `/clickup-ticket:get-ticket`,
     `/clickup-ticket:list-tickets`, `/clickup-ticket:my-tickets`,
@@ -298,7 +355,7 @@ when command files change.
     `/clickup-ticket:refresh-cache`
 - `github-ticket`
   - Purpose: GitHub-native issue management with planning-hub routing, repo-local execution issues, and project-board defaults.
-  - Claude install: `claude plugin install github-ticket@diversiotech`
+  - Marketplace install: `claude plugin install github-ticket@diversiotech`
   - Skill path: `plugins/github-ticket/skills/github-ticket`
   - Slash commands: `/github-ticket:configure`,
     `/github-ticket:get-issue`, `/github-ticket:list-issues`,
@@ -308,13 +365,13 @@ when command files change.
 - `mixpanel-analytics`
   - Purpose: implement and review MixPanel tracking for the Django
     `optimo_analytics` module.
-  - Claude install: `claude plugin install mixpanel-analytics@diversiotech`
+  - Marketplace install: `claude plugin install mixpanel-analytics@diversiotech`
   - Skill path: `plugins/mixpanel-analytics/skills/mixpanel-analytics`
   - Slash commands: `/mixpanel-analytics:implement`,
     `/mixpanel-analytics:review`
 - `login-cta-attribution-skill`
   - Purpose: add CTA login attribution sources and related tests.
-  - Claude install:
+  - Marketplace install:
     `claude plugin install login-cta-attribution-skill@diversiotech`
   - Skill path:
     `plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill`
@@ -326,7 +383,7 @@ when command files change.
   - Purpose: digest-first frontend skill with repo classification, dynamic
     detection, and internal lane routing for review, API, testing, analytics,
     observability, CI/CD, planning, and commit workflows.
-  - Claude install: `claude plugin install frontend@diversiotech`
+  - Marketplace install: `claude plugin install frontend@diversiotech`
   - Skill path: `plugins/frontend/skills/frontend`
   - References:
     `plugins/frontend/skills/frontend/references/digest-schema.md`,

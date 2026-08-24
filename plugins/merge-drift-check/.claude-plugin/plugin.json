@@ -1,0 +1,8 @@
+{
+  "name": "merge-drift-check",
+  "version": "1.0.1",
+  "description": "Focused sub-skill: detect silent merge regressions in pyproject.toml/uv.lock/yarn.lock, WhiteLabel assets, fixtures/build artifacts, config constants, and PR description accuracy.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

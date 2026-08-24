@@ -1,0 +1,8 @@
+{
+  "name": "contract-propagation-check",
+  "version": "1.0.2",
+  "description": "Focused sub-skill: grep ALL consumers, verify lifecycle/admin parity, audit concurrency and transaction scope, and reject speculative boundary handling on stable internal contracts.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}

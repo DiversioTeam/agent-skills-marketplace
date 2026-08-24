@@ -1,0 +1,8 @@
+{
+  "name": "review-delegator",
+  "version": "1.0.3",
+  "description": "Review delegator. Runs monty-v2 core analysis, selects evidence-based specialist lanes including reuse/precise-type sweeps, and compiles one review.",
+  "author": {
+    "name": "MakoSlay"
+  }
+}
