@@ -1,9 +1,10 @@
 ---
 name: test-quality-check
 description: >
-    Audit test quality: test depth (helper vs production entry point), branch
-    coverage gaps, mock realism, time-dependent logic, transaction-shape
-    assertions, and CI-tolerant assertion safety. Returns findings tagged
+    Audit test quality: production-path depth, branch coverage, mock realism,
+    behavioral value, fixture/setup economy, time-dependent logic,
+    transaction-shape claims, and CI-tolerant assertion safety. Rejects tests
+    that merely restate framework behavior or wrapper plumbing. Returns findings tagged
     [BLOCKING]/[SHOULD_FIX]/[NIT].
 user-invocable: true
 allowed-tools: [Bash, Read]
@@ -17,17 +18,22 @@ Covers monty-v2 blind-spot checks P1, P12, P19, and P20.
 ## Base Branch Detection
 
 ```bash
-# Detect the base branch — defaults to the repo's default branch.
-# Override by setting BASE_BRANCH before invoking (e.g., BASE_BRANCH=release).
+# Detect the actual PR target, then fall back to the repo default.
+# Override by setting BASE_BRANCH before invoking.
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null)"
+fi
 if [ -z "$BASE_BRANCH" ]; then
   BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
 fi
+git fetch origin "$BASE_BRANCH"
 ```
 
 **This skill is NOT done until you have:**
 - Traced the call chain from EVERY new test to its production entry point
 - Verified bugfix tests reproduce the REPORTED scenario, not a different variant
-- Checked transactional tests for connection.queries / SAVEPOINT assertions
+- Checked transactional tests for induced-failure rollback; query-level
+  SAVEPOINT assertions only when savepoint structure is the application contract
 - Audited relaxed assertions for multiplicity preservation on test-owned IDs
 
 ---
@@ -38,8 +44,9 @@ For every new test, trace the call chain from the test to the production
 entry point:
 
 ```bash
-# Find new or modified tests
-git diff --name-only origin/$BASE_BRANCH...HEAD -- '*/tests/*.py'
+# Find new or modified tests in nested test dirs and colocated test modules
+git diff --name-only origin/$BASE_BRANCH...HEAD --diff-filter=ACMRT \
+  | grep -E '(^|/)(tests?/.*\.py|test_[^/]*\.py)$'
 ```
 
 For each test:
@@ -59,6 +66,7 @@ Helper-only tests pass even when:
 - The helper is never actually called in production
 - The production entry point skips the helper for certain states
 - The caller passes different arguments than the test assumes
+- The test mocks every meaningful layer and verifies only argument forwarding
 
 ### Flagging
 
@@ -95,8 +103,11 @@ different variant:
 
 ## Step 3: Transaction-Shape Assertions (P19)
 
-When the fix wraps writes in `atomic()` or splits into savepoints, the
-test must prove the transaction shape, not just the final row state:
+When the fix changes transaction behavior, first identify the application
+contract. A plain `transaction.atomic()` wrapper should be tested through an
+induced later-step failure and observable all-or-nothing state—not by retesting
+that Django emits transaction SQL. Assert SAVEPOINT/ROLLBACK query shape only
+when nested savepoint boundaries or partial recovery are themselves the feature:
 
 ```bash
 # Find tests that claim to test transactional behavior
@@ -112,15 +123,18 @@ def test_transaction_wraps_writes(db):
     result = process_invoice(invoice)
     assert Invoice.objects.get().status == "processed"
 
-# RIGHT: checks transaction shape
-@pytest.mark.django_db(transaction=True)
-def test_transaction_wraps_writes(db):
-    with CaptureQueriesContext(connection) as ctx:
+# RIGHT for ordinary atomicity: induce a failure after the first write
+@pytest.mark.django_db
+def test_process_invoice_rolls_back_when_audit_fails(mocker):
+    mocker.patch("billing.audit_invoice", side_effect=RuntimeError("boom"))
+    with pytest.raises(RuntimeError, match="boom"):
         process_invoice(invoice)
-    # Assert savepoints were created
-    queries = [q["sql"] for q in ctx.captured_queries]
-    assert any("SAVEPOINT" in q for q in queries)
-    assert Invoice.objects.get().status == "processed"
+    invoice.refresh_from_db()
+    assert invoice.status == "pending"
+
+# Only when savepoint structure is an application requirement:
+# use django_db(transaction=True) + CaptureQueriesContext and assert the
+# expected SAVEPOINT/ROLLBACK boundary.
 ```
 
 Without transaction-shape assertions, the `atomic()` wrapper can be
@@ -128,8 +142,10 @@ removed and the test still passes — the wrapping is unenforceable.
 
 ### Flagging
 
-- Transaction behavior claimed but not asserted = `[SHOULD_FIX]`
-- Test uses `django_db` without `transaction=True` = `[SHOULD_FIX]`
+- Atomicity claimed without an induced-failure rollback assertion = `[SHOULD_FIX]`
+- Test only proves Django's `atomic()` machinery = `[NIT]` to remove
+- Savepoint behavior is an explicit feature but query shape is unobserved = `[SHOULD_FIX]`
+- Savepoint-shape test lacks `django_db(transaction=True)` = `[SHOULD_FIX]`
 
 ---
 
@@ -169,7 +185,44 @@ assert set(result_org_ids) >= {org1.id, org2.id}  # extra orgs ok
 
 ---
 
-## Step 5: Additional Checks
+## Step 5: Behavioral Value and Test Economy
+
+For every changed test, state the application behavior that would regress if the
+test were removed. Flag these recurring low-value forms:
+
+- page renders / HTTP 200 without asserting filtering, permissions, or mutation
+- field appears in `list_display`, default/help text matches model metadata, or
+  `transaction.atomic()` behaves as Django documents
+- one-line wrapper delegates to a mocked function
+- mocks replace the exact Titan/API/admin/service chain the regression concerns
+- test name claims filtering/rollback/error handling but assertions prove only
+  shape, status, or a mocked call
+
+A framework smoke test is justified only when project configuration, templates,
+permissions, middleware, or custom hooks make the integration itself the risk.
+Otherwise remove it or replace it with behavior-level coverage.
+
+Then inspect economy without weakening coverage:
+
+```bash
+# Repeated setup and patch sites in changed tests
+rg 'objects\.create|client\.post|admin_client\.post|@patch|with patch' <changed-tests>
+rg 'pytest\.mark\.django_db|\bdb\b' <changed-tests>
+```
+
+- Repeated model rows/payloads/patches → use an existing or local fixture/factory/helper.
+- Symmetric approve/reject or true/false cases → parameterize when assertions are the same.
+- Module/class `django_db` marker → remove redundant fixture-level `db` requests.
+- Large multi-purpose test → split by behavior; do not hide distinct failures in one flow.
+- Bulk setup → use `bulk_create` when signals/default-save behavior is not under test.
+
+Flag behavior-free or misleading tests `[SHOULD_FIX]`; pure Django/framework
+retests and test-only production wrappers are `[NIT]` to remove unless they
+obscure missing real coverage, then `[SHOULD_FIX]`.
+
+---
+
+## Step 6: Additional Checks
 
 ### Mock realism
 ```bash
@@ -196,7 +249,7 @@ grep -rn "freeze_time\|now()\|today()\|datetime" --include="*.py" \
 
 ---
 
-## Step 6: Output
+## Step 7: Output
 
 ```text
 Test Quality Check
@@ -220,6 +273,8 @@ CI-tolerant assertion safety:
   - <N> relaxed assertions, <M> with multiplicity guards
   - Missing multiplicity: <list> [SHOULD_FIX]
 
+Behavioral value: <N> behavior tests, <M> plumbing/framework-only tests
+Test economy: <N> repeated setup/patch/payload clusters
 Mock realism: [OK/N issues]
 Time-dependent: [OK/N issues]
 Branch coverage: <X>/<Y> branches tested
@@ -235,9 +290,13 @@ Findings:
 ```text
 ☐ Every new/modified test traced to production entry point (not just helper)
 ☐ For bugfix PRs: reported scenario mapped to test conditions explicitly
-☐ Transactional tests checked for connection.queries SAVEPOINT/ROLLBACK
+☐ Transaction changes tested via induced failure and observable rollback
+☐ SAVEPOINT/ROLLBACK query shape asserted only when it is the application contract
 ☐ Relaxed assertions (set/>=/subset) checked for Counter() multiplicity
-☐ Mocks checked against production function return shapes
+☐ Mocks checked against production return shapes and kept off the behavior path
+☐ Every test proves application behavior, not stock framework/wrapper plumbing
+☐ Repeated rows/payloads/patches checked for fixture/helper/parameterization reuse
+☐ Test names matched against the behavior actually asserted
 ☐ Time-sensitive tests checked for @freeze_time
 ☐ Both directions of every if/else in changed code have test coverage
 ```
@@ -252,3 +311,7 @@ Findings:
   without query-level assertions.
 - **Relaxed ≠ safe** — CI-tolerant assertions still need multiplicity
   guards for test-owned data.
+- **Mock only unrelated boundaries** — the production chain that carries the
+  changed behavior must stay real.
+- **Do not test Django for Django** — prove the project's filtering, permission,
+  mutation, integration, or rendering contract instead.

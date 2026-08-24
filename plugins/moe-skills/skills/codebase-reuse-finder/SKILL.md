@@ -1,10 +1,11 @@
 ---
 name: codebase-reuse-finder
 description: >
-    Scan current changes for hardcoded values, magic numbers, and reimplemented
-    patterns. Search the codebase for existing constants, utilities, and
-    abstractions that could replace them. Reports findings with import paths.
-    Respects the Diversio/Optimo product boundary.
+    Scan current changes for hardcoded values, duplicated setup/query logic,
+    weakened stable types, and reimplemented framework or repository patterns.
+    Search for existing constants, enums, TypedDicts, clients, decorators,
+    utilities, and test helpers before inventing replacements. Reports concrete
+    reuse evidence while respecting the Diversio/Optimo product boundary.
 user-invocable: true
 argument-hint: '[file-or-directory] [--apply]'
 allowed-tools: [Bash, Read, Edit]
@@ -12,9 +13,10 @@ allowed-tools: [Bash, Read, Edit]
 
 # Codebase Reuse Finder Skill
 
-Scan code for hardcoded values, magic numbers, and reimplemented patterns.
-Search the codebase for existing constants, utilities, and abstractions that
-could replace them. Standalone skill — use anytime, not tied to the PR workflow.
+Scan code for hardcoded values, magic numbers, duplicated setup/query logic,
+weakened stable types, and reimplemented patterns. Search the codebase before
+inventing a replacement. Standalone skill — use anytime, not tied to the PR
+workflow.
 
 **Reference documentation:**
 
@@ -31,26 +33,32 @@ Three ways to determine what code to scan:
 
 If a file or directory is provided as argument, scan that directly.
 
-### B: Staged and unstaged changes (default)
+### B: Full branch plus local changes (default)
 
-If no argument is provided, scan current changes:
+If no argument is provided, scan the full PR/branch diff, then union staged,
+unstaged, and untracked files. A clean worktree does **not** mean there is no
+review scope.
 
 ```bash
-# Staged changes
-git diff --cached --name-only | grep -E '\.py$'
-
-# Unstaged changes
-git diff --name-only | grep -E '\.py$'
+BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null)"
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+fi
+git fetch origin "$BASE_BRANCH"
+{
+  git diff --name-only "origin/$BASE_BRANCH...HEAD" --diff-filter=ACMRT
+  git diff --cached --name-only --diff-filter=ACMRT
+  git diff --name-only --diff-filter=ACMRT
+  git ls-files --others --exclude-standard
+} | sort -u | grep -E '\.(py|ts|tsx|js|jsx)$'
 ```
 
-### C: Combined
+### C: Explicit scope wins
 
-If both argument and changes exist, scan only the argument.
+If an argument and changes both exist, scan only the argument.
 
-If no argument and no changes, tell the user:
-
-> "No changes detected and no file/directory specified. Please provide a target
-> or make some changes first."
+If no argument and the full branch/local union is empty, tell the user there is
+no scope and ask for a target.
 
 ---
 
@@ -100,22 +108,45 @@ Read each file in scope and identify:
 - Manual date/time formatting (vs `timezone.now()`, `timedelta`, etc.)
 - Manual decimal rounding (vs `Decimal` utilities)
 - Manual queryset filtering patterns that exist as manager methods
-- Manual string normalization that exists as utility functions
+- Re-evaluating the same queryset for count/IDs/rows instead of materializing once
+- Manual string normalization that exists as a utility
 - Manual permission checks that exist as policy functions
+- Manual task dispatch, HTTP method checks, resource clients, or response parsing
+  where the framework/repository already provides `.delay()`, decorators, or a
+  typed resource abstraction
+- `dict[str, Any]` or `Any` for a stable known shape when a `TypedDict`, dataclass,
+  protocol, or precise mapping already exists
 
 ### Repeated patterns
 
 - Same literal appearing 2+ times in the scanned files
-- Copy-pasted logic blocks that could be a shared function
+- Copy-pasted production logic blocks that could use an existing helper
+- Repeated test factories, POST payloads, patch setup, or row creation where the
+  test suite already has a fixture/factory/helper
+- Added flags, helpers, or branches used only by tests and no production caller
 
 ---
 
 ## Step 4: Search for Existing Replacements
 
 For each candidate, search in this order (respecting product boundary from
-Step 2):
+Step 2). Record the query and all credible matches; a claim that no replacement
+exists without search evidence is incomplete.
 
-### 1. Constants files
+### 1. Symbol and caller discovery
+
+```bash
+# Search the candidate name, semantic synonyms, imports, and old inline shape
+rg "<candidate|synonym|literal>" <product-scope>
+rg "<new_helper_or_flag>" --glob '*.py'
+```
+
+Use caller discovery to detect test-only APIs, duplicate implementations, and
+nearby canonical abstractions. Read the candidate replacement before recommending
+it: verify return shape, query/network behavior, caching, permissions, and error
+semantics. Reuse that adds an API call or weakens a shared contract is not reuse.
+
+### 2. Constants, enums, and stable types
 
 ```bash
 # Common constant locations
@@ -127,7 +158,10 @@ Grep for the literal value or a semantically similar constant name in:
   settings/*.py
 ```
 
-### 2. Utility modules
+Also search for `TypedDict`, dataclasses, protocols, `TextChoices`, and
+`IntegerChoices` that describe any newly added stable dictionaries or literals.
+
+### 3. Utility and resource modules
 
 ```bash
 # Common utility locations
@@ -137,7 +171,11 @@ Grep for similar function names or patterns in:
   <app>/utils.py or <app>/utils/*.py
 ```
 
-### 3. Model choices (TextChoices / IntegerChoices)
+Include shared API/resource clients and framework-native facilities (Django
+view decorators, task `.delay()`, admin permission hooks) rather than limiting
+the search to small utility functions.
+
+### 4. Model choices (TextChoices / IntegerChoices)
 
 ```bash
 # Search for Django choice enums
@@ -145,7 +183,7 @@ Grep for "TextChoices\|IntegerChoices" in models.py and choices.py files
   within the search scope
 ```
 
-### 4. Service methods
+### 5. Service methods and test support
 
 ```bash
 # Search for existing service classes with similar logic
@@ -154,7 +192,10 @@ Grep in:
   optimo_core/services/*.py
 ```
 
-### 5. Django and DRF built-ins
+Search current-app services, managers, tests/conftest files, factories, and
+fixture modules for established setup and behavior.
+
+### 6. Django, task-runner, and DRF built-ins
 
 Check if the hardcoded value maps to a well-known constant:
 
@@ -175,14 +216,18 @@ Check if the hardcoded value maps to a well-known constant:
 
 ### `[BLOCKING]`
 
-Hardcoded secrets, API keys, passwords, database connection strings, or tokens.
-These must be fixed immediately — they should use `settings` or environment
-variables.
+- Hardcoded secrets, API keys, passwords, database connection strings, or tokens.
+- Reimplementing a canonical abstraction when the copy creates a correctness,
+  permission, tenant, or unbounded query/network regression.
+
+These must be fixed immediately.
 
 ### `[SHOULD_FIX]`
 
-The hardcoded value **matches an existing constant** or the pattern
-**reimplements an existing utility**. Include the exact import path:
+The value matches an existing constant/type, the pattern reimplements an
+existing utility/framework facility, or repeated branch code should reuse an
+existing fixture/helper/query result. Include the exact import path or local
+symbol path:
 
 ```
 [SHOULD_FIX] optimo_surveys/views/response.py:42
@@ -253,8 +298,10 @@ Findings:
   [SHOULD_FIX]: <N>
   [NIT]:        <N>
 
+Search evidence:
+  - <query> → <credible matches inspected>
 Top reuse opportunities:
-  1. <constant/utility> — used in <N> places, could replace <N> hardcoded values
+  1. <constant/utility/type/helper> — used in <N> places, could replace <N> occurrences
   2. <constant/utility> — ...
   3. <constant/utility> — ...
 
@@ -275,8 +322,13 @@ Files staged: <list>
 - **Don't flag `0`, `1`, `-1`** — these are generally acceptable magic numbers.
 - **Include import paths** — every `[SHOULD_FIX]` must include a working import
   statement.
-- **Don't create new constants** — this skill finds existing reuse opportunities,
-  it does not create new abstractions.
+- **Search before abstraction** — prefer existing symbols. If no canonical symbol
+  exists, report repeated newly introduced code as `[NIT]` with a local extraction
+  option; do not invent a cross-module abstraction without evidence.
+- **Verify replacement semantics** — compare return shape, I/O/query count,
+  caching, permissions, and exceptions before recommending reuse.
+- **Stable shapes deserve stable types** — added `Any` is not acceptable merely
+  because the type checker permits it; find/reuse the precise schema when known.
 - **`--apply` only fixes `[BLOCKING]` and `[SHOULD_FIX]`** — `[NIT]` findings
   are informational only.
 

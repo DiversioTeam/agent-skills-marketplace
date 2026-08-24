@@ -199,13 +199,13 @@ when command files change.
   - Slash commands: `/monty-code-review:code-review`,
     `/monty-code-review:test-hardening`
 - `monty-v2-code-review`
-  - Purpose: deep-coverage Django/Python code review using mechanical branch enumeration, adversarial inputs, test mapping, and bias mitigation.
+  - Purpose: deep-coverage Django/Python code review using full-branch analysis, mechanical branch enumeration, adversarial inputs, test mapping, precise-type checks, defensive-code necessity checks, and bias mitigation.
   - Marketplace install: `claude plugin install monty-v2-code-review@diversiotech`
   - Skill path: `plugins/monty-v2-code-review/skills/monty-v2-code-review`
   - References: `plugins/monty-v2-code-review/skills/monty-v2-code-review/references/`
   - Slash commands: `/monty-v2-code-review:code-review`
 - `moe-skills`
-  - Purpose: backend workflow helpers for PR review fixes, commit-and-reply, PR status, and codebase reuse scanning.
+  - Purpose: backend workflow helpers for root-cause PR review fixes, thread-aware commit-and-reply, fresh PR status, and codebase reuse/type-precision scanning.
   - Marketplace install: `claude plugin install moe-skills@diversiotech`
   - Skill paths: `plugins/moe-skills/skills/pr-review-fix`,
     `plugins/moe-skills/skills/commit-and-reply`,
@@ -215,12 +215,14 @@ when command files change.
     `/moe-skills:commit-and-reply`, `/moe-skills:pr-status`,
     `/moe-skills:codebase-reuse-finder`
 - `review-delegator`
-  - Purpose: risk-gated multi-skill review flow with feature-detected parallel lanes, import/export round-trip coverage, inline tenant/API checks, and one compiled verdict.
+  - Purpose: risk-gated multi-skill review flow with evidence-based specialist lane selection, import/export round-trip coverage, inline tenant/API checks, reuse/precise-type sweeps, and one compiled verdict.
   - Marketplace install: `claude plugin install review-delegator@diversiotech`
   - Skill path: `plugins/review-delegator/skills/review-delegator`
+  - Historical-pattern routing reference:
+    `plugins/review-delegator/skills/review-delegator/references/historical-pattern-routing.md`
   - Slash commands: `/review-delegator:review-delegator`, `/review-delegator:delegate` (legacy alias)
 - `contract-propagation-check`
-  - Purpose: audit changed helpers, fields, and query contracts for consumer propagation, lifecycle parity, admin three-layer safety, stale-read races, atomicity, and edge states.
+  - Purpose: audit changed helpers, fields, and query contracts for consumer propagation, lifecycle/admin parity, stale-read races, transaction scope, atomicity, and evidence-based boundary handling.
   - Marketplace install: `claude plugin install contract-propagation-check@diversiotech`
   - Skill path: `plugins/contract-propagation-check/skills/contract-propagation-check`
   - Slash commands: `/contract-propagation-check:check`
@@ -240,12 +242,12 @@ when command files change.
   - Skill path: `plugins/historical-data-check/skills/historical-data-check`
   - Slash commands: `/historical-data-check:check`
 - `test-quality-check`
-  - Purpose: audit test depth, wrong-bug variants, transaction-shape assertions, and CI-tolerant assertion safety.
+  - Purpose: audit production-path test depth, wrong-bug variants, behavior value, test economy, transaction claims, and CI-tolerant assertion safety.
   - Marketplace install: `claude plugin install test-quality-check@diversiotech`
   - Skill path: `plugins/test-quality-check/skills/test-quality-check`
   - Slash commands: `/test-quality-check:check`
 - `gate-runner`
-  - Purpose: run the exact CI gate sequence and report pass/fail with fix commands.
+  - Purpose: run the exact PR-base CI gate sequence in read-only mode and report pass/fail with fix commands.
   - Marketplace install: `claude plugin install gate-runner@diversiotech`
   - Skill path: `plugins/gate-runner/skills/gate-runner`
   - Slash commands: `/gate-runner:run`

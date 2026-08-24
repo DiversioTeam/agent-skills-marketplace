@@ -87,8 +87,9 @@ comments before proceeding.
 Build two buckets from this response:
 - **Actionable inline review threads**: `isResolved == false` and
   `isOutdated == false`
-- **Context-only review threads**: resolved or outdated threads (read them for
-  history, but do not queue them for fixes unless the user explicitly asks)
+- **Context-only review threads**: resolved or outdated threads. Do not blindly
+  reapply their old patch, but extract the root cause and search the current
+  branch for a live sibling occurrence before declaring the pattern closed.
 
 Filter out:
 - your own comments
@@ -108,8 +109,13 @@ gh api "repos/$OWNER/$REPO/issues/$PR/comments" --paginate \
 
 ```bash
 gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" --paginate \
-  --jq "[.[] | select(.user.login != \"$ME\") | {id, state, body, user: .user.login}]"
+  --jq "[.[] | select(.user.login != \"$ME\") | {id, state, body, user: .user.login, submitted_at, commit_id}]"
 ```
+
+Retain dismissed review submissions as history and label them `DISMISSED`; they
+may still explain a recurring root, but they are not current approval/blocking
+state. Preserve submitted timestamps and commit IDs so stale feedback is not
+mistaken for current-head code.
 
 ### Step 2d: Build the action queue
 
@@ -262,123 +268,39 @@ Do **not** stage unrelated changes. Do **not** commit.
 
 ---
 
-## Step 5.5: Merge Drift Detection
+## Step 5.5: Root-Cause and Sibling-Occurrence Closure
 
-After fixing reviewer comments, verify the branch hasn't accidentally
-regressed files that should only move forward:
+A reviewer points to evidence, not necessarily the only occurrence or the right
+patch. Before marking an item fixed:
 
-```bash
-# Check version metadata — must move forward only
-git diff origin/$BASE_BRANCH...HEAD -- pyproject.toml uv.lock
+1. State the normalized root cause (for example: stable shape weakened with
+   `Any`, speculative broad catch, missed existing enum, duplicated query,
+   helper-only test, or lifecycle mismatch).
+2. Search the **full branch diff and repository** for sibling occurrences,
+   including the reviewer phrase's semantic equivalents.
+3. Inspect the surrounding production contract and fix all branch-introduced
+   occurrences with the same root where the correction is deterministic.
+4. Cite each occurrence checked and explain exemptions. Do not count repeated
+   replies in one thread as separate issues.
 
-# Check for unrelated file regression
-git diff --stat origin/$BASE_BRANCH...HEAD -- \
-  $(git diff --name-only origin/$BASE_BRANCH...HEAD | grep -v "$(git diff --name-only HEAD~1)")
-```
+The fix may touch a file not named by the comment when required for a caller,
+shared type/constant, lifecycle stage, or regression test. Keep that expansion
+narrow and show it to the user. In `--auto`, apply only deterministic same-root
+fixes; stop for product, architecture, migration, or behavior tradeoffs.
 
-If `pyproject.toml` or `uv.lock` show a version downgrade relative to
-`origin/$BASE_BRANCH`, this is `[BLOCKING]` — restore the base-branch version
-and refresh `uv.lock`:
+Route mechanics to one canonical owner instead of performing shallow copies:
 
-```bash
-git checkout origin/$BASE_BRANCH -- pyproject.toml
-uv lock
-git add pyproject.toml uv.lock
-```
+| Trigger | Required check |
+|---|---|
+| New helper/field/admin/state/transaction or failure boundary | `/contract-propagation-check:check` |
+| Existing rows, migration, config, rollback/reprocess | `/historical-data-check:check` |
+| Added literals/enums/`Any`/resource wrappers/duplicate setup | `/moe-skills:codebase-reuse-finder` |
+| Production behavior or test changes (including absent tests) | `/test-quality-check:check` |
+| Long-lived branch, merge, migration number, unrelated files | `/merge-drift-check:check` |
 
-Also check for **WhiteLabel asset drift**, **fixture regression**,
-and **config constant regression** — any file outside the feature area
-that now differs from release. `[BLOCKING]` per silent regression.
-
----
-
-## Step 5.6: Admin Form / Readonly Interaction Check
-
-If any fix touched admin `get_readonly_fields()`, `ModelForm.__init__()`,
-or inline admin configuration, verify the admin save path is consistent:
-
-```bash
-# Find all InlineModelAdmin classes for the changed model
-grep -rn "class.*Inline.*admin\.TabularInline\|class.*Inline.*admin\.StackedInline" \
-  --include="*.py" <app>/admin/
-
-# Find all ModelForm.__init__ definitions that reference the changed fields
-grep -rn "def __init__" --include="*.py" <app>/admin/ | while read line; do
-  grep -A 30 "$line" | grep -q "<field_name>" && echo "$line — references changed field"
-done
-```
-
-Read the full admin, inline, and form classes. The contract:
-- If `get_readonly_fields()` excludes a field for certain states, NO
-  `InlineModelAdmin` nor `ModelForm.__init__()` should re-add it as
-  required for those same states.
-- A POST of a locked-state record must succeed without the readonly
-  field in form data.
-
-Flag any mismatch as `[BLOCKING]`.
-
----
-
-## Step 5.7: Historical Data / Config Reuse Check
-
-When a fix prevents new bad data but existing rows may still have stale
-or broken values, check:
-
-```bash
-# Are there existing rows with the affected pattern?
-# Example: legacy sentinel overrides, old enum values, NULL arrays
-grep -rn "<affected-field>\|<old-pattern>" --include="*.py" \
-  | grep -v "tests/" | grep -v "migrations/" | head -20
-```
-
-Ask explicitly:
-> "This fix prevents NEW bad data. Does existing data need cleanup?
-> - Legacy configs can still carry old values through export/import.
-> - Stale rows in the DB can still trigger the old behavior on reprocess."
-
-If historical config reuse or legacy DB rows can reintroduce the bug,
-flag as `[BLOCKING]` and suggest either:
-- A data migration / backfill, or
-- Runtime sanitization on the read path, or
-- Import-time cleanup in config import.
-
----
-
-## Step 5.8: Consumer Propagation Check (Lifecycle Parity)
-
-If any fix introduced or modified a normalization, remapping, equivalence,
-or canonicalization helper, verify it's applied at EVERY lifecycle stage:
-
-| Stage | Check |
-|-------|-------|
-| Save / `pre_save` signal | Field canonicalized before persistence |
-| Generate / build | Generation routines emit canonical form |
-| Import (CSV / config) | Imported values canonicalized on entry |
-| Export (CSV / config) | Exported values match canonical form |
-| Apply / migrate | One-shot apply scripts canonicalize |
-| Revert / rollback | Revert routines compare against canonical form |
-| Consolidate / dedupe | Equivalence collisions detect canonical match |
-| Admin `TextChoices` enum | The choice surface admits the canonical value |
-
-```bash
-# Grep for the helper name across the entire codebase
-grep -rn "<helper_name>" --include="*.py" | grep -v tests/
-```
-
-For each stage where the helper is NOT applied, either:
-- Apply the helper at that stage, or
-- Document why the stage is explicitly exempt.
-
-Flag each missed stage as `[BLOCKING]`.
-
-Also grep for the OLD inline pattern that the helper replaces:
-
-```bash
-grep -rn "<old_inline_pattern>" --include="*.py" | grep -v tests/
-```
-
-Every consumer of the old pattern must call the new helper or be listed
-as explicitly exempt.
+Each invoked check must return search/call-chain evidence. Fix its blocking
+sibling occurrences before staging, or record them as skipped with the user's
+decision.
 
 ---
 
@@ -447,7 +369,9 @@ this recommendation.
   is shared.
 - **Track addressed comment IDs** for `/moe-skills:commit-and-reply`.
 - **Run ruff after every fix** — do not accumulate lint errors.
-- **Do not modify files** not referenced by reviewer comments.
+- **Follow the root, not only the anchor** — files outside the comment anchor may
+  change only when required for the same branch-introduced root cause, consumer,
+  shared abstraction/type, or regression test. Show and justify the expansion.
 
 ---
 

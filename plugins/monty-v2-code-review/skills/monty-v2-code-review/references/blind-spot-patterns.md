@@ -1,12 +1,11 @@
 # Blind-Spot Patterns (Phase 7)
 
-Twenty-two classes of issues consistently flagged in review. Run each check
+Twenty-nine classes of issues consistently flagged in review. Run each check
 mechanically — do not skip on the assumption "this PR doesn't look like that."
 
-P1–P15 emerged from earlier PR cohorts. P16–P22 were added after a fifteen-PR
-audit (2026-05) and capture the highest-recurring blind spots that survive
-P1–P15 — particularly **lifecycle parity** (P17), **inverse state-clearing on
-failure paths** (P16), and the **admin three-layer surface** (P18).
+P1–P22 came from earlier PR cohorts. P23–P29 incorporate later 2026 evidence,
+including historical config reuse, wider merge drift, import/export round trips,
+precise stable shapes, evidence-based failure handling, and repository reuse.
 
 ---
 
@@ -669,3 +668,66 @@ or restore the `release` version.
 
 Flag as `[BLOCKING]` — these regressions land silently and ship the next
 release.
+
+---
+
+## P23 — Historical Config Reuse
+
+Import a pre-fix export through the new path. Known-bad sentinels, stale IDs,
+or missing schema fields must be rejected or normalized rather than preserved.
+Route evidence gathering to `historical-data-check`.
+
+## P24 — Wider Merge Drift
+
+Audit every file outside the stated feature area, including fixtures, test
+utilities, constants, generated files, and assets. Restore unrelated base-branch
+content. Route to `merge-drift-check`.
+
+## P25 — PR Description and Migration Drift
+
+Compare migration/file claims in the PR body to the actual branch. Stale
+numbering or rollout claims are `[SHOULD_FIX]` and may become blocking when they
+misdirect deployment.
+
+## P26 — Import/Export Round-Trip
+
+For every changed data shape, prove export→import and duplicate/empty/legacy
+behavior through each supported CSV/config/admin/command path. Route to
+`import-export-roundtrip-check`.
+
+## P27 — Precise Stable Shapes
+
+For every added `Any`, `dict[str, Any]`, cast, untyped public parameter, or
+`getattr()` on a known result:
+
+1. Identify the real stable shape and producers/consumers.
+2. Search for an existing `TypedDict`, dataclass, protocol, enum, or precise
+   mapping alias before defining another.
+3. Replace positional identity (`zip`, tuple indexes) with keyed/named identity
+   when reorder or truncation would silently misassociate values.
+4. Do not accept explicit `Any` merely because `ty` passes.
+
+Known shapes weakened to `Any` are `[SHOULD_FIX]`; silent identity/data
+misassociation is `[BLOCKING]`.
+
+## P28 — Evidence-Based Defensive Code
+
+For every added guard, fallback, `try/except`, `getattr`, or compatibility flag,
+cite a real untrusted producer, historical row, documented exception, or caller.
+Validate once at external/persistence boundaries, then keep internal typed paths
+direct. Catch only the narrow known exception around the smallest raising call.
+
+Broad speculative catches, test-only APIs, impossible branches, and I/O hidden
+inside a large catch are `[SHOULD_FIX]`; swallowed integrity/programming errors
+or false success are `[BLOCKING]`.
+
+## P29 — Repository and Framework Reuse
+
+Search for existing constants, enums, mappings, resource clients, decorators,
+task dispatch, permission hooks, query helpers, fixtures, and payload builders.
+Read the candidate before reusing it: preserve return shape, query/network
+count, cache behavior, permissions, and exceptions. Route systematic searches
+to `codebase-reuse-finder`.
+
+Missed reuse is `[SHOULD_FIX]`; a duplicate that creates permission, tenant,
+correctness, or unbounded-I/O behavior is `[BLOCKING]`.

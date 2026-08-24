@@ -66,8 +66,8 @@
     },
     {
       "name": "monty-v2-code-review",
-      "description": "Deep-coverage code review with mandatory delegation to specialized sub-skills for Tier 1 blind-spot checks. 8-phase methodology, 25 blind-spot patterns, review completeness enforcement.",
-      "version": "2.6.0",
+      "description": "Deep-coverage code review with mandatory specialist delegation, full-branch analysis, and canonical P1-P29 blind-spot enforcement including precise types, defensive-code necessity, and reuse.",
+      "version": "2.6.1",
       "author": {
         "name": "MakoSlay"
       },
@@ -84,8 +84,8 @@
     },
     {
       "name": "moe-skills",
-      "description": "Backend workflow skills: interactive PR review fix with merge-drift/lifecycle/historical checks, commit-and-reply with auto-stage + thread-aware reply catch-up, PR status with freshness guarantee, and codebase reuse finder.",
-      "version": "0.9.1",
+      "description": "Backend workflow skills: root-cause PR review fix with specialist routing, thread-aware commit-and-reply, fresh PR status, and codebase reuse/type precision scanning.",
+      "version": "0.9.2",
       "author": {
         "name": "MakoSlay"
       },
@@ -103,8 +103,8 @@
     },
     {
       "name": "review-delegator",
-      "description": "Review delegator. Runs monty-v2 core analysis, delegates specialized parallel check-lanes, runs inline tenant/API compatibility checks when relevant, and compiles a single review.",
-      "version": "1.0.2",
+      "description": "Review delegator. Runs monty-v2 core analysis, selects evidence-based specialist lanes including reuse/precise-type sweeps, and compiles one review.",
+      "version": "1.0.3",
       "author": {
         "name": "MakoSlay"
       },
@@ -119,8 +119,8 @@
     },
     {
       "name": "contract-propagation-check",
-      "description": "Focused sub-skill: grep ALL consumers, audit lifecycle parity, verify admin three-layer surface, and check concurrency, atomicity, and edge-state safety.",
-      "version": "1.0.1",
+      "description": "Focused sub-skill: grep ALL consumers, verify lifecycle/admin parity, audit concurrency and transaction scope, and reject speculative boundary handling on stable internal contracts.",
+      "version": "1.0.2",
       "author": {
         "name": "MakoSlay"
       },
@@ -187,8 +187,8 @@
     },
     {
       "name": "test-quality-check",
-      "description": "Focused sub-skill: verify test depth (production entry point), bug variant accuracy, transaction-shape assertions, and CI-tolerant assertion safety. Covers P1, P12, P19, P20.",
-      "version": "1.0.0",
+      "description": "Focused sub-skill: verify production-path test depth, behavior value, test economy, transaction claims, and safe CI-tolerant assertions. Covers P1, P12, P19, P20.",
+      "version": "1.0.1",
       "author": {
         "name": "MakoSlay"
       },
@@ -204,8 +204,8 @@
     },
     {
       "name": "gate-runner",
-      "description": "Focused sub-skill: run the exact CI gate sequence (ruff_pr_diff.sh, ty check, local_imports, migration squash) and report pass/fail with fix commands.",
-      "version": "1.0.0",
+      "description": "Focused sub-skill: run the exact CI gate sequence against the PR base branch and report read-only pass/fail with fix commands.",
+      "version": "1.0.1",
       "author": {
         "name": "MakoSlay"
       },

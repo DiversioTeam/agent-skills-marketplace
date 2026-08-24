@@ -1,7 +1,7 @@
 {
   "name": "gate-runner",
-  "version": "1.0.0",
-  "description": "Focused sub-skill: run the exact CI gate sequence (ruff_pr_diff.sh, ty check, local_imports_pr_diff.sh, migration squash) and report pass/fail with fix commands.",
+  "version": "1.0.1",
+  "description": "Focused sub-skill: run the exact CI gate sequence against the PR base branch and report read-only pass/fail with fix commands.",
   "author": {
     "name": "MakoSlay"
   }

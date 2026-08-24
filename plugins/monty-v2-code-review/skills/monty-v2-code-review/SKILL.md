@@ -38,27 +38,34 @@ orchestrator or invoke the specialized sub-skills directly:
 | 3+ files changed | Use master orchestrator or run sub-skills alongside monty-v2 |
 | New/changed helper or normalization function | Run `/contract-propagation-check:check` (P10, P17) |
 | Model field changes or new constraints | Run `/historical-data-check:check` (P14, P16, P23) |
+| CSV/config/admin import-export or management-command I/O shape changes | Run `/import-export-roundtrip-check:check` (P26) |
 | Admin changes (get_readonly_fields, forms, inlines) | Run `/contract-propagation-check:check` (P18) |
 | pyproject.toml or uv.lock changed | Run `/merge-drift-check:check` (P22, P24, P25) |
-| Bugfix PR | Run `/test-quality-check:check` (P1, P12) |
+| Bugfix or production behavior change (even with no test diff) | Run `/test-quality-check:check` (P1, P12) |
+| New literals/enums/stable dicts/resources or duplicated setup | Run `/moe-skills:codebase-reuse-finder` (P8, P27, P29) |
 
-**Why**: The Tier 1 blind-spot checks (P17, P23, P22, P18, P10) are the
+**Why**: The Tier 1 blind-spot checks (P17, P23, P22, P18, P10, P26) are the
 highest-recurring missed patterns because they require deep, systematic
 investigation — grepping ALL consumers, checking ALL lifecycle stages,
-auditing ALL admin surfaces. A single skill with 25 checks cannot do
-all of these deeply. Delegating each Tier 1 check to a focused sub-skill
-forces the AI to complete the investigation before producing a verdict.
+auditing ALL admin surfaces, and proving round-trip integrity. A single skill
+with 29 checks cannot do all of these deeply. Delegating each Tier 1 check to a
+focused sub-skill forces the AI to complete the investigation before producing a
+verdict.
 
 ## Diff Scope: Full Branch, Not Latest Commit
 
 **Always review the full branch diff against the base branch.**
 
 ```bash
-# Detect the base branch — defaults to the repo's default branch.
-# Override by setting BASE_BRANCH before invoking (e.g., BASE_BRANCH=release).
+# Detect the actual PR target, then fall back to the repo default.
+# Override by setting BASE_BRANCH before invoking.
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null)"
+fi
 if [ -z "$BASE_BRANCH" ]; then
   BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
 fi
+git fetch origin "$BASE_BRANCH"
 
 # Full branch diff — this is your review surface
 git diff origin/$BASE_BRANCH...HEAD
@@ -129,7 +136,9 @@ For each public entry point (API, command, task, signal, admin action),
 **consider** all 7 — only flag where code would actually break:
 
 1. **Empty**: None, empty string, empty list, empty queryset
-2. **Wrong type**: list where dict expected, int where string expected
+2. **Wrong type at an untrusted boundary**: list where dict expected, int where
+   string expected. Do not demand speculative wrong-type guards inside a stable,
+   precisely typed internal contract.
 3. **Duplicates**: same record twice, same ID in two places
 4. **Boundaries**: first/last item, page boundary, midnight UTC, max int
 5. **External failure**: slow DB, cache miss, unexpected API response
@@ -143,7 +152,11 @@ One pass per touched file. For each, check:
 - **Correctness**: Does implementation match intent for all cases? Edge cases
   handled? Assumptions about external calls defended? Check OR predicate
   breadth (→P2) and truthy-check value collapse on Decimal/bool (→P2).
-- **Types**: Precise types or `dict[str, Any]`? Invariants documented?
+- **Types**: inventory every added `Any`, `dict[str, Any]`, cast, untyped public
+  parameter, and `getattr()` on a known result. Stable shapes require an existing
+  or new `TypedDict`/dataclass/protocol/precise mapping; explicit `Any` does not
+  pass merely because the type gate is green. Check positional `zip`/tuple-index
+  identity for silent reorder or truncation.
 - **Performance**: N+1 patterns? Per-row external calls? Hot-path complexity?
 - **Tests** (for test files):
   - Every fixture param in signature actually used? (`[NIT]` if not)
@@ -152,7 +165,20 @@ One pass per touched file. For each, check:
   - Time-dependent logic frozen with `@freeze_time`? (`[SHOULD_FIX]` if not)
   - Assertions check behavior, not just structure?
   - Tests hit production entry point, not just isolated helper? (→P1)
-- **Tooling**: Would ruff, type checker flag anything? New `# noqa` suppressions?
+- **Tooling**: Would ruff/type gates fail? New suppressions? Also inspect added
+  explicit `Any`, which static gates often permit:
+  ```bash
+  git diff -U0 "origin/$BASE_BRANCH...HEAD" -- '*.py' \
+    | grep '^+' | grep -E '\bAny\b|dict\[str, Any\]|getattr\('
+  ```
+- **Necessity/simplicity**: For every new fallback, broad catch, compatibility
+  flag, wrapper, or branch, cite a production caller or real failure source.
+  Internal typed code should not defend against impossible states. Catch exact
+  exceptions narrowly; flag test-only APIs and unused parameters.
+- **Reuse**: Search for existing enums, TypedDicts, clients/resources,
+  decorators/task dispatch, permission hooks, constants, query helpers, and
+  test fixtures before accepting new equivalents. Verify reuse semantics and
+  I/O count, not just the symbol name.
 - **Migrations**: Destructive + dependent code in same deploy? Large-table
   non-nullable column with default? Multiple new migrations for the same app
   that should be squashed into one? (`[SHOULD_FIX]` — regenerate a single
@@ -239,9 +265,13 @@ covered, all 4 input combinations tested."
 
 ### Phase 7: Blind-Spot Sweep
 
-The 25 historically missed patterns. **Tier 1 checks (P17, P23, P22, P18, P10,
-P1) CANNOT be done inline — they require deep, systematic investigation.
-You MUST delegate them to the focused sub-skills.**
+The 29 historically missed patterns. **Applicable Tier 1 checks (P17, P23,
+P22, P18, P10, P1, P26) cannot be skimmed inline — delegate them to focused
+sub-skills.** First record applicability with evidence. P14/P23 apply when the
+change touches persistence, migrations, config/import, state interpretation, or
+legacy-compatible paths; P26 applies when the PR changes any CSV/config/admin/
+command I/O shape or a model/serializer field that those paths serialize. Do not
+silently skip them and do not force a DB audit on a docs-only change.
 
 **Tier 1 — Must delegate (highest recurrence, missed in 4-6+ PRs each):**
 
@@ -253,6 +283,7 @@ You MUST delegate them to the focused sub-skills.**
 | P18: Admin three-layer surface | `/contract-propagation-check:check` Step 4 | Must read admin + inline + form classes in full |
 | P10: Change propagation | `/contract-propagation-check:check` Step 2 | Must grep every consumer across 9 consumer paths |
 | P1: Test depth | `/test-quality-check:check` Step 1 | Must trace call chain from test to production entry point |
+| P26: Import/export round-trip | `/import-export-roundtrip-check:check` | Must prove changed data shapes survive every supported round-trip path |
 | P14: Historical data | `/historical-data-check:check` Step 1 | Must assess existing DB rows for constraint violations |
 
 **You are NOT done with Phase 7 until each delegated sub-skill returns its
@@ -275,115 +306,26 @@ Before writing findings (Phase 8), verify:
 
 ```text
 ☐ P17: /contract-propagation-check:check returned lifecycle parity results
-☐ P23: /historical-data-check:check returned legacy config audit results
+☐ P23: /historical-data-check:check returned legacy config results (if applicable; otherwise evidence-backed exemption)
 ☐ P22: /merge-drift-check:check returned merge drift audit results
 ☐ P18: /contract-propagation-check:check returned admin surface results
 ☐ P10: /contract-propagation-check:check returned consumer obligation results
 ☐ P1:  /test-quality-check:check returned test depth results
+☐ P26: /import-export-roundtrip-check:check returned round-trip results (if applicable; otherwise evidence-backed exemption)
 ☐ P14: /historical-data-check:check returned existing data results (if applicable)
 ```
 
-**If any Tier 1 check is missing from the review, the review is incomplete.
+**If any applicable Tier 1 check or its evidence-backed exemption is missing,
+the review is incomplete.
 Do not produce a verdict.**
 
-**From first 20 PR analysis:**
-1. **Test depth** — does the test hit the production entry point, or just a helper?
-   `[BLOCKING]` if the real call chain is uncovered.
-2. **Predicate correctness** — do OR conditions admit unintended rows? Does
-   `if not value` collapse `Decimal(0)` / `False` / `0` into the wrong branch?
-   `[BLOCKING]` on numeric/Decimal/bool values.
-3. **PII / free-text consent** — any survey text surfaced must pass through the
-   established consent gate. `[BLOCKING]` if bypassed.
-4. **Remap round-trips** — if a value is remapped (e.g. `Male→Men`), do all
-   reverse lookups (side panel, drilldowns, trainings) use the new value?
-   `[BLOCKING]` if broken.
-5. **Feature flag completeness** — is the guard checked on ALL entry points
-   that reach the flagged behavior? `[BLOCKING]` if any path skips the check.
-6. **Migration alignment** — do `AlterField` validators match the model?
-   Can the reverse migration blank live data? `[BLOCKING]` if mismatched.
-7. **Audit log ordering** — inside `transaction.atomic()`, logs must fire AFTER
-   the last fallible step. `[BLOCKING]` on security-sensitive ops.
-8. **Constant/helper reuse** — search for existing constants before introducing
-   new literals. `[SHOULD_FIX]` if duplicate found.
-9. **CI green** — remind author to confirm CI passes before re-requesting review.
+Load `references/blind-spot-patterns.md` and run P1–P29 mechanically. The
+reference is canonical; do not maintain a second abbreviated pattern list here.
+The post-cutoff additions P27–P29 are mandatory on self-review:
 
-**From latest 10 PR analysis:**
-10. **Change propagation** — grep ALL consumers of any changed function, model
-    field, queryset filter, or utility. If the fix touches 1 call site, find
-    every other site that shares the same contract. `[BLOCKING]` per missed site.
-11. **Sentinel state conflation** — `None` vs `[]` vs `""` vs `False` are
-    distinct business states. Does `dict.get(key, [])` collapse "not asked"
-    (None) with "asked but empty" ([])?  Does a default parameter merge two
-    meaningful states? `[BLOCKING]` if downstream code branches on the
-    distinction.
-12. **Test targets the wrong bug variant** — does the test reproduce the
-    *reported* scenario, or a different one? If the bug is "skipped multiselect
-    crashes," the test must have a mapped-but-blank multiselect, not an unmapped
-    column. `[SHOULD_FIX]`.
-13. **Row vs bulk path divergence** — when admin features have separate row-level
-    and bulk-level code paths, do both implement the same logic? Check for
-    grouping keys, filter predicates, and side effects that exist in one path
-    but not the other. `[BLOCKING]` if they diverge.
-14. **Historical data not addressed** — does the fix prevent new bad data but
-    leave existing stale/broken rows? Existing remap rules, NULL arrays, or
-    wrong sentinel values may need a backfill or data migration. `[SHOULD_FIX]`.
-15. **Feature flag interaction matrix** — is the guard checking the actual
-    precondition or a correlated flag? Enumerate all flag combinations and
-    verify the gate is tight. `[BLOCKING]` if a valid configuration bypasses
-    the guard.
-
-**From latest 15 PR analysis (2026-05):**
-16. **Inverse state-clearing on failure paths** — every forward write of a
-    state field (timestamp, status, audit flag) must have a documented
-    inverse path on FAILED / reset / reprocess-fail / exception with a
-    regression test. `[BLOCKING]` per missed inverse.
-17. **Lifecycle parity across all stages** — when an equivalence or
-    normalization helper is introduced, it must be applied at save,
-    generate, import, export, apply, revert, consolidate, and the admin
-    `TextChoices` enum. P10 (caller grep) is necessary but not sufficient;
-    cite the line at every stage or document why the stage is exempt.
-    `[BLOCKING]` per missed stage. **Highest-recurring class in the audit.**
-18. **Admin three-layer surface** — `get_readonly_fields()` changes must be
-    mirrored on every `InlineModelAdmin` for the parent and any
-    `ModelForm.__init__` that re-adds fields as required. POST-the-locked-
-    state regression test required. `[BLOCKING]` per missed surface.
-19. **Transaction-shape test assertions** — when the fix is "wrap N writes
-    in atomic" or "split into savepoints," the test must use
-    `django_db(transaction=True)`, observe `connection.queries`, and prove
-    the SAVEPOINT/ROLLBACK shape — not just the final row state.
-    `[SHOULD_FIX]`.
-20. **Multiplicity preservation in CI-tolerant assertions** — when a test
-    is relaxed from list-equality to set/`>=`/subset for parallel-CI
-    tolerance, add `Counter(...)` exact-multiplicity for test-owned IDs
-    and scope numeric totals to the test subject. Strict-greater on
-    timestamp regressions. `[SHOULD_FIX]`.
-21. **Classifier-vs-parser range parity** — auto-classification heuristics
-    that emit a downstream type (`nps_1_to_5`, `multi_select`, etc.) must
-    accept only inputs the parser preserves. Permissive classifier feeding
-    a clamping parser collapses distributions. `[BLOCKING]`.
-22. **Merge resolution drift on unrelated files** — `pyproject.toml`,
-    `uv.lock`, and unrelated areas must move forward only.
-    `git diff origin/$BASE_BRANCH -- pyproject.toml uv.lock` and a stat-diff of
-    files outside the feature area. CI green does not catch this.
-    `[BLOCKING]` per silent regression.
-
-**From latest 15 PR analysis — high-recurrence additions (2026-05):**
-23. **Historical config reuse bypass** — when a fix prevents new bad data,
-    test importing a LEGACY config (pre-fix export) through the new code
-    path. Config export/import can preserve old sentinel values, wrong
-    enum entries, and stale overrides that re-introduce the exact bug the
-    fix is meant to prevent. `[BLOCKING]` if a legacy import recreates
-    the bad state. **Second-highest-recurring class.**
-24. **Merge drift on unrelated files** — beyond pyproject.toml/uv.lock,
-    also check for: WhiteLabel asset regression, fixture type cleanup
-    regression, config constant regression, test utility regression.
-    `git diff origin/$BASE_BRANCH --stat` and audit any file outside the
-    feature area that differs. `[BLOCKING]` per silent regression.
-25. **PR description / migration numbering drift** — the PR body references
-    a migration name/number that no longer matches the branch. Check the
-    PR description's migration references against the actual migration
-    files on the branch. `[SHOULD_FIX]` if mismatched — it confuses
-    operators during deployment.
+- precise stable shapes (`Any`, casts, positional identity)
+- evidence-based defensive code and narrow exception boundaries
+- repository/framework reuse with behavioral and I/O-contract verification
 
 ### Phase 8: Write Findings
 
@@ -432,7 +374,7 @@ Any `[BLOCKING]` → verdict is "request changes."
 ### Review Completeness Rule
 
 **A review is incomplete if ANY Tier 1 blind-spot check (P17, P23, P22, P18,
-P10, P1, P14) was not completed with specific evidence.**
+P10, P1, P26, P14) was not completed with specific evidence.**
 
 Incomplete review indicators:
 - "Lifecycle parity looks fine" ← NO. Cite each stage with line numbers.

@@ -1,7 +1,7 @@
 {
   "name": "test-quality-check",
-  "version": "1.0.0",
-  "description": "Focused sub-skill: verify test depth (production entry point), bug variant accuracy, transaction-shape assertions, and CI-tolerant assertion safety. Covers monty-v2 blind-spots P1, P12, P19, P20.",
+  "version": "1.0.1",
+  "description": "Focused sub-skill: verify production-path test depth, behavior value, test economy, transaction claims, and safe CI-tolerant assertions. Covers P1, P12, P19, P20.",
   "author": {
     "name": "MakoSlay"
   }

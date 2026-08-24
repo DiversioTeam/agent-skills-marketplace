@@ -1,7 +1,7 @@
 {
   "name": "contract-propagation-check",
-  "version": "1.0.1",
-  "description": "Focused sub-skill: grep ALL consumers of changed functions/model fields/utilities, verify lifecycle parity, audit admin three-layer surface, and check concurrency/atomicity/edge-state safety.",
+  "version": "1.0.2",
+  "description": "Focused sub-skill: grep ALL consumers, verify lifecycle/admin parity, audit concurrency and transaction scope, and reject speculative boundary handling on stable internal contracts.",
   "author": {
     "name": "MakoSlay"
   }

@@ -13,9 +13,11 @@ Focus order:
 1. Identify the PR (from argument or current branch).
 2. Fetch thread-aware review threads plus general PR comments and review submissions.
 3. Classify by severity and present one-by-one with plain chat prompts.
-4. On Fix: edit code, run ruff immediately.
-5. After all comments: run ty, stage modified files.
-6. Output summary with addressed comment IDs.
+4. On Fix: normalize the root cause, search the full branch for sibling
+   occurrences, then edit and run ruff.
+5. Route contract/history/reuse/test/drift mechanics to their focused skills.
+6. After all comments: run type/CI gates and stage modified files.
+7. Output summary with addressed comment IDs and sibling-occurrence evidence.
 
 If `--auto` is provided, fix all actionable comments without prompting.
 Does NOT commit — use `/moe-skills:commit-and-reply` after.

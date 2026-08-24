@@ -11,7 +11,9 @@ Focus order:
 1. Understand the PR (size, type, risk areas).
 2. Run monty-v2 Phases 1-3 (intent, branch enumeration, adversarial inputs).
 3. Determine lane policy (`--lanes=auto|on|off`) and use the best feature-detected transport.
-4. Run applicable focused checks, including contract propagation, import/export round trips, merge drift, CI gates, historical data, and test quality.
+4. Run applicable focused checks, including contract propagation, import/export
+   round trips, merge drift, CI gates, historical data, test quality, and
+   reuse/precise-type searches when the diff adds stable shapes or duplicates.
 5. Run inline multi-tenant and API compatibility checks when relevant.
 6. Run monty-v2 remaining phases.
 7. Compile all findings, deduplicate, flag systemic patterns.

@@ -271,15 +271,15 @@ agent-skills-marketplace/
 |--------|-------------|
 | `monolith-review-orchestrator` | Monolith-local PR review harness for deep PR understanding, thread-aware GitHub review acquisition, deterministic worker-owned review worktrees, persistent review context, and author-guiding review output |
 | `monty-code-review` | Hyper-pedantic Django4Lyfe backend code review Skill with a built-in pytest test-hardening lane and persistent JSON-first review memory |
-| `monty-v2-code-review` | Deep-coverage Django/Python code review with mechanical branch enumeration, adversarial inputs, test mapping, and self-review bias mitigation |
-| `moe-skills` | Backend workflow helpers for PR review fixes, commit-and-reply with SHA links, PR status, and codebase reuse scanning |
-| `review-delegator` | Risk-gated review delegator with feature-detected parallel lanes, import/export and tenant/API checks, and one compiled verdict |
-| `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle parity, admin surface, concurrency races, and edge-state gaps |
+| `monty-v2-code-review` | Deep-coverage Django/Python code review with full-branch analysis, mechanical branch enumeration, adversarial inputs, test mapping, precise-type checks, and self-review bias mitigation |
+| `moe-skills` | Backend workflow helpers for root-cause PR review fixes, thread-aware commit-and-reply with SHA links, fresh PR status, and codebase reuse/type-precision scanning |
+| `review-delegator` | Risk-gated review delegator with evidence-based specialist lanes, import/export and tenant/API checks, reuse/precise-type sweeps, and one compiled verdict |
+| `contract-propagation-check` | Contract propagation audit for consumer obligation, lifecycle/admin parity, concurrency and transaction scope, and evidence-based boundary handling |
 | `import-export-roundtrip-check` | Import/export round-trip audit for CSV, config, serialized dict, admin import/export, and command I/O parity |
 | `merge-drift-check` | Merge-drift audit for version files, lockfiles/build artifacts, unrelated file regressions, and PR description accuracy |
 | `historical-data-check` | Historical-data and legacy-config audit for existing bad rows, import reuse, rollback safety, and inverse state-clearing |
-| `test-quality-check` | Test-depth and assertion-quality audit for branch coverage, mock realism, transaction shape, and CI-safe assertions |
-| `gate-runner` | Exact CI gate runner for ruff diff checks, ty, local-import checks, and migration squash verification |
+| `test-quality-check` | Test-depth and assertion-quality audit for production-path behavior, mock realism, test economy, transaction claims, and CI-safe assertions |
+| `gate-runner` | Exact PR-base CI gate runner for ruff diff checks, ty, local-import checks, and migration squash verification |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, repo-local commit hygiene, and `local-ci run --no-github` when the repo exposes local-ci |
 | `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, migration safety checks, and the local-ci preflight + validated-deploy-helper backend release model |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |

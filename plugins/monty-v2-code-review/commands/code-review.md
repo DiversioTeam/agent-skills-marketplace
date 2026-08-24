@@ -14,8 +14,9 @@ Focus order:
 3. Performance on hot paths.
 4. Tests with branch enumeration and input matrix.
 5. Unchanged code impact (callers, consumers).
-6. Maintainability and nits.
+6. Maintainability, precise stable types, necessity of defensive code, and reuse.
 
 For thorough per-file analysis, load `references/per-lens-checklist.md`.
-For blind-spot patterns (Phase 7), load `references/blind-spot-patterns.md`.
+For blind-spot patterns (Phase 7, canonical P1-P29), load
+`references/blind-spot-patterns.md`.
 For style rules, load `references/style-guidelines.md`.

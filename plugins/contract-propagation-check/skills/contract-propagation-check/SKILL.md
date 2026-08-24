@@ -5,9 +5,10 @@ description: >
     and utility. Verify lifecycle parity at every stage (save, generate, import,
     export, apply, revert, consolidate). Check admin three-layer surface
     (get_readonly_fields, InlineModelAdmin, ModelForm.__init__). Audit
-    concurrency safety (stale reads, race windows, missing row-version guards),
-    admin workflow atomicity (A-then-B failure between steps), and empty/edge
-    state handling (null, empty, boundary inputs). Returns findings tagged
+    concurrency and transaction scope (stale reads, lock duration, I/O under
+    lock), admin workflow atomicity (A-then-B failure), evidence-based failure
+    handling, and meaningful boundary states without speculative defenses.
+    Returns findings tagged
     [BLOCKING]/[SHOULD_FIX]/[NIT].
 user-invocable: true
 allowed-tools: [Bash, Read]
@@ -185,8 +186,8 @@ verify that a concurrent edit can't corrupt the data.
 
 ```bash
 # Find places where data is read then saved back
-grep -rn "\.get(\|\.filter(" --include="*.py" <changed_files> | head -20
-grep -rn "\.save()\|\.update()\|bulk_update\|bulk_create" --include="*.py" <changed_files> | head -20
+grep -rn "\.get(\|\.filter(" --include="*.py" <changed_files>
+grep -rn "\.save()\|\.update()\|bulk_update\|bulk_create" --include="*.py" <changed_files>
 
 # Find places missing row-version or optimistic-lock guards
 grep -rn "version\|modified_at\|updated_at\|row_version" --include="*.py" <changed_files>
@@ -238,6 +239,7 @@ For every sequential admin action path:
 | **Mixed-selection handling** | If a bulk selection contains both valid and invalid rows, does the action handle the mixed case correctly or silently skip invalid rows? |
 | **Permission gates on all endpoints** | Does ImportMixin expose /import/ and /process_import/ without model-level permission checks? (PR#3034: InspirationalQuoteAdmin import) |
 | **Post-commit side effects** | Does the action trigger side effects (Slack, audit, email) that can't be rolled back if a later step fails? |
+| **External I/O under lock** | Is HTTP/Lambda/cache I/O performed inside `atomic()` or after `select_for_update()`? Fetch outside the transaction when correctness allows, then lock only for compare/write. |
 
 ### Flagging
 
@@ -246,14 +248,34 @@ For every sequential admin action path:
 - Mixed valid/invalid bulk selection silently skips invalids = `[SHOULD_FIX]`
 - Import/export endpoints without permission gates = `[BLOCKING]`
 - Post-commit side effects not isolated from later-step failures = `[BLOCKING]`
+- External/network I/O while DB rows are locked without a correctness reason = `[BLOCKING]`
+- Transaction encloses read/compute work that can safely happen before locking = `[SHOULD_FIX]`
 
 ---
 
-## Step 7: Empty/Edge/Boundary Input Matrix (2026 Extension)
+## Step 7: Failure Model and Boundary Input Matrix
 
-For every changed function, helper, or data-processing path, trace the
-null, empty, and boundary input values to verify they don't crash or
-produce broken state.
+Do not equate thoroughness with defensive code everywhere. First classify each
+input and failure source:
+
+| Boundary | Required treatment |
+|---|---|
+| Untrusted external payload, user input, legacy persisted data | Validate/normalize once at the boundary; test real malformed shapes evidenced by the contract or history. |
+| Stable internal typed object or dictionary | Use a precise type and direct access. Do not add `getattr()`, broad `try/except`, or impossible fallbacks merely to be safe. |
+| Known framework/repository exception | Catch the narrow documented exception at the smallest statement that raises it. |
+| Speculative exception with no caller/history evidence | Let it surface; flag the defense and simplify. |
+
+For every added fallback, guard, `getattr`, or `try/except`, cite the concrete
+producer/caller that can trigger it. `except Exception` around a large block,
+loading data only to discard it, or a flag/helper used only by tests is not a
+robustness win.
+
+Then enumerate meaningful boundary states for public entry points and persistence
+boundaries:
+
+For internal helpers, use the declared contract rather than inventing wrong-type
+states. Trace null, empty, and boundary values only when the type/business
+contract admits them.
 
 ### Edge input enumeration
 
@@ -293,6 +315,9 @@ For each function, build the edge input matrix:
 - Malformed/partial payload renders broken UI = `[BLOCKING]`
 - Global string replacements corrupting other text = `[BLOCKING]`
 - No guard against `-1` index from empty data = `[SHOULD_FIX]`
+- Broad/speculative exception handling on a stable internal path = `[SHOULD_FIX]`
+- Generic catch that hides integrity/programming failures or reports false success = `[BLOCKING]`
+- Added `Any`/`getattr()` weakens a known contract instead of modeling it = `[SHOULD_FIX]`
 
 ---
 
@@ -364,7 +389,10 @@ Before returning results, verify:
 ☐ [2026] Every background task read path checked for concurrent admin edit safety
 ☐ [2026] Every sequential admin action (A-then-B) checked for rollback on B failure
 ☐ [2026] Every ImportMixin/ExportMixin endpoint checked for permission gates
-☐ [2026] Every changed function traced for null/empty/boundary input behavior
+☐ [2026] External I/O checked for unnecessary transaction/row-lock duration
+☐ [2026] Every added guard/fallback/catch tied to a real boundary or historical case
+☐ [2026] Public/persistence boundaries traced for admitted null/empty/boundary states
+☐ [2026] Internal typed helpers were not burdened with speculative wrong-type handling
 ☐ [2026] Every legacy-row-compatibility path checked (old rows missing new fields)
 ```
 

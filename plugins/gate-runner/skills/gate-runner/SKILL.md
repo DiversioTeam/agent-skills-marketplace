@@ -18,11 +18,15 @@ commands to fix them.
 ## Base Branch Detection
 
 ```bash
-# Detect the base branch — defaults to the repo's default branch.
-# Override by setting BASE_BRANCH before invoking (e.g., BASE_BRANCH=release).
+# Detect the actual PR target first, then fall back to the repo default.
+# Override by setting BASE_BRANCH before invoking.
+if [ -z "$BASE_BRANCH" ]; then
+  BASE_BRANCH="$(gh pr view --json baseRefName --jq '.baseRefName' 2>/dev/null)"
+fi
 if [ -z "$BASE_BRANCH" ]; then
   BASE_BRANCH="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
 fi
+git fetch origin "$BASE_BRANCH"
 ```
 
 ---
@@ -39,55 +43,34 @@ gh pr view --json mergeable,mergeStateStatus
 - `CONFLICTING` → must resolve before anything else
 - `UNKNOWN` → GitHub hasn't computed it yet (recent push)
 
-If `CONFLICTING` or `UNKNOWN`, check locally:
+If `CONFLICTING` or `UNKNOWN`, check locally **without mutating the branch**:
 
 ```bash
-# Fetch and attempt merge (always merge, never rebase)
-git fetch origin release
-git merge origin/$BASE_BRANCH --no-edit --no-ff
+# Read-only virtual merge. Exit 1 means conflicts; the working tree is untouched.
+git merge-tree --write-tree HEAD "origin/$BASE_BRANCH" >/tmp/gate-runner-merge-tree.txt
 ```
 
-### If merge fails with "unrelated histories"
-
-This happens in shallow clones (CI, fresh worktrees) where git doesn't
-have the common ancestor. Unshallow to fetch the full history, then retry
-with a normal merge:
+If the clone is shallow and lacks a merge base, unshallow and rerun:
 
 ```bash
-# Unshallow the repo to get full history (fetches the common ancestor)
 git fetch --unshallow origin 2>/dev/null || true
-
-# Retry with a normal merge — histories should now be related
-git merge origin/$BASE_BRANCH --no-edit --no-ff
+git merge-tree --write-tree HEAD "origin/$BASE_BRANCH" >/tmp/gate-runner-merge-tree.txt
 ```
 
-**Do NOT use `--allow-unrelated-histories`** — if the merge still fails
-after unshallowing, the branches are genuinely unrelated and forcing it
-would create a broken merge. Stop and investigate.
+Do not call `git merge`, commit, or resolve conflicts from this diagnostic skill.
+Report the conflict and let the invoking workflow/user choose the integration
+method required by the target repository.
 
-### If merge succeeds but has conflicts
+### Check whether the PR base is already contained in HEAD
 
 ```bash
-# List conflicting files
-git diff --name-only --diff-filter=U
-
-# Resolve each conflict, then:
-git add <resolved-files>
-git commit --no-edit
+git merge-base --is-ancestor "origin/$BASE_BRANCH" HEAD \
+  && echo "up to date" \
+  || echo "⚠️ branch behind $BASE_BRANCH — integrate before pushing"
 ```
 
-### Check if branch is behind release
-
-```bash
-git fetch origin release
-git merge-base --is-ancestor HEAD origin/$BASE_BRANCH && echo "up to date" || echo "⚠️ branch behind release — merge before pushing"
-```
-
-**Always merge, never rebase.** Rebasing rewrites history and can silently
-lose merge fixes, drop migration ordering, or create duplicate commits.
-
-**Flag**: `[BLOCKING]` — cannot proceed if branch has conflicts or is
-significantly behind release.
+**Flag**: `[BLOCKING]` for conflicts. Report behind-base state separately;
+whether it blocks depends on repository policy.
 
 ---
 
@@ -254,9 +237,8 @@ Overall: ✅ ALL GREEN / ❌ <N> GATES FAILING
 
 ## Rules
 
-- **Read-only by default** — this skill diagnoses, it does not fix.
-  Fixes should be applied by the calling skill (pr-review-fix,
-  commit-and-reply, or review-delegator).
+- **Read-only always** — this skill diagnoses; it does not merge, edit, stage,
+  or commit. Fixes belong to the calling skill/user.
 - **ruff_pr_diff.sh is the #1 CI failure** — always run it first and
   treat failures as `[BLOCKING]`.
 - **Cache-aware** — when `gate_cache.sh` is available, use it for

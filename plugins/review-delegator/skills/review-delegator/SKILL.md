@@ -33,50 +33,16 @@ that a monolithic review overlooks.
 For simple 1-2 file bugfixes with no data shape changes, use
 `/monty-v2-code-review:code-review` directly.
 
-## Missed-Pattern Reference (2026 H1 Audit — 15 PRs, ~250 Review Rounds)
+## Historical Pattern Routing
 
-These are the highest-recurring patterns reviewers catch that automated checks miss.
-Each maps to a Tier 1 or Tier 2 check in the delegation phase.
+Read `references/historical-pattern-routing.md` before selecting lanes. It maps
+recurring review roots to one natural owner, including the post-cutoff
+high-recurrence additions: stable shapes weakened with `Any`, speculative
+error handling, missed existing abstractions, and low-value tests. Do not count
+repeated review rounds in one PR as independent recurrence.
 
-| Pattern | Frequency | PR Examples | Tier | Sub-Skill |
-|---------|-----------|-------------|------|-----------|
-| P10 Consumer obligation | ████████ | #3041, #3040, #3079, #3081 | T1 | contract-propagation |
-| P17 Lifecycle parity | ████████ | #3041, #3040, #2953, #3035 | T1 | contract-propagation |
-| P18 Admin three-layer | ███████  | #3017, #3040, #2953 | T1 | contract-propagation |
-| **Import/Export round-trip** | **████████** | **#2974, #2953, #3035, #3034** | **T1** | **import-export-roundtrip** |
-| P22 Merge drift | ██████   | #1800, #3081 | T1 | merge-drift |
-| **Stale/concurrent races** | **██████** | **#3035, #3017, #3041** | **T1** | **contract-propagation †** |
-| **Admin workflow atomicity** | **█████** | **#3017, #3034, #3035** | **T1** | **contract-propagation †** |
-| P14 Existing DB bad state | █████    | #2953, #3041 | T2 | historical-data |
-| P16 Rollback/reprocess | █████    | #3041, #3035, #2953 | T2 | historical-data |
-| P23 Config import legacy | █████    | #2974, #3079 | T2 | historical-data |
-| **Empty/edge/boundary** | **████** | **#1015, #1800, #2953** | **T2** | **contract-propagation †** |
-| **Multi-tenant safety** | **████** | **#2974, #3041, #3034** | **T2** | **review-delegator inline** |
-| **API contract/versioning** | **████** | **#1016, #1800, #2957, #3079** | **T2** | **review-delegator inline** |
-| P19 Test gaps | ███      | #2997, #3034 | T2 | test-quality |
-| CI gate failures | ██       | #2953, #1800 | T1 | gate-runner |
-
-† Extended contract-propagation-check coverage (concurrency, atomicity, edge states).
-
-## Architecture
-
-```
-Review Delegator
-├── Phase 1-3: monty-v2 core (understand, enumerate, adversarial)
-├── Phase 4 (delegated): Sub-skills in parallel
-│   ├── /contract-propagation-check:check ← P10, P17, P18, +concurrency, +atomicity, +edges
-│   ├── /import-export-roundtrip-check:check ← P26 (CSV, dict, config, admin I/O) — NEW 2026
-│   ├── /merge-drift-check:check        ← P22, P24, P25
-│   ├── /historical-data-check:check    ← P14, P16, P23
-│   ├── /test-quality-check:check       ← P1, P12, P19, P20
-│   └── /gate-runner:run                ← ruff, ty, imports, migrate
-├── Phase 4b (delegated inline): Multi-tenant safety + API contract checks
-├── Phase 5-6: monty-v2 (bias check, blind-spot sweep)
-└── Phase 8: Compile & write review
-```
-
-Each sub-skill returns findings tagged with `[BLOCKING]`, `[SHOULD_FIX]`, `[NIT]`.
-The delegator compiles all findings into a single review document.
+The delegator owns routing and synthesis; focused skills own evidence gathering.
+Do not duplicate the same checklist across lanes.
 
 ---
 
@@ -152,8 +118,14 @@ Build reviewer lane map from PR risk profile:
 
 **Baseline lanes (always enabled when lanes are enabled):**
 - `reviewer-1` (correctness/regressions): contract, lifecycle, and data-shape risks.
-- `reviewer-2` (tests/validation): test coverage, assertion strength, regressions.
-- `reviewer-3` (maintainability): duplication, complexity, API ergonomics, long-term debt.
+- `reviewer-2` (tests/validation): production-path behavior, mock realism, and
+  low-value framework/wrapper tests as well as coverage.
+- `reviewer-3` (maintainability): run a branch-wide precision/necessity/reuse
+  sweep. Classify every added `Any`, `dict[str, Any]`, `getattr()` on a known
+  object, broad exception, new flag/helper with no production caller, repeated
+  query/setup/literal, and framework API reimplementation. Search before
+  suggesting a replacement; cite the existing symbol and its behavioral and
+  performance contract.
 
 **Specialist lanes (high-risk only):**
 - `reviewer-4` (security & trust): auth, RBAC, boundary checks, secret handling, injection surface.
@@ -234,6 +206,15 @@ squash check. Runs the exact CI gate sequence.
 ### Run when relevant (Tier 2 checks)
 
 ```
+/codebase-reuse-finder
+```
+Run when the diff adds constants/enums, stable dictionary shapes, resource/API
+wrappers, decorators/task dispatch, repeated queryset evaluation, or duplicated
+production/test setup. The lane must search for existing symbols before
+proposing a new abstraction and must verify that reuse does not add queries or
+weaken the existing contract.
+
+```
 /historical-data-check:check
 ```
 Run when: migrations, config import/export, data processing, field
@@ -242,8 +223,10 @@ constraints, or sentinel values are touched. Covers: P14, P16, P23.
 ```
 /test-quality-check:check
 ```
-Run when: new tests added, test assertions changed, or CI tolerance
-adjustments made. Covers: P1, P12, P19, P20.
+Run when: production behavior changed (including when no test changed), new
+tests were added, assertions changed, or CI tolerance was adjusted. Absence of
+a regression test is itself the highest-value trigger. Covers P1, P12, P19,
+P20, mock realism, behavior value, and test economy.
 
 ### Run inline (Tier 2 checks — run by review-delegator directly)
 
@@ -303,6 +286,7 @@ Before moving to Step 4, verify completion with the following minimum evidence:
        type coherence verification, duplicate-row handling check
 ☐ /merge-drift-check:check returned with evidence (not "no drift found")
 ☐ /gate-runner:run returned with pass/fail for each gate
+☐ /codebase-reuse-finder returned search evidence (if applicable)
 ☐ /historical-data-check:check returned (if applicable)
 ☐ /test-quality-check:check returned (if applicable)
 ☐ Multi-tenant safety checked (if applicable) — tenant scoping verified
@@ -403,7 +387,7 @@ Structure the final review:
 
 ### Default (medium/large PRs)
 Run all of the above. Sub-skills: always contract-propagation + merge-drift +
-gate-runner; conditionally historical-data + test-quality.
+gate-runner; conditionally codebase-reuse + historical-data + test-quality.
 
 ### --lanes
 Optional lane policy for delegated transport:
@@ -462,9 +446,11 @@ Bias check findings are listed before all other findings.
 - **Tier 1 checks are mandatory unless explicitly constrained by `--quick` low-risk mode:**
   P10, P17, P18, P22, P23, P24, P25, P26, and CI gates. Never skip them for
   medium/high-risk PRs.
-- **Import/export round-trip is the #1 newly-identified gap** — any PR
-  touching data shapes runs this check. CSV export→import round-trip bugs
-  account for the most review rounds across 2026 H1.
+- **Import/export round-trip is a high-recurrence gap** — any PR touching
+  data shapes runs this check.
+- **Precision, necessity, and reuse are mandatory maintainability evidence** —
+  reviewer-3 must scan the whole branch, not only the commented line. Route
+  existing-symbol searches through `codebase-reuse-finder`.
 - **Concurrency is checked at contract-propagation level** — not as a
   separate sub-skill, but as an extended dimension of P17 lifecycle parity.
 - **Multi-tenant and API contract checks are inline** — the delegator runs
