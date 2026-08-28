@@ -130,10 +130,12 @@ If Guard blocks or queues work:
 
 ```bash
 hol-guard approvals
-hol-guard approvals open
+hol-guard approvals open <request-id>
 hol-guard receipts
 hol-guard diff <harness>
 ```
+
+Use `hol-guard approvals` to list pending requests and copy the exact request ID before opening one. Do not invent or infer request IDs.
 
 For terminal-only resolution:
 

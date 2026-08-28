@@ -219,7 +219,7 @@
     {
       "name": "hol-guard",
       "description": "Local runtime safety for supported AI coding harnesses with Guard-owned setup, approvals, receipts, and package verification.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Hashgraph Online"
       },
