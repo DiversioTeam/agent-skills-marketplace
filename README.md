@@ -225,6 +225,7 @@ agent-skills-marketplace/
 │   │       ├── create.md
 │   │       └── publish.md
 │   ├── dependabot-remediation/        # Unified backend/frontend Dependabot remediation
+│   ├── hol-guard/                     # HOL Guard local runtime safety workflow
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/dependabot-remediation/
 │   │   │   ├── SKILL.md
@@ -285,6 +286,7 @@ agent-skills-marketplace/
 | `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
 | `backend-release` | Django4Lyfe backend release workflow - promotion/release PR preflights, exact-head local-ci validation after merge, validated deploy-helper triggers, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
+| `hol-guard` | Local runtime safety for supported AI coding harnesses with Guard-owned setup, approvals, receipts, and package verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
 | `frontend` | Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows |

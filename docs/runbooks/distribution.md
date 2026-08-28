@@ -58,6 +58,7 @@ PLUGINS=(
   visual-explainer
   backend-release
   dependabot-remediation
+  hol-guard
   terraform
   login-cta-attribution-skill
   frontend
@@ -98,6 +99,7 @@ PLUGINS=(
   visual-explainer
   backend-release
   dependabot-remediation
+  hol-guard
   terraform
   login-cta-attribution-skill
   frontend

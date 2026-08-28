@@ -285,6 +285,12 @@ when command files change.
 
 ## Operations And Implementation
 
+- `hol-guard`
+  - Purpose: install and operate HOL Guard around supported local AI coding
+    harnesses, including approvals, receipts, diagnostics, and package scanning.
+  - Claude install: `claude plugin install hol-guard@diversiotech`
+  - Skill path: `plugins/hol-guard/skills/hol-guard`
+  - Slash commands: `/hol-guard:protect`
 - `clickup-ticket`
   - Purpose: legacy ClickUp ticket management during the GitHub migration.
   - Claude install: `claude plugin install clickup-ticket@diversiotech`
