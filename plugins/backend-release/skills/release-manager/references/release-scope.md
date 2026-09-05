@@ -10,8 +10,10 @@ candidate. Neither the production PR's `mergedAt` nor the GitHub release's
 
 Run from the target backend checkout. Set `SKILL_DIR` to the absolute directory
 containing the loaded `release-manager/SKILL.md`; do not assume the marketplace
-is checked out in the backend. Require Git, jq, and Python 3.11+. If the packaged
-helper is missing, stop and repair the skill installation.
+is checked out in the backend. Scope capture requires Git, jq, and Python 3.9+.
+The publication TOML command separately requires Python 3.11+; scope capture
+does not use `tomllib`. If the packaged helper is missing, stop and repair the
+skill installation.
 
 ```bash
 # Fetch failures are blockers, not an empty release scope.

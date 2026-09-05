@@ -40,7 +40,10 @@ merges, deploys, RLS policy writes, and branch synchronization. Never interpret
 
 Read repo-local workflow docs and verify the target repository, clean working
 state, remotes, branch policy, and installed tools before changes. Require Git,
-`gh` authentication, `jq`, Python 3.11+, and `uv` for version/lock updates.
+`gh` authentication and `jq`. Scope capture needs Python 3.9+; the publication
+TOML command needs Python 3.11+. Version/lock updates need `uv`. These helper
+minimums do not replace the target repository's Python requirements for its
+application, validation, or deployment.
 
 - Detect local-ci with `command -v local-ci` and `.local-ci.toml`. A configured
   gate with a missing binary is a blocker, not permission to skip it.
@@ -116,8 +119,11 @@ again rather than reusing candidate-branch results.
 2. **Type Gate Detection:** detect `ty`, then `pyright`, then `mypy`, respecting
    repo-local docs/CI order. Configured `ty` is mandatory and blocking. Touched
    paths must pass; final readiness also requires any repo-wide gates. Report
-   blockers explicitly. Consult local typing docs, including
-   `docs/python-typing-3.14-best-practices.md` or `TY_MIGRATION_GUIDE.md` if present.
+   blockers explicitly. The marketplace's authoring baseline is
+   [Python typing and ty best practices](https://github.com/DiversioTeam/agent-skills-marketplace/blob/main/docs/python-typing-and-ty-best-practices.md).
+   In the **target backend repository**, consult its own typing docs if present,
+   such as `docs/python-typing-3.14-best-practices.md` or `TY_MIGRATION_GUIDE.md`;
+   these example paths are not marketplace files or required filenames.
 3. Inspect RLS policies for new models with the documented backend check,
    normally `.bin/django optimo_bootstrap_support_shell_rls`. The `--apply` form
    writes policies: run it only against the explicitly approved environment
