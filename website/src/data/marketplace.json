@@ -204,12 +204,12 @@
       "name": "mixpanel-analytics",
       "category": "Code Analysis",
       "title": "Mixpanel Analytics",
-      "description": "Mixpanel analytics tracking implementation and review for Django optimo_analytics module with PII protection and code quality enforcement.",
-      "version": "v0.1.5",
+      "description": "Optimo Mixpanel implementation and review with identity, tenant, producer ownership, privacy, and post-commit delivery regression guardrails.",
+      "version": "v0.2.0",
       "skills": [
         {
           "name": "mixpanel-analytics",
-          "description": "Mixpanel analytics tracking implementation + review skill for Django optimo_analytics: add events and audit for PII safety, schema design, and code quality."
+          "description": "Implement or review Optimo events against the current operating guide and the #3203 non-regression contract."
         }
       ],
       "commands": ["implement", "review"]
