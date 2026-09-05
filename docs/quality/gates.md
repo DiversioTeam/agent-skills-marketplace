@@ -10,6 +10,7 @@ bash scripts/validate-skills.sh --all
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null
+pnpm --config.verify-deps-before-run=false --dir pi-packages/image-router test  # Node 24; no dependencies
 (cd pi-packages/<package> && npm pack --dry-run --json >/tmp/<package>-pack.json)
 printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
 ```
@@ -53,6 +54,7 @@ skills target:
     or the workflow file itself.
   - Validates JSON, unique plugin names, plugin directory coverage, manifest
     name and version sync, skill presence, and changed-skill size budgets.
+  - Runs image-router consent regression tests on Node 24 before package discovery.
 - `Validate Website`
   - Triggered by changes under `website/**` or the website workflow file.
   - Runs a clean website dependency install and `cd website && npm run build`.

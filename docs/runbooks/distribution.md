@@ -254,6 +254,13 @@ pi-timestamps -> subtle per-turn transcript timing rows for exact timestamps,
 skills-bridge -> exposes marketplace plugin skills inside Pi
 ```
 
+`image-router` 0.2.x removes automatic cross-model/provider fallback. Saved
+explicit destinations remain usable, but `auto` without a destination now fails
+closed. Set a per-model destination or global default in `/image-router`.
+`ask` requires interactive approval; tool/RPC images require saved auto consent.
+Images and prompt context go only to that destination. No upload is deferred
+while waiting for approval; retry the input/read after setup.
+
 The `ci-status` package provides `/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch,
 UI widgets, notifications, and LLM tools (`get_ci_status`,
 `ci_fetch_job_logs`).
