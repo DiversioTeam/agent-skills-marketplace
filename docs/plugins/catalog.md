@@ -215,10 +215,11 @@ when command files change.
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
-  - Purpose: Django4Lyfe two-phase release workflow — promotion/release PR
-    preflights, exact-head local-ci validation after merge, validated
-    deploy-helper triggers, version bumping, GitHub releases, and three-branch
-    post-release sync.
+  - Purpose: Django4Lyfe two-phase releases with captured base/source/head
+    SHAs, verified PR attribution (not timestamp cutoffs), exact-head local-ci,
+    authorized deployment, date-based versions, exact-commit publication, and
+    authorized three-branch sync. A missing scope helper or ambiguous legacy
+    inclusion blocks final notes rather than silently widening the release.
   - Claude install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`
   - Slash commands: `/backend-release:check`, `/backend-release:create`,

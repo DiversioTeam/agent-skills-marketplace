@@ -288,7 +288,7 @@ agent-skills-marketplace/
 | `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, repo-local execution routing, and project-board hydration |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
 | `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
-| `backend-release` | Django4Lyfe backend release workflow - promotion/release PR preflights, exact-head local-ci validation after merge, validated deploy-helper triggers, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
+| `backend-release` | Django4Lyfe release workflow - captured-SHA scope and verified PR inclusion, promotion/release preflights, exact-head local-ci, authorized deploys, date-based versioning (YYYY.MM.DD), and publication at the selected PR's merge commit |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
