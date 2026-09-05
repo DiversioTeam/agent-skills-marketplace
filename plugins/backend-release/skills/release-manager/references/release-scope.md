@@ -29,7 +29,9 @@ git diff --stat "$BASE_SHA" "$SOURCE_SHA"
 Run the commands with fail-fast shell behavior (`set -euo pipefail`) or check
 each status before continuing. For a promotion, fetch `dev release` and pass
 `origin/release origin/dev` instead. The helper is read-only and accepts both
-refs and full SHAs. It rejects shallow or unrelated histories and invalid refs.
+refs and full SHAs. All Git subprocesses ignore inherited `GIT_*` environment
+overrides so scope comes from the current checkout. It rejects shallow or
+unrelated histories and invalid refs.
 It does not fetch, check out branches, contact GitHub, tag, publish, or deploy.
 
 Its JSON contains:
@@ -115,5 +117,6 @@ python3 -m unittest discover -s tests -p test_release_scope.py -v
 
 Temporary Git histories cover a late source commit before production merge,
 a moving `master` after merge, cherry-picked/reverted equal trees, invalid
-refs, unrelated histories, and missing shallow history. No backend changes,
+refs, unrelated histories, missing shallow history, and inherited Git overrides
+pointing at another checkout. No backend changes,
 network calls, tags on real repositories, publication, or deployment occur.

@@ -50,11 +50,11 @@ class ReleaseScopeTests(unittest.TestCase):
         self.get_git_output("commit", "-m", name)
         return self.get_git_output("rev-parse", "HEAD")
 
-    def get_scope_result(self, base, source):
+    def get_scope_result(self, base, source, environment=None):
         return subprocess.run(
             [sys.executable, str(SCOPE_SCRIPT), base, source],
             cwd=self.repository,
-            env=self.environment,
+            env=self.environment if environment is None else environment,
             text=True,
             capture_output=True,
         )
@@ -99,6 +99,31 @@ class ReleaseScopeTests(unittest.TestCase):
             self.get_scope(release_commit_sha, late_sha)["source_only_commits"],
             [late_sha],
         )
+
+    def test_inherited_git_environment_cannot_redirect_scope(self):
+        other_repository = self.repository / "other-checkout"
+        self.get_git_output(
+            "clone", "--no-local", str(self.repository), str(other_repository)
+        )
+        self.get_git_output("-C", str(other_repository), "branch", "release")
+        self.get_git_output("checkout", "-b", "release")
+        self.add_commit("only-in-intended-checkout")
+        expected_scope = self.get_scope("master", "release")
+
+        for overrides in [
+            {"GIT_DIR": str(other_repository / ".git")},
+            {"GIT_WORK_TREE": str(other_repository)},
+            {
+                "GIT_DIR": str(other_repository / ".git"),
+                "GIT_WORK_TREE": str(other_repository),
+            },
+        ]:
+            with self.subTest(overrides=overrides):
+                result = self.get_scope_result(
+                    "master", "release", {**self.environment, **overrides}
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout), expected_scope)
 
     def test_tree_and_ancestry_evidence_do_not_claim_patch_novelty(self):
         base_sha = self.get_git_output("rev-parse", "HEAD")

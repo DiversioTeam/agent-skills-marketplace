@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import subprocess
 from typing import TypedDict
 
@@ -14,8 +15,17 @@ class ReleaseScope(TypedDict):
     source_only_commits: list[str]
 
 
+def get_git_environment() -> dict[str, str]:
+    # Scope belongs to the current checkout, not inherited Git overrides.
+    return {
+        name: value for name, value in os.environ.items() if not name.startswith("GIT_")
+    }
+
+
 def get_git_output(*arguments: str) -> str:
-    return subprocess.check_output(["git", *arguments], text=True).strip()
+    return subprocess.check_output(
+        ["git", *arguments], text=True, env=get_git_environment()
+    ).strip()
 
 
 def get_release_scope(base_revision: str, source_revision: str) -> ReleaseScope:
@@ -30,7 +40,9 @@ def get_release_scope(base_revision: str, source_revision: str) -> ReleaseScope:
         "rev-parse", "--verify", "--end-of-options", f"{source_revision}^{{commit}}"
     )
     if subprocess.run(
-        ["git", "merge-base", base_sha, source_sha], stdout=subprocess.DEVNULL
+        ["git", "merge-base", base_sha, source_sha],
+        stdout=subprocess.DEVNULL,
+        env=get_git_environment(),
     ).returncode:
         raise ValueError(
             "Cannot establish common history for the selected commits; stop and inspect the repository."
