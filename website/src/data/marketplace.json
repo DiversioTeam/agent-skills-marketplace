@@ -106,12 +106,12 @@
       "name": "pr-description-writer",
       "category": "Documentation",
       "title": "PR Description Writer",
-      "description": "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, structured sections, and repo-local workflow context.",
-      "version": "v0.1.3",
+      "description": "Reviewer-friendly PR descriptions with preferred tldraw offline visuals, staged animations for complex flows, editable assets, and evidence-backed verification.",
+      "version": "v0.2.0",
       "skills": [
         {
           "name": "pr-description-writer",
-          "description": "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, structured test plans, and repo-local workflow context."
+          "description": "Create or update PR descriptions with verified scope, test evidence, and preferred tldraw offline visuals."
         }
       ],
       "commands": ["write-pr"]
@@ -204,12 +204,12 @@
       "name": "mixpanel-analytics",
       "category": "Code Analysis",
       "title": "Mixpanel Analytics",
-      "description": "Mixpanel analytics tracking implementation and review for Django optimo_analytics module with PII protection and code quality enforcement.",
-      "version": "v0.1.5",
+      "description": "Optimo Mixpanel implementation and review with identity, tenant, producer ownership, privacy, and post-commit delivery regression guardrails.",
+      "version": "v0.2.0",
       "skills": [
         {
           "name": "mixpanel-analytics",
-          "description": "Mixpanel analytics tracking implementation + review skill for Django optimo_analytics: add events and audit for PII safety, schema design, and code quality."
+          "description": "Implement or review Optimo events against the current operating guide and the #3203 non-regression contract."
         }
       ],
       "commands": ["implement", "review"]
@@ -261,6 +261,20 @@
       "commands": ["pre-commit", "atomic-commit", "check-pr"]
     },
     {
+      "name": "crafting-sandboxes",
+      "category": "Process",
+      "title": "Crafting Sandboxes",
+      "description": "Create, inspect, and update Crafting instances with branch overrides, DS consumption, safe database restores, and readiness evidence.",
+      "version": "v0.1.0",
+      "skills": [
+        {
+          "name": "crafting-sandboxes",
+          "description": "Operate Diversio and Optimo Crafting sandboxes with the cs CLI and live template discovery."
+        }
+      ],
+      "commands": ["sandbox"]
+    },
+    {
       "name": "frontend",
       "category": "Process",
       "title": "Frontend Workflow",
@@ -279,14 +293,14 @@
     {
       "name": "dev-workflow",
       "title": "Dev Workflow",
-      "description": "Daily developer workflow for pi: plan review, self-review, standards pass, CI checks, PR review comments, release PR prep, docs, and shipping. 15 core prompts plus run, prompts, and flow.",
-      "version": "v0.0.3"
+      "description": "Daily developer workflow for pi: plan review, self-review, standards, CI, PR feedback, releases, Crafting sandboxes, docs, and shipping. 16 core prompts plus help, run, prompts, and flow.",
+      "version": "v0.0.7"
     },
     {
       "name": "skills-bridge",
       "title": "Skills Bridge",
-      "description": "Auto-discovers Claude Code plugin skills from plugins/*/skills/ directories and registers them as pi skills. One install bridges all 19+ plugin skills into pi.",
-      "version": "v0.0.1"
+      "description": "Auto-discovers marketplace plugin skills, including Crafting sandboxes, and registers them as pi skills with custom-root and ancestor discovery.",
+      "version": "v0.0.2"
     },
     {
       "name": "ci-status",

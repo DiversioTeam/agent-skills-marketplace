@@ -1,0 +1,8 @@
+{
+  "name": "crafting-sandboxes",
+  "version": "0.1.0",
+  "description": "Create, inspect, and update Diversio Crafting sandboxes with branch overrides, DS build consumption, snapshot safety, and readiness evidence.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

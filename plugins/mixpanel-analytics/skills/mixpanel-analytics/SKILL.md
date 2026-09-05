@@ -1,137 +1,83 @@
 ---
 name: mixpanel-analytics
-description: "Mixpanel analytics tracking implementation + review skill for Django optimo_analytics: add events and audit for PII safety, schema design, and code quality."
+description: "Implement or review Optimo Mixpanel events without regressing identity, tenant safety, producer ownership, privacy, or post-commit delivery. Use for Django optimo_analytics and its cross-channel callers."
 allowed-tools: Bash Read Edit Write Glob Grep
 ---
 
-# MixPanel Analytics Skill
+# Optimo Mixpanel Analytics
 
-## When to Use This Skill
+Use for adding or changing backend events, reviewing analytics, or checking a
+backend/frontend contract. For frontend implementation, also load the frontend
+skill's analytics lane; this skill does not replace repository frontend gates.
 
-Use this Skill in the Django4Lyfe backend when working with MixPanel analytics
-tracking in the `optimo_analytics` module:
+## Start With Current Evidence
 
-- `/mixpanel-analytics:implement` – to **implement** new MixPanel tracking events
-  or update existing ones following established patterns (7-step checklist).
-- `/mixpanel-analytics:review` – to **review** MixPanel implementations for
-  correctness, PII protection, and adherence to Django4Lyfe standards.
+1. Read the target repo's `AGENTS.md` and
+   `docs/analytics/optimo-mixpanel/README.md`, especially the engineering
+   contract, code map, tests, and current rollout state.
+2. Read `optimo_analytics/AGENTS.md`, current schemas, registry, identity helper,
+   named producer, real callers, and their tests for the affected domain.
+3. Load [references/non-regression-contract.md](references/non-regression-contract.md).
+   It records the guardrails introduced by backend PR #3203 and companion
+   frontend #579; do not resurrect the older implementation templates.
+4. Use the current operating guide and runtime code over historical PR rollout
+   claims. If the local guide is absent, fetch the canonical guide below. If
+   code and guide disagree, report the conflict before an identity or delivery
+   change; never silently restore the old behavior.
 
-## Example Prompts
+Canonical guide:
+https://github.com/DiversioTeam/Django4Lyfe/blob/dev/docs/analytics/optimo-mixpanel/README.md
 
-### Implement Mode
-
-- "Use `/mixpanel-analytics:implement` to add a new event for tracking when a
-  user completes their profile setup."
-- "Run `/mixpanel-analytics:implement svc.surveys.reminder_sent` to add tracking
-  for survey reminder notifications."
-- "Implement MixPanel tracking for the new HRIS CSV validation feature using
-  `/mixpanel-analytics:implement`."
-
-### Review Mode
-
-- "Run `/mixpanel-analytics:review staged` to check my staged MixPanel changes
-  for PII violations and pattern compliance."
-- "Use `/mixpanel-analytics:review branch` to audit all analytics changes on
-  this feature branch."
-- "Review the entire optimo_analytics module with `/mixpanel-analytics:review all`."
+Historical rationale:
+https://github.com/DiversioTeam/Django4Lyfe/pull/3203
 
 ## Modes
 
-This Skill behaves differently based on how it is invoked:
+- `/mixpanel-analytics:implement`: follow
+  [references/implementation.md](references/implementation.md). `--dry-run`
+  produces a proposal only, without editing files or sending events.
+- `/mixpanel-analytics:review`: follow
+  [references/review.md](references/review.md). Default to staged changes;
+  support an explicit PR/branch, `all`, or `file:path`. Inspect only; do not
+  apply fixes or publish review comments without authorization.
 
-- `implement` mode – invoked via `/mixpanel-analytics:implement`:
-  - Guides implementation of new MixPanel events through 7 steps.
-  - Creates constants, schemas, registry entries, service methods, and tests.
-  - Enforces PII protection and code patterns.
-- `review` mode – invoked via `/mixpanel-analytics:review`:
-  - Audits existing implementations for compliance.
-  - Checks PII protection, schema design, service patterns, and test coverage.
-  - Generates structured review reports with severity tags.
+## Non-Negotiables
 
-## Environment & Context Gathering
+- Permanent human `$user_id` is `OptimoUser.uuid`. The backend employee
+  `$device_id` is an independent anonymous merge key, never a browser key.
+  Only the canonical persisted same-tenant relationship may join them.
+- Feature callers use named producers with persisted domain objects or
+  approved locators. They never choose reserved identity or call private
+  delivery. Producers reload state and derive tenant, subject, and join keys.
+- One fact has one authority: backend owns authentication and durable outcomes;
+  frontend owns authenticated browser interactions. Public survey pages emit
+  no frontend Mixpanel events under the current contract.
+- Register one strict schema, origin, and person scope. Delivery is always
+  post-commit and fire-and-forget; analytics failure cannot undo business work.
+- Keep actor, subject, employee, manager, session, and assignment meanings
+  separate. Preserve trusted `impersonation` on every event; never identify
+  the impersonated target as the support actor.
+- No tokens or token hashes, personal content, raw routes, provider/exception
+  text, rendered recommendation titles, or exact risk scores. Disable IP
+  enrichment; normal reports filter `impersonation=false`.
+- Do not reintroduce `is_cron_job`, `cron_execution_timestamp`, or cron schema
+  variants. Use registered origin/person scope and one real occurrence `time`.
+- Identity delivery fails closed unless the target project's Simplified ID
+  Merge mode is verified and its exact `simplified_v1` acknowledgement is set.
+  Never enable telemetry or mutate Mixpanel projects just to make tests pass.
 
-When this Skill runs, gather context first:
+## Type Gate Detection
 
-```bash
-# Git context
-git branch --show-current
-git status --porcelain
-git diff --cached --name-only | grep -E "optimo_analytics|mixpanel"
+Read repository typing docs and use its wrappers. Detect `ty`, then `pyright`,
+then `mypy`; configured `ty` is mandatory and blocking. Touched files must pass,
+without blanket suppressions or "baseline acceptable" exceptions. Run the
+repository's required wider gates before claiming merge readiness.
 
-# Analytics module stats
-grep -c "^    [A-Z_]* = " optimo_analytics/constants.py 2>/dev/null || echo "0"
-grep -c "^class Mxp" optimo_analytics/schemas.py 2>/dev/null || echo "0"
-grep -c "MixPanelEvent\." optimo_analytics/registry.py 2>/dev/null || echo "0"
-ls -1 optimo_analytics/service/*.py 2>/dev/null | xargs -I{} basename {} .py
-```
+## Completion
 
-Read key reference files:
-- `optimo_analytics/AGENTS.md` – module-level rules and PII guidelines
-- `optimo_analytics/schemas.py` – existing schema patterns
-- `optimo_analytics/service/AGENTS.md` – service layer patterns
-- `optimo_analytics/tests/AGENTS.md` – test patterns
-- `optimo_core/models/login_attribution.py` – CTA attribution enums (SlackButtonChoices, SlackTabChoices, TeamsButtonChoices) and URL helpers
-- `optimo_analytics/docs/LoginCTA_AttributionTestingGuide.md` – CTA attribution testing scenarios
-- `optimo_analytics/docs/BackendMixpanelTestingGuideV2.md` – Survey lifecycle & MAP event testing scenarios
-
-Type gate policy:
-- Detect Python type checker in this order unless repo docs/CI differ:
-  `ty`, then `pyright`, then `mypy`.
-- If `ty` is configured, it is mandatory and blocking.
-- For touched files, do not accept "baseline acceptable" type-check outcomes.
-- Read local typing policy docs when present (for example
-  `docs/python-typing-3.14-best-practices.md`, `TY_MIGRATION_GUIDE.md`).
-
----
-
-# Implementation Mode
-
-For the full templates and step-by-step implementation checklist, use:
-- [references/implementation.md](references/implementation.md)
-
-Checklist (summary):
-1. Add event constant (`optimo_analytics/constants.py`)
-2. Create schema (`optimo_analytics/schemas.py`)
-3. Register schema (`optimo_analytics/registry.py`)
-4. Add tracking helper (`optimo_analytics/service/{domain}.py`)
-5. Export helper (`optimo_analytics/service/__init__.py`)
-6. Add tests (`optimo_analytics/tests/`)
-7. Integrate call site in business logic
-
-## Critical Rules (Do Not Violate)
-
-- **PII**: never send names/emails/phones/addresses; identifiers are UUID strings; `organization_name` is allowed but never logged.
-- **Fire-and-forget**: keyword-only args + try/except wrapper; never let tracking break business logic.
-- **Event names**: `{prefix}.{object}.{action}[.error]`; do not encode execution context (e.g., "cron") in the event name.
-- **distinct_id**: user UUID → `org_<org_uuid>` → `slack_`/`apikey_`/`webhook_`; never a raw org UUID.
-- **Timestamps**: Unix ms (`datetime_to_timestamp_ms()`), not ISO strings.
-- **`is_cron_job`**: only when tracking-time must align with the original action; include `cron_execution_timestamp` when set.
-
----
-
-# Review Mode
-
-For the full checklist, automated checks, and report template, use:
-- [references/review.md](references/review.md)
-
-Summary checklist:
-- [P0] PII protection
-- [P1] Event registration completeness
-- [P1] Schema design + types
-- [P1] Service method patterns
-- [P2] Test coverage
-- [P2] Naming, timestamps, `is_cron_job`, distinct_id, exports
-
-## References
-
-- Implementation templates: [references/implementation.md](references/implementation.md)
-- Review checklist + report template: [references/review.md](references/review.md)
-
-## Compatibility Notes
-
-This Skill is designed to work with both Claude Code and OpenAI Codex.
-
-- Claude Code: install the corresponding plugin and use its slash commands (see `plugins/mixpanel-analytics/commands/`).
-- Codex: install the Skill directory and invoke `name: mixpanel-analytics`.
-
-For installation, see this repo's `README.md`.
+Report event authority, affected producer/callers, identity and privacy checks,
+regression cases run, repository gate results, and remaining blockers.
+Distinguish implemented, tested, staging-observed, governed, and dashboard-ready.
+Tests do not prove remote identity merges, enablement, or regional coverage.
+Use only authorized staging validation; keep production read-only during
+validation and never report real credentials or personal payloads.
