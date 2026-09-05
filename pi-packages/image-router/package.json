@@ -1,9 +1,12 @@
 {
   "name": "image-router",
-  "version": "0.1.0",
-  "description": "Automatically routes image inputs to a vision-capable model when the active model doesn't support images (e.g., DeepSeek → Codex fallback).",
+  "version": "0.2.0",
+  "description": "Routes images to an explicitly approved vision destination, with fail-closed consent for tool/RPC input and no cross-model fallback.",
   "keywords": ["pi-package"],
-  "files": ["extensions/", "README.md"],
+  "files": ["extensions/", "tests/", "README.md"],
+  "scripts": {
+    "test": "node --experimental-vm-modules --test tests/image-router.test.mjs"
+  },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-ai": "*",
