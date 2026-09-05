@@ -184,6 +184,12 @@ jobs:
             fi
           done
 
+      - name: Set up uv for existing workflow-helper tests
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.26"
+          enable-cache: false
+
       - name: Test workflow helpers
         run: python3 -m unittest discover -s tests -v
 

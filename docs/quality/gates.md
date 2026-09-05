@@ -18,6 +18,10 @@ printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no
 `bash scripts/validate-skills.sh` checks changed and untracked `SKILL.md`
 files. Use `--all` when auditing the full repo.
 
+The full Python suite also requires `uv`: existing review-helper fixtures launch
+PEP 723 scripts with their declared Python/Click dependencies. CI installs uv
+before running the suite. The release-scope tests alone use only Python and Git.
+
 ## Active Type Gate
 
 This repo does not ship Python application code, so there is no local runtime
