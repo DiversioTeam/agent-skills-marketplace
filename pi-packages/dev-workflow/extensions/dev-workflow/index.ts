@@ -60,6 +60,26 @@ type PromptRegistry = {
 
 const CORE_PROMPTS: WorkflowPrompt[] = [
   {
+    code: "workflow.crafting",
+    command: "workflow:crafting",
+    label: "Crafting sandbox",
+    short: "Create, inspect, or update a Crafting sandbox with verified branches and readiness",
+    whatItDoes: [
+      "Loads the crafting-sandboxes skill and discovers live templates and workspace manifests",
+      "Checks branch overrides, frontend DS consumption, and sandbox readiness",
+      "Requires explicit target and data-loss approval before restoring a database snapshot",
+    ],
+    whenToUse: "When creating or changing a Diversio or Optimo Crafting instance, or checking an existing sandbox.",
+    example: "/workflow:crafting create an Optimo sandbox for these backend and frontend PRs",
+    category: "core",
+    source: "core",
+    prompt: `Use the crafting-sandboxes skill for this request. Load its SKILL.md and the relevant operations reference before running cs commands.
+If the skill is unavailable, ask the user to load plugins/crafting-sandboxes/skills/crafting-sandboxes from the Diversio marketplace or enable skills-bridge; do not invent the operational workflow.
+Discover live templates and repo manifests. Distinguish Diversio-Frontend from Optimo-Frontend even when both templates name their workspace frontend. Inspect first if the requested action is unclear.
+Only create or modify the agreed sandbox. Snapshot restore requires explicit approval for the exact snapshot, target, and data replacement. Do not change shared templates or destroy existing instances.
+Verify effective checkout SHAs, frontend consumption of DS changes when needed, snapshot/migration state, and daemon/endpoint readiness. Report authenticated UI verification separately.`,
+  },
+  {
     code: "workflow.plan",
     command: "workflow:plan",
     label: "Plan review",
@@ -2005,7 +2025,8 @@ export default function (pi: ExtensionAPI) {
         "5. /workflow:docs       — Documentation pass",
         "6. /workflow:ship       — Ship: CI, atomic commit, PR description, PR",
         "",
-        "PR/release operations:",
+        "PR/release/sandbox operations:",
+        "/workflow:crafting           — Create, inspect, or update a Crafting sandbox",
         "/workflow:pr-review-comments — Address PR review feedback and re-request review",
         "/workflow:release-prs        — Prepare backend/frontend/optimo/design-system release PRs",
         "",

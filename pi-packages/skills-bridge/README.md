@@ -1,12 +1,17 @@
 # skills-bridge
 
-Pi extension that auto-discovers Claude Code plugin skills from `plugins/*/skills/` directories and registers them as pi skills. One install bridges all 21 plugin skills into pi without restructuring the repo.
+Pi extension that auto-discovers Claude Code plugin skills from `plugins/*/skills/` directories and registers them as pi skills. One install bridges all marketplace plugin skills into pi without restructuring the repo.
 
 ## What it does
 
-The Diversio team has 21 Claude Code skills (`release-manager`, `monty-code-review`, `backend-atomic-commit`, etc.) in the shared repo. Claude Code and Codex users see them automatically. Pi users don't — pi only discovers skills from `~/.pi/agent/skills/` and `pi-packages/*/skills/`, not from `plugins/*/skills/`.
+The Diversio team maintains marketplace skills in `plugins/*/skills/`, including
+`crafting-sandboxes`. The root Pi manifest lists only the Pi-local skill folder;
+this extension supplies the marketplace paths through dynamic discovery.
+Current Pi versions also support explicitly loading nested skill directories
+with `--skill ./plugins` or skill settings; the bridge adds custom-root and
+ancestor discovery.
 
-This extension bridges that gap. It uses pi's `resources_discover` hook to scan the plugins directory and register skill paths. One `pi install` per team member, then `/reload`, and all 21 skills appear.
+This extension bridges that gap. It uses pi's `resources_discover` hook to scan the plugins directory and register skill paths. One `pi install` per team member, then `/reload`, and the marketplace skills appear.
 
 **Context safety:** The extension only exposes skill names + descriptions (~5-10KB total) at startup. Full `SKILL.md` bodies load on demand when a skill is invoked. No context bloat.
 
@@ -110,9 +115,9 @@ console.log('Skills discovered:', total);
 
 ## Skills bridged
 
-The extension discovers all 21 skills from these plugins:
-
-`release-manager`, `monty-code-review`, `backend-atomic-commit`, `backend-pr-workflow`, `plan-directory`, `backend-ralph-plan`, `pr-description-writer`, `process-code-review`, `bruno-api`, `code-review-digest-writer`, `mixpanel-analytics`, `clickup-ticket`, `github-ticket`, `repo-docs-generator`, `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`, `terraform-pr-workflow`, `login-cta-attribution-skill`, `monolith-review-orchestrator`, `frontend`
+Discovery includes new marketplace skills such as `crafting-sandboxes` without
+extension code changes. See the maintained
+[plugin catalog](../../docs/plugins/catalog.md) for the full inventory.
 
 ## Team setup
 
