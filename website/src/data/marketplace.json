@@ -106,12 +106,12 @@
       "name": "pr-description-writer",
       "category": "Documentation",
       "title": "PR Description Writer",
-      "description": "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, structured sections, and repo-local workflow context.",
-      "version": "v0.1.3",
+      "description": "Reviewer-friendly PR descriptions with preferred tldraw offline visuals, staged animations for complex flows, editable assets, and evidence-backed verification.",
+      "version": "v0.2.0",
       "skills": [
         {
           "name": "pr-description-writer",
-          "description": "Generate comprehensive, reviewer-friendly PR descriptions with diagrams, structured test plans, and repo-local workflow context."
+          "description": "Create or update PR descriptions with verified scope, test evidence, and preferred tldraw offline visuals."
         }
       ],
       "commands": ["write-pr"]
