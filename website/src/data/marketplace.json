@@ -46,12 +46,12 @@
       "name": "backend-release",
       "category": "Process",
       "title": "Backend Release Manager",
-      "description": "Full release workflow for Django4Lyfe: create release PRs, version bumping (YYYY.MM.DD), conflict resolution, GitHub releases, and post-release branch sync.",
-      "version": "v0.3.0",
+      "description": "Django4Lyfe releases with captured-SHA scope, verified PR inclusion, exact-head validation, authorized deployment, exact-commit publication, and three-branch sync.",
+      "version": "v0.4.0",
       "skills": [
         {
           "name": "release-manager",
-          "description": "Create and manage release PRs against master branch. Handles the full release workflow including merging release into master, version bumping in pyproject.toml, running uv lock, and creating GitHub releases."
+          "description": "Prepare promotion/release PRs from captured commits, reconcile included changes, bump date-based versions, validate exact heads, and publish the selected PR's verified merge commit without silent deployment."
         }
       ],
       "commands": ["check", "create", "publish"]

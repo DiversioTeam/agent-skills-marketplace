@@ -2,388 +2,205 @@
 name: release-manager
 description: "Create and manage promotion and release PRs for Django4Lyfe. Use this when preparing dev→release promotion PRs, release→master release PRs, validating exact branch heads with local-ci, triggering validated backend deploys, bumping versions, resolving merge conflicts, and publishing GitHub releases."
 allowed-tools: Bash Read Edit Grep Glob
-argument-hint: "[action] (e.g., promote-staging, release-prod, publish, check)"
+argument-hint: "[action] [PR_NUMBER] [--hotfix] [--dry-run]"
 ---
 
-# Release Manager Skill
+# Release Manager
 
-Manages the full release workflow for Django4Lyfe backend releases.
-
-## Branch Model
+Prepare reviewed candidates, validate exact commits, and publish the matching
+release. Repository-local AGENTS.md and release/deploy docs take precedence.
 
 ```text
-feature PRs -> dev        (validation only)
-promotion PRs -> release  (move staging candidate)
-origin/release head -> local-ci -> validated deploy helper -> staging deploy
-release PRs -> master     (move production candidate)
-origin/master head -> local-ci -> validated deploy helper -> production deploy
+feature PRs -> dev       (validation only)
+promotion PRs -> release (staging candidate)
+exact release head -> local-ci -> authorized deploy helper -> staging
+release PRs -> master   (production candidate; merge commit, never squash)
+exact master head -> local-ci -> authorized deploy helper -> production
+merged release PR SHA -> matching version tag -> GitHub release
 ```
 
-## Repo Feature Detection
+## Modes and permissions
 
-- local-ci support: `command -v local-ci` succeeds and repo root contains `.local-ci.toml`
-- validated deploy helper: `scripts/deploy/trigger_validated_backend_deploy.sh` exists
+- `check`: inspect pending release scope, version, recent releases, and open
+  release PRs. Report verified PR URLs, direct commits, ambiguities, and the
+  recommended next version; do not create PRs, tags, or deployments.
+- `create` / `release-prod`: prepare `release → master`.
+- `promote-staging`: prepare `dev → release`.
+- `publish PR_NUMBER`: publish the already-merged production release at its
+  exact merge commit. Publication does not imply deployment permission.
+- `--hotfix`: use the hotfix title convention without bypassing scope or gates.
+- `--dry-run`: show the intended actions using read-only inspection only;
+  disclose cached-ref freshness. Do not fetch, edit, push, publish, or deploy.
 
-## When to Use This Skill
+Ask for the intended mode if ambiguous. Require explicit authorization for
+merges, deploys, RLS policy writes, and branch synchronization. Never interpret
+`check`, PR creation, or GitHub publication as permission to deploy.
 
-- Creating **promotion PRs** from `dev` → `release` to move a staging candidate onto `release`
-- Creating **release PRs** from `release` → `master` to move a production candidate onto `master`
-- Preparing hotfix releases
-- Bumping versions in pyproject.toml
-- Resolving merge conflicts between branches
-- Publishing GitHub releases after PRs are merged
-- Checking what commits are pending promotion or release
+## Prerequisites and shared scope evidence
 
-## Core Workflow
+Read repo-local workflow docs and verify the target repository, clean working
+state, remotes, branch policy, and installed tools before changes. Require Git,
+`gh` authentication, `jq`, Python 3.11+, and `uv` for version/lock updates.
 
-### 0. Promotion PR: dev → release (prepare staging candidate)
+- Detect local-ci with `command -v local-ci` and `.local-ci.toml`. A configured
+  gate with a missing binary is a blocker, not permission to skip it.
+- Detect `scripts/deploy/trigger_validated_backend_deploy.sh`. If absent, use
+  only the documented repo-local validation/deploy path; otherwise stop.
+- Set `SKILL_DIR` to the absolute directory containing this loaded SKILL.md.
+  Require its `scripts/get_release_scope.py`; stop if installation is incomplete.
 
-Before a production release, promote reviewed changes from `dev` to `release`.
-Merging the promotion PR does **not** deploy staging automatically.
+Read [captured release scope](references/release-scope.md) before `check` or
+candidate preparation. It owns snapshot capture, PR attribution, legacy
+cherry-pick reconciliation, and candidate verification. Use its helper for
+both promotion and production scopes; do not substitute timestamps or a
+capped PR search. Preserve full source/base/head SHAs in the PR body.
+
+## Prepare a staging candidate
+
+Capture `origin/release` as `BASE_SHA` and `origin/dev` as `SOURCE_SHA` with the
+shared scope procedure. Review the diff and attributed PRs; an empty content
+diff is not a new release. Create the branch from those captured commits:
 
 ```bash
-# 1. Check what's on dev but not yet on release
-git fetch origin dev release
-git diff --stat origin/release origin/dev
-
-# 2. Create promotion branch from release
-git checkout -b promote/YYYY.MM.DD[-N] origin/release
-
-# 3. Merge dev into it
-git merge origin/dev --no-edit
-
-# 4. Push and create promotion PR
+git checkout -b promote/YYYY.MM.DD[-N] "$BASE_SHA"
+git merge "$SOURCE_SHA" --no-edit
+# Review resolutions and record/check the final candidate head before pushing.
 git push -u origin promote/YYYY.MM.DD[-N]
-gh pr create --base release --title "Promotion: DDth Month YYYY" --body "..."
+gh pr create --base release --title "Promotion: DDth Month YYYY" --body-file /path/to/reviewed-promotion-notes.md
 ```
 
-Routine feature PRs still merge into `dev` where CI validates but never
-deploys. The promotion PR is the intentional step that moves the candidate onto
-`release`.
+Feature PRs merge to `dev`; promotion is the intentional move onto `release`.
+The open promotion branch's local-ci run is a preflight only. In Django4Lyfe it
+can run the full parity lanes; failures block readiness. It does not replace
+validation of the exact merged `release` head. Validate staging before preparing
+production. Fix staging issues on `dev` and promote again, not by patching
+`release` directly.
 
-A `local-ci` run on the open `promote/*` branch is still only a preflight. In
-Django4Lyfe today that preflight can run the full parity lanes, but it still
-does not replace exact target-head validation after merge. If the preflight
-fails, stop and dig into the harness/code before calling the promotion ready.
-Exact `release` parity still happens on the clean merged `origin/release` head.
+## Prepare a production candidate
 
-**After merge**: use the exact `origin/release` head from a clean checkout.
-If the validated deploy helper exists, prefer it — it runs local-ci and then
-triggers staging deploy. Otherwise, if the repo supports local-ci, run
-`local-ci` manually and follow the repo-local deploy steps.
+Capture `origin/master` as `BASE_SHA` and `origin/release` as `SOURCE_SHA` with
+the shared scope procedure. Reconcile legacy patch duplicates and unresolved
+PR attribution before claiming a complete release list.
 
 ```bash
-git fetch origin
-git worktree add ../backend-release origin/release
-cd ../backend-release
-CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
-```
-
-Validate staging before proceeding. If issues are found, fix them on `dev` and
-create a new promotion PR instead of patching `release` directly.
-
-### 1. Check What Needs Releasing (release → master)
-
-```bash
-git fetch origin master release
-
-# PRIMARY CHECK — are there actual code differences between the branches?
-git diff --stat origin/master origin/release
-```
-
-`git diff --stat` compares the actual tree state (file contents), not commit
-history. It is the only reliable way to determine whether there is something to
-release. If the output is empty, there is nothing to release — stop here.
-
-If there ARE differences, identify which PRs they belong to. Use GitHub's PR
-metadata (merge timestamps), not git commit ancestry:
-
-```bash
-# Get the merge date of the last release PR (the definitive cutoff).
-# The release PR's merge to master is the exact moment `git merge origin/release`
-# captured the release branch state. Anything merged to release BEFORE that
-# moment was included; anything AFTER is genuinely new.
-LAST_RELEASE_DATE=$(gh pr list --base master --state merged --limit 100 \
-  --json number,title,mergedAt \
-  --jq '[.[] | select(.title | test("^(Release|Hotfix)"))] | sort_by(.mergedAt) | last | .mergedAt // empty' \
-  2>/dev/null || echo "")
-
-# List PRs merged to release since that date
-if [ -n "${LAST_RELEASE_DATE}" ]; then
-  gh pr list --base release --state merged --limit 100 --json number,title,mergedAt \
-    --jq "[.[] | select(.mergedAt > \"${LAST_RELEASE_DATE}\")] | sort_by(.mergedAt) | .[] | \"#\\(.number): \\(.title)\""
-else
-  # No previous release — list recent merged PRs as candidates
-  gh pr list --base release --state merged --limit 20 --json number,title \
-    --jq '.[] | "#\(.number): \(.title)"'
-fi
-```
-
-**Why the release PR's `mergedAt` instead of `publishedAt`?** GitHub release
-`publishedAt` is when a human clicks "Publish" — which can be minutes or hours
-after the release PR actually merges. PRs merged to release in that gap would
-be missed on the next check. The release PR's `mergedAt` is the definitive
-cutoff because `git merge origin/release` captures the exact state of the
-release branch at that moment.
-
-**Why GitHub metadata instead of `git log`?** All `git log`-based approaches
-(`master..release`, `--cherry-pick`, `--first-parent` with tags) can return
-stale results due to historical cherry-pick artifacts and because release tags
-live on master's ancestry, not release's first-parent chain. PR merge
-timestamps from GitHub are immune to git ancestry issues.
-
-### 2. Create Release PR (Merge Method)
-
-Merge the release branch into a branch from master. This preserves commit
-ancestry so that `git log master..release` works correctly after the PR merges.
-
-```bash
-# 1. Create branch from master
-git checkout -b releases/YYYY.MM.DD[-N] origin/master
-
-# 2. Merge release into it
-git merge origin/release --no-edit
-
-# 3. Bump version in pyproject.toml
-# Format: YYYY.MM.DD for first release, YYYY.MM.DD-N for subsequent releases
-
-# 4. Update lock file
+git checkout -b releases/YYYY.MM.DD[-N] "$BASE_SHA"
+git merge "$SOURCE_SHA" --no-edit
+# Edit only the project version in pyproject.toml; use today's date.
 uv lock
-
-# 5. Commit version bump
 git add pyproject.toml uv.lock
 git commit -m "Version bump to YYYY.MM.DD[-N]"
-
-# 6. Push and create PR
+# Review the final diff; record/check CANDIDATE_HEAD_SHA before pushing.
 git push -u origin releases/YYYY.MM.DD[-N]
-gh pr create --base master --title "Release: DDth Month YYYY" --body "..."
+gh pr create --base master --title "Release: DDth Month YYYY" --body-file /path/to/reviewed-release-notes.md
 ```
 
-Merging the release PR does **not** deploy production automatically. A
-`local-ci` run on the open `release -> master` PR head is only a preflight. In
-Django4Lyfe today that preflight can run the full parity lanes, but exact
-`origin/master` validation still happens after merge. If it fails, stop and dig
-into it before calling the release ready. After the PR lands, use the exact
-`origin/master` head from a clean checkout. If the validated deploy helper
-exists, prefer it — it runs local-ci and then triggers production deploy.
-Otherwise, if the repo supports local-ci, run `local-ci` manually and follow
-the repo-local deploy steps.
+Use merge commits, not cherry-picks or squash merges. Cherry-picks create new
+SHAs for old patches; squash merging the release PR destroys the ancestry
+needed for subsequent scope checks. Preserve original source commits through
+the promotion and release PRs. Still inspect actual content and conflict
+resolutions: ancestry alone does not prove patch novelty or preservation.
+
+Read [detailed procedures](references/detailed-procedures.md) for date-based
+versions, Promotion/Release/Hotfix titles, notes format, and conflict recovery.
+
+## Pre-release gates
+
+Run repository-required checks and inspect CI for the exact candidate head.
+Do not call a failed preflight ready. In repositories with local-ci parity,
+run the configured preflight lanes; after merge, validate the exact target head
+again rather than reusing candidate-branch results.
+
+1. Run `./.security/ruff_pr_diff.sh`; use `.bin/ruff format <file>` to fix
+   formatting if the repo supplies these wrappers. Missing required wrappers
+   need an explicit repo-documented fallback, not a guessed command.
+2. **Type Gate Detection:** detect `ty`, then `pyright`, then `mypy`, respecting
+   repo-local docs/CI order. Configured `ty` is mandatory and blocking. Touched
+   paths must pass; final readiness also requires any repo-wide gates. Report
+   blockers explicitly. Consult local typing docs, including
+   `docs/python-typing-3.14-best-practices.md` or `TY_MIGRATION_GUIDE.md` if present.
+3. Inspect RLS policies for new models with the documented backend check,
+   normally `.bin/django optimo_bootstrap_support_shell_rls`. The `--apply` form
+   writes policies: run it only against the explicitly approved environment
+   with authorization. Never label a production write safe merely because it
+   is idempotent.
+
+## After merge: validation, deployment, publication
+
+Record the selected PR's `mergeCommit.oid` and verify its target branch. For
+production, this is `RELEASE_COMMIT_SHA`; it is also the publication target.
+Follow [publication checks](references/detailed-procedures.md#publishing-a-github-release)
+to read the version at that commit and check existing tags/releases before
+creating anything. Never use a moving `master` ref as the tag target.
+
+Merges do **not** deploy automatically. When explicitly authorized, prefer the
+backend validated deploy helper: it runs local-ci before triggering deploy.
+It must run from the exact clean **current** target head. Fetch and compare it
+to the selected PR's merged commit; if they differ, stop for a new deployment
+decision and fresh validation. Do not silently deploy intervening commits or
+reuse an older release's proof. The same rule applies to staging promotions.
+
+For an unchanged, verified target head, prepare a clean checkout at its full
+SHA, using a fresh path or inspecting an existing worktree before reuse. Check
+how the installed helper selects its target: Django4Lyfe's current helper
+prefers `release` when a detached SHA matches both remote heads. In that case,
+use the actual intended `master`/`release` branch checkout after verifying it
+is clean and at the expected SHA; never force a branch out of another worktree.
+Use the detached example only when its SHA uniquely identifies the target:
 
 ```bash
-git fetch origin
-git worktree add ../backend-master origin/master
-cd ../backend-master
-CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
+# DEPLOY_COMMIT_SHA is the verified current target head, not a moving ref.
+git worktree add --detach /path/to/clean-backend-deploy "$DEPLOY_COMMIT_SHA"
+cd /path/to/clean-backend-deploy
+# Only after explicit authorization; obtain credentials through the approved setup.
+scripts/deploy/trigger_validated_backend_deploy.sh
 ```
 
-**Why merge instead of cherry-pick?** Cherry-picking creates new commits with
-different SHAs. Even with merge-back, `git log master..release` permanently
-shows the original commits as "pending" because git compares SHAs, not patches.
-Merging preserves the original commit objects so master and release share the
-same ancestry. After the release PR merges to master, `git log master..release`
-correctly shows only genuinely new commits.
+If no helper exists but local-ci is supported, validate the exact head and
+follow repo-local deployment instructions. Report validation, deployment, and
+GitHub publication as separate outcomes, each with its SHA and evidence.
 
-### 3. Version Numbering, PR Formats, Conflict Resolution, and GitHub Releases
+## Synchronize after production publication
 
-See [detailed-procedures.md](references/detailed-procedures.md) for:
-
-- Version numbering conventions (`YYYY.MM.DD[-N]`)
-- PR title patterns (Promotion, Release, Hotfix)
-- Resolving merge conflicts
-- Publishing GitHub releases (merge strategy, verification, creation)
-
-### 4. Merge Master Back Into Release AND Dev
-
-**This step is mandatory after every release PR merge.** It keeps all three
-branches in sync so future work starts from a consistent baseline.
+Production changes and the version bump need to flow back into **both**
+`release` and `dev`. Require authorization and follow protected-branch policy
+(use sync PRs if required). Do not force-push or reset either branch. On a clean
+checkout, where direct merge-back pushes are allowed:
 
 ```bash
-git fetch origin
+git fetch origin master release dev
+# Check any local branch against its fetched counterpart before reuse.
 git checkout release
-git merge origin/master --no-edit
+git merge --ff-only origin/release
+git merge "$RELEASE_COMMIT_SHA" --no-edit
 git push origin release
-
-# ALSO sync dev so the integration branch stays current with production
+SYNC_RELEASE_SHA=$(git rev-parse release)
 git checkout dev
-git merge origin/release --no-edit
+git merge --ff-only origin/dev
+git merge "$SYNC_RELEASE_SHA" --no-edit
 git push origin dev
 ```
 
-**First principles — why sync all three?**
+Sync the selected published commit; including later `master` changes needs
+separate review and authorization. Inspect what will enter `dev` as well:
+`release` may contain newer staging work alongside the production commit. New work on `release`
+or `dev` can legitimately leave nonempty diffs afterwards. Verify that the
+production commit/version reached both branches rather than demanding all
+three trees be identical. If sync is blocked, report it as outstanding.
 
-After a production release, the branches look like this:
+## Completion report
 
-```
-master   ── has: release content + version bump + merge commit
-release  ── has: release content (stale — missing version bump)
-dev      ── has: release content (stale — missing version bump)
-```
+Report the PR URL, type/target, version, captured base/source/head SHAs,
+verified included PR URLs, direct commits, conflict adjustments, and unresolved
+scope questions. For post-merge work also include the merge commit, tag target,
+exact-head gate results, deployment result (or not authorized), publication
+result, and `release`/`dev` sync status. A created PR or GitHub release is not
+evidence of a completed deployment.
 
-The sync cascade fixes this:
+## Quick references
 
-```
-master ─────────────────────────────┐
-  │ merge master → release          │
-  ▼                                 │
-release  (now has version bump) ────┤
-  │ merge release → dev             │
-  ▼                                 │
-dev      (now has version bump) ────┘
-```
-
-Without syncing to release: the next release PR sees a stale diff
-(`git diff --stat origin/master origin/release` shows the version bump as
-"pending") and the release merge conflicts on `pyproject.toml`/`uv.lock`.
-
-Without syncing to dev: the integration branch drifts from production, and
-subsequent feature branches are developed against code that doesn't match
-what's actually running in production.
-
-## Pre-Release Checks
-
-Before creating a release PR, verify:
-
-1. **Ruff formatting passes:**
-   ```bash
-   ./.security/ruff_pr_diff.sh
-   ```
-   If it fails, fix with:
-   ```bash
-   .bin/ruff format <file>
-   ```
-
-2. **Active Python type gate passes (strict):**
-   - Detect in this order unless repo docs/CI differ:
-     - `ty` (mandatory if configured)
-     - `pyright`
-     - `mypy`
-   - Run on touched paths at minimum, and run any repo-required broad gate
-     before final release readiness.
-
-3. **RLS policies for new models:**
-   ```bash
-   # Check status
-   .bin/django optimo_bootstrap_support_shell_rls
-
-   # Apply if needed (safe for production)
-   .bin/django optimo_bootstrap_support_shell_rls --apply
-   ```
-
-## Output Shape
-
-When reporting promotion PR status:
-
-```
-Created: https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
-
-**Summary:**
-- Type: Promotion (dev → release, staging candidate only)
-- Title: "Promotion: DDth Month YYYY"
-- Target: `release`
-- Conflicts: None / Resolved
-- Deploy: run the validated deploy helper from the clean `origin/release` head
-```
-
-When reporting release status:
-
-```
-Created: https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
-
-**Summary:**
-- Version: `YYYY.MM.DD[-N]`
-- Title: "Release: DDth Month YYYY"
-- Target: `master`
-- Conflicts: None / Resolved
-- Deploy: run the validated deploy helper from the clean `origin/master` head
-
-**Included PRs:**
-- #XXXX - Description
-- #YYYY - Description
-```
-
-When listing releases:
-
-```
-| Release | Tag | PRs Included |
-|---------|-----|--------------|
-| Release Name | `tag` | #PR1, #PR2 |
-```
-
-## Important Rules
-
-1. **Always merge release into the release PR branch** — Do not cherry-pick. Merging preserves commit ancestry so `git log master..release` works correctly. Cherry-picking creates duplicate commits with different SHAs, causing stale "pending" commits that were already shipped.
-2. **Never force push** — Release branches should have clean history
-3. **Check date before versioning** — Use current date, not yesterday's
-4. **Run uv lock after version bump** — Lock file must match pyproject.toml
-5. **List all PRs in release body** — Use full GitHub URLs
-6. **Verify PR is merged before publishing release** — Check with `gh pr view`
-7. **Always publish GitHub release after merge** — Every merged release PR needs a corresponding GitHub release
-8. **Tag must match version in pyproject.toml** — e.g., version `2026.01.21-2` = tag `2026.01.21-2`
-9. **Always merge master back into release AND dev after publish** — Run `git merge origin/master --no-edit` on release, then merge release into dev. Without this, the version bump stays only on master, causing stale diffs and future merge conflicts.
-10. **Never squash-merge release PRs** — Release PRs to master MUST use "Create a merge commit". Squash merging breaks commit ancestry tracking.
-11. **Promotion/release PR merges do not deploy automatically** — After `dev → release` or `release → master` merges, use `scripts/deploy/trigger_validated_backend_deploy.sh` from the exact clean branch head when the repo exposes it; otherwise validate that head with `local-ci` and follow the repo-local deploy path.
-
-## Full End-to-End Example
-
-See [detailed-procedures.md](references/detailed-procedures.md#full-end-to-end-example) for a
-complete walkthrough of both phases (promotion + release) with copy-paste commands.
-
-## Quick Reference Commands
-
-```bash
-# Check what's pending promotion (dev → release)
-git fetch origin dev release && git diff --stat origin/release origin/dev
-
-# Check what's pending release (release → master)
-git fetch origin master release && git diff --stat origin/master origin/release
-
-# Check all three branches are in sync (should all be empty after release)
-git fetch origin dev release master && \
-  git diff --stat origin/release origin/dev && \
-  git diff --stat origin/master origin/release
-
-# Identify new PRs since last release
-LAST_RELEASE_DATE=$(gh pr list --base master --state merged --limit 100 \
-  --json number,title,mergedAt \
-  --jq '[.[] | select(.title | test("^(Release|Hotfix)"))] | sort_by(.mergedAt) | last | .mergedAt // empty' \
-  2>/dev/null || echo "") && \
-  gh pr list --base release --state merged --limit 100 --json number,title,mergedAt \
-    --jq "[.[] | select(.mergedAt > \"${LAST_RELEASE_DATE}\")] | sort_by(.mergedAt) | .[] | \"#\\(.number): \\(.title)\""
-
-# Create promotion PR (dev → release, prepare staging candidate)
-git checkout -b promote/YYYY.MM.DD[-N] origin/release
-git merge origin/dev --no-edit
-git push -u origin promote/YYYY.MM.DD[-N]
-gh pr create --base release --title "Promotion: DDth Month YYYY"
-
-# Create release PR (release → master, prepare production candidate)
-git checkout -b releases/YYYY.MM.DD[-N] origin/master
-git merge origin/release --no-edit
-# (bump version, uv lock, commit, then:)
-gh pr create --base master --title "Release: DDth Month YYYY"
-
-# Validate + deploy exact release head after promotion PR merge
-git fetch origin && git worktree add ../backend-release origin/release && cd ../backend-release
-CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
-
-# Validate + deploy exact master head after release PR merge
-git fetch origin && git worktree add ../backend-master origin/master && cd ../backend-master
-CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
-
-# Check current version
-grep '^version' pyproject.toml
-
-# List recent releases
-gh release list --limit 10
-
-# Check PR status
-gh pr view <NUMBER> --json state,mergeable,mergeCommit
-
-# View release details
-gh release view <TAG> --json body,tagName,name
-```
-
-## Error Recovery
-
-See [detailed-procedures.md](references/detailed-procedures.md#error-recovery) for merge conflict
-resolution, wrong-version fixes, and wrong-base PR recovery.
+- Pending scope: [capture and attribution](references/release-scope.md).
+- Version/title formats, publication and tag verification, conflicts, retry
+  behavior: [detailed procedures](references/detailed-procedures.md).
+- Recent releases: `gh release list --limit 10` (format context, not inclusion).
+- Selected PR: `gh pr view <NUMBER> --json state,baseRefName,headRefOid,mergeCommit,body`.
+- Release details: `gh release view <TAG> --json body,tagName,name,url`.

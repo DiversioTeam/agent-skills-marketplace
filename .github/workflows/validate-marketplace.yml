@@ -7,6 +7,7 @@ on:
       - "plugins/**"
       - "pi-packages/**"
       - "scripts/**"
+      - "tests/**"
       - ".github/workflows/validate-marketplace.yml"
       - "package.json"
       - "package-lock.json"
@@ -18,6 +19,7 @@ on:
       - "plugins/**"
       - "pi-packages/**"
       - "scripts/**"
+      - "tests/**"
       - ".github/workflows/validate-marketplace.yml"
       - "package.json"
       - "package-lock.json"
@@ -181,6 +183,9 @@ jobs:
               jq -e '.success == true' "/tmp/${NAME}-commands.json" >/dev/null
             fi
           done
+
+      - name: Test workflow helpers
+        run: python3 -m unittest discover -s tests -v
 
       - name: Validate SKILL.md size budgets
         shell: bash
