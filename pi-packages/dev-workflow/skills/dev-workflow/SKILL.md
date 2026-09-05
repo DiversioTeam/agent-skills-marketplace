@@ -230,6 +230,16 @@ Generate a message explaining the multi-agent parallel workflow:
 
 Produces a message describing how engineers ("agents") use AI in parallel, readonly-only, with handoff patterns. Ready to share in Slack, email, or docs.
 
+## Crafting Sandboxes
+
+Use `/workflow:crafting <task>` to create, inspect, or update a Crafting
+instance. It delegates to the marketplace `crafting-sandboxes` skill (load it
+separately or through `skills-bridge`), discovers live templates, verifies
+checkout SHAs and frontend DS consumption, and separates endpoint readiness
+from authenticated UI proof. Snapshot restores require explicit approval for
+the exact source, target, and data replacement. Missing skill/CLI setup is a
+blocker, not permission to improvise operations.
+
 ## Usage
 
 ```bash
@@ -240,6 +250,7 @@ Produces a message describing how engineers ("agents") use AI in parallel, reado
 /workflow:ci                # Step 5 — CI check and failure analysis
 /workflow:docs              # Step 7 — Documentation pass
 /workflow:ship              # Step 8 — Smart ship
+/workflow:crafting          # Crafting sandbox creation, inspection, or update
 
 # Session bootstrap & handoff
 /workflow:context           # Load context from existing PRs (local or remote)

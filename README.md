@@ -102,6 +102,10 @@ agent-skills-marketplace/
 │   ├── src/data/site-docs.ts          # Build-time extraction from SKILL.md + package READMEs
 │   └── public/                        # Branding assets, headers, OG image
 ├── plugins/
+│   ├── crafting-sandboxes/           # Crafting instances, branches, DS builds, snapshots
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/crafting-sandboxes/ # SKILL.md + references/operations.md
+│   │   └── commands/sandbox.md
 │   ├── monty-code-review/             # Monty backend code review plugin
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/monty-code-review/
@@ -225,7 +229,6 @@ agent-skills-marketplace/
 │   │       ├── create.md
 │   │       └── publish.md
 │   ├── dependabot-remediation/        # Unified backend/frontend Dependabot remediation
-│   ├── hol-guard/                     # HOL Guard local runtime safety workflow
 │   │   ├── .claude-plugin/plugin.json
 │   │   ├── skills/dependabot-remediation/
 │   │   │   ├── SKILL.md
@@ -277,19 +280,32 @@ agent-skills-marketplace/
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
-| `pr-description-writer` | Generates comprehensive, reviewer-friendly PR descriptions with diagrams, structured sections, and repo-local workflow context |
+| `pr-description-writer` | Reviewer-friendly PR descriptions with preferred tldraw offline visuals, editable source + rendered assets, and evidence-backed scope/verification |
 | `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
-| `mixpanel-analytics` | MixPanel tracking implementation and review Skill for Django4Lyfe optimo_analytics module with PII protection and pattern enforcement |
+| `mixpanel-analytics` | Optimo Mixpanel implementation/review with #3203 identity, tenant, producer ownership, privacy, post-commit delivery, and domain regression guardrails |
+| `crafting-sandboxes` | Create, inspect, or update Crafting instances with live template discovery, branch overrides, frontend DS consumption, snapshot safety, and readiness evidence |
 | `clickup-ticket` | Legacy ClickUp ticket management during the GitHub work-management migration |
 | `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, repo-local execution routing, and project-board hydration |
 | `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
 | `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
-| `backend-release` | Django4Lyfe backend release workflow - promotion/release PR preflights, exact-head local-ci validation after merge, validated deploy-helper triggers, date-based version bumping (YYYY.MM.DD), and GitHub release publishing |
+| `backend-release` | Django4Lyfe release workflow - captured-SHA scope and verified PR inclusion, promotion/release preflights, exact-head local-ci, authorized deploys, date-based versioning (YYYY.MM.DD), and publication at the selected PR's merge commit |
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
-| `hol-guard` | Local runtime safety for supported AI coding harnesses with Guard-owned setup, approvals, receipts, and package verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
 | `frontend` | Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows |
+
+PR visuals prefer [tldraw offline](https://tldraw.notion.site/User-manual-tldraw-offline-39a3e4c324c080e7b2eacc5afd078e85).
+The writer offers installation/opening when unavailable, or Mermaid if declined;
+it never installs software or publishes private assets without consent.
+Complex data flows use staged animated walkthroughs when helpful, with captions,
+pause/step controls, reduced-motion support, and a static overview. GitHub can
+show an authorized video capture; it does not run the editable canvas scripts.
+
+Crafting in Pi: `/workflow:crafting <task>` uses the `crafting-sandboxes` skill
+(discovered by `skills-bridge` in the root installation). A standalone
+`dev-workflow` install also needs that marketplace skill loaded. The command
+checks readiness separately from authenticated UI proof and requires explicit
+approval before replacing sandbox database data.
 
 ## Available Pi Packages
 
@@ -301,11 +317,11 @@ sub-package so pi can discover them from a single clone - see
 | Package | Description |
 |---------|-------------|
 | `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
-| `dev-workflow` | Pi-native daily developer workflow with 15 core workflow prompts, `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, remote CI analysis, local-ci-aware ship/release prompts, PR review feedback, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
+| `dev-workflow` | Pi-native daily developer workflow with 16 core workflow prompts including `/workflow:crafting`,  `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, remote CI analysis, local-ci-aware ship/release prompts, PR review feedback, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
 | `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
 | `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
-| `skills-bridge` | Auto-discovers all 21 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+| `skills-bridge` | Auto-discovers all 22 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
 
 Helpful mental model:
 
@@ -463,6 +479,7 @@ claude plugin install backend-atomic-commit@diversiotech
 claude plugin install backend-pr-workflow@diversiotech
 claude plugin install bruno-api@diversiotech
 claude plugin install code-review-digest-writer@diversiotech
+claude plugin install crafting-sandboxes@diversiotech
 claude plugin install plan-directory@diversiotech
 claude plugin install pr-description-writer@diversiotech
 claude plugin install process-code-review@diversiotech
@@ -498,6 +515,7 @@ claude plugin install monty-code-review@diversiotech --scope project
 | Backend PR workflow | `claude plugin install backend-pr-workflow@diversiotech` |
 | Bruno API docs generator | `claude plugin install bruno-api@diversiotech` |
 | Code review digest writer | `claude plugin install code-review-digest-writer@diversiotech` |
+| Crafting sandboxes | `claude plugin install crafting-sandboxes@diversiotech` |
 | Plan directory + RALPH loop | `claude plugin install plan-directory@diversiotech` |
 | PR description writer | `claude plugin install pr-description-writer@diversiotech` |
 | Code review processor | `claude plugin install process-code-review@diversiotech` |
@@ -533,7 +551,8 @@ Once plugins are installed:
    /plan-directory:plan                      # Create structured plan directory with PLAN.md
    /plan-directory:backend-ralph-plan        # Create RALPH loop-integrated plan for backend
    /plan-directory:run <slug>                # Execute a RALPH plan via ralph-wiggum loop
-   /pr-description-writer:write-pr           # Generate a comprehensive PR description
+   /pr-description-writer:write-pr           # PR description with preferred tldraw offline visuals
+   /crafting-sandboxes:sandbox               # Create, inspect, or update a Crafting instance
    /process-code-review:process-review       # Process code review findings (fix/skip issues)
    /mixpanel-analytics:implement             # Implement new MixPanel tracking events
    /mixpanel-analytics:review                # Review MixPanel implementations for compliance

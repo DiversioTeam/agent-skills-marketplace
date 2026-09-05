@@ -38,7 +38,7 @@ when command files change.
   - Chain path: `pi-packages/dev-workflow/agents/workflow-pipeline.chain.md`
   - Slash commands: `/workflow:plan`, `/workflow:self`, `/workflow:standards`,
     `/workflow:ci`, `/workflow:docs`, `/workflow:ship`,
-    `/workflow:pr-review-comments`, `/workflow:release-prs`,
+    `/workflow:pr-review-comments`, `/workflow:release-prs`, `/workflow:crafting`,
     `/workflow:context`, `/workflow:handoff`, `/workflow:onboard`,
     `/workflow:scout`, `/workflow:oracle`, `/workflow:reviewer`,
     `/workflow:parallel`, `/workflow:help`, `/workflow:flow`, `/workflow:run`,
@@ -133,7 +133,7 @@ when command files change.
   - Purpose: auto-discovers Claude Code plugin skills from
     `plugins/*/skills/` directories and registers them as pi
     skills via the `resources_discover` extension hook. One install makes all
-    21 plugin skills available in pi without restructuring the
+    22 plugin skills available in pi without restructuring the
     repo.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/skills-bridge"`
@@ -151,7 +151,7 @@ when command files change.
     `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
-    `monolith-review-orchestrator`, `frontend` (21 total).
+    `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes` (22 total).
   - Context safe: only skill names + descriptions enter context at startup
     (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
 - `monolith-review-orchestrator`
@@ -215,10 +215,11 @@ when command files change.
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
-  - Purpose: Django4Lyfe two-phase release workflow — promotion/release PR
-    preflights, exact-head local-ci validation after merge, validated
-    deploy-helper triggers, version bumping, GitHub releases, and three-branch
-    post-release sync.
+  - Purpose: Django4Lyfe two-phase releases with captured base/source/head
+    SHAs, verified PR attribution (not timestamp cutoffs), exact-head local-ci,
+    authorized deployment, date-based versions, exact-commit publication, and
+    authorized three-branch sync. A missing scope helper or ambiguous legacy
+    inclusion blocks final notes rather than silently widening the release.
   - Claude install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`
   - Slash commands: `/backend-release:check`, `/backend-release:create`,
@@ -264,8 +265,12 @@ when command files change.
   - Slash commands: `/plan-directory:plan`,
     `/plan-directory:backend-ralph-plan`, `/plan-directory:run`
 - `pr-description-writer`
-  - Purpose: reviewer-friendly pull request descriptions with diagrams, tables,
-    and repo-local workflow context.
+  - Purpose: reviewer-friendly PR descriptions with preferred tldraw offline
+    visuals, editable sources and rendered exports, evidence-backed scope,
+    and repo-local workflow context. Complex flows prefer staged animation with
+    pause/step controls and static/reduced-motion alternatives; optional video
+    captures make playback viewable on GitHub. Offers install/open or Mermaid
+    fallback when tldraw offline is unavailable; no implicit asset publishing.
   - Claude install:
     `claude plugin install pr-description-writer@diversiotech`
   - Skill path:
@@ -285,12 +290,16 @@ when command files change.
 
 ## Operations And Implementation
 
-- `hol-guard`
-  - Purpose: install and operate HOL Guard around supported local AI coding
-    harnesses, including approvals, receipts, diagnostics, and package scanning.
-  - Claude install: `claude plugin install hol-guard@diversiotech`
-  - Skill path: `plugins/hol-guard/skills/hol-guard`
-  - Slash commands: `/hol-guard:protect`
+- `crafting-sandboxes`
+  - Purpose: create, inspect, or update Crafting instances with current template
+    discovery, branch overrides, frontend DS consumption, snapshot safety, and
+    separate endpoint/authenticated readiness evidence.
+  - Claude install: `claude plugin install crafting-sandboxes@diversiotech`
+  - Skill path: `plugins/crafting-sandboxes/skills/crafting-sandboxes`
+  - Slash command: `/crafting-sandboxes:sandbox`
+  - Pi workflow command: `/workflow:crafting` (loads this skill; standalone
+    `dev-workflow` users must also load it or enable `skills-bridge`).
+
 - `clickup-ticket`
   - Purpose: legacy ClickUp ticket management during the GitHub migration.
   - Claude install: `claude plugin install clickup-ticket@diversiotech`
@@ -312,8 +321,10 @@ when command files change.
     `/github-ticket:quick-issue`, `/github-ticket:add-to-backlog`,
     `/github-ticket:create-linked-issue`, `/github-ticket:route`
 - `mixpanel-analytics`
-  - Purpose: implement and review MixPanel tracking for the Django
-    `optimo_analytics` module.
+  - Purpose: implement and review Optimo Mixpanel tracking against the current
+    backend operating guide and #3203 non-regression contract: identity lifecycle,
+    tenant checks, named producers, post-commit delivery, privacy, and real caller
+    tests. Rollout evidence remains owned by the live backend guide.
   - Claude install: `claude plugin install mixpanel-analytics@diversiotech`
   - Skill path: `plugins/mixpanel-analytics/skills/mixpanel-analytics`
   - Slash commands: `/mixpanel-analytics:implement`,

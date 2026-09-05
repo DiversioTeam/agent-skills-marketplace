@@ -1,7 +1,7 @@
 {
   "name": "backend-release",
-  "version": "0.3.3",
-  "description": "Manages Django4Lyfe release workflow: promotion/release PRs, exact-head local-ci validation, validated deploy-helper triggers, version bumping, conflict resolution, GitHub releases, and post-release branch sync.",
+  "version": "0.4.0",
+  "description": "Manages Django4Lyfe releases with captured-SHA scope, verified PR inclusion, exact-head validation, authorized deployment, exact-commit publication, and post-release branch sync.",
   "author": {
     "name": "Diversio Devs"
   }

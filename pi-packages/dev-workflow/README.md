@@ -1,6 +1,6 @@
 # dev-workflow
 
-Daily developer workflow for pi: plan review, self-review, standards, remote CI, local-ci-aware shipping/release prompts, documentation, PR review feedback, release PR prep, handoff, and shipping. Ships `15` core workflow prompts plus `/workflow:help`, `/workflow:flow`, `/workflow:run`, and `/workflow:prompts`, with XDG/project prompt customization.
+Daily developer workflow for pi: plan review, self-review, standards, remote CI, local-ci-aware shipping/release prompts, documentation, PR review feedback, release PR prep, handoff, Crafting sandboxes, and shipping. Ships `16` core workflow prompts plus `/workflow:help`, `/workflow:flow`, `/workflow:run`, and `/workflow:prompts`, with XDG/project prompt customization.
 
 ## Install
 
@@ -23,6 +23,19 @@ Plain `pi install` writes to global user settings. Then restart pi or run
 Install `dev-workflow` in one scope at a time. Use `-l` only when testing the
 package project-locally as a developer.
 
+## Crafting Sandbox Skill
+
+`/workflow:crafting <task>` loads the marketplace `crafting-sandboxes` skill,
+then checks live templates, branch overrides, frontend DS consumption, and
+readiness. Database restores require explicit snapshot/target/data-loss approval.
+It does not create instances just because you request status.
+
+The root marketplace install exposes the skill through `skills-bridge`.
+Standalone `dev-workflow` users must also load
+`plugins/crafting-sandboxes/skills/crafting-sandboxes` using Pi skill settings
+or `--skill <path>`, or enable `skills-bridge`. If missing, the prompt asks for
+setup instead of inventing `cs` operations. Crafting CLI/auth setup is separate.
+
 ## Commands
 
 ### Core workflow
@@ -36,6 +49,7 @@ package project-locally as a developer.
 | `/workflow:ship` | `workflow.ship` | Smart ship — verify CI, atomic commit, PR description, open/update PR |
 | `/workflow:pr-review-comments` | `workflow.pr-review-comments` | Address PR review comments, validate, push, resolve threads via GraphQL (explicit listing + resolveReviewThread + unaddressed flagging), re-request review |
 | `/workflow:release-prs` | `workflow.release-prs` | Prepare backend/frontend/optimo-frontend/design-system release PRs |
+| `/workflow:crafting` | `workflow.crafting` | Create, inspect, or update a Crafting sandbox using the marketplace `crafting-sandboxes` skill |
 
 ### Session bootstrap & handoff
 | Command | Code | Does |

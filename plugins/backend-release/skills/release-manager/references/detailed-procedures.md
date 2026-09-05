@@ -1,257 +1,191 @@
-# Release Manager — Detailed Reference
+# Release Manager — Detailed Procedures
 
-This file contains the detailed procedural steps that complement the
-orchestrating SKILL.md.  Read the SKILL.md first for when to use this
-skill and the core workflow, then refer here for step-by-step detail.
+Read SKILL.md for modes, permissions, gates, and merge-back requirements.
+[Captured release scope](release-scope.md) owns inclusion evidence and candidate
+SHA capture; do not derive release notes from a merge-date cutoff.
 
-## Version Numbering Convention
+## Version and title conventions
 
-| Scenario | Version Format | Example |
-|----------|---------------|---------|
-| First release of day | `YYYY.MM.DD` | `2026.01.21` |
-| Second release | `YYYY.MM.DD-2` | `2026.01.21-2` |
-| Third release | `YYYY.MM.DD-3` | `2026.01.21-3` |
-| Hotfix release | `YYYY.MM.DD` or `YYYY.MM.DD-N` | `2026.01.21` |
+| Scenario | Version / tag | PR title | GitHub release title |
+|----------|---------------|----------|----------------------|
+| First of day | `2026.01.21` | `Release: 21st January 2026` | `January 21st 2026` |
+| Second of day | `2026.01.21-2` | `Release 2: 21st January 2026` | `Release 2: January 21st 2026` |
+| Third of day | `2026.01.21-3` | `Release 3: 21st January 2026` | `Release 3: January 21st 2026` |
+| Hotfix | `2026.01.21` or next daily suffix | `Hotfix Release: 21st January 2026` | `Hotfix Release: January 21st 2026` |
 
-## PR Title and Body Format
+Promotions use `Promotion: 21st January 2026` and branches `promote/YYYY.MM.DD[-N]`.
+Production candidates use `releases/YYYY.MM.DD[-N]`. Check today's date and
+existing versions/releases rather than copying example dates. Edit the project
+version specifically; do not broadly replace every `version` key in TOML. Run
+`uv lock` after the edit and commit `pyproject.toml` and `uv.lock` together.
 
-**Title patterns:**
-- Promotion: `Promotion: 21st January 2026`
-- Regular release: `Release: 21st January 2026`
-- Multiple same-day: `Release 2: 21st January 2026`
-- Hotfix: `Hotfix Release: 21st January 2026`
+## PR body contract
 
-**Promotion PR body:**
+Both promotion and production PRs record the captured scope and verified URLs:
+
 ```markdown
+## Captured scope
+- Base SHA: <full captured target SHA>
+- Source SHA: <full captured source SHA>
+- Candidate head SHA: <full checked PR head SHA>
+
+## Included PRs
 - https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
 - https://github.com/DiversioTeam/Django4Lyfe/pull/YYYY
+
+## Review evidence
+- Direct commits: <SHAs and explanations, or none>
+- Conflict adjustments: <reviewed changes, or none>
+- Scope ambiguities: <unverified entries, or none after reconciliation>
+- Exact-head checks: <links/results; preflight is not post-merge proof>
+- Deployment: not performed by PR creation/merge
 ```
 
-**Release/Hotfix PR body:**
-```markdown
-- https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
-- https://github.com/DiversioTeam/Django4Lyfe/pull/YYYY
-```
+Reconcile every ambiguous item before finalizing notes. Preserve promotion
+container URLs and identify their underlying features without double-counting.
+After candidate edits, update the head SHA and rerun checks. After merge, append
+the actual merge SHA and separate validation/deployment/publication evidence.
 
-## Resolving Merge Conflicts
+## Publishing a GitHub release
 
-If the merge has conflicts:
+Publication and deployment are separate actions. The tag belongs to the selected
+production PR's **merge commit**, not the current `master` tip. The deploy helper
+requires the current target head and its own exact-head checks; a later master
+head must not silently inherit the selected release's validation evidence.
+
+Release PRs must use **Create a merge commit**, not squash. Check the actual
+merge result, not just the PR's title. Verify repository/authentication first;
+set `REPOSITORY` to the backend's verified `owner/name` and `PR_NUMBER` to the
+selected PR. Use a fail-fast shell (`set -euo pipefail`) and stop on failed checks.
+
+### Verify the selected PR and commit
 
 ```bash
-# 1. Edit conflicted files to keep correct changes
-# 2. For uv.lock conflicts, regenerate:
-git checkout --theirs uv.lock
-uv lock
-
-# 3. Stage resolved files
-git add <resolved-files>
-
-# 4. Complete merge
-git commit -m "Merge origin/release into releases/YYYY.MM.DD"
+PR_DETAILS=$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" \
+  --json state,baseRefName,mergeCommit,body,title)
+printf '%s' "$PR_DETAILS" | jq -e '.state == "MERGED" and .baseRefName == "master"' >/dev/null
+RELEASE_COMMIT_SHA=$(printf '%s' "$PR_DETAILS" | jq -er '.mergeCommit.oid')
+git fetch origin master
+git cat-file -e "$RELEASE_COMMIT_SHA^{commit}"
+git merge-base --is-ancestor "$RELEASE_COMMIT_SHA" origin/master
+# Inspect the parents: a release PR must have a real merge commit.
+git show --no-patch --format='%H %P' "$RELEASE_COMMIT_SHA"
 ```
 
-## Publishing a GitHub Release
+Require the expected merge parents and reconcile the final diff with the
+recorded candidate/source evidence. A commit merely being on master is not
+proof that it is the selected release. If older PRs lack captured metadata,
+reconstruct scope from their actual merge parents and PR diffs; mark uncertain
+attribution unverified and stop rather than inventing a timestamp boundary.
 
-After the release PR is merged to master, use the exact clean
-`origin/master` head. If `scripts/deploy/trigger_validated_backend_deploy.sh`
-exists, prefer it — it runs local-ci and then triggers deploy. Otherwise,
-validate that head with local-ci manually and follow the repo-local deploy
-path. GitHub release publication is separate from that deploy trigger.
-
-**IMPORTANT: Merge Strategy** — Release PRs to master MUST be merged using
-**"Create a merge commit"** (not squash). Squash merging breaks commit ancestry
-and causes `master..release` to grow unboundedly. If GitHub is configured to
-allow multiple merge strategies, always select "Create a merge commit" for
-release PRs.
-
-### Step 1: Verify PR is merged
+Read the version from that exact commit (Python 3.11+), not the working tree:
 
 ```bash
-gh pr view <PR_NUMBER> --json state,mergeCommit,mergedAt
-# Should show: "state": "MERGED"
+VERSION=$(git show "$RELEASE_COMMIT_SHA:pyproject.toml" | \
+  python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["project"]["version"])')
+git check-ref-format "refs/tags/$VERSION"
 ```
 
-### Step 2: Check recent releases for format consistency
+Check the parsed value against the date-based version convention and recorded
+release notes. Inspect recent release titles with `gh release list --limit 5`
+for presentation only. Recheck the notes against the captured scope; do not
+blindly copy an old or manually edited PR body's inclusion claims.
+
+### Check existing tags and releases before creation or retry
 
 ```bash
-gh release list --limit 5
+TAG_FILE=$(mktemp)
+git ls-remote --tags origin "refs/tags/$VERSION" "refs/tags/$VERSION^{}" > "$TAG_FILE"
+if [ -s "$TAG_FILE" ]; then
+  # Fetch only to FETCH_HEAD; do not overwrite any existing local tag.
+  git fetch --no-tags origin "refs/tags/$VERSION"
+  TAG_COMMIT_SHA=$(git rev-parse --verify 'FETCH_HEAD^{commit}')
+  test "$TAG_COMMIT_SHA" = "$RELEASE_COMMIT_SHA"
+fi
 ```
 
-### Step 3: Get PR details for release notes
+A mismatched existing tag is a blocker. Never move/delete it automatically.
+Also inspect `gh release view "$VERSION" --repo "$REPOSITORY"`:
+
+- An existing release requires verification of its actual tag commit, notes,
+  and published/draft state. If already correct, report it instead of recreating.
+- Only a confirmed not-found response establishes that creation is needed.
+  Authentication, rate-limit, and network errors are blockers, not absence.
+- An existing draft, inconsistent notes, or a release with a missing tag needs
+  an explicit repair/publication decision; do not silently edit it.
+- After a timeout or partial success, repeat these read-only checks before
+  retrying. Do not blindly issue another create command.
+
+### Create and verify
+
+After confirming no release exists and any existing tag matches the expected
+commit, write the reviewed notes to a file and use the exact SHA:
 
 ```bash
-# Get the PR body which contains the list of included PRs
-gh pr view <PR_NUMBER> --json body,title
+gh release create "$VERSION" --repo "$REPOSITORY" \
+  --target "$RELEASE_COMMIT_SHA" \
+  --title "$RELEASE_TITLE" --notes-file /path/to/reviewed-release-notes.md
+
+gh release view "$VERSION" --repo "$REPOSITORY" --json url,tagName,name,isDraft,body
+# targetCommitish alone is not proof; peel the actual remote tag.
+git fetch --no-tags origin "refs/tags/$VERSION"
+test "$(git rev-parse --verify 'FETCH_HEAD^{commit}')" = "$RELEASE_COMMIT_SHA"
 ```
 
-### Step 4: Create the GitHub release
+Check the tag/version, publication state, and notes. Report the release URL and
+verified tag commit separately from deployment. Then follow the authorized
+`master → release → dev` sync in SKILL.md, respecting branch protections and
+intervening changes. A published release does not imply that sync succeeded.
+
+## Full end-to-end example
+
+For an illustrative feature PR #2607 and production PR #2608:
+
+1. Capture `release`/`dev`, attribute #2607, create `promote/YYYY.MM.DD` from
+   the captured base and merge the captured source. Record/check the head.
+2. After authorized merge, validate the exact current `release` head and, with
+   deployment authorization, trigger staging via the repo helper. Verify staging.
+3. Capture `master`/`release` afresh; do not use the staging or production PR's
+   merge timestamp. Create `releases/YYYY.MM.DD` from the captured base/source.
+4. Bump the project version, run `uv lock`, review the final diff and candidate
+   SHA, run required preflights, and open the production PR with scope evidence.
+5. After #2608 merges using a merge commit, take its `mergeCommit.oid` as
+   `RELEASE_COMMIT_SHA`. Exact-head validation and any authorized production
+   deployment follow the target-head guard in SKILL.md.
+6. Run the publication checks above: read the version from that SHA, inspect
+   existing tags/releases, and create/verify the tag at that SHA. A newer
+   `master` tip never changes #2608's publication target.
+7. Complete authorized merge-back into both `release` and `dev`, or explicitly
+   report the remaining sync work. Keep deployment and publication outcomes separate.
+
+## Error recovery
+
+### Merge conflicts
+
+Inspect code conflicts manually; preserve the reviewed source changes and
+record any adjustments. For lock conflicts, the existing workflow is:
 
 ```bash
-gh release create YYYY.MM.DD[-N] \
-  --title "Release Title" \
-  --notes "$(cat <<'EOF'
-- https://github.com/DiversioTeam/Django4Lyfe/pull/XXXX
-- https://github.com/DiversioTeam/Django4Lyfe/pull/YYYY
-EOF
-)" \
-  --target master
-```
-
-### GitHub Release Title Patterns
-
-| Release Type | Tag | Title |
-|--------------|-----|-------|
-| First of day | `2026.01.21` | `January 21st 2026` |
-| Second release | `2026.01.21-2` | `Release 2: January 21st 2026` |
-| Third release | `2026.01.21-3` | `Release 3: January 21st 2026` |
-| Hotfix | `2026.01.21` | `Hotfix Release: January 21st 2026` |
-
-### Step 5: Verify release was created
-
-```bash
-gh release list --limit 3
-# Or view specific release:
-gh release view YYYY.MM.DD[-N]
-```
-
-### Complete Example
-
-```bash
-# 1. Check PR is merged
-gh pr view 2608 --json state,mergeCommit,mergedAt
-
-# 2. Create release (using heredoc for multi-line notes)
-gh release create 2026.01.21 \
-  --title "January 21st 2026" \
-  --notes "$(cat <<'EOF'
-- https://github.com/DiversioTeam/Django4Lyfe/pull/2607
-EOF
-)" \
-  --target master
-
-# 3. Verify
-gh release list --limit 3
-```
-
-## Full End-to-End Example
-
-Here's a complete example of promoting and releasing PR #2607:
-
-```bash
-# ============================================
-# PHASE 1: Promote dev → release (staging)
-# ============================================
-
-# 1. Check what's on dev but not release
-git fetch origin dev release
-git diff --stat origin/release origin/dev
-
-# 2. Create promotion branch and merge dev
-git checkout -b promote/2026.01.21 origin/release
-git merge origin/dev --no-edit
-git push -u origin promote/2026.01.21
-gh pr create --base release \
-  --title "Promotion: 21st January 2026" \
-  --body "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607"
-
-# 3. After promotion PR is merged, use the exact release head and trigger staging deploy
-git fetch origin
-git worktree add ../backend-release origin/release
-cd ../backend-release
-CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
-cd -
-#    Validate staging before proceeding.
-
-# ============================================
-# PHASE 2: Release release → master (production)
-# ============================================
-
-# 4. Check what needs releasing
-git fetch origin master release
-git diff --stat origin/master origin/release
-# Output shows files changed — confirms there IS something to release
-
-# 5. Identify which PRs are included
-LAST_RELEASE_DATE=$(gh pr list --base master --state merged --limit 100 \
-  --json number,title,mergedAt \
-  --jq '[.[] | select(.title | test("^(Release|Hotfix)"))] | sort_by(.mergedAt) | last | .mergedAt // empty' \
-  2>/dev/null || echo "")
-gh pr list --base release --state merged --limit 100 --json number,title,mergedAt \
-  --jq "[.[] | select(.mergedAt > \"${LAST_RELEASE_DATE}\")] | sort_by(.mergedAt) | .[] | \"#\\(.number): \\(.title)\""
-# Output: #2607: #GH-4420: Include alert notifications in Slack App Home
-
-# 6. Create branch from master and merge release
-git checkout -b releases/2026.01.21 origin/master
-git merge origin/release --no-edit
-
-# 7. Bump version (^ anchors to line start — only matches project-level
-#     version, not python-version or target-version under [tool.*] sections)
-sed -i '' 's/^version = ".*"/version = "2026.01.21"/' pyproject.toml
-uv lock
-git add pyproject.toml uv.lock
-git commit -m "Version bump to 2026.01.21"
-
-# 8. Push and create release PR
-git push -u origin releases/2026.01.21
-gh pr create --base master \
-  --title "Release: 21st January 2026" \
-  --body "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607"
-
-# 9. After PR is merged, use the exact master head and trigger production deploy
-gh pr view 2608 --json state  # Verify merged
-git fetch origin
-git worktree add ../backend-master origin/master
-cd ../backend-master
-CIRCLECI_TOKEN=... scripts/deploy/trigger_validated_backend_deploy.sh
-cd -
-
-# 10. Publish GitHub release
-gh release create 2026.01.21 \
-  --title "January 21st 2026" \
-  --notes "- https://github.com/DiversioTeam/Django4Lyfe/pull/2607" \
-  --target master
-
-# 11. Merge master back into release AND dev (MANDATORY)
-git fetch origin
-git checkout release
-git merge origin/master --no-edit
-git push origin release
-git checkout dev
-git merge origin/release --no-edit
-git push origin dev
-
-# 12. Verify
-gh release list --limit 3
-git diff --stat origin/master origin/release  # Should be empty
-git diff --stat origin/release origin/dev      # Should be empty
-```
-
-## Error Recovery
-
-### Merge conflict during release branch creation
-```bash
-# For uv.lock conflicts:
 git checkout --theirs uv.lock
 uv lock
 git add uv.lock
-
-# For code conflicts: resolve manually, then:
-git add <resolved-files>
-git commit  # Completes the merge
+# Stage reviewed code resolutions explicitly, then complete the merge.
+git commit -m "Merge captured source into release candidate"
 ```
 
-### Wrong version bumped
-```bash
-# Edit pyproject.toml to correct version
-uv lock
-git add pyproject.toml uv.lock
-git commit --amend -m "Version bump to correct-version"
-git push --force-with-lease  # Only if not yet reviewed
-```
+Use `--theirs` only for the regenerable lock file, not a blanket code resolution.
+Inspect the regenerated lock diff and rerun candidate checks. If safe resolution
+is unclear, stop; do not drop source changes to get a green merge.
 
-### PR created against wrong base
-```bash
-gh pr close <NUMBER>
-# Create new PR with correct base
-gh pr create --base master ...
-```
+### Wrong version before publication
+
+Correct the project version, run `uv lock`, and add a follow-up commit. Refresh
+head evidence and checks. Do not force-push a published/reviewed release branch.
+If the version/tag has already shipped, stop for an explicit correction plan;
+never silently repoint a published tag.
+
+### Wrong PR base
+
+Inspect the existing PR before retrying. Correct its base only after reviewing
+the resulting scope, or close it and create a replacement with the intended
+base. Link the replacement and avoid leaving duplicate active release PRs.

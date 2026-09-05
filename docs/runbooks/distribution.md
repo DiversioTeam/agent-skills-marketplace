@@ -43,6 +43,7 @@ claude plugin uninstall visual-explainer@visual-explainer-marketplace
 
 ```bash
 PLUGINS=(
+  crafting-sandboxes
   monty-code-review
   backend-atomic-commit
   backend-pr-workflow
@@ -58,7 +59,6 @@ PLUGINS=(
   visual-explainer
   backend-release
   dependabot-remediation
-  hol-guard
   terraform
   login-cta-attribution-skill
   frontend
@@ -84,6 +84,7 @@ Then uninstall the user-scoped copies:
 
 ```bash
 PLUGINS=(
+  crafting-sandboxes
   monty-code-review
   backend-atomic-commit
   backend-pr-workflow
@@ -99,7 +100,6 @@ PLUGINS=(
   visual-explainer
   backend-release
   dependabot-remediation
-  hol-guard
   terraform
   login-cta-attribution-skill
   frontend
@@ -271,6 +271,19 @@ it fails; exact merged-head validation still happens on clean `origin/release`
 If your pi-subagents setup only scans `.pi/agents/`, copy that chain file there
 manually.
 
+`/workflow:crafting <task>` delegates to the marketplace `crafting-sandboxes`
+skill. The root install exposes it through `skills-bridge`. With standalone
+`dev-workflow`, also load `plugins/crafting-sandboxes/skills/crafting-sandboxes`
+through Pi skill settings or `--skill <path>`, or install `skills-bridge`.
+The Crafting `cs` CLI and organization authentication are separate prerequisites.
+
+The PR description writer prefers
+[tldraw offline](https://tldraw.notion.site/User-manual-tldraw-offline-39a3e4c324c080e7b2eacc5afd078e85)
+for editable diagrams and rendered PR assets. Install/open the desktop app and
+its operator skill using the current manual. The writer prompts when unavailable
+and offers Mermaid if declined; installing this marketplace does not install
+the desktop app or authorize public uploads.
+
 The `oh-my-pi` package provides explicit `/omp-split-*` and
 `/omp-workspace*` cmux commands plus native cmux notifications.
 
@@ -339,6 +352,7 @@ rm -rf "$CODEX_HOME/skills/visual-explainer"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 SKILLS=(
+  crafting-sandboxes
   monty-code-review
   backend-atomic-commit
   backend-pr-workflow

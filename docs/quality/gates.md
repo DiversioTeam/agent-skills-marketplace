@@ -7,6 +7,7 @@ Run the checks that match the files you touched:
 ```bash
 bash scripts/validate-skills.sh
 bash scripts/validate-skills.sh --all
+python3 -m unittest discover -s tests -v  # Temporary Git/worktree fixtures; no live operations
 jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null
@@ -16,6 +17,10 @@ printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no
 
 `bash scripts/validate-skills.sh` checks changed and untracked `SKILL.md`
 files. Use `--all` when auditing the full repo.
+
+The full Python suite also requires `uv`: existing review-helper fixtures launch
+PEP 723 scripts with their declared Python/Click dependencies. CI installs uv
+before running the suite. The release-scope tests alone use only Python and Git.
 
 ## Active Type Gate
 
@@ -49,10 +54,14 @@ skills target:
 ## CI Notes
 
 - `Validate Marketplace`
-  - Triggered by changes under `.claude-plugin/**`, `plugins/**`, `scripts/**`,
-    or the workflow file itself.
+  - Triggered by changes under `.claude-plugin/**`, `plugins/**`,
+    `pi-packages/**`, `scripts/**`, `tests/**`, or its listed config files.
   - Validates JSON, unique plugin names, plugin directory coverage, manifest
     name and version sync, skill presence, and changed-skill size budgets.
+  - Runs Python workflow-helper tests, including captured release scope with
+    late source commits, moving target heads, legacy patch ambiguity, and
+    missing/invalid history. The release helper is read-only; fixture tags and
+    commits exist only in temporary repositories.
 - `Validate Website`
   - Triggered by changes under `website/**` or the website workflow file.
   - Runs a clean website dependency install and `cd website && npm run build`.
