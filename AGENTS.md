@@ -58,7 +58,14 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
   `plugins/<plugin>/skills/<skill>/SKILL.md` and have at least one thin wrapper
   in `plugins/<plugin>/commands/*.md`. Pi-local skills may live under
   `pi-packages/<package>/skills/<skill>/SKILL.md` when packaged with a pi
-  extension.
+  extension. Wrappers pass arguments to the skill; they must not duplicate file
+  selection, supported-repository maps, or routing decisions. Keep each of those
+  rules in one shared implementation.
+- Prefer an internal lane in an existing skill over another public plugin or
+  command namespace when the workflow belongs to that skill.
+- Verify first-run prerequisites and repeat-run behavior. If a required helper
+  is absent, stop with an actionable explanation or use a complete fallback;
+  do not continue with guessed or partially detected context.
 - Keep each changed `SKILL.md` at or below 500 lines. Move deep guidance to
   `references/` and reusable logic to `scripts/`.
 - Quote YAML frontmatter strings that contain special characters such as
@@ -76,7 +83,9 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
   mention `--ref`, restart requirements, and the `visual-explainer`
   replacement caveat.
 - After substantive skill, command, manifest, or doc changes, do a fresh-eyes
-  pass across adjacent docs and metadata before stopping.
+  pass across adjacent docs and metadata before stopping. Keep skill instructions,
+  wrappers, references, examples, and executable behavior consistent; check that
+  documented commands and promised outputs match the implementation.
 
 ## Repo Shape
 
