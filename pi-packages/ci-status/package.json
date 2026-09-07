@@ -1,9 +1,12 @@
 {
   "name": "ci-status",
-  "version": "0.0.1",
-  "description": "Pi extension for CI status: GitHub Actions and CircleCI grouped by CI provider and workflow/cycle, interactive TUI details, log access, auto-watch, widget, notifications, and LLM CI tools.",
+  "version": "0.1.0",
+  "description": "Pi CI status with checkout-scoped job selection, exact GitHub job logs, CircleCI console output, interactive details, and auto-watch.",
   "keywords": ["pi-package", "ci", "github-actions", "circleci"],
-  "files": ["extensions/", "README.md"],
+  "files": ["extensions/", "tests/", "README.md"],
+  "scripts": {
+    "test": "node --experimental-vm-modules --test tests/ci-status.test.mjs"
+  },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*",

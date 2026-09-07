@@ -10,7 +10,10 @@ when command files change.
   - Purpose: pi-native CI status extension with GitHub Actions and CircleCI
     status discovery, auto-watch after pushes, widget/status rendering,
     notifications, CI-provider/workflow-cycle TUI job details, failed-job reruns,
-    guided fix prompts, and log access.
+    guided fix prompts, and log access. Command/tool log queries refresh checkout scope,
+    require an unambiguous job, and verify repository/run/commit identity.
+    CircleCI uses actual v1.1 step console output, not metadata-as-logs; unavailable
+    output is an error. See the package README for API and buffering limits.
   - Pi install from repo checkout: `pi install "$PWD/pi-packages/ci-status"`
   - Package path: `pi-packages/ci-status`
   - Extension path: `pi-packages/ci-status/extensions/ci-status`

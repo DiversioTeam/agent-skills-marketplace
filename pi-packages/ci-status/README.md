@@ -47,9 +47,11 @@ pi install -l ./pi-packages/ci-status
 Run these checks before opening a PR:
 
 ```bash
+# Node 24 built-ins; SDK/network/shell seams are mocked. No peer install needed.
+pnpm --config.verify-deps-before-run=false --dir pi-packages/ci-status test
 jq -e . pi-packages/ci-status/package.json >/dev/null
 
-(cd pi-packages/ci-status && npm pack --dry-run --json >/tmp/ci-status-pack.json)
+pnpm --config.verify-deps-before-run=false --dir pi-packages/ci-status pack --dry-run --json >/tmp/ci-status-pack.json
 
 printf '{"id":"cmds","type":"get_commands"}\n' | \
   PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files \
@@ -84,7 +86,58 @@ The extension also registers tools the AI can use directly:
 | `get_ci_status` | Fetch latest CI status for the current branch/PR with per-job IDs, URLs, durations, and provider metadata |
 | `ci_fetch_job_logs` | Fetch failure logs for a specific job using `jobId`, GitHub `runId`, or CircleCI `jobNumber` |
 
-These tools are the fallback used by `/review:ci` when the interactive slash commands are not available.
+These tools are the fallback used by the workflow CI skill when interactive
+slash commands are not available.
+
+## Scope And Log Identity
+
+- Status is for the current checkout's GitHub `origin`, branch, and commit SHA.
+  PR rollups are used only for an open PR at that exact branch/head. Closed,
+  merged, or different-head PRs cannot replace the checkout SHA; the extension
+  reports the mismatch and queries runs for the local commit instead. Unpushed
+  commits may correctly have no remote checks yet.
+- `/ci-logs` and `ci_fetch_job_logs` fetch a fresh summary rather than reusing a
+  display snapshot from another repository, branch, or earlier commit. TUI
+  log/fix/rerun actions use the displayed snapshot's repository/SHA; refresh
+  that view before selecting newer runs.
+- Prefer a full job ID from `get_ci_status`. Supplied `jobId`, `runId`, and
+  `jobNumber` are constraints, not fallback choices. Conflicting identifiers
+  fail; names or partial queries must match exactly one job. A `runId` with
+  several jobs returns the candidate IDs instead of selecting the first job.
+- Explicit GitHub run IDs can be inspected even when absent from the rollup,
+  but must match the checkout SHA. For a multi-job run, supply its `runId` plus
+  the exact candidate `jobId`. Runs with no jobs report unavailable logs; a
+  workflow may have failed validation before any job could produce output.
+- GitHub job IDs from URLs take precedence over names. Their actual repository,
+  run, and commit are checked before fetching output, including older attempts.
+  Name-only ambiguity also blocks the shared selected-job rerun helper rather
+  than guessing a failed sibling. This does not add automatic reruns or deploys.
+
+## CircleCI Console Output
+
+CircleCI Cloud GitHub projects use the v1.1 build endpoint to obtain step
+metadata, then fetch every available action's `output_url` to read console
+messages (including parallel actions). This follows CircleCI's
+[step-output guide](https://github.com/circleci/circleci-docs/blob/main/docs/guides/modules/orchestrate/pages/analyze-pipelines-during-an-incident.adoc).
+The selected job's revision must match the CI snapshot.
+
+The API token is sent only to `circleci.com`. Presigned output URLs receive no
+authentication headers, must use HTTPS without embedded user credentials, and
+are never printed in errors. Redirects are refused. The v1.1 metadata and
+output downloads share a 30-second deadline; preceding v2 status requests each
+have their own timeout. Missing auth, unsupported/unavailable API
+responses, missing output, expired URLs, and malformed output are errors—not
+job metadata presented as logs. Use the job page in status details when API
+output is unavailable.
+
+Output is buffered and limited to the first 500 lines with a truncation notice;
+very large logs may need the provider UI instead. Console text remains untrusted
+job output and can contain secrets printed by the job; do not publish it blindly.
+
+**Upgrade from 0.0.1:** commands and tool parameters are unchanged. Ambiguous
+selectors now fail explicitly, log lookups refresh their scope, and CircleCI
+log requests perform actual read-only API/output requests instead of returning
+metadata. No user settings or credentials are rewritten.
 
 ## Environment
 

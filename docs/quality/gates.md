@@ -12,6 +12,7 @@ jq -e . .claude-plugin/marketplace.json >/dev/null
 jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null
 pnpm --config.verify-deps-before-run=false --dir pi-packages/image-router test  # Node 24; no dependencies
+pnpm --config.verify-deps-before-run=false --dir pi-packages/ci-status test  # Node 24; mocked GitHub/CircleCI
 (cd pi-packages/<package> && npm pack --dry-run --json >/tmp/<package>-pack.json)
 printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
 ```
@@ -63,7 +64,9 @@ skills target:
     late source commits, moving target heads, legacy patch ambiguity, and
     missing/invalid history. The release helper is read-only; fixture tags and
     commits exist only in temporary repositories.
-  - Runs image-router consent regression tests on Node 24 before package discovery.
+  - Runs image-router consent and ci-status job/log regression tests on Node 24
+    before package discovery. The latter covers exact/ambiguous job identity,
+    checkout changes, closed PRs, and CircleCI output/auth/error boundaries.
 - `Validate Website`
   - Triggered by changes under `website/**` or the website workflow file.
   - Runs a clean website dependency install and `cd website && npm run build`.

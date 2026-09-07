@@ -305,8 +305,8 @@
     {
       "name": "ci-status",
       "title": "CI Status",
-      "description": "GitHub Actions and CircleCI status grouped by provider and workflow, interactive TUI details, log access, auto-watch, widget, notifications, and LLM CI tools.",
-      "version": "v0.0.1"
+      "description": "Checkout-scoped GitHub Actions and CircleCI status with unambiguous job selection, real console output, interactive details, auto-watch, and LLM tools.",
+      "version": "v0.1.0"
     },
     {
       "name": "oh-my-pi",
