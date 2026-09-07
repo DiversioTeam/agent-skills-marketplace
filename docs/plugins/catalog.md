@@ -13,7 +13,11 @@ when command files change.
     guided fix prompts, and log access. Command/tool log queries refresh checkout scope,
     require an unambiguous job, and verify repository/run/commit identity.
     CircleCI uses actual v1.1 step console output, not metadata-as-logs; unavailable
-    output is an error. See the package README for API and buffering limits.
+    output is an error. Published local-ci commit statuses remain visible without
+    being treated as Actions jobs. Explicit `local-ci:<run-id>[:<step-id>]` log
+    queries use native read-only inspection, never run/resume/publish. Missing
+    local-ci aggregate publication is unknown in configured checkouts. See the
+    package README for provenance, API, and buffering limits.
   - Pi install from repo checkout: `pi install "$PWD/pi-packages/ci-status"`
   - Package path: `pi-packages/ci-status`
   - Extension path: `pi-packages/ci-status/extensions/ci-status`

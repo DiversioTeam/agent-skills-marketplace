@@ -305,7 +305,7 @@
     {
       "name": "ci-status",
       "title": "CI Status",
-      "description": "Checkout-scoped GitHub Actions and CircleCI status with unambiguous job selection, real console output, interactive details, auto-watch, and LLM tools.",
+      "description": "Checkout-scoped GitHub/CircleCI checks, published local-ci statuses and explicit native snapshot logs, unambiguous job selection, interactive details, and auto-watch.",
       "version": "v0.1.0"
     },
     {

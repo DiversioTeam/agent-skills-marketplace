@@ -45,11 +45,11 @@ async function getExtension(repositories = { '/first': buildRepository() }, fetc
     '@mariozechner/pi-tui': { Container: Component, Key: {}, matchesKey: () => false, SelectList: Component,
       Spacer: Component, Text: Component, truncateToWidth: text => text, visibleWidth: text => text.length },
     typebox: { Type: new Proxy({}, { get: () => () => ({}) }) },
-    'node:fs/promises': { writeFile() { assert.fail('Unexpected file write'); }, unlink() { assert.fail('Unexpected file deletion'); } },
+    'node:fs/promises': { access: async path => { if (!repositories[path.replace(/\/.local-ci.toml$/, '')]?.localConfigured) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); }, writeFile() { assert.fail('Unexpected file write'); }, unlink() { assert.fail('Unexpected file deletion'); } },
     'node:os': { tmpdir: () => '/virtual' },
     'node:path': { join },
   };
-  const extension = new SourceTextModule(source + '\nexport { fetchJobLogs, githubJobIdForSelectedJob };', { context });
+  const extension = new SourceTextModule(source + '\nexport { fetchJobLogs, githubJobIdForSelectedJob, rerunFailedJob, allPassing, compactStatus, CiDetailComponent };', { context });
   await extension.link(async name => {
     assert.ok(dependencies[name], `Unexpected dependency: ${name}`);
     const exports = dependencies[name];
@@ -71,9 +71,18 @@ async function getExtension(repositories = { '/first': buildRepository() }, fetc
         if (arguments_.includes('--show-toplevel')) return result(options.cwd);
         if (arguments_[0] === 'branch') return result(repository.branch);
         if (arguments_[0] === 'remote') return result(`https://github.com/${repository.repository}.git`);
-        if (arguments_[0] === 'rev-parse') return result(repository.sha);
+        if (arguments_[0] === 'rev-parse') return result(arguments_[1].endsWith('^{tree}') ? repository.tree ?? currentSha : repository.sha);
+      }
+      if (command === 'local-ci') {
+        assert.ok(['show', 'logs'].includes(arguments_[0]), 'No local-ci write commands allowed');
+        if (repository.localError) return { code: 1, stdout: '', stderr: repository.localError };
+        return result(arguments_[0] === 'show' ? repository.localSnapshot : repository.localOutput);
       }
       if (command === 'gh') {
+        if (arguments_[0] === 'api' && arguments_[1].includes('/status?')) {
+          if (repository.statusError) return { code: 1, stdout: '', stderr: repository.statusError };
+          return result(repository.statusPages ?? [{ sha: repository.sha, statuses: [] }]);
+        }
         if (arguments_[0] === 'api') {
           const runRequest = requests.findLast(request => request.arguments[0] === 'run' && request.arguments[1] === 'view' && request.arguments.includes('--json'));
           return result({ run_id: repository.jobRunId ?? (runRequest ? Number(runRequest.arguments[2]) : 10), head_sha: repository.jobSha ?? repository.sha });
@@ -101,6 +110,12 @@ async function getExtension(repositories = { '/first': buildRepository() }, fetc
     command: (query, cwd = '/first') => commands.get('ci-logs').handler(query, getContext(cwd)),
     readLogs: job => extension.namespace.fetchJobLogs(pi, '/first', job),
     getJobId: job => extension.namespace.githubJobIdForSelectedJob(pi, '/first', 10, job),
+    rerun: job => extension.namespace.rerunFailedJob(pi, '/first', job),
+    allPassing: extension.namespace.allPassing,
+    compactStatus: extension.namespace.compactStatus,
+    getDetail: summary => Object.assign(Object.create(extension.namespace.CiDetailComponent.prototype), {
+      summary, theme: { fg: (_color, text) => text },
+    }),
   };
 }
 
@@ -294,6 +309,182 @@ test('CircleCI output is explicitly truncated and missing auth is an error', asy
   const unauthenticated = await getExtension();
   await assert.rejects(unauthenticated.readLogs(circleJob), /CIRCLECI_TOKEN/);
   assert.equal(unauthenticated.network.length, 0);
+});
+
+const localRunId = '20260627T150405Z-deadbeef';
+
+function addLocalSnapshot(repository) {
+  const runDirectory = `/first/.local-ci/runs/${localRunId}`;
+  repository.localSnapshot = { run_id: localRunId, run_dir: runDirectory,
+    meta: { run_id: localRunId, repo_root: '/first', repo_slug: repository.repository,
+      head_sha: repository.sha, head_tree_hash: currentSha, worktree_tree_hash: currentSha, dirty_worktree: false },
+    steps: [{ step_id: 'checks-fast', state: 'failure' }, { step_id: 'checks-deep', state: 'success' }] };
+  repository.localOutput = { run_id: localRunId, run_dir: runDirectory, source: 'step', step_id: 'checks-fast',
+    view: 'combined', content: 'Native local-ci step failure' };
+}
+
+test('commit fallback preserves paginated local-ci and legacy fast-check statuses', async () => {
+  const repository = { ...buildRepository(), prState: 'MERGED' };
+  repository.statusPages = [
+    { sha: currentSha, statuses: [{ context: 'Fast Checks / Checks (Fast)', state: 'failure', description: 'failed' }] },
+    { sha: currentSha, statuses: [{ context: 'local: verify', state: 'pending', description: 'local verification running' }] },
+  ];
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.status();
+  assert.equal(result.details.jobs.length, 2);
+  assert.equal(result.details.jobs[0].provider, 'github-status');
+  assert.equal(result.details.jobs[1].provider, 'local-ci');
+  assert.equal(result.details.jobs[1].state, 'pending');
+  const request = extension.requests.find(request => request.arguments[1]?.includes('/status?'));
+  assert.ok(request.arguments.includes('--paginate') && request.arguments.includes('--slurp'));
+});
+
+test('published status contexts never become Actions jobs, even with an Actions URL', async () => {
+  const repository = buildRepository();
+  repository.checks = ['local: verify', 'Fast Checks / Checks (Fast)'].map(context => ({
+    __typename: 'StatusContext', context, state: 'FAILURE', targetUrl: buildCheck(repository.repository, 101).detailsUrl,
+  }));
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.status();
+  for (const job of result.details.jobs) {
+    assert.notEqual(job.provider, 'github');
+    assert.equal(job.runId, undefined);
+    assert.equal((await extension.logs({ jobId: job.id })).isError, true);
+    await assert.rejects(extension.rerun({ ...job, repo: repository.repository, sha: currentSha }), /local-ci|commit status/i);
+  }
+  assert.equal(getLogRequests(extension).length, 0);
+  assert.ok(!extension.requests.some(request => request.arguments.includes('rerun')));
+});
+
+test('missing publication in a local-ci checkout is unknown, not an all-green result', async () => {
+  const repository = { ...buildRepository(), localConfigured: true };
+  repository.checks = [{ ...buildCheck(repository.repository, 101), conclusion: 'SUCCESS' }];
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.status();
+  assert.equal(result.details.summary.unknown, 1);
+  assert.match(result.content[0].text, /local-ci.*publication/i);
+});
+
+test('local publication needs an aggregate, including custom aggregate context names', async () => {
+  const repository = { ...buildRepository(), checks: [], localConfigured: true };
+  repository.statusPages = [{ sha: currentSha, statuses: [{ context: 'local/lint', state: 'success', description: 'passed' }] }];
+  const extension = await getExtension({ '/first': repository });
+  assert.equal((await extension.status()).details.summary.unknown, 1);
+  repository.statusPages[0].statuses.push({ context: 'Team verification', state: 'success', description: 'local verification passed' });
+  const result = await extension.status();
+  assert.equal(result.details.summary.unknown, 0);
+  assert.equal(result.details.jobs.find(job => job.name === 'Team verification').provider, 'local-ci');
+  assert.equal(result.details.jobs.find(job => job.name === 'local/lint').provider, 'local-ci');
+});
+
+test('failed commit-status discovery cannot report all checks passed', async () => {
+  const repository = { ...buildRepository(), prState: 'CLOSED', statusError: 'permission denied',
+    runs: [{ databaseId: 10, name: 'Safety', headSha: currentSha, conclusion: 'SUCCESS' }] };
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.status();
+  assert.ok(result.details.errors.length);
+  const summary = { ...result.details, jobs: result.details.jobs };
+  assert.equal(extension.allPassing(summary), false);
+  assert.doesNotMatch(extension.compactStatus(summary), /all passed/);
+  const detail = extension.getDetail(summary);
+  assert.match(detail.plainStatusForJobs(summary.jobs), /incomplete/);
+  assert.match(detail.statusForJobs(summary.jobs), /incomplete/);
+  assert.doesNotMatch(detail.nextActionForJobs(summary.jobs), /No action needed/);
+});
+
+test('commit-status pages must match the selected SHA and expected JSON shape', async () => {
+  const repository = { ...buildRepository(), prState: 'MERGED' };
+  const extension = await getExtension({ '/first': repository });
+  for (const pages of [[{ sha: otherSha, statuses: [] }], [{ sha: currentSha, statuses: {} }]]) {
+    repository.statusPages = pages;
+    assert.ok((await extension.status()).details.errors.length);
+  }
+});
+
+test('explicit local run/step reads use only native show/logs and preserve snapshot provenance', async () => {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  repository.localSnapshot.meta.head_sha = otherSha;
+  repository.localSnapshot.meta.dirty_worktree = true;
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.logs({ jobId: `local-ci:${localRunId}:checks-fast` });
+  assert.equal(result.isError, undefined);
+  assert.equal(result.details.provider, 'local-ci');
+  assert.equal(result.details.localRunId, localRunId);
+  assert.match(result.content[0].text, /Native local-ci step failure/);
+  assert.match(result.content[0].text, /not proof of publication/);
+  assert.ok(result.content[0].text.includes(otherSha));
+  assert.deepEqual(extension.requests.filter(request => request.command === 'local-ci').map(request => [...request.arguments]), [
+    ['show', localRunId, '--json'], ['logs', localRunId, '--step', 'checks-fast', '--combined', '--json'],
+  ]);
+  assert.equal(getLogRequests(extension).length, 0);
+});
+
+test('dirty local snapshots can be inspected without claiming committed or current-worktree validation', async () => {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  repository.localSnapshot.meta.dirty_worktree = true;
+  repository.localSnapshot.meta.worktree_tree_hash = otherSha;
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.logs({ jobId: `local-ci:${localRunId}:checks-fast` });
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0].text, /Stored dirty snapshot/);
+  assert.match(result.content[0].text, /current working-tree contents were not compared/);
+});
+
+test('local runner output is labeled as events and does not pick a step', async () => {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  repository.localOutput = { ...repository.localOutput, source: 'runner', step_id: undefined, events: [{ type: 'step_started' }] };
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.logs({ jobId: `local-ci:${localRunId}` });
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0].text, /runner events/);
+  assert.match(result.content[0].text, /step_started/);
+});
+
+for (const mismatch of ['repo_root', 'repo_slug', 'worktree_tree_hash', 'run_id']) {
+  test(`local snapshot ${mismatch} mismatch cannot expose step logs`, async () => {
+    const repository = buildRepository();
+    addLocalSnapshot(repository);
+    repository.localSnapshot.meta[mismatch] = 'different';
+    const extension = await getExtension({ '/first': repository });
+    assert.equal((await extension.logs({ jobId: `local-ci:${localRunId}:checks-fast` })).isError, true);
+    assert.ok(!extension.requests.some(request => request.command === 'local-ci' && request.arguments[0] === 'logs'));
+  });
+}
+
+test('a different valid tree is not accepted as a clean snapshot of the selected commit', async () => {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  repository.localSnapshot.meta.worktree_tree_hash = otherSha;
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.logs({ jobId: `local-ci:${localRunId}:checks-fast` });
+  assert.equal(result.isError, true);
+  assert.ok(!extension.requests.some(request => request.command === 'local-ci' && request.arguments[0] === 'logs'));
+});
+
+test('local selectors reject traversal, missing steps, and remote run constraints', async () => {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  const extension = await getExtension({ '/first': repository });
+  for (const selection of [
+    { jobId: 'local-ci:../secret' }, { jobId: `local-ci:${localRunId}:absent` },
+    { jobId: `local-ci:${localRunId}:checks-fast`, runId: 10 },
+    { jobId: `local-ci:${localRunId}:checks-fast`, jobNumber: 42 },
+  ]) assert.equal((await extension.logs(selection)).isError, true);
+  assert.ok(!extension.requests.some(request => request.command === 'local-ci' && request.arguments[0] === 'logs'));
+});
+
+test('missing local artifacts and wrong log identities are explicit errors', async () => {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  const extension = await getExtension({ '/first': repository });
+  repository.localError = 'local-ci: run artifacts not found';
+  assert.equal((await extension.logs({ jobId: `local-ci:${localRunId}:checks-fast` })).isError, true);
+  repository.localError = undefined;
+  repository.localOutput.step_id = 'checks-deep';
+  assert.equal((await extension.logs({ jobId: `local-ci:${localRunId}:checks-fast` })).isError, true);
 });
 
 for (const failure of ['expired', 'empty', 'unsafe', 'malformed', 'network', 'wrong-sha']) {
