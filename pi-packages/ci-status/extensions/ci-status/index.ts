@@ -3,6 +3,9 @@ import { Type } from "typebox";
 import { Container, Key, matchesKey, SelectList, Spacer, Text, truncateToWidth, visibleWidth, type SelectItem, type SelectListTheme } from "@mariozechner/pi-tui";
 import { access, writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { lookup } from "node:dns";
+import { get } from "node:https";
+import { BlockList, isIP, type LookupFunction } from "node:net";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -525,16 +528,67 @@ function getLimitedLogText(output: string): string {
   return output;
 }
 
+const nonPublicAddresses = new BlockList();
+for (const [address, prefixLength] of [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8],
+  ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24],
+  ["192.88.99.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24],
+  ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4],
+] as Array<[string, number]>) nonPublicAddresses.addSubnet(address, prefixLength, "ipv4");
+// IPv6 must be global unicast, excluding protocol assignments, 6to4, and documentation ranges.
+for (const [address, prefixLength] of [["2001::", 23], ["2001:db8::", 32], ["2002::", 16], ["3fff::", 20]] as Array<[string, number]>) {
+  nonPublicAddresses.addSubnet(address, prefixLength, "ipv6");
+}
+const globalIpv6Addresses = new BlockList();
+globalIpv6Addresses.addSubnet("2000::", 3, "ipv6");
+
+const getPublicAddress: LookupFunction = (hostname, options, callback) => {
+  lookup(hostname, { ...options, all: true }, (error, addresses) => {
+    if (error) { callback(error, ""); return; }
+    const allPublic = addresses.length > 0 && addresses.every(({ address, family }) =>
+      (family === 4 && isIP(address) === 4 && !nonPublicAddresses.check(address, "ipv4")) ||
+      (family === 6 && isIP(address) === 6 && globalIpv6Addresses.check(address, "ipv6") && !nonPublicAddresses.check(address, "ipv6")));
+    if (!allPublic) { callback(new Error("CircleCI destination is not public."), ""); return; }
+    if (options.all) callback(null, addresses);
+    else callback(null, addresses[0].address, addresses[0].family);
+  });
+};
+
 async function getCircleLogJson(url: string, signal: AbortSignal, headers?: Record<string, string>): Promise<unknown> {
-  let response: Response;
-  try {
-    response = await fetch(url, { headers, signal, redirect: "error" });
-  } catch {
-    // Presigned output URLs contain credentials; never echo them in errors.
-    throw new Error("CircleCI log request failed, redirected, or timed out; no output URL is included for security.");
+  let requestUrl: URL;
+  try { requestUrl = new URL(url); }
+  catch { throw new Error("CircleCI returned an invalid log URL; the URL is omitted for security."); }
+  const hostname = requestUrl.hostname.toLowerCase().replace(/\.$/, "");
+  if (requestUrl.protocol !== "https:" || requestUrl.username || requestUrl.password ||
+      hostname === "localhost" || hostname.endsWith(".localhost") || isIP(hostname.replace(/^\[|\]$/g, ""))) {
+    throw new Error("CircleCI returned an unsafe log URL; refusing to fetch it.");
   }
-  if (!response.ok) throw new Error(`CircleCI log request failed (HTTP ${response.status}); no logs were returned.`);
-  try { return await response.json(); }
+  let result: { statusCode: number; output: string };
+  try {
+    result = await new Promise<{ statusCode: number; output: string }>((accept, reject) => {
+      // Validate the addresses used by this socket, not a separate DNS preflight.
+      // A fresh direct connection avoids pooled sockets/proxy-side DNS; redirects are not followed.
+      const request = get(requestUrl.href, { headers, signal, agent: false, lookup: getPublicAddress }, response => {
+        response.on("error", reject);
+        const statusCode = response.statusCode ?? 0;
+        if (statusCode < 200 || statusCode >= 300) {
+          accept({ statusCode, output: "" });
+          response.destroy();
+          return;
+        }
+        let output = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk: string) => { output += chunk; });
+        response.on("end", () => { accept({ statusCode, output }); });
+      });
+      request.on("error", reject);
+    });
+  } catch {
+    // Transport errors can contain signed URLs. Never forward their message or cause.
+    throw new Error("CircleCI log request was blocked, failed, or timed out; URL details are omitted for security.");
+  }
+  if (result.statusCode < 200 || result.statusCode >= 300) throw new Error(`CircleCI log request failed (HTTP ${result.statusCode}); no logs were returned.`);
+  try { return JSON.parse(result.output); }
   catch { throw new Error("CircleCI log response was not valid JSON; no logs were returned."); }
 }
 
@@ -558,14 +612,8 @@ async function fetchCircleCIJobOutput(_cwd: string, job: CiJob): Promise<string>
 
   const output: string[] = [];
   for (const action of actions) {
-    let outputUrl: URL;
-    try { outputUrl = new URL(action.output_url!); }
-    catch { throw new Error("CircleCI returned an invalid output URL; the URL is omitted for security."); }
-    if (outputUrl.protocol !== "https:" || outputUrl.username || outputUrl.password) {
-      throw new Error("CircleCI returned an unsafe output URL; refusing to fetch it.");
-    }
     // Output URLs are presigned. API credentials must not leave circleci.com.
-    const messages = await getCircleLogJson(outputUrl.href, signal);
+    const messages = await getCircleLogJson(action.output_url!, signal);
     if (!Array.isArray(messages) || messages.some((entry) => !entry || typeof entry.message !== "string")) {
       throw new Error("CircleCI console output has an unexpected format; no logs were returned.");
     }

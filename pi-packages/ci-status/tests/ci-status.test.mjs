@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { join } from 'node:path';
+import { BlockList, isIP } from 'node:net';
+import { EventEmitter } from 'node:events';
+import { Readable } from 'node:stream';
 import test from 'node:test';
 import { createContext, SourceTextModule, SyntheticModule } from 'node:vm';
 
@@ -24,12 +27,14 @@ function buildRepository(repository = 'team/first') {
 
 // Exercise registered tools/commands and their shared log reader without network,
 // shell execution, credentials, filesystem writes, or UI side effects.
-async function getExtension(repositories = { '/first': buildRepository() }, fetchResponse) {
+async function getExtension(repositories = { '/first': buildRepository() }, fetchResponse,
+  getAddresses = () => [{ address: '93.184.216.34', family: 4 }], lookupAll = true) {
   const requests = [];
   const commands = new Map();
   const tools = new Map();
   const notices = [];
   const network = [];
+  const lookups = [];
   const context = createContext({
     console, URL, AbortSignal, setTimeout: () => 0, clearTimeout() {},
     process: { env: { PI_CI_AUTO_WATCH: '0', CIRCLECI_TOKEN: fetchResponse ? 'synthetic-token' : '' } },
@@ -46,6 +51,29 @@ async function getExtension(repositories = { '/first': buildRepository() }, fetc
       Spacer: Component, Text: Component, truncateToWidth: text => text, visibleWidth: text => text.length },
     typebox: { Type: new Proxy({}, { get: () => () => ({}) }) },
     'node:fs/promises': { access: async path => { if (!repositories[path.replace(/\/.local-ci.toml$/, '')]?.localConfigured) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); }, writeFile() { assert.fail('Unexpected file write'); }, unlink() { assert.fail('Unexpected file deletion'); } },
+    'node:net': { BlockList, isIP },
+    'node:dns': { lookup: (hostname, _options, callback) => {
+      lookups.push(hostname);
+      queueMicrotask(() => {
+        const addresses = getAddresses(hostname);
+        callback(addresses instanceof Error ? addresses : null, addresses instanceof Error ? undefined : addresses);
+      });
+    } },
+    'node:https': { get: (url, options, callback) => {
+      const request = new EventEmitter();
+      options.lookup(new URL(url).hostname, { all: lookupAll }, (error, address, family) => {
+        if (error) { request.emit('error', error); return; }
+        const addresses = Array.isArray(address) ? address : [{ address, family }];
+        network.push({ url, options, addresses });
+        Promise.resolve().then(async () => {
+          const response = await fetchResponse(url, options);
+          const stream = Readable.from([await response.text()]);
+          stream.statusCode = response.status;
+          callback(stream);
+        }).catch(error => request.emit('error', error));
+      });
+      return request;
+    } },
     'node:os': { tmpdir: () => '/virtual' },
     'node:path': { join },
   };
@@ -108,7 +136,7 @@ async function getExtension(repositories = { '/first': buildRepository() }, fetc
   extension.namespace.default(pi);
   const getContext = cwd => ({ cwd, hasUI: false, ui: { setStatus() {}, setWidget() {}, notify: text => notices.push(text) } });
   return {
-    requests, network, notices,
+    requests, network, notices, lookups,
     status: (cwd = '/first') => tools.get('get_ci_status').execute('status', {}, undefined, undefined, getContext(cwd)),
     logs: (parameters, cwd = '/first') => tools.get('ci_fetch_job_logs').execute('logs', parameters, undefined, undefined, getContext(cwd)),
     command: (query, cwd = '/first') => commands.get('ci-logs').handler(query, getContext(cwd)),
@@ -372,7 +400,10 @@ test('CircleCI retrieves console messages without forwarding its token to presig
   assert.equal((logs.match(/actual failure/g) ?? []).length, 2);
   assert.equal(extension.network[0].options.headers['Circle-Token'], 'synthetic-token');
   assert.ok(extension.network[0].url.endsWith('/api/v1.1/project/github/team/first/42'));
-  for (const request of extension.network.slice(1)) assert.equal(request.options.headers, undefined);
+  for (const request of extension.network.slice(1)) {
+    assert.equal(request.options.headers, undefined);
+    assert.equal(request.options.signal, extension.network[0].options.signal);
+  }
   assert.ok(!logs.includes(outputUrl));
 });
 
@@ -390,6 +421,77 @@ test('CircleCI jobNumber lookup returns real output for the current repository a
   assert.equal(result.details.sha, currentSha);
   assert.equal(result.details.jobNumber, 42);
   assert.match(result.content[0].text, /CircleCI console failure/);
+});
+
+test('CircleCI rejects local names and IP literals before downloading output', async () => {
+  for (const hostname of ['localhost', 'LOCALHOST.', 'service.localhost', '127.0.0.1', '127.1', '2130706433',
+    '0x7f000001', '[::1]', '[::ffff:127.0.0.1]', '93.184.216.34', '[2606:4700::1111]', '10.0.0.1', '169.254.169.254', '192.168.1.1', '[fc00::1]']) {
+    const extension = await getExtension(undefined, async url => url.includes('/api/v1.1/')
+      ? Response.json({ vcs_revision: currentSha, steps: [{ actions: [{ output_url: `https://${hostname}/output?signature=private` }] }] })
+      : Response.json([{ message: 'must not download this' }]));
+    await assert.rejects(extension.readLogs(circleJob), error => {
+      assert.ok(!error.message.includes('signature='));
+      return true;
+    }, hostname);
+    assert.equal(extension.network.length, 1, hostname);
+  }
+});
+
+test('CircleCI rejects private, special-use, mixed, and empty DNS answers at connection time', async () => {
+  const publicAddress = { address: '93.184.216.34', family: 4 };
+  const blockedAddresses = ['127.0.0.1', '10.0.0.1', '172.16.1.1', '192.168.1.1', '169.254.169.254',
+    '100.64.0.1', '0.0.0.0', '224.0.0.1', '::', '::1', 'fc00::1', 'fd00::1', 'fe80::1', 'fec0::1',
+    'ff02::1', '::ffff:127.0.0.1', '2002:7f00:1::', '2001::1', '2001:db8::1'];
+  const answers = [[], new Error('lookup failure containing signature=private'), ...blockedAddresses.map(address => [{ address, family: isIP(address) }]),
+    [publicAddress, { address: '10.0.0.1', family: 4 }]];
+  for (const addresses of answers) {
+    const extension = await getExtension(undefined, async url => url.includes('/api/v1.1/')
+      ? Response.json({ vcs_revision: currentSha, steps: [{ actions: [{ output_url: outputUrl }] }] })
+      : Response.json([{ message: 'must not download this' }]),
+    hostname => hostname === 'circleci.com' ? [publicAddress] : addresses);
+    await assert.rejects(extension.readLogs(circleJob), error => {
+      assert.ok(!error.message.includes('signature='));
+      return true;
+    });
+    assert.equal(extension.network.length, 1, JSON.stringify(addresses));
+  }
+});
+
+test('CircleCI sockets use the validated public DNS answer without a second lookup', async () => {
+  for (const lookupAll of [true, false]) {
+    let outputLookups = 0;
+    const publicAddress = { address: lookupAll ? '2606:4700::1111' : '93.184.216.34', family: lookupAll ? 6 : 4 };
+    const extension = await getExtension(undefined, async url => url.includes('/api/v1.1/')
+      ? Response.json({ vcs_revision: currentSha, steps: [{ actions: [{ output_url: outputUrl }] }] })
+      : Response.json([{ message: 'public console output' }]), hostname => {
+        if (hostname === 'circleci.com') return [publicAddress];
+        return ++outputLookups === 1 ? [publicAddress] : [{ address: '127.0.0.1', family: 4 }];
+      }, lookupAll);
+    assert.match(await extension.readLogs(circleJob), /public console output/);
+    assert.equal(outputLookups, 1);
+    assert.deepEqual(extension.network[1].addresses, [publicAddress]);
+    assert.equal(extension.network[1].options.agent, false);
+    assert.equal(extension.network[1].options.headers, undefined);
+  }
+});
+
+test('CircleCI output redirects are not followed', async () => {
+  const extension = await getExtension(undefined, async url => url.includes('/api/v1.1/')
+    ? Response.json({ vcs_revision: currentSha, steps: [{ actions: [{ output_url: outputUrl }] }] })
+    : new Response('', { status: 302, headers: { Location: 'https://127.0.0.1/private' } }));
+  await assert.rejects(extension.readLogs(circleJob), /HTTP 302/);
+  assert.equal(extension.network.length, 2);
+});
+
+test('CircleCI JSON parse errors do not include response contents', async () => {
+  const extension = await getExtension(undefined, async url => url.includes('/api/v1.1/')
+    ? Response.json({ vcs_revision: currentSha, steps: [{ actions: [{ output_url: outputUrl }] }] })
+    : new Response('not JSON: signature=private'));
+  await assert.rejects(extension.readLogs(circleJob), error => {
+    assert.match(error.message, /not valid JSON/);
+    assert.ok(!error.message.includes('signature='));
+    return true;
+  });
 });
 
 test('CircleCI output is explicitly truncated and missing auth is an error', async () => {

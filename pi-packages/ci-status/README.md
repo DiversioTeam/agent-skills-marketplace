@@ -186,8 +186,15 @@ The selected job's revision must match the CI snapshot.
 
 The API token is sent only to `circleci.com`. Presigned output URLs receive no
 authentication headers, must use HTTPS without embedded user credentials, and
-are never printed in errors. Redirects are refused. The v1.1 metadata and
-output downloads share a 30-second deadline; preceding v2 status requests each
+are never printed in errors. Localhost names and all IP-literal output URLs
+are refused. Native HTTPS connections validate every DNS answer against
+non-public/special-use address ranges, then connect using those same answers
+(no second lookup). Mixed public/private answers are rejected. Redirects are
+not followed; fresh direct connections avoid pooled sockets and proxy-side DNS.
+This requires direct public-network access; private proxies and IPv6 transition
+addresses are not supported for log downloads. Use the provider UI instead.
+
+The v1.1 metadata and output downloads share a 30-second deadline; preceding v2 status requests each
 have their own timeout. Missing auth, unsupported/unavailable API
 responses, missing output, expired URLs, and malformed output are errors—not
 job metadata presented as logs. Use the job page in status details when API

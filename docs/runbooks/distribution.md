@@ -268,7 +268,9 @@ closed or different-head PRs no longer substitute their checks for the local
 commit. Ambiguous job queries require an exact ID (and the same `runId` when
 inspecting a run directly). CircleCI logs now use actual v1.1 step output with
 `CIRCLECI_TOKEN`; missing/expired output is reported explicitly, never replaced
-with metadata. Presigned output URLs receive no API token. No settings migration
+with metadata. Presigned output URLs receive no API token. Log downloads require
+direct public-network access: localhost/IP-literal URLs, non-public DNS answers,
+and redirects are refused; private proxies are not used. No settings migration
 is required. Published local-ci commit statuses are preserved even without an
 open PR. Native log queries use explicit `local-ci:<run-id>[:<step-id>]` IDs after
 `local-ci runs/show` inspection; no run, resume, or publish is started by the

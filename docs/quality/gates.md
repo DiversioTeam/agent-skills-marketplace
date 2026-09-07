@@ -66,7 +66,8 @@ skills target:
     commits exist only in temporary repositories.
   - Runs image-router consent and ci-status job/log regression tests on Node 24
     before package discovery. The latter covers exact/ambiguous job identity,
-    checkout changes, closed PRs, CircleCI output/auth/error boundaries, and
+    checkout changes, closed PRs, CircleCI output/auth/error boundaries,
+    connection-time public-address checks (including DNS rebinding), and
     local-ci commit-status/native-log compatibility. Local fixture inspection
     is read-only: it neither executes validation nor publishes statuses.
 - `Validate Website`
