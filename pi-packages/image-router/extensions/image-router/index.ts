@@ -38,32 +38,14 @@
  *
  * | Mode    | User input                          | Tool results                  |
  * |---------|-------------------------------------|-------------------------------|
- * | `auto`  | Route silently, no prompt           | Route silently                |
- * | `ask`   | Show a TUI dialog (the default)     | Route silently (model blocks) |
+ * | `auto`  | Route to configured destination    | Route to configured destination |
+ * | `ask`   | Ask in interactive mode only      | Withhold images; request setup |
  * | `never` | Send images to the model as-is      | Send images to the model      |
  *
- * > *Why do tool results always route silently?*  When the LLM calls `read`
- * > on a file, it's blocked waiting for the tool result.  Showing a dialog
- * > during that wait is bad UX — the model times out.  We route instead.
- *
- * ### Self-correcting fallback chain
- *
- * The extension remembers which vision model *actually worked* last time
- * (`lastSuccessfulVision*`).  That model is tried **first** on every
- * subsequent call, ahead of the user's explicit "Always route" choice.
- *
- * ```
- * Run 1: GPT-5.1 Codex (explicit choice)  → fails (no API key)
- *        GPT-5.3 Codex (fallback)          → succeeds ✓
- *        → GPT-5.3 recorded as lastSuccessful
- *
- * Run 2: GPT-5.3 Codex (lastSuccessful)   → succeeds immediately ✓
- *        GPT-5.1 Codex (explicit choice)   → never reached
- * ```
- *
- * If GPT-5.1 later gets its API key fixed and succeeds, it becomes the
- * new `lastSuccessful` and moves back to the front.  The ordering
- * self-corrects without user intervention.
+ * RPC and extension-origin input cannot grant consent through a custom TUI.
+ * Tool results need saved auto mode and an explicit destination. Missing or
+ * failed destinations never fall back to another model/provider. Historical
+ * last-success metadata is informational only, not authorization.
  *
  * ### Settings
  *
@@ -76,7 +58,8 @@
  * IMAGE_ROUTER_VISION_PROVIDER=openai-codex
  * IMAGE_ROUTER_VISION_MODEL=codex-1
  * ```
- * If not set, the extension auto-detects the first vision-capable model.
+ * If not set, model discovery is used only to suggest a destination in the
+ * interactive consent dialog. Auto mode requires a configured destination.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
@@ -123,8 +106,8 @@ type RoutingMode = "auto" | "ask" | "never";
  * model for this main model (set when they pick "Always route").
  *
  * `lastSuccessfulVision*` — which vision model actually worked last time.
- * Used to reorder the candidate list so known-good models are tried first
- * on subsequent calls.  Updated automatically after every successful route.
+ * Display-only history, never a destination choice or permission grant.
+ * Updated automatically after every successful route.
  */
 interface ModelPreference {
 	mode: RoutingMode;
@@ -168,17 +151,9 @@ interface RoutingDecision {
 	rememberMode?: RoutingMode;
 }
 
-/**
- * Returned by `describeImagesWithFallback()`.
- *
- * `failures` lists every model that was tried and why it failed.
- * Empty when the first candidate succeeds; useful for debugging when
- * fallback was needed.
- */
 interface DescriptionResult {
 	description: string;
 	visionModel: Model;
-	failures: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -312,10 +287,8 @@ const OPENAI_VISION_MODEL_PATTERNS = [
  * completely new session (fresh `/new` or new pi instance) starts with
  * an empty branch — all persisted state is gone.
  *
- * For image-router this is a serious problem: the `lastSuccessfulVision*`
- * field records which vision model actually works, so the extension
- * stops retrying broken models.  If that resets on every new session,
- * the user sees the same GPT-5.1 → GPT-5.3 fallback dance every time.
+ * Persist explicit routing choices across sessions. Historical success
+ * metadata is retained for display but cannot override the chosen destination.
  *
  * File-based persistence (`~/.pi/agent/image-router.json`) survives
  * ALL sessions, restarts, worktrees, and even pi upgrades.
@@ -440,7 +413,7 @@ function modelAdvertisesImageInput(model: Model): boolean {
 /**
  * Is this model likely able to process images?
  *
- * Used ONLY for fallback-model discovery in `getVisionCandidates`.
+ * Used for destination eligibility and consent-dialog suggestions.
  * The active-model check (`currentModelSupportsImages`) uses only
  * explicit metadata — heuristics could false-match a text-only proxy
  * whose name happens to contain "codex" or "claude".
@@ -514,102 +487,58 @@ function visionPriorityScore(model: Model): number {
 }
 
 /**
- * Build an ordered list of vision-model candidates to try.
+ * Get the single destination approved for this request.
  *
  * ## Candidate ordering (first to last)
  *
  * ```
- * 1. Last-successful model              (auto-remembered after each route)
- * 2. Explicit per-model vision model    (user set via "Always route")
- * 3. Caller-provided preferred model    (from routing-prompt choice)
- * 4. Default vision model               (env var or /image-router setting)
- * 5. All available vision models        (sorted by priority score)
+ * 1. Current interactive approval, otherwise
+ * 2. Explicit per-model destination, otherwise
+ * 3. Configured global default.
+ * Never return more than one destination; failure does not broaden consent.
  * ```
  *
- * Deduplication is done by model key so the same model never appears twice.
- *
- * The `lastSuccessful` slot (1) outranks the explicit per-model choice.
- * When the explicit choice works, it becomes the `lastSuccessful` on the
- * next call and retains the top slot.  When it fails and a different model
- * succeeds, the working model takes slot 1 and the broken choice drops to
- * slot 2 — so the extension stops wasting time on known-broken models.
+ * A stale/partial explicit preference fails closed instead of using defaults.
+ * Last-success history and available API keys are not consent.
  */
-function getVisionCandidates(
+function getApprovedVisionModel(
 	ctx: ExtensionContext,
 	pref?: ModelPreference,
 	preferredModel?: Model,
-): Model[] {
-	const candidates: Model[] = [];
-	const seen = new Set<string>();
-
-	const pushCandidate = (model: Model | undefined) => {
-		if (!model) return;
-		if (!modelLooksVisionCapable(model)) return;
-		const key = modelKeyFromModel(model);
-		if (seen.has(key)) return;
-		seen.add(key);
-		candidates.push(model);
-	};
-
-	// 1. Last model that actually worked for this main model
-	if (pref?.lastSuccessfulVisionProvider && pref?.lastSuccessfulVisionModelId) {
-		pushCandidate(
-			ctx.modelRegistry.find(
-				pref.lastSuccessfulVisionProvider,
-				pref.lastSuccessfulVisionModelId,
-			),
-		);
+): Model | undefined {
+	let approvedModel = preferredModel;
+	// A missing or failed explicit destination must not widen permission.
+	if (!approvedModel && (pref?.visionProvider || pref?.visionModelId)) {
+		if (!pref.visionProvider || !pref.visionModelId) return undefined;
+		approvedModel = ctx.modelRegistry.find(pref.visionProvider, pref.visionModelId);
+	} else if (!approvedModel && preferences.defaultVisionProvider && preferences.defaultVisionModelId) {
+		approvedModel = ctx.modelRegistry.find(preferences.defaultVisionProvider, preferences.defaultVisionModelId);
 	}
-
-	// 2. Per-model explicit choice
-	if (pref?.visionProvider && pref?.visionModelId) {
-		pushCandidate(ctx.modelRegistry.find(pref.visionProvider, pref.visionModelId));
-	}
-
-	// 3. Caller's preferred model (from routing prompt)
-	pushCandidate(preferredModel);
-
-	// 4. Global default
-	if (preferences.defaultVisionProvider && preferences.defaultVisionModelId) {
-		pushCandidate(
-			ctx.modelRegistry.find(
-				preferences.defaultVisionProvider,
-				preferences.defaultVisionModelId,
-			),
-		);
-	}
-
-	// 5. All other vision-capable models, sorted by priority
-	const available = [...ctx.modelRegistry.getAvailable()]
-		.filter((model) => modelLooksVisionCapable(model))
-		.sort((a, b) => {
-			const scoreDelta = visionPriorityScore(b) - visionPriorityScore(a);
-			if (scoreDelta !== 0) return scoreDelta;
-			return modelLabel(a).localeCompare(modelLabel(b));
-		});
-
-	for (const model of available) pushCandidate(model);
-
-	return candidates;
+	return approvedModel && modelLooksVisionCapable(approvedModel) ? approvedModel : undefined;
 }
 
 /**
- * Convenience: return the *first* candidate from `getVisionCandidates`.
- * Used when we only need to display a model name (routing prompt, etc.).
+ * Suggest a model for the interactive consent dialog; never sends images.
  */
 function findVisionModelForPref(
 	ctx: ExtensionContext,
 	pref?: ModelPreference,
 ): Model | undefined {
-	return getVisionCandidates(ctx, pref)[0];
+	const configuredModel = getApprovedVisionModel(ctx, pref);
+	if (configuredModel || pref?.visionProvider || pref?.visionModelId
+		|| preferences.defaultVisionProvider || preferences.defaultVisionModelId) return configuredModel;
+	// Discovery suggests a destination for the consent dialog only.
+	return [...ctx.modelRegistry.getAvailable()]
+		.filter(modelLooksVisionCapable)
+		.sort((firstModel, secondModel) => visionPriorityScore(secondModel) - visionPriorityScore(firstModel))[0];
 }
 
 /**
  * Does the **currently active** model support images?
  *
  * Only checks explicit metadata (`model.input.includes("image")`).
- * Name heuristics are NOT used here — they're only for fallback model
- * discovery in `getVisionCandidates`.  A text-only model whose name
+ * Name heuristics are NOT used here — they only check destination
+ * eligibility and suggest models in the consent dialog.  A text-only model whose name
  * happens to match a vision family must still go through routing.
  */
 function currentModelSupportsImages(ctx: ExtensionContext): boolean {
@@ -617,9 +546,9 @@ function currentModelSupportsImages(ctx: ExtensionContext): boolean {
 }
 
 /**
- * Record which vision model succeeded so future candidate lists try it earlier.
+ * Record which vision model succeeded for display only.
  *
- * Called after every successful `describeImagesWithFallback()`.
+ * Called after every successful `getImageDescription()`.
  *
  * Creates a preference entry with mode `"ask"` if none exists yet — this is
  * the default mode, so functionally equivalent to having no entry but with
@@ -700,8 +629,7 @@ async function describeImages(
  * Resolve the API key and headers for a vision model.
  *
  * `options.notify` (default `true`) controls whether a missing-key error
- * notification is shown.  Set to `false` inside fallback loops where
- * individual "missing key" warnings would be noisy.
+ * notification is shown. Callers that report the error themselves disable it.
  */
 async function resolveVisionAuth(
 	ctx: ExtensionContext,
@@ -721,43 +649,8 @@ async function resolveVisionAuth(
 	return { apiKey: auth.apiKey, headers: auth.headers };
 }
 
-/**
- * Describe images using a **fallback chain** of vision models.
- *
- * ```
- * describeImagesWithFallback(images, hint)
- * │
- * ├── getVisionCandidates()  →  [codex-1, gpt-4o, claude-sonnet-4, …]
- * │
- * └── for each candidate:
- *       ├── resolve auth  ──no key──▶ skip, record failure, next
- *       └── call describeImages()
- *             ├── success ▶ return { description, visionModel, failures }
- *             └── error   ▶ record failure, next
- *
- * If all candidates fail: throw with aggregated error message.
- * ```
- *
- * ## Why a fallback chain?
- *
- * A single vision model can be unavailable for many reasons:
- * - API key not configured for that provider
- * - Rate-limited or temporarily down
- * - Model deprecation / name change
- *
- * Iterating through candidates means the extension keeps working as long as
- * *any* vision-capable model is reachable.
- *
- * ## Notifications
- *
- * - One announcement when the first candidate is attempted.
- * - If fallback *actually occurs* (≥1 prior failure), a notification tells
- *   the user which model was used and suggests `/image-router` to pin a
- *   preferred model.
- * - Individual "missing API key" warnings are suppressed inside the loop;
- *   only the aggregated outcome is shown.
- */
-async function describeImagesWithFallback(
+// A failed request never retries with a different destination.
+async function getImageDescription(
 	ctx: ExtensionContext,
 	images: ImageContent[],
 	contextHint: string,
@@ -765,57 +658,20 @@ async function describeImagesWithFallback(
 	preferredModel?: Model,
 	options?: { announce?: string; systemPrompt?: string },
 ): Promise<DescriptionResult> {
-	const candidates = getVisionCandidates(ctx, pref, preferredModel);
-	if (candidates.length === 0) {
-		throw new Error("No vision-capable model available");
+	const visionModel = getApprovedVisionModel(ctx, pref, preferredModel);
+	if (!visionModel) {
+		throw new Error("No approved vision model available. Select a destination with /image-router; no alternative provider was contacted.");
 	}
-
-	const failures: string[] = [];
-	let announced = false;
-	const systemPrompt = options?.systemPrompt ?? DESCRIPTION_SYSTEM_PROMPT;
-
-	for (const candidate of candidates) {
-		// Announce once with the first candidate attempted
-		if (!announced && options?.announce) {
-			ctx.ui.notify(
-				`${options.announce} via ${modelLabel(candidate)}…`,
-				"info",
-			);
-			announced = true;
-		}
-
-		// Suppress individual "no key" errors — the fallback summary covers them
-		const auth = await resolveVisionAuth(ctx, candidate, { notify: false });
-		if (!auth) {
-			failures.push(`${modelLabel(candidate)}: missing API key`);
-			continue;
-		}
-
-		try {
-			const description = await describeImages(
-				candidate,
-				auth,
-				images,
-				contextHint,
-				systemPrompt,
-				ctx.signal,
-			);
-
-			// Only notify when fallback actually kicked in (prior candidates failed)
-			if (failures.length > 0) {
-				ctx.ui.notify(
-					`Image routing used ${modelLabel(candidate)} after ${failures.length} fallback ${failures.length === 1 ? "attempt" : "attempts"}. Set a custom fallback model with /image-router.`,
-					"info",
-				);
-			}
-			return { description, visionModel: candidate, failures };
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			failures.push(`${modelLabel(candidate)}: ${message}`);
-		}
-	}
-
-	throw new Error(`All vision models failed: ${failures.join("; ")}`);
+	ctx.signal?.throwIfAborted();
+	const auth = await resolveVisionAuth(ctx, visionModel, { notify: false });
+	if (!auth) throw new Error(`No API key for approved vision model ${modelLabel(visionModel)}`);
+	ctx.signal?.throwIfAborted();
+	if (options?.announce) ctx.ui.notify(`${options.announce} via ${modelLabel(visionModel)}…`, "info");
+	const description = await describeImages(
+		visionModel, auth, images, contextHint,
+		options?.systemPrompt ?? DESCRIPTION_SYSTEM_PROMPT, ctx.signal,
+	);
+	return { description, visionModel };
 }
 
 // ---------------------------------------------------------------------------
@@ -886,12 +742,12 @@ async function showRoutingPrompt(
 		choices.push({
 			value: "route-once",
 			label: "✓  Route this time",
-			description: `Describe image(s) with ${visionName}`,
+			description: `Send images and prompt context only to ${visionName}`,
 		});
 		choices.push({
 			value: "route-always",
 			label: "✓  Always route for this model",
-			description: `Remember: always route to ${visionName}`,
+			description: `Always send images and context (including tool results) to ${visionName}`,
 		});
 	}
 
@@ -1029,14 +885,14 @@ async function showRoutingPrompt(
  * ## What you can configure
  *
  * - **Default vision model** — which model to use when no per-model
- *   preference is set.  `(auto-detect)` means the extension picks the
- *   first available vision-capable model.
+ *   preference is set. `(not configured)` permits suggestions only in the
+ *   interactive consent dialog, never automatic routing.
  * - **Detect responses** — whether to scan assistant messages for
  *   "I can't see images" and show a warning notification.
  * - **Per-model routing** — `auto` (route silently), `ask` (show a
  *   prompt), or `never` (send images as-is).  Shows `(last: ...)` when
- *   a `lastSuccessfulVision*` is recorded, confirming the self-correcting
- *   fallback is working.
+ *   a `lastSuccessfulVision*` is recorded (display history only).
+ * - **Per-model destination** — explicit target or the configured default.
  *
  * Changes are persisted immediately to `~/.pi/agent/image-router.json`.
  */
@@ -1068,13 +924,11 @@ async function showSettingsDialog(
 		.filter((m) => modelLooksVisionCapable(m))
 		.map((m) => `${m.provider}/${m.id}`);
 
-	const visionModelValues = visionModels.length > 0
-		? ["(auto-detect)", ...visionModels]
-		: ["(none available)"];
+	const visionModelValues = ["(not configured)", ...visionModels];
 
 	const currentDefaultVision = preferences.defaultVisionProvider && preferences.defaultVisionModelId
 		? `${preferences.defaultVisionProvider}/${preferences.defaultVisionModelId}`
-		: "(auto-detect)";
+		: "(not configured)";
 
 	const items: SettingItem[] = [
 		{
@@ -1102,6 +956,13 @@ async function showSettingsDialog(
 			currentValue: pref?.mode ?? "ask",
 			values: ["auto", "ask", "never"],
 		});
+		items.push({
+			id: `vision:${key}`,
+			label: `${info.name} destination`,
+			currentValue: pref?.visionProvider && pref?.visionModelId
+				? `${pref.visionProvider}/${pref.visionModelId}` : "(use default)",
+			values: ["(use default)", ...visionModels],
+		});
 	}
 
 	await ctx.ui.custom((tui, theme, _kb, done) => {
@@ -1109,6 +970,7 @@ async function showSettingsDialog(
 
 		container.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
 		container.addChild(new Text(theme.fg("accent", theme.bold("  Image Router"))));
+		container.addChild(new Text("Auto sends images and prompt context to the selected provider, including tool results. No fallback."));
 		container.addChild(new Text(""));
 
 		const settingsList = new SettingsList(
@@ -1117,16 +979,23 @@ async function showSettingsDialog(
 			getSettingsListTheme(),
 			(id, newValue) => {
 				if (id === "defaultVision") {
-					if (newValue === "(auto-detect)") {
+					if (newValue === "(not configured)") {
 						preferences.defaultVisionProvider = undefined;
 						preferences.defaultVisionModelId = undefined;
-					} else if (newValue === "(none available)") {
-					// No vision models registered — keep current setting
-				} else {
+					} else {
 						const slash = newValue.indexOf("/");
 						preferences.defaultVisionProvider = newValue.slice(0, slash);
 						preferences.defaultVisionModelId = newValue.slice(slash + 1);
 					}
+				} else if (id.startsWith("vision:")) {
+					const mainModelKey = id.slice("vision:".length);
+					const separator = newValue.indexOf("/");
+					preferences.modelPrefs[mainModelKey] = {
+						...preferences.modelPrefs[mainModelKey],
+						mode: preferences.modelPrefs[mainModelKey]?.mode ?? "ask",
+						visionProvider: newValue === "(use default)" ? undefined : newValue.slice(0, separator),
+						visionModelId: newValue === "(use default)" ? undefined : newValue.slice(separator + 1),
+					};
 				} else if (id === "detectResponses") {
 					preferences.detectResponses = newValue === "on";
 				} else if (id.startsWith("model:")) {
@@ -1226,13 +1095,11 @@ export default async function (pi: ExtensionAPI) {
 	//
 	// Then the handler branches on the saved routing mode:
 	//
-	//   "auto"  → describeImagesWithFallback → transform prompt
+	//   "auto"  → getImageDescription → transform prompt
 	//   "ask"   → showRoutingPrompt → if route: describe → transform
 	//                                  if not route: continue (let through)
 	//
-	// After a successful route, `rememberSuccessfulVisionModel()` updates
-	// the candidate ordering so the model that worked is tried first next
-	// time.
+	// Successful routing updates display history, never destination permission.
 
 	pi.on("input", async (event, ctx) => {
 		if (!event.images?.length) return { action: "continue" };
@@ -1249,7 +1116,7 @@ export default async function (pi: ExtensionAPI) {
 		// actually fails — the agent_end hook tells the user to set auto).
 		if (existingPref?.mode === "auto") {
 			try {
-				const { description, visionModel } = await describeImagesWithFallback(
+				const { description, visionModel } = await getImageDescription(
 					ctx, event.images, event.text, existingPref, undefined,
 					{ announce: `Describing ${event.images.length} image(s)` },
 				);
@@ -1273,26 +1140,10 @@ export default async function (pi: ExtensionAPI) {
 		if (currentModelSupportsImages(ctx)) return { action: "continue" };
 
 		// ── Ask mode (default) ─────────────────────────────────────
-		// In headless/RPC contexts there is no TUI — fall back to auto.
-		const hasUI = ctx.hasUI;
-		if (!hasUI) {
-			try {
-				const { description, visionModel: vm } = await describeImagesWithFallback(
-					ctx, event.images, event.text, existingPref, undefined,
-					{ announce: `Describing ${event.images.length} image(s)` },
-				);
-				rememberSuccessfulVisionModel(ctx, vm);
-				savePreferences();
-				return transform(event.text.trim()
-					? `${formatDescription(description, event.images.length)}\n\n${event.text}`
-					: formatDescription(description, event.images.length));
-			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
-				ctx.ui.notify(`Image description failed: ${msg}`, "error");
-				return transform(event.text.trim()
-					? `[Image(s) could not be described: ${msg}]\n\n${event.text}`
-					: `[Image(s) could not be described: ${msg}]`);
-			}
+		// No dialog means no new consent, including RPC/extension-origin input.
+		if (!ctx.hasUI || event.source !== "interactive") {
+			const notice = "[Images not routed: approval is required. Configure an explicit vision destination and auto mode with /image-router, then retry.]";
+			return transform(`${notice}\n\n${event.text}`);
 		}
 
 		const visionModel = findVisionModelForPref(ctx, existingPref);
@@ -1314,9 +1165,12 @@ export default async function (pi: ExtensionAPI) {
 		const chosenVisionModel = (decision.visionProvider && decision.visionModelId)
 			? ctx.modelRegistry.find(decision.visionProvider, decision.visionModelId)
 			: visionModel;
+		if (!chosenVisionModel) {
+			return transform(`[Images not routed: the approved destination is no longer available. Retry after configuring /image-router.]\n\n${event.text}`);
+		}
 
 		try {
-			const { description, visionModel: successfulModel } = await describeImagesWithFallback(
+			const { description, visionModel: successfulModel } = await getImageDescription(
 				ctx, event.images, event.text, existingPref, chosenVisionModel,
 				{ announce: `Describing ${event.images.length} image(s)` },
 			);
@@ -1339,9 +1193,8 @@ export default async function (pi: ExtensionAPI) {
 	// Fires when any tool returns content that includes image blocks.
 	// In practice this is always the `read` tool reading a PNG / JPEG.
 	//
-	// Unlike user input, we cannot show a dialog here because the LLM is
-	// blocked waiting for the tool result.  So we route silently whenever
-	// existingPref is not "never".
+	// Tool results require saved auto consent and an explicit destination.
+	// Without consent, return an actionable notice rather than routing silently.
 	//
 	// ## Why extract the user's question?
 	//
@@ -1381,6 +1234,12 @@ export default async function (pi: ExtensionAPI) {
 
 		// Native image support — let the model handle it (unless "auto" is on)
 		if (existingPref?.mode !== "auto" && currentModelSupportsImages(ctx)) return;
+		if (existingPref?.mode !== "auto") {
+			return { content: [...textBlocks, {
+				type: "text" as const,
+				text: "[Tool images not routed: approval is required. Configure an explicit vision destination and auto mode with /image-router, then read the image again.]",
+			}] };
+		}
 
 		try {
 			// Build a context hint that includes the user's original question.
@@ -1412,7 +1271,7 @@ export default async function (pi: ExtensionAPI) {
 				}
 			}
 
-			const { description, visionModel } = await describeImagesWithFallback(
+			const { description, visionModel } = await getImageDescription(
 				ctx,
 				imageBlocks,
 				contextHint,

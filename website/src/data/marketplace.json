@@ -317,8 +317,8 @@
     {
       "name": "image-router",
       "title": "Image Router",
-      "description": "Automatically routes image inputs to a vision-capable model when the active model doesn't support images (e.g., DeepSeek → Codex fallback).",
-      "version": "v0.1.0"
+      "description": "Routes images only to an explicitly approved vision destination. Tool/RPC images require saved auto consent; no cross-model fallback.",
+      "version": "v0.2.0"
     },
     {
       "name": "pi-timestamps",

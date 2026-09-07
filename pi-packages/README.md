@@ -8,7 +8,7 @@ Pi-native packages that extend pi with tools, commands, skills, and UI widgets.
 |---------|-------------------|
 | [`ci-status`](./ci-status) | `/ci`, `/ci-detail`, `/ci-logs` commands, CI auto-watch after pushes, status-line widget, GitHub Actions + CircleCI support, and `get_ci_status` / `ci_fetch_job_logs` LLM tools |
 | [`dev-workflow`](./dev-workflow) | 16 core workflow prompts including `/workflow:crafting` (`/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`), CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and seeded cmux split launching for subagent-style prompts |
-| [`image-router`](./image-router) | Routes image inputs through a vision-capable model when the active model is text-only, with per-model routing modes and a TUI settings panel |
+| [`image-router`](./image-router) | Routes images to an explicitly approved secondary vision destination; RPC/extension/tool routing requires saved `auto` consent. Missing consent or destinations fail closed, with no provider/model fallback. Configure per-model routing via `/image-router`. |
 | [`oh-my-pi`](./oh-my-pi) | Pi-native cmux integration with notifications, readable split commands, and workspace tabs |
 | [`pi-timestamps`](./pi-timestamps) | Adds subtle per-turn transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
 | [`skills-bridge`](./skills-bridge) | Auto-discovers all marketplace plugin skills from `plugins/*/skills/` and registers them as pi skills — one install bridges the entire plugin ecosystem into pi |

@@ -75,9 +75,13 @@ when command files change.
     `pi install "$PWD/pi-packages/image-router"`
   - Package path: `pi-packages/image-router`
   - Extension path: `pi-packages/image-router/extensions/image-router`
-  - Behavior: supports per-model routing modes (`auto`, `ask`, `never`),
-    remembers the last successful vision model for self-correcting fallback,
-    and can detect "I can't see images" responses from the active model.
+  - Behavior: per-model modes (`auto`, `ask`, `never`) and explicit destination
+    selection. No cross-model/provider fallback; success history is display-only.
+    Tool/RPC/extension input requires saved auto consent. Interactive input can
+    grant one-time approval. Native active-model image handling is unchanged.
+  - Upgrade: auto mode without an explicit destination now fails closed; select
+    one through `/image-router`. Requests include images and prompt context.
+  - Regression check (Node 24): `pnpm --config.verify-deps-before-run=false --dir pi-packages/image-router test`.
   - Configuration: `IMAGE_ROUTER_VISION_PROVIDER`,
     `IMAGE_ROUTER_VISION_MODEL`
   - One-off local test from repo root:
