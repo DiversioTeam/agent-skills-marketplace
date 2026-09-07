@@ -34,6 +34,7 @@ type CiJob = {
   runId?: number;
   /** For GitHub Actions jobs, the job databaseId so we can rerun one selected job */
   githubJobId?: number;
+  githubJobName?: string;
   /** For CircleCI jobs, the job number */
   jobNumber?: number;
   /** For CircleCI jobs, the workflow id so we can rerun failed workflow jobs */
@@ -222,82 +223,30 @@ function normalizeCircleState(status?: string | null): CiState {
 function providerHintFromUrlOrName(url: string | undefined, name: string): CiJob["providerHint"] {
   const text = `${url ?? ""} ${name}`.toLowerCase();
   if (text.includes("circleci")) return "circleci";
-  if (text.includes("github.com") || text.includes("github actions")) return "github-actions";
+  if (githubRunIdFromUrl(url)) return "github-actions";
   return "unknown";
 }
 
 function githubRunIdFromUrl(url: string | null | undefined): number | undefined {
   if (!url) return undefined;
-  const match = url.match(/github\.com\/[^/]+\/[^/]+\/actions\/runs\/(\d+)/i);
-  if (!match) return undefined;
-  const id = Number(match[1]);
-  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== "https:" || parsedUrl.hostname !== "github.com" || parsedUrl.username || parsedUrl.password) return undefined;
+    const match = parsedUrl.pathname.match(/^\/[^/]+\/[^/]+\/actions\/runs\/(\d+)(?:\/|$)/);
+    const runId = match ? Number(match[1]) : undefined;
+    return runId && Number.isSafeInteger(runId) ? runId : undefined;
+  } catch { return undefined; }
 }
 
 function getGitHubJobIdFromUrl(url: string | undefined): number | undefined {
   if (!url) return undefined;
   try {
     const parsedUrl = new URL(url);
-    if (parsedUrl.hostname !== "github.com") return undefined;
+    if (!githubRunIdFromUrl(url)) return undefined;
     const match = parsedUrl.pathname.match(/^\/[^/]+\/[^/]+\/actions\/runs\/\d+\/job\/(\d+)\/?$/);
     const jobId = match ? Number(match[1]) : undefined;
     return jobId && Number.isSafeInteger(jobId) ? jobId : undefined;
   } catch { return undefined; }
-}
-
-function normalizedCiName(name: string | undefined): string {
-  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function githubJobNameCandidates(job: CiJob): string[] {
-  const parts = job.name.split(/\s+\/\s+/).map((part) => part.trim()).filter(Boolean);
-  return Array.from(new Set([job.name, parts[0], parts[parts.length - 1]].filter(Boolean)));
-}
-
-async function enrichGitHubRunIds(pi: ExtensionAPI, cwd: string, branch: string, sha: string, jobs: CiJob[], repository: string): Promise<CiJob[]> {
-  const needsRunId = jobs.some((job) => job.provider === "github" && job.providerHint === "github-actions" && !job.runId);
-  if (!needsRunId) return jobs;
-
-  let runs: GhRun[] = [];
-  try {
-    runs = await execJson<GhRun[]>(
-      pi,
-      "gh",
-      ["run", "list", "--repo", repository, "--commit", sha, "--limit", "50", "--json", "databaseId,name,workflowName,displayTitle,status,conclusion,headSha,url,createdAt,startedAt,updatedAt"],
-      cwd,
-      20_000,
-    );
-  } catch {
-    try {
-      runs = await execJson<GhRun[]>(
-        pi,
-        "gh",
-        ["run", "list", "--repo", repository, "--branch", branch, "--limit", "50", "--json", "databaseId,name,workflowName,displayTitle,status,conclusion,headSha,url,createdAt,startedAt,updatedAt"],
-        cwd,
-        20_000,
-      );
-    } catch {
-      return jobs;
-    }
-  }
-
-  const runsForSha = runs.filter((run) => run.headSha === sha);
-  if (runsForSha.length === 0) return jobs;
-
-  return jobs.map((job) => {
-    if (job.provider !== "github" || job.providerHint !== "github-actions" || job.runId) return job;
-
-    const urlRunId = githubRunIdFromUrl(job.url);
-    if (urlRunId) return { ...job, runId: urlRunId };
-
-    const candidates = new Set(githubJobNameCandidates(job).map(normalizedCiName));
-    const matches = runsForSha.filter((run) => {
-      const runNames = [run.name, run.workflowName, run.displayTitle].map(normalizedCiName).filter(Boolean);
-      return runNames.some((name) => candidates.has(name));
-    });
-
-    return matches.length === 1 ? { ...job, runId: matches[0].databaseId } : job;
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +279,7 @@ type GhRunJob = {
 type GhCommitStatus = { context: string; state?: string | null; target_url?: string | null; description?: string | null };
 
 function buildCommitStatusJob(status: GhCommitStatus): CiJob {
+  if (!status || typeof status.context !== "string" || !status.context.trim()) throw new Error("Commit status has no context identity.");
   const isLocalAggregate = /^local verification (running|passed|failed)$/.test(status.description ?? "");
   const isLocal = status.context.startsWith("local:") || status.context.startsWith("local/") || isLocalAggregate;
   return {
@@ -363,7 +313,7 @@ async function fetchGitHubChecks(pi: ExtensionAPI, cwd: string, branch: string, 
     }
     const jobs = (pr.statusCheckRollup ?? []).map((item, index): CiJob => {
       if (item.__typename === "StatusContext") {
-        return buildCommitStatusJob({ context: item.context ?? `Unknown status ${index + 1}`, state: item.state,
+        return buildCommitStatusJob({ context: item.context ?? "", state: item.state,
           target_url: item.targetUrl, description: item.description });
       }
       const rawName = item.name ?? item.context ?? item.workflowName ?? `${item.__typename ?? "GitHub check"} ${index + 1}`;
@@ -377,7 +327,7 @@ async function fetchGitHubChecks(pi: ExtensionAPI, cwd: string, branch: string, 
         providerHint: providerHintFromUrlOrName(url, name),
         name, url,
         runId: githubRunIdFromUrl(url),
-        githubJobId: getGitHubJobIdFromUrl(url),
+        githubJobId: getGitHubJobIdFromUrl(url), githubJobName: item.name,
         state: normalizeGitHubState(item.status ?? item.state, item.conclusion ?? item.state),
         startedAt: item.startedAt ?? undefined,
         completedAt: item.completedAt ?? undefined,
@@ -386,8 +336,7 @@ async function fetchGitHubChecks(pi: ExtensionAPI, cwd: string, branch: string, 
     });
     const summaryBranch = pr.headRefName ?? branch;
     const summarySha = pr.headRefOid ?? sha;
-    const enrichedJobs = await enrichGitHubRunIds(pi, cwd, summaryBranch, summarySha, jobs, repository);
-    return { branch: summaryBranch, sha: summarySha, prNumber: pr.number, prUrl: pr.url, jobs: enrichedJobs };
+    return { branch: summaryBranch, sha: summarySha, prNumber: pr.number, prUrl: pr.url, jobs };
   } catch (prError) {
     const jobs: CiJob[] = [];
     const errors: string[] = [];
@@ -561,7 +510,8 @@ async function fetchGitHubRunLog(pi: ExtensionAPI, cwd: string, repository: stri
     throw new Error(details);
   }
 
-  const output = result.stdout || result.stderr || "";
+  const output = result.stdout || "";
+  if (!output.trim() && result.stderr.trim()) throw new Error(`GitHub returned no console output: ${truncate(result.stderr, 800)}`);
   if (!output.trim()) return "(no log output)";
   return getLimitedLogText(output);
 }
@@ -663,7 +613,26 @@ async function getLogJob(pi: ExtensionAPI, cwd: string, summary: CiSummary, sele
   if (aggregateRun && selection.runId !== undefined && Number(aggregateRun[1]) !== selection.runId) {
     throw new Error("Conflicting job ID and runId; they must identify the same run.");
   }
-  if (runId && !summary.jobs.some((job) => job.provider === "github" && job.runId === runId && !job.id.startsWith("github-run:"))) {
+  const explicitJob = selection.jobId?.match(/^github-job:(\d+)$/);
+  if (explicitJob) {
+    const githubJobId = Number(explicitJob[1]);
+    if (!Number.isSafeInteger(githubJobId) || githubJobId < 1 || selection.jobNumber !== undefined || !summary.repo) {
+      throw new Error("An exact GitHub job requires a valid repository/job ID and cannot use CircleCI jobNumber.");
+    }
+    // An earlier attempt's job can be absent from both the rollup and the latest run inventory.
+    const job = await execJson<{ id: number; run_id: number; head_sha: string; name: string; status?: string; conclusion?: string; html_url?: string }>(pi, "gh",
+      ["api", `repos/${summary.repo}/actions/jobs/${githubJobId}`], cwd);
+    if (job.id !== githubJobId || job.head_sha !== summary.sha || !Number.isSafeInteger(job.run_id) || job.run_id < 1 ||
+        typeof job.name !== "string" || (runId !== undefined && job.run_id !== runId)) {
+      throw new Error("GitHub job does not match the selected run and commit SHA.");
+    }
+    return { id: `github-job:${githubJobId}`, provider: "github", providerHint: "github-actions",
+      repo: summary.repo, sha: summary.sha, runId: job.run_id, githubJobId, name: job.name,
+      state: normalizeGitHubState(job.status, job.conclusion), url: job.html_url };
+  }
+  const hasExactJob = summary.jobs.some(job => job.provider === "github" && job.runId === runId &&
+    job.id === selection.jobId && !job.id.startsWith("github-run:"));
+  if (runId && !hasExactJob) {
     if (!summary.repo) throw new Error("Repository identity is unavailable for the requested run.");
     const run = await execJson<{ headSha: string; jobs: GhRunJob[] }>(pi, "gh",
       ["run", "view", String(runId), "--repo", summary.repo, "--json", "headSha,jobs"], cwd, 20_000);
@@ -694,12 +663,15 @@ async function getLocalJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promi
   const runDirectory = join(root, ".local-ci", "runs", job.localRunId);
   const snapshot = await execJson<LocalSnapshot>(pi, "local-ci", ["show", job.localRunId, "--json"], root);
   const tree = await execText(pi, "git", ["rev-parse", `${job.sha}^{tree}`], root);
+  const hasValidHashes = [snapshot?.meta?.head_sha, snapshot?.meta?.worktree_tree_hash]
+    .every(value => typeof value === "string" && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(value));
   const matchesCommitTree = snapshot?.meta?.worktree_tree_hash === tree;
   const isDirtySnapshotOfCommit = snapshot?.meta?.dirty_worktree === true && snapshot.meta.head_sha === job.sha &&
-    snapshot.meta.head_tree_hash === tree && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(snapshot.meta.worktree_tree_hash);
+    snapshot.meta.head_tree_hash === tree;
   if (snapshot?.run_id !== job.localRunId || snapshot.run_dir !== runDirectory ||
       snapshot.meta?.run_id !== job.localRunId || snapshot.meta.repo_root !== root ||
-      (job.repo && snapshot.meta.repo_slug !== job.repo) || typeof snapshot.meta.head_sha !== "string" ||
+      (job.repo && snapshot.meta.repo_slug !== job.repo) || !hasValidHashes ||
+      (snapshot.meta.dirty_worktree !== undefined && typeof snapshot.meta.dirty_worktree !== "boolean") ||
       (!matchesCommitTree && !isDirtySnapshotOfCommit)) {
     throw new Error("Stored local-ci run identity or snapshot tree does not match the selected checkout/commit. Inspect it with the native CLI; no logs were returned.");
   }
@@ -758,9 +730,8 @@ async function githubJobIdForSelectedJob(pi: ExtensionAPI, cwd: string, runId: n
   if (job.sha && run.headSha !== job.sha) throw new Error("GitHub run does not match the selected commit SHA.");
   const jobs = run.jobs;
   if (!Array.isArray(jobs) || !jobs.length) throw new Error(`GitHub run ${runId} has no jobs; no job logs are available.`);
-  const candidates = new Set(githubJobNameCandidates(job).map(normalizedCiName));
   const sameName = job.id.startsWith("github-run:") ? jobs
-    : jobs.filter((runJob) => candidates.has(normalizedCiName(runJob.name)));
+    : jobs.filter((runJob) => Boolean(job.githubJobName) && runJob.name === job.githubJobName);
   if (sameName.length === 1) return sameName[0].databaseId;
   if (sameName.length > 1) throw new Error(`Ambiguous GitHub job name ${job.name}; use an exact job ID or URL.`);
 
@@ -1439,6 +1410,7 @@ class CiDetailComponent {
   private showAllJobs = false;
   private jobs: CiJob[] = [];
   private selectedJob: CiJob | null = null;
+  private disposed = false;
   private logContent: string[] = [];
   private logLoading = false;
   private logError = "";
@@ -1491,11 +1463,13 @@ class CiDetailComponent {
   }
 
   dispose(): void {
+    this.disposed = true;
     if (this.animTimer) clearInterval(this.animTimer);
     if (this.loadingAnimTimer) clearInterval(this.loadingAnimTimer);
   }
 
   private rerender(): void {
+    if (this.disposed) return;
     this.cachedLines = undefined;
     this.cachedWidth = undefined;
     this.requestRender();
@@ -1532,7 +1506,7 @@ class CiDetailComponent {
 
     const text = `${job.url ?? ""} ${job.name}`.toLowerCase();
     if (text.includes("circleci")) return "circleci";
-    if (text.includes("github.com") && (text.includes("/actions/") || text.includes("github actions"))) return "github-actions";
+    if (githubRunIdFromUrl(job.url)) return "github-actions";
     if (text.includes("buildkite")) return "buildkite";
     if (text.includes("netlify")) return "netlify";
     if (text.includes("vercel")) return "vercel";
@@ -1552,13 +1526,14 @@ class CiDetailComponent {
       }
     }
 
-    if (job.provider === "github") return "github-actions";
+    if (job.provider === "github") return job.runId ? "github-actions" : "github-check";
     return String(job.provider);
   }
 
   private ciLabel(ci: CiKey): string {
     const labels: Record<string, string> = {
       "github-actions": "GitHub Actions",
+      "github-check": "Check runs",
       github: "GitHub Actions",
       circleci: "CircleCI",
       "local-ci": "local-ci",
@@ -1727,13 +1702,14 @@ class CiDetailComponent {
   }
 
   private fetchLogs(): void {
-    if (!this.selectedJob || this.logLoading) return;
+    if (this.disposed || !this.selectedJob || this.logLoading) return;
     this.logLoading = true;
     this.logError = "";
     this.view = "loadingLogs";
     this.startLoadingAnim();
 
     fetchJobLogs(this.pi, this.cwd, this.selectedJob).then((logs) => {
+      if (this.disposed) return;
       this.logContent = logs.split("\n");
       this.logLoading = false;
       this.logScrollOffset = this.firstInterestingLogLine(this.logContent);
@@ -1741,6 +1717,7 @@ class CiDetailComponent {
       this.stopLoadingAnim();
       this.rerender();
     }).catch((error) => {
+      if (this.disposed) return;
       this.logError = errorMessage(error);
       this.logLoading = false;
       this.view = "detail";
@@ -1801,7 +1778,7 @@ class CiDetailComponent {
   }
 
   private async refreshStatus(): Promise<void> {
-    if (this.refreshing) return;
+    if (this.disposed || this.refreshing) return;
 
     const previousJobId = this.selectedJob?.id ?? this.visibleJobs()[this.selectedIndex]?.id;
     const previousCi = this.activeCi;
@@ -2873,7 +2850,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "ci_fetch_job_logs",
     label: "Fetch CI Job Logs",
-    description: "Fetch console output for one CI job after refreshing checkout scope. Prefer the exact jobId from get_ci_status; supplied runId/jobNumber must also match. A multi-job run requires an exact jobId plus runId. GitHub run IDs absent from the rollup are checked against the checkout SHA. CircleCI requires CIRCLECI_TOKEN. For local-ci, use jobId local-ci:<run-id>[:<step-id>] after native runs/show inspection: explicit snapshot logs are not proof of published checks or current validation. Ambiguous jobs or unavailable output return errors, not substitute logs. Output is limited to 500 lines.",
+    description: "Fetch console output for one CI job after refreshing checkout scope. Prefer the exact jobId from get_ci_status; supplied runId/jobNumber must also match. Run-only queries and names paired with runId inspect the full run inventory. An exact github-job:<id> is read directly, including prior attempts; any supplied runId must match. GitHub runs/jobs are checked against the checkout SHA. CircleCI requires CIRCLECI_TOKEN. For local-ci, use jobId local-ci:<run-id>[:<step-id>] after native runs/show inspection: explicit snapshot logs are not proof of published checks or current validation. Ambiguous jobs or unavailable output return errors, not substitute logs. Output is limited to 500 lines.",
     promptSnippet: "Fetch failure logs for a specific CI job",
     promptGuidelines: [
       "Use ci_fetch_job_logs after get_ci_status shows failed jobs, to get detailed failure logs for analysis.",

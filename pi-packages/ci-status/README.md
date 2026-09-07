@@ -105,14 +105,20 @@ slash commands are not available.
   `jobNumber` are constraints, not fallback choices. Conflicting identifiers
   fail; names or partial queries must match exactly one job. A `runId` with
   several jobs returns the candidate IDs instead of selecting the first job.
+  Run-only queries and names paired with `runId` inspect the full run inventory,
+  not just the PR rollup.
 - Explicit GitHub run IDs can be inspected even when absent from the rollup,
-  but must match the checkout SHA. For a multi-job run, supply its `runId` plus
-  the exact candidate `jobId`. Runs with no jobs report unavailable logs; a
+  but must match the checkout SHA. A `github-job:<id>` queries that exact job
+  directly, including earlier attempts missing from the latest inventory; any
+  supplied `runId` must match it. Runs with no jobs report unavailable logs; a
   workflow may have failed validation before any job could produce output.
 - GitHub job IDs from URLs take precedence over names. Their actual repository,
   run, and commit are checked before fetching output, including older attempts.
   Name-only ambiguity also blocks the shared selected-job rerun helper rather
-  than guessing a failed sibling. This does not add automatic reruns or deploys.
+  than guessing a failed sibling. Workflow-name prefixes and similar run names
+  are not job identity. Non-Actions URLs cannot borrow an Actions run, and CLI
+  diagnostics are not returned as console output. Late log responses do not
+  redraw a closed detail view. This does not add automatic reruns or deploys.
 
 ## local-ci Compatibility
 
@@ -133,7 +139,9 @@ provides the native `runs`, `show`, and `logs` commands.
   guidance. This is not a branch-protection/config/required-gate validator.
 - Published local-ci statuses carry **no run ID or log URL**. The extension
   cannot prove which local artifact produced one and will not choose a run by
-  timestamp, SHA alone, or similar step name.
+  timestamp, SHA alone, or similar step name. Per-run GitHub sync/publication
+  tracking is not implemented: it needs a durable runner receipt containing the
+  target repository and SHA. An observed aggregate is not that receipt.
 
 Find an explicit run and step using read-only native commands:
 

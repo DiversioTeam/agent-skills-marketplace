@@ -85,12 +85,16 @@ async function getExtension(repositories = { '/first': buildRepository() }, fetc
         }
         if (arguments_[0] === 'api') {
           const runRequest = requests.findLast(request => request.arguments[0] === 'run' && request.arguments[1] === 'view' && request.arguments.includes('--json'));
-          return result({ run_id: repository.jobRunId ?? (runRequest ? Number(runRequest.arguments[2]) : 10), head_sha: repository.jobSha ?? repository.sha });
+          const jobId = Number(arguments_[1].split('/').at(-1));
+          return result({ id: jobId, name: 'test', status: 'completed', conclusion: 'failure',
+            run_id: repository.jobRunId ?? (runRequest ? Number(runRequest.arguments[2]) : 10), head_sha: repository.jobSha ?? repository.sha });
         }
         if (arguments_[0] === 'pr') return result({ number: 1, state: repository.prState ?? 'OPEN', headRefName: repository.branch,
           headRefOid: repository.prSha ?? repository.sha, statusCheckRollup: repository.checks });
         if (arguments_[1] === 'list') return result(repository.runs);
         if (arguments_.includes('--log') || arguments_.includes('--log-failed')) {
+          if (repository.pendingLogs) return result(await repository.pendingLogs.promise);
+          if (repository.logDiagnostic) return { code: 0, stdout: '', stderr: repository.logDiagnostic };
           return result(`Output from job ${arguments_[arguments_.indexOf('--job') + 1]}`);
         }
         if (arguments_.includes('--json')) {
@@ -114,7 +118,9 @@ async function getExtension(repositories = { '/first': buildRepository() }, fetc
     allPassing: extension.namespace.allPassing,
     compactStatus: extension.namespace.compactStatus,
     getDetail: summary => Object.assign(Object.create(extension.namespace.CiDetailComponent.prototype), {
-      summary, theme: { fg: (_color, text) => text },
+      summary, pi, cwd: '/first', jobs: summary.jobs, logContent: [], logLoading: false,
+      requestRender() {}, startLoadingAnim() {}, stopLoadingAnim() {},
+      theme: { fg: (_color, text) => text },
     }),
   };
 }
@@ -166,7 +172,7 @@ test('job URL identity wins over duplicate job names', async () => {
   const extension = await getExtension();
   const jobId = await extension.getJobId({ id: 'github:test', repo: 'team/first', provider: 'github', name: 'Checks / test', url: buildCheck('team/first', 102).detailsUrl });
   assert.equal(jobId, 102);
-  await assert.rejects(extension.getJobId({ id: 'github:test', repo: 'team/first', provider: 'github', name: 'Checks / test' }), /ambiguous/i);
+  await assert.rejects(extension.getJobId({ id: 'github:test', repo: 'team/first', provider: 'github', name: 'Checks / test', githubJobName: 'test' }), /ambiguous/i);
 });
 
 test('an exact job must belong to the selected run and commit', async () => {
@@ -246,6 +252,93 @@ test('aggregate runs require one actual job, including for the shared UI reader'
   const selected = await extension.logs({ runId: 20, jobId: 'github-job:302' });
   assert.equal(selected.isError, undefined);
   assert.match(selected.content[0].text, /Output from job 302/);
+});
+
+test('a partial PR rollup cannot make a multi-job run unambiguous', async () => {
+  const repository = buildRepository();
+  repository.checks = [repository.checks[0]];
+  const extension = await getExtension({ '/first': repository });
+  assert.equal((await extension.logs({ runId: 10 })).isError, true);
+  assert.equal((await extension.logs({ runId: 10, jobId: 'test' })).isError, true);
+  assert.equal(getLogRequests(extension).length, 0);
+});
+
+test('exact numeric job IDs can be selected when the rollup uses check-run aliases', async () => {
+  const extension = await getExtension();
+  const result = await extension.logs({ runId: 10, jobId: 'github-job:102' });
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0].text, /Output from job 102/);
+});
+
+test('an explicit job from a prior attempt need not appear in the latest run job list', async () => {
+  const extension = await getExtension();
+  const result = await extension.logs({ runId: 10, jobId: 'github-job:99' });
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0].text, /Output from job 99/);
+});
+
+test('a workflow prefix cannot substitute for a missing job name', async () => {
+  const repository = { ...buildRepository(), runJobs: [{ databaseId: 103, name: 'Checks', conclusion: 'failure' }] };
+  const extension = await getExtension({ '/first': repository });
+  await assert.rejects(extension.getJobId({ id: 'github:missing', repo: repository.repository, sha: currentSha,
+    provider: 'github', runId: 10, name: 'Checks / missing', githubJobName: 'missing' }), /Could not identify/);
+});
+
+for (const detailsUrl of ['https://github.com/team/first/pull/1', 'https://example.test/github.com/team/first/actions/runs/10']) {
+  test(`non-Actions links cannot borrow a similarly named Actions run: ${detailsUrl}`, async () => {
+    const repository = buildRepository();
+    repository.checks = [{ ...repository.checks[0], detailsUrl }];
+    repository.runs = [{ databaseId: 10, headSha: currentSha, name: 'Checks', conclusion: 'failure' }];
+    repository.runJobs = [repository.runJobs[0]];
+    const extension = await getExtension({ '/first': repository });
+    const status = await extension.status();
+    assert.equal(status.details.jobs[0].runId, undefined);
+    assert.notEqual(extension.getDetail(status.details).ciKey(status.details.jobs[0]), 'github-actions');
+    assert.equal((await extension.logs({ jobId: status.details.jobs[0].id })).isError, true);
+    assert.equal(getLogRequests(extension).length, 0);
+  });
+}
+
+test('decorated check labels cannot match another raw job name', async () => {
+  const repository = buildRepository();
+  repository.checks = [{ ...repository.checks[0], detailsUrl: 'https://github.com/team/first/actions/runs/10' }];
+  repository.runJobs = [{ databaseId: 101, name: 'Checks / test', conclusion: 'failure' }];
+  const extension = await getExtension({ '/first': repository });
+  assert.equal((await extension.logs({ jobId: (await extension.status()).details.jobs[0].id })).isError, true);
+  assert.equal(getLogRequests(extension).length, 0);
+  repository.runJobs[0].name = 'test';
+  assert.equal((await extension.logs({ jobId: (await extension.status()).details.jobs[0].id })).isError, undefined);
+});
+
+test('GitHub CLI diagnostics are not console output', async () => {
+  const repository = { ...buildRepository(), logDiagnostic: 'warning: logs are not available' };
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.logs({ jobId: (await extension.status()).details.jobs[0].id });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /no console output/i);
+});
+
+test('a disposed detail view ignores a late log response', async () => {
+  const repository = { ...buildRepository(), pendingLogs: Promise.withResolvers() };
+  const extension = await getExtension({ '/first': repository });
+  const status = await extension.status();
+  const detail = extension.getDetail(status.details);
+  detail.selectedJob = { ...status.details.jobs[0], repo: repository.repository, sha: currentSha };
+  detail.fetchLogs();
+  await new Promise(setImmediate);
+  assert.equal(getLogRequests(extension).length, 1);
+  detail.dispose();
+  let renderCount = 0;
+  detail.requestRender = () => renderCount++;
+  repository.pendingLogs.resolve('late console output');
+  await new Promise(setImmediate);
+  assert.equal(renderCount, 0);
+  assert.equal(detail.logContent.length, 0);
+  const requestCount = extension.requests.length;
+  detail.rerender();
+  await detail.refreshStatus();
+  assert.equal(renderCount, 0);
+  assert.equal(extension.requests.length, requestCount);
 });
 
 test('invalid numeric identifiers never fetch logs', async () => {
@@ -474,6 +567,26 @@ test('local selectors reject traversal, missing steps, and remote run constraint
     { jobId: `local-ci:${localRunId}:checks-fast`, jobNumber: 42 },
   ]) assert.equal((await extension.logs(selection)).isError, true);
   assert.ok(!extension.requests.some(request => request.command === 'local-ci' && request.arguments[0] === 'logs'));
+});
+
+test('malformed local snapshot fields cannot be coerced into valid provenance', async () => {
+  const repository = buildRepository();
+  const extension = await getExtension({ '/first': repository });
+  for (const fields of [{ head_sha: 'not-a-sha' }, { dirty_worktree: 'false' },
+    { dirty_worktree: true, worktree_tree_hash: [otherSha] }]) {
+    addLocalSnapshot(repository);
+    Object.assign(repository.localSnapshot.meta, fields);
+    assert.equal((await extension.logs({ jobId: `local-ci:${localRunId}:checks-fast` })).isError, true);
+  }
+  assert.ok(!extension.requests.some(request => request.command === 'local-ci' && request.arguments[0] === 'logs'));
+});
+
+test('a malformed PR status does not become an invented passing context', async () => {
+  const repository = { ...buildRepository(), checks: [{ __typename: 'StatusContext', state: 'SUCCESS' }] };
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.status();
+  assert.equal(result.details.jobs.length, 0);
+  assert.ok(result.details.warnings.length);
 });
 
 test('missing local artifacts and wrong log identities are explicit errors', async () => {
