@@ -10,7 +10,14 @@ when command files change.
   - Purpose: pi-native CI status extension with GitHub Actions and CircleCI
     status discovery, auto-watch after pushes, widget/status rendering,
     notifications, CI-provider/workflow-cycle TUI job details, failed-job reruns,
-    guided fix prompts, and log access.
+    guided fix prompts, and log access. Command/tool log queries refresh checkout scope,
+    require an unambiguous job, and verify repository/run/commit identity.
+    CircleCI uses actual v1.1 step console output, not metadata-as-logs; unavailable
+    output is an error. Published local-ci commit statuses remain visible without
+    being treated as Actions jobs. Explicit `local-ci:<run-id>[:<step-id>]` log
+    queries use native read-only inspection, never run/resume/publish. Missing
+    local-ci aggregate publication is unknown in configured checkouts. See the
+    package README for provenance, API, and buffering limits.
   - Pi install from repo checkout: `pi install "$PWD/pi-packages/ci-status"`
   - Package path: `pi-packages/ci-status`
   - Extension path: `pi-packages/ci-status/extensions/ci-status`
@@ -75,9 +82,13 @@ when command files change.
     `pi install "$PWD/pi-packages/image-router"`
   - Package path: `pi-packages/image-router`
   - Extension path: `pi-packages/image-router/extensions/image-router`
-  - Behavior: supports per-model routing modes (`auto`, `ask`, `never`),
-    remembers the last successful vision model for self-correcting fallback,
-    and can detect "I can't see images" responses from the active model.
+  - Behavior: per-model modes (`auto`, `ask`, `never`) and explicit destination
+    selection. No cross-model/provider fallback; success history is display-only.
+    Tool/RPC/extension input requires saved auto consent. Interactive input can
+    grant one-time approval. Native active-model image handling is unchanged.
+  - Upgrade: auto mode without an explicit destination now fails closed; select
+    one through `/image-router`. Requests include images and prompt context.
+  - Regression check (Node 24): `pnpm --config.verify-deps-before-run=false --dir pi-packages/image-router test`.
   - Configuration: `IMAGE_ROUTER_VISION_PROVIDER`,
     `IMAGE_ROUTER_VISION_MODEL`
   - One-off local test from repo root:

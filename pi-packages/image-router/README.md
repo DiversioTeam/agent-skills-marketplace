@@ -7,7 +7,7 @@ You paste a screenshot. Nothing useful happens — the model can't see images.
 
 ## Solution
 
-This extension acts as a **transparent middleman**:
+This extension sends images to an **explicitly approved destination**:
 
 ```
 You paste an image
@@ -38,11 +38,38 @@ The main model never sees the raw image — it reads a description like:
 
 | Mode | Behavior |
 |---|---|
-| `auto` | Routes silently — you never see a prompt |
-| `ask` | Shows a TUI dialog asking what to do *(the default)* |
-| `never` | Sends images to the model as-is |
+| `auto` | Routes user and tool images only to the configured destination; no provider/model fallback |
+| `ask` | Interactive input asks for approval; RPC, extension-origin input, and tool images are withheld with a setup notice *(the default)* |
+| `never` | Leaves images with the active model; no secondary-provider routing |
 
-Run **`/image-router`** to open the settings panel and change modes.
+Run **`/image-router`** to set the mode and per-model destination (or an explicit
+global default). Native vision-capable active models retain their normal image
+handling unless `auto` deliberately forces routing. This permission controls
+secondary routing, not the active model's own provider.
+
+## Consent And Failure Behavior
+
+- A current interactive approval wins. Otherwise `auto` uses the per-model
+  destination, or the explicit global default when no per-model target is set.
+- A missing, incomplete, unauthenticated, or failing destination does **not**
+  fall through to another model, including another model at the same provider.
+- Available API keys and `lastSuccessfulVision*` history never grant consent.
+  History is display-only. Automatic discovery suggests a model in the
+  interactive dialog only; it is not an automatic transmission destination.
+- “Route this time” permits only that input. “Always route” persists the shown
+  destination and permits subsequent user/tool images for that active model.
+- Requests include the image and input text. Tool-image requests can include
+  the tool/file path and latest user question. Approve the destination only if
+  it may receive that context; do not use routing for data it may not receive.
+- Images withheld pending approval are replaced with a clear text notice. After
+  configuring routing, retry the input or re-read the tool image; no deferred
+  upload occurs. Failure likewise reports that no description was obtained.
+
+**Upgrade from 0.1.x:** saved explicit destinations and `never` choices survive.
+Saved `auto` without a destination no longer discovers one silently: choose a
+per-model destination or global default. A stale per-model destination can be
+replaced in settings or set to `(use default)`. This intentionally trades silent
+fallback convenience for predictable privacy boundaries.
 
 ## Install
 
@@ -92,6 +119,9 @@ pi install -l ./pi-packages/image-router
 Run these checks before opening a PR:
 
 ```bash
+# Node.js 24; tests mock Pi imports and need no installed peers.
+# Disable pnpm 11's automatic dependency install for this dependency-free check.
+pnpm --config.verify-deps-before-run=false --dir pi-packages/image-router test
 jq -e . pi-packages/image-router/package.json >/dev/null
 
 (cd pi-packages/image-router && npm pack --dry-run --json >/tmp/image-router-pack.json)
@@ -103,7 +133,8 @@ top-level `README.md`, `docs/runbooks/distribution.md`, and
 
 ## Configuration
 
-Environment variables (optional — auto-detection is the default):
+Environment variables can select the explicit global destination (both required).
+They do not enable `auto` mode or authorize an unapproved `ask` request:
 
 ```bash
 export IMAGE_ROUTER_VISION_PROVIDER="openai-codex"

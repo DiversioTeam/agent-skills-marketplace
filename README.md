@@ -316,9 +316,9 @@ sub-package so pi can discover them from a single clone - see
 
 | Package | Description |
 |---------|-------------|
-| `ci-status` | Pi-native CI status extension with `/ci`, `/ci-detail`, `/ci-logs`, auto-watch after pushes, widget/status rendering, GitHub Actions + CircleCI support, and LLM CI tools |
+| `ci-status` | Checkout-scoped CI status with `/ci`, `/ci-detail`, `/ci-logs`, exact GitHub job selection, published local-ci checks and explicit native snapshot logs, real CircleCI console output, auto-watch, and LLM tools. No implicit sibling selection or local-ci execution/publication. |
 | `dev-workflow` | Pi-native daily developer workflow with 16 core workflow prompts including `/workflow:crafting`,  `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, remote CI analysis, local-ci-aware ship/release prompts, PR review feedback, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
-| `image-router` | Pi-native image routing extension that describes screenshots and other image inputs with a vision-capable model when the active model is text-only |
+| `image-router` | Routes images only to an explicitly approved vision destination; no automatic fallback. Tool/RPC images need saved auto consent. Configure the destination with `/image-router` when upgrading from 0.1.x |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
 | `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
 | `skills-bridge` | Auto-discovers all 22 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |

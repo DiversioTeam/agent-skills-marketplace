@@ -254,9 +254,28 @@ pi-timestamps -> subtle per-turn transcript timing rows for exact timestamps,
 skills-bridge -> exposes marketplace plugin skills inside Pi
 ```
 
+`image-router` 0.2.x removes automatic cross-model/provider fallback. Saved
+explicit destinations remain usable, but `auto` without a destination now fails
+closed. Set a per-model destination or global default in `/image-router`.
+`ask` requires interactive approval; tool/RPC images require saved auto consent.
+Images and prompt context go only to that destination. No upload is deferred
+while waiting for approval; retry the input/read after setup.
+
 The `ci-status` package provides `/ci`, `/ci-detail`, `/ci-logs`, CI auto-watch,
 UI widgets, notifications, and LLM tools (`get_ci_status`,
-`ci_fetch_job_logs`).
+`ci_fetch_job_logs`). In 0.1.x, log lookups refresh the current checkout scope;
+closed or different-head PRs no longer substitute their checks for the local
+commit. Ambiguous job queries require an exact ID (and the same `runId` when
+inspecting a run directly). CircleCI logs now use actual v1.1 step output with
+`CIRCLECI_TOKEN`; missing/expired output is reported explicitly, never replaced
+with metadata. Presigned output URLs receive no API token. Log downloads require
+direct public-network access: localhost/IP-literal URLs, non-public DNS answers,
+and redirects are refused; private proxies are not used. No settings migration
+is required. Published local-ci commit statuses are preserved even without an
+open PR. Native log queries use explicit `local-ci:<run-id>[:<step-id>]` IDs after
+`local-ci runs/show` inspection; no run, resume, or publish is started by the
+extension. A missing recognizable aggregate in `.local-ci.toml` checkouts stays
+unknown, not implicitly green. See `pi-packages/ci-status/README.md` for limits.
 
 The `dev-workflow` package provides `/workflow:*` commands,
 `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, the
