@@ -15,8 +15,10 @@ when command files change.
     CircleCI uses actual v1.1 step console output, not metadata-as-logs; unavailable
     output is an error. Published local-ci commit statuses remain visible without
     being treated as Actions jobs. Explicit `local-ci:<run-id>[:<step-id>]` log
-    queries use native read-only inspection, never run/resume/publish. Missing
-    local-ci aggregate publication is unknown in configured checkouts. See the
+    queries use native read-only inspection, never run/resume/publish. Runner
+    events label v1 publication receipts as historical acknowledgements or
+    unknown, without promoting them to current CI status or complete publication.
+    Missing local-ci aggregate publication is unknown in configured checkouts. See the
     package README for provenance, API, and buffering limits.
   - Pi install from repo checkout: `pi install "$PWD/pi-packages/ci-status"`
   - Package path: `pi-packages/ci-status`

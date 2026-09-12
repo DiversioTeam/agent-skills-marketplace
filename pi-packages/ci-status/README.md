@@ -123,8 +123,10 @@ slash commands are not available.
 ## local-ci Compatibility
 
 `local-ci` owns **execution and publication**; this extension only reads results.
-Its v0.1.0 [inspection contract](https://github.com/DiversioTeam/local-ci-runner/blob/v0.1.0/docs/inspection.md)
-provides the native `runs`, `show`, and `logs` commands.
+Its v0.1.0-compatible inspection commands provide native `runs`, `show`, and
+`logs`. Runner v0.2.0 adds [v1 publication receipts](https://github.com/DiversioTeam/local-ci-runner/blob/v0.2.0/cmd/local-ci/MANUAL.md#81-publication-receipts-binary-contract)
+to runner events; ci-status 0.1.1 recognizes those records without a version
+probe or a new command.
 
 - Published `StatusContext` entries remain commit statuses, never guessed
   Actions jobs—even if their target URL resembles an Actions URL. This also
@@ -139,9 +141,9 @@ provides the native `runs`, `show`, and `logs` commands.
   guidance. This is not a branch-protection/config/required-gate validator.
 - Published local-ci statuses carry **no run ID or log URL**. The extension
   cannot prove which local artifact produced one and will not choose a run by
-  timestamp, SHA alone, or similar step name. Per-run GitHub sync/publication
-  tracking is not implemented: it needs a durable runner receipt containing the
-  target repository and SHA. An observed aggregate is not that receipt.
+  timestamp, SHA alone, or similar step name. An observed aggregate is not a
+  runner receipt. Status discovery does not scan local runs, and historical
+  receipts never change the CI widget, all-green logic, or live status results.
 
 Find an explicit run and step using read-only native commands:
 
@@ -156,7 +158,35 @@ Then use `/ci-logs local-ci:20260627T150405Z-deadbeef:checks-fast` or:
 {"jobId":"local-ci:20260627T150405Z-deadbeef:checks-fast"}
 ```
 
-Omit `:<step-id>` for clearly labeled **runner events**, not a guessed step.
+Omit `:<step-id>` for **runner events and historical publication evidence**,
+not a guessed step. The same output is available through `/ci-logs` and
+`ci_fetch_job_logs`:
+
+```text
+/ci-logs local-ci:20260627T150405Z-deadbeef
+```
+
+- Only exactly one requested/posted pair with matching attempt ID, run, target
+  repo/SHA, context, source, step, and status establishes an **acknowledgement**.
+  Sequence order must agree; timestamps are validated, not used for matching.
+- Execution (including resume) and explicit publish receipts are supported.
+  Every retry keeps its own ID. A later unknown attempt does not erase an older
+  acknowledgement or become associated with it.
+- Missing outcomes, reporter errors, duplicate/conflicting records, malformed
+  fields, unsupported versions, and legacy events remain **unknown**. Empty
+  events do not prove that nothing was posted. Unknown additive fields are
+  ignored; the full native event array is assessed before output truncation.
+- Acknowledged `failure`/`error` means that status was posted, not that checks
+  passed. Acknowledged `pending` does not mean checks completed. Other targets
+  are labeled historical evidence for a **different target**, never the selected
+  commit. Original snapshot metadata is preserved, including dirty-run provenance.
+- Receipts are local records, not signed attestations. They prove neither
+  current GitHub status, complete required-context publication, latest resumed
+  coverage, current worktree/config/plan validity, nor deployment permission.
+- Step-log queries remain unchanged and do **not** additionally fetch receipts.
+  Raw runner events remain below the evidence summary, within the existing
+  500-line limit. Use native runner logs for the full output.
+
 Do not combine local IDs with GitHub `runId` or CircleCI `jobNumber`. Native
 `show --json` and `logs --step … --combined --json` perform the reads; there is
 no second artifact parser or planner execution. Use native `--planner` directly

@@ -705,6 +705,61 @@ type LocalSnapshot = {
   steps: Array<{ step_id: string }>;
 };
 
+function getLocalPublicationEvidence(events: unknown[], runId: string, repo: string, sha: string): string {
+  const attempts = new Map<string, Record<string, unknown>[]>();
+  const sequences = new Map<unknown, number>();
+  let unattributed = 0;
+  for (const value of events) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) { unattributed++; continue; }
+    const event = value as Record<string, unknown>;
+    sequences.set(event.sequence, (sequences.get(event.sequence) ?? 0) + 1);
+    if (!(typeof event.type === "string" && event.type.startsWith("github.status.")) && event.github_post === undefined) continue;
+    const post = event.github_post;
+    if (!post || typeof post !== "object" || Array.isArray(post)) { unattributed++; continue; }
+    const attemptId = (post as Record<string, unknown>).attempt_id;
+    if (typeof attemptId !== "string" || !attemptId.trim()) { unattributed++; continue; }
+    const records = attempts.get(attemptId) ?? [];
+    records.push(event);
+    attempts.set(attemptId, records);
+  }
+  const lines = [
+    "Historical publication evidence (local records, not signed attestations):",
+    "Acknowledgements do not prove current GitHub status, complete publication, latest resumed coverage, current validation, or deployment permission.",
+  ];
+  for (const [attemptId, records] of attempts) {
+    const [request, outcome] = records;
+    const post = request.github_post as Record<string, unknown>;
+    const validRecords = records.every(event => {
+      const target = event.github_post as Record<string, unknown>;
+      return event.run_id === runId && Number.isSafeInteger(event.sequence) && Number(event.sequence) > 0 &&
+        sequences.get(event.sequence) === 1 && typeof event.time === "string" &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(event.time) && Number.isFinite(Date.parse(event.time)) &&
+        new Date(event.time).toISOString().slice(0, 19) === event.time.slice(0, 19) &&
+        (event.step_id === undefined || (typeof event.step_id === "string" && event.step_id.length > 0)) &&
+        typeof event.status === "string" && ["pending", "success", "failure", "error"].includes(event.status) &&
+        target.version === 1 && typeof target.source === "string" && ["execution", "publish"].includes(target.source) &&
+        typeof target.repo === "string" && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(target.repo) &&
+        typeof target.sha === "string" && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(target.sha) &&
+        typeof target.context === "string" && target.context.trim().length > 0;
+    });
+    const acknowledged = validRecords && records.length === 2 &&
+      request.type === "github.status.requested" && outcome.type === "github.status.posted" &&
+      Number(request.sequence) < Number(outcome.sequence) && request.step_id === outcome.step_id && request.status === outcome.status &&
+      ["version", "attempt_id", "repo", "sha", "context", "source"].every(field =>
+        post[field] === (outcome.github_post as Record<string, unknown>)[field]);
+    if (!acknowledged) {
+      lines.push(`Attempt ${JSON.stringify(attemptId)}: unknown (missing, failed, conflicting, malformed, or unsupported receipt).`);
+      continue;
+    }
+    const target = JSON.stringify({ repo: post.repo, sha: post.sha, context: post.context, source: post.source,
+      step: request.step_id ?? "(aggregate)", status: request.status });
+    lines.push(`Attempt ${JSON.stringify(attemptId)}: acknowledged ${target}; ${post.repo === repo && post.sha === sha ? "selected target" : "different target, not evidence for the selected commit"}.`);
+  }
+  if (unattributed) lines.push(`${unattributed} legacy/malformed records without an attempt ID: outcome unknown.`);
+  if (!attempts.size) lines.push("No attributable receipts: publication unknown (not proof that nothing was posted).");
+  return lines.join("\n");
+}
+
 async function getLocalJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promise<string> {
   if (!job.localRunId || !job.sha) throw new Error(LOCAL_CI_LOG_HELP);
   const root = await getGitRoot(pi, cwd);
@@ -740,7 +795,8 @@ async function getLocalJobLogs(pi: ExtensionAPI, cwd: string, job: CiJob): Promi
   return getLimitedLogText([
     `Local snapshot: ${job.localRunId}; original HEAD ${snapshot.meta.head_sha}; dirty=${snapshot.meta.dirty_worktree ?? false}; stored tree ${snapshot.meta.worktree_tree_hash}.`,
     matchesCommitTree ? `Tree matches selected commit ${job.sha}.` : `Stored dirty snapshot based on ${job.sha}; current working-tree contents were not compared.`,
-    "These logs are not proof of publication, current worktree validation, or current config/plan validity.",
+    job.localStepId ? "These logs are not proof of publication, current worktree validation, or current config/plan validity." :
+      getLocalPublicationEvidence(output.events ?? [], job.localRunId, snapshot.meta.repo_slug, job.sha),
     job.localStepId ? `Step ${job.localStepId} combined output:` : "local-ci runner events:",
     logs || "(no log output)",
   ].join("\n"));
@@ -2837,7 +2893,7 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       "Use get_ci_status when the user asks about CI status, failing checks, or whether the current branch is ready after a push.",
       "After get_ci_status shows failed jobs, use ci_fetch_job_logs with a job id or runId to get the failure logs.",
-      "local-ci commit statuses have no run provenance. Inspect local-ci runs/show read-only, then select an explicit local-ci:<run-id>[:<step-id>] for logs. Do not run, resume, publish, or deploy automatically.",
+      "local-ci commit statuses have no run provenance. Inspect local-ci runs/show read-only, then select an explicit local-ci:<run-id>[:<step-id>] for logs. Runner logs label v1 publication receipts as historical acknowledgements or unknown, never current CI status. Do not run, resume, publish, or deploy automatically.",
     ],
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
@@ -2898,7 +2954,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "ci_fetch_job_logs",
     label: "Fetch CI Job Logs",
-    description: "Fetch console output for one CI job after refreshing checkout scope. Prefer the exact jobId from get_ci_status; supplied runId/jobNumber must also match. Run-only queries and names paired with runId inspect the full run inventory. An exact github-job:<id> is read directly, including prior attempts; any supplied runId must match. GitHub runs/jobs are checked against the checkout SHA. CircleCI requires CIRCLECI_TOKEN. For local-ci, use jobId local-ci:<run-id>[:<step-id>] after native runs/show inspection: explicit snapshot logs are not proof of published checks or current validation. Ambiguous jobs or unavailable output return errors, not substitute logs. Output is limited to 500 lines.",
+    description: "Fetch console output for one CI job after refreshing checkout scope. Prefer the exact jobId from get_ci_status; supplied runId/jobNumber must also match. Run-only queries and names paired with runId inspect the full run inventory. An exact github-job:<id> is read directly, including prior attempts; any supplied runId must match. GitHub runs/jobs are checked against the checkout SHA. CircleCI requires CIRCLECI_TOKEN. For local-ci, use jobId local-ci:<run-id>[:<step-id>] after native runs/show inspection: runner events include historical v1 receipt acknowledgements, not proof of current published checks or current validation. Step logs do not inspect receipts. Ambiguous jobs or unavailable output return errors, not substitute logs. Output is limited to 500 lines.",
     promptSnippet: "Fetch failure logs for a specific CI job",
     promptGuidelines: [
       "Use ci_fetch_job_logs after get_ci_status shows failed jobs, to get detailed failure logs for analysis.",

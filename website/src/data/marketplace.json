@@ -305,8 +305,8 @@
     {
       "name": "ci-status",
       "title": "CI Status",
-      "description": "Checkout-scoped GitHub/CircleCI checks, published local-ci statuses and explicit native snapshot logs, unambiguous job selection, interactive details, and auto-watch.",
-      "version": "v0.1.0"
+      "description": "Checkout-scoped GitHub/CircleCI checks, published local-ci statuses, explicit snapshot logs and historical publication receipts, unambiguous job selection, interactive details, and auto-watch.",
+      "version": "v0.1.1"
     },
     {
       "name": "oh-my-pi",

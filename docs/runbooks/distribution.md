@@ -275,7 +275,12 @@ is required. Published local-ci commit statuses are preserved even without an
 open PR. Native log queries use explicit `local-ci:<run-id>[:<step-id>]` IDs after
 `local-ci runs/show` inspection; no run, resume, or publish is started by the
 extension. A missing recognizable aggregate in `.local-ci.toml` checkouts stays
-unknown, not implicitly green. See `pi-packages/ci-status/README.md` for limits.
+unknown, not implicitly green. Since 0.1.1, explicit runner-event queries also
+label local-ci v0.2.0's v1 publication receipts as historical acknowledgements or
+unknown. They do not promote historical records into current status or complete
+publication. Legacy runner logs remain readable with unknown publication; no
+binary upgrade or status posting is performed automatically. See
+`pi-packages/ci-status/README.md` for limits.
 
 The `dev-workflow` package provides `/workflow:*` commands,
 `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, the

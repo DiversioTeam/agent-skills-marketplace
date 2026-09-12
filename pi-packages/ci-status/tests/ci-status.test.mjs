@@ -518,6 +518,158 @@ function addLocalSnapshot(repository) {
     view: 'combined', content: 'Native local-ci step failure' };
 }
 
+function buildPublicationEvents(source = 'execution', status = 'success') {
+  const request = { sequence: 1, time: '2026-09-12T00:00:00Z', run_id: localRunId,
+    type: 'github.status.requested', status, github_post: { version: 1, attempt_id: 'attempt-one',
+      repo: 'team/first', sha: currentSha, context: 'custom verification', source } };
+  return [request, { ...structuredClone(request), sequence: 2, type: 'github.status.posted' }];
+}
+
+async function getPublicationLogs(events) {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  repository.localOutput = { ...repository.localOutput, source: 'runner', step_id: undefined, events };
+  const extension = await getExtension({ '/first': repository });
+  const result = await extension.logs({ jobId: `local-ci:${localRunId}` });
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(extension.requests.filter(request => request.command === 'local-ci').map(request => [...request.arguments]), [
+    ['show', localRunId, '--json'], ['logs', localRunId, '--runner', '--json'],
+  ]);
+  return result.content[0].text;
+}
+
+for (const source of ['execution', 'publish']) {
+  for (const status of ['pending', 'success', 'failure', 'error']) {
+    test(`publication ${source}/${status} acknowledgement retains the exact outcome`, async () => {
+      const events = buildPublicationEvents(source, status);
+      const logs = await getPublicationLogs(events);
+      assert.match(logs, /Attempt "attempt-one": acknowledged/);
+      assert.ok(logs.includes(`"status":"${status}"`));
+      assert.ok(logs.includes(`"source":"${source}"`));
+      assert.match(logs, /selected target/);
+      assert.match(logs, /do not prove current GitHub status, complete publication, latest resumed coverage/);
+      assert.match(logs, /github.status.requested/);
+    });
+  }
+}
+
+const invalidReceiptChanges = {
+  'missing request': events => events.shift(),
+  'missing outcome': events => events.pop(),
+  'reporter error': events => events[1].type = 'github.status.failed',
+  'reversed records': events => events.reverse(),
+  'reversed sequence': events => events[1].sequence = 0,
+  'duplicate outcome': events => events.push(structuredClone(events[1])),
+  'duplicate sequence elsewhere': events => events.push({ sequence: 2, type: 'step.finished' }),
+  'failed and posted': events => events.push({ ...events[1], sequence: 3, type: 'github.status.failed' }),
+  'wrong run': events => events[1].run_id = 'other-run',
+  'wrong step': events => events[1].step_id = 'checks-fast',
+  'wrong status': events => events[1].status = 'failure',
+  'wrong repo': events => events[1].github_post.repo = 'team/other',
+  'wrong SHA': events => events[1].github_post.sha = otherSha,
+  'wrong context': events => events[1].github_post.context = 'other',
+  'wrong source': events => events[1].github_post.source = 'publish',
+  'wrong attempt': events => events[1].github_post.attempt_id = 'other',
+  'unsupported version': events => events.forEach(event => event.github_post.version = 2),
+  'string version': events => events.forEach(event => event.github_post.version = '1'),
+  'unknown event': events => events[1].type = 'github.status.accepted',
+  'invalid time': events => events[1].time = 'yesterday',
+  'impossible calendar date': events => events[1].time = '2026-02-31T00:00:00Z',
+  'coercible status': events => events[1].status = { toString: 'success' },
+  'coercible source': events => events[1].github_post.source = { toString: 'execution' },
+  'non-string event type': events => events[1].type = { toString: 'github.status.posted' },
+  'invalid sequence': events => events[1].sequence = '2',
+  'invalid source': events => events.forEach(event => event.github_post.source = 'resume'),
+  'invalid context': events => events.forEach(event => event.github_post.context = ''),
+  'invalid hash': events => events.forEach(event => event.github_post.sha = 'not-a-hash'),
+  'malformed post': events => events[1].github_post = [],
+  'null outcome': events => events[1] = null,
+};
+for (const [name, change] of Object.entries(invalidReceiptChanges)) {
+  test(`publication stays unknown for ${name}`, async () => {
+    const events = buildPublicationEvents();
+    change(events);
+    const logs = await getPublicationLogs(events);
+    assert.doesNotMatch(logs, /: acknowledged/);
+    assert.match(logs, /unknown/);
+  });
+}
+
+test('publication matches exact identity, not clock order, extra fields, or a context naming convention', async () => {
+  const events = buildPublicationEvents();
+  events[0].time = '2026-09-12T00:00:01.123456789Z';
+  events[1].time = '2026-09-12T00:00:00.000000001Z';
+  events[1].additional_field = 'forward compatible';
+  events[1].github_post.additional_field = true;
+  assert.match(await getPublicationLogs(events), /Attempt "attempt-one": acknowledged/);
+});
+
+test('historical acknowledgement inspection never promotes unknown live CI status', async () => {
+  const repository = { ...buildRepository(), checks: [], localConfigured: true };
+  addLocalSnapshot(repository);
+  repository.localOutput = { ...repository.localOutput, source: 'runner', step_id: undefined, events: buildPublicationEvents() };
+  const extension = await getExtension({ '/first': repository });
+  assert.equal((await extension.status()).details.summary.unknown, 1);
+  assert.equal(extension.requests.filter(request => request.command === 'local-ci').length, 0);
+  assert.match((await extension.logs({ jobId: `local-ci:${localRunId}` })).content[0].text, /: acknowledged/);
+  assert.equal((await extension.status()).details.summary.unknown, 1);
+});
+
+test('legacy and empty runner events never establish that nothing was posted', async () => {
+  for (const events of [[], [{ type: 'github.status.posted' }], [null, 3, [], { github_post: {} }]]) {
+    assert.match(await getPublicationLogs(events), /publication unknown \(not proof that nothing was posted\)/);
+  }
+});
+
+test('later retries preserve unknown attempts and do not erase older acknowledgements', async () => {
+  const events = buildPublicationEvents();
+  const retry = buildPublicationEvents('publish', 'failure');
+  retry.forEach(event => { event.sequence += 2; event.github_post.attempt_id = 'retry'; event.step_id = 'checks-fast'; });
+  events.push(...retry.slice(0, 1));
+  let logs = await getPublicationLogs(events);
+  assert.match(logs, /Attempt "attempt-one": acknowledged/);
+  assert.match(logs, /Attempt "retry": unknown/);
+  events.push(retry[1]);
+  logs = await getPublicationLogs(events);
+  assert.match(logs, /Attempt "retry": acknowledged/);
+  assert.ok(logs.includes('"step":"checks-fast","status":"failure"'));
+});
+
+test('receipt conflicts after the raw-log display limit are still assessed', async () => {
+  const events = buildPublicationEvents();
+  events.push(...Array.from({ length: 550 }, (_, index) => ({ sequence: index + 3, type: 'step.finished' })));
+  events.push({ ...structuredClone(events[1]), sequence: 553, type: 'github.status.failed' });
+  const logs = await getPublicationLogs(events);
+  assert.match(logs, /Attempt "attempt-one": unknown/);
+  assert.doesNotMatch(logs, /: acknowledged/);
+  assert.match(logs, /truncated/);
+});
+
+test('explicit publish receipts preserve the original dirty-run provenance', async () => {
+  const repository = buildRepository();
+  addLocalSnapshot(repository);
+  repository.localSnapshot.meta.head_sha = otherSha;
+  repository.localSnapshot.meta.dirty_worktree = true;
+  repository.localOutput = { ...repository.localOutput, source: 'runner', step_id: undefined, events: buildPublicationEvents('publish') };
+  const extension = await getExtension({ '/first': repository });
+  await extension.command(`local-ci:${localRunId}`);
+  const result = await extension.logs({ jobId: `local-ci:${localRunId}` });
+  assert.equal(result.isError, undefined);
+  assert.match(result.content[0].text, /: acknowledged/);
+  assert.match(result.content[0].text, /dirty=true/);
+  assert.ok(result.content[0].text.includes(`original HEAD ${otherSha}`));
+  assert.equal(repository.localSnapshot.meta.head_sha, otherSha);
+});
+
+test('acknowledgements for other targets remain historical and cannot validate the selected commit', async () => {
+  const events = buildPublicationEvents('publish');
+  events.forEach(event => { event.github_post.sha = otherSha; event.github_post.repo = 'team/other'; });
+  const logs = await getPublicationLogs(events);
+  assert.match(logs, /: acknowledged/);
+  assert.match(logs, /different target, not evidence for the selected commit/);
+  assert.ok(logs.includes(otherSha));
+});
+
 test('commit fallback preserves paginated local-ci and legacy fast-check statuses', async () => {
   const repository = { ...buildRepository(), prState: 'MERGED' };
   repository.statusPages = [
