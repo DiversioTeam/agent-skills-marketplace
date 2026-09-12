@@ -1,6 +1,6 @@
 ---
 name: terraform-atomic-commit
-description: "Terraform-focused pre-commit + atomic-commit Skill for IaC repos (fmt/validate/tflint/terraform-docs) with strict atomicity and no AI commit signatures."
+description: "Run Terraform/Terragrunt pre-commit checks and assess staged-change atomicity without applying infrastructure."
 allowed-tools: Bash Read Edit Glob Grep
 ---
 

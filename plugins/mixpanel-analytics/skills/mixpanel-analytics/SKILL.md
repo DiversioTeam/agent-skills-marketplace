@@ -1,6 +1,6 @@
 ---
 name: mixpanel-analytics
-description: "Implement or review Optimo Mixpanel events without regressing identity, tenant safety, producer ownership, privacy, or post-commit delivery. Use for Django optimo_analytics and its cross-channel callers."
+description: "Implement or review Optimo backend Mixpanel events and their cross-channel identity and delivery contracts."
 allowed-tools: Bash Read Edit Write Glob Grep
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: dependabot-remediation
-description: "Plan and execute backend and frontend Dependabot remediation with wave-based sequencing, resolver validation, and post-merge closure checks."
+description: "Triage Dependabot alerts, execute scoped remediation, and verify post-merge closure."
 allowed-tools: Bash Read Edit Write Glob Grep
 argument-hint: "[backend <triage|execute-wave <N>|release> | frontend <triage|execute|release>] [--repo owner/repo] [--base-branch <name>] [--config-only] [--write-config]"
 ---
@@ -171,7 +171,8 @@ Reference:
 
 ### Backend Modes Output
 
-Always return:
+Include the sections relevant to the requested mode; do not invent execution
+or release results during triage:
 1. `Current State`
 2. `Dependabot Config Status` (existing/reviewed or created/proposed)
 3. `Backend Scope Filter` (ecosystem/path rules used)
@@ -184,7 +185,7 @@ Always return:
 
 ### Frontend Modes Output
 
-Always return:
+Include the sections relevant to the requested mode:
 1. `Inventory`
 2. `Dependabot Config Status` (existing/reviewed or created/proposed)
 3. `Triage Matrix`

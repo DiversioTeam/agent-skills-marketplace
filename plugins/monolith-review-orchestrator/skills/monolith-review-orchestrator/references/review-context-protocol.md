@@ -17,6 +17,92 @@ Read them because they often tell you:
 
 Do not treat "resolved" as "irrelevant".
 
+## Review Quality Standard
+
+For substantive reviews, establish the intended behavior from the request and
+current code, then trace the changed path through its real callers, shared
+helpers, storage, and external boundaries. Inspect only the dependencies needed
+to test those claims, not the whole repository by ritual. Verify fixes at the
+shared root cause rather than only at the reported caller.
+
+Prioritize correctness, security, tenant isolation, data integrity, side effects,
+and actual performance regressions before naming or structure. Inspect failure,
+retry, transaction, concurrency, and compatibility behavior when that path can
+exercise them. Identify the concrete regression case a test should catch; do
+not demand generic coverage or tests that merely duplicate implementation.
+Run checks only within the authorized review scope and environment. Distinguish
+executed results from code inspection and unverified hypotheses.
+
+### Simplicity Test
+
+For each material design change, ask what requirement each new layer serves:
+
+- Can existing code, the standard library, or the framework express the same
+  contract with fewer moving parts?
+- Can unused options, duplicate rules, unnecessary state, or speculative
+  fallback paths be removed instead of creating another abstraction?
+- Does a helper improve its caller or remove real repetition, rather than move
+  a few lines elsewhere? Does a small business change still require edits in
+  many unrelated files?
+- Do names expose their current values, side effects, and ordering? Are types
+  and constants in a shared low-level home without importing service behavior?
+- Does a proposed simplification preserve validation, tenant scope, privacy,
+  transaction boundaries, error visibility, and measured performance?
+
+Prefer deletion, reuse, or a direct implementation over new dependencies,
+interfaces with one implementation, factories, or generic configuration without
+a current need. Do not confuse fewer lines with simpler behavior, or remove
+required recovery paths, compatibility layers, or safety checks. Read the real
+callers and product requirements before calling a path unnecessary.
+
+### Python Clarity Source And Precedence
+
+The bundled [guide](code-clarity-best-practices.md) is a verbatim snapshot of
+`DiversioTeam/Django4Lyfe:docs/code-clarity-best-practices.md` at commit
+`a6badef47370f66d6c94acad61a1e28415c62b9e`:
+[permanent source](https://github.com/DiversioTeam/Django4Lyfe/blob/a6badef47370f66d6c94acad61a1e28415c62b9e/docs/code-clarity-best-practices.md).
+SHA-256: `cd44cfc1da956cc1ac7cd3ddc3eda373484fae31588c819f199ff400db24e775`.
+It requires no sibling checkout or developer-specific absolute path.
+
+Prefer the target repository's current guide or documented replacement. Record
+its path and reviewed revision (or disclose local modifications); otherwise
+identify the bundled snapshot, not an assumed latest upstream version. Refresh
+this copy and provenance together when the source changes; do not silently
+rewrite the snapshot while reviewing a consumer PR.
+
+Target-repo AGENTS.md, explicit policy, and required gates remain authoritative.
+The selected clarity guide takes precedence over generic review-taste defaults;
+surface material policy conflicts rather than silently choosing a rule. Pass
+that precedence to Monty and any delegated reviewer. In particular, do not turn
+its justified exceptions for casts, forward references, or local imports into
+blanket bans. Smells trigger inspection, not automatic refactors. Preserve the
+guide's Must / Should / Consider distinctions and its limits on speculative
+exception handling. Configured Python type gates remain blocking: detect `ty`,
+then `pyright`, then `mypy`, and require configured `ty`.
+
+### Finding Acceptance
+
+Before accepting a finding into the final review, verify:
+
+- It names the current location and a reachable behavior, violated rule, or
+  concrete reading/maintenance burden; earlier comments alone are not proof.
+- It explains the impact and gives the smallest safe correction, with relevant
+  caller or regression-test evidence. No speculative architecture prescriptions.
+- Severity follows impact: Must maps to blocking when violated; Should to an
+  evidence-backed improvement; Consider stays optional unless real risk warrants
+  escalation. A smell or personal preference alone never blocks approval.
+- It belongs to the requested change or exposes a regression caused by it.
+  Unrelated cleanup is a separate optional follow-up, not scope creep.
+- It does not duplicate another root-cause finding or reopen a resolved nit
+  without evidence of regression. A clean review needs no invented praise or nits.
+
+Finish once the requested scope, material claims, prior findings, and applicable
+contracts have been checked and real gaps addressed or explicitly reported.
+Missing evidence limits the verdict; a green test suite alone does not establish
+correctness. Reuse valid unchanged-input evidence instead of forcing extra passes.
+Persist useful source/rationale in existing scope summaries, finding summaries,
+teaching points, and Markdown artifacts; do not add a new review-state schema.
+
 ## Comment-History Workflow
 
 For each PR:
@@ -296,7 +382,8 @@ When posting or drafting the final review:
   genuinely stable
 - avoid duplicating already-open reviewer threads
 - tie each serious comment to risk or broken behavior
-- give the author a concrete next step
+- give the author the smallest safe next step, not a speculative redesign
+- apply the finding-acceptance rules above to delegated and main-agent findings
 
 Top-level review shape:
 

@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: "Create and manage promotion and release PRs for Django4Lyfe. Use this when preparing dev→release promotion PRs, release→master release PRs, validating exact branch heads with local-ci, triggering validated backend deploys, bumping versions, resolving merge conflicts, and publishing GitHub releases."
+description: "Prepare Django4Lyfe promotions and releases, validate deploy candidates, or publish an authorized release."
 allowed-tools: Bash Read Edit Grep Glob
 argument-hint: "[action] [PR_NUMBER] [--hotfix] [--dry-run]"
 ---

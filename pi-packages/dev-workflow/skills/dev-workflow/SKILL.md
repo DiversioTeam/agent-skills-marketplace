@@ -1,11 +1,15 @@
 ---
 name: dev-workflow
-description: "Multi-pass AI workflow for shipping high-quality code. Use when the user is about to finalize a change, wants a standards review, or asks to ship/workflow/review their code. Covers plan review, self-review, standards pass, documentation, and PR creation."
+description: "Run a requested development workflow pass or finalize a change through verification and PR preparation."
 ---
 
 # Dev Workflow
 
-An 8-step daily developer workflow that forces multiple passes over the same change from different angles: planning quality, implementor self-checking, repository standards, CI analysis, end-to-end verification, independent review, documentation, and a final commit-and-PR handoff.
+Choose the pass the user requested; the eight-step flow below is an available
+end-to-end workflow, not a prerequisite for every edit. Reuse valid verification
+for unchanged inputs. Continue authorized work through its completion criteria,
+fixing related failures; stop for real blockers or decisions outside scope.
+Loading this skill does not authorize commits, pushes, PR publication, or deploys.
 
 The package and skill are named `dev-workflow`; use `/skill:dev-workflow` to load the full workflow context.
 
@@ -22,91 +26,12 @@ The package and skill are named `dev-workflow`; use `/skill:dev-workflow` to loa
 8. Ship             → /workflow:ship       → Verify CI green, discover PR context, atomic commit, open PR
 ```
 
-## Step Details
+## Choose A Pass
 
-### Step 1: Review the Plan
-**Before writing code**, challenge the plan itself. Have the AI reread the plan and surrounding code with fresh eyes, looking for bugs, ambiguity, and conflicts. Update the plan based on findings.
-
-**Command:** `/workflow:plan` (append extra context like `/workflow:plan focus on auth module`)
-
-### Step 2: Park the Reviewer
-When AI finishes implementation and outputs "details of what it did":
-1. Copy those details into a reviewer session (or the original planner session)
-2. **Do not run the reviewer yet** — the implementor needs to self-review first
-
-This step is manual orchestration. No command for it.
-
-### Step 3: Implementor Self-Review
-Force the implementor (same AI session that wrote the code) to reread all new and modified code with fresh eyes. Catch obvious bugs before the independent reviewer spends time on them.
-
-**Command:** `/workflow:self`
-
-### Step 4: Standards Pass
-Run the coding standards and pre-commit cleanup. This is the policy and hygiene pass:
-
-- No local imports (check circular imports)
-- No unnecessary `getattr()`, use `hasattr()` only if needed
-- No overly large `try`/`except` blocks
-- Structured logging in `optimo_` apps
-- No hardcoded strings/numbers where structured fields should be used
-- Use `TypedDict` instead of loose `dict` with `Any`
-- Ruff must be happy with all files
-- No string-based type hints
-- Never use `typing.cast()` — it's a code smell
-- Don't repeat fixtures in tests
-- Use Django ORM reverse relations to avoid unnecessary model imports
-- Be pedantic about type hints, avoid `Any`
-- Use `ast-grep` where helpful
-
-**Command:** `/workflow:standards`
-
-### Step 5: CI Check
-Before manual verification, check CI for the current branch using the separate **ci-status** pi package when installed. If it is unavailable, use `get_ci_status` and `ci_fetch_job_logs` only if the current harness exposes those tools; otherwise ask the user to install `ci-status` before proceeding.
-
-**Primary commands:**
-- `/ci` — quick status overview in the widget area
-- `/ci-detail` — interactive TUI view grouped by CI provider and workflow/cycle, Tab and cycle switching, native pickers, in-place refresh, automatic failure focus, detail view, and log access
-- `/ci-logs <job>` — pull failure logs for a specific job
-
-**Orchestration command:**
-- `/workflow:ci` — guides the AI through the full CI check: run `/ci` or `/ci-detail`, analyze each failure (ours vs flake), propose fixes, summarize.
-
-Boundary: `/workflow:ci` is for remote CI status. If `local-ci` is on PATH and
-repo root contains `.local-ci.toml`, use local-ci later as the repo-owned local
-validation path; do not replace `/ci` with local-ci here.
-
-The ci-status extension auto-watches CI on startup and after git pushes. Failure notifications appear automatically. Covers GitHub Actions and CircleCI (set `CIRCLECI_TOKEN` for CircleCI enrichment).
-
-**Command:** `/workflow:ci` (orchestrated) or `/ci-detail` (direct interactive UI)
-
-### Step 6: Verify Locally & Run Reviewer
-The engineer verifies everything locally (backend, frontend, etc.). Then wakes the waiting reviewer session. If the reviewer finds issues, paste findings back into the implementor and repeat steps 2-5 until satisfied.
-
-This step is manual orchestration. No command for it.
-
-### Step 7: Documentation Pass
-Make the outcome legible. Document all updated code, especially new additions, in simple, visual, first-principles-driven language. Explain **why** changes were made.
-
-**Command:** `/workflow:docs`
-
-### Step 8: Ship It
-Finalize and ship the work:
-
-1. **Verify remote CI green** — prefer `/ci` and `/ci-detail`; fall back to available CI tools if the harness exposes them
-2. **Run repo-owned local validation** — if `local-ci` is on PATH and repo root contains `.local-ci.toml`, run `local-ci run --no-github` (or the repo-local equivalent) before finalizing. If it fails, stop and dig into the failure instead of treating it as a status footnote.
-3. **Discover context** — check the current branch, look for existing GitHub PRs and issues
-4. **Update existing PR** if one already exists for this branch
-5. **Create new PR** if none exists, linking any related GitHub issues
-6. **Ask questions** if uncertain about anything (existing PRs, issue linking, branch targets)
-7. **Atomic commit** — use the atomic commit skill, ensure everything passes (lint, types, tests, pre-commit)
-8. **PR description** — use the PR description writer skill for a reviewer-friendly summary
-9. **Open the PR** on GitHub
-
-For backend release/master deploy flows, a PR-head local-ci run is only a preflight; exact target-branch parity still happens from the clean `origin/release` or `origin/master` head. If `scripts/deploy/trigger_validated_backend_deploy.sh` exists, use it there instead of assuming merge deploys automatically.
-
-Never compromise by excluding files that are part of the change. Everything touched must be improved.
-
-**Command:** `/workflow:ship`
+Read the requested pass in [workflow passes](references/workflow-passes.md):
+plan, self-review, standards, CI, local verification, docs, or ship. Manual
+reviewer orchestration is optional unless the user selected that full flow.
+Read the ship section before commit/PR work; do not infer deployment permission.
 
 ## Principles
 

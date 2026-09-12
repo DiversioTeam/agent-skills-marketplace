@@ -1,6 +1,6 @@
 {
   "name": "mixpanel-analytics",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Optimo Mixpanel implementation and review with identity, tenant, producer, privacy, post-commit delivery, and domain regression guardrails.",
   "author": {
     "name": "Diversio Devs"

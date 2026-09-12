@@ -1,6 +1,6 @@
 ---
 name: ci
-description: "Check CI status for the current branch, analyze failures, distinguish failures caused by our changes from pre-existing flakes, and propose specific fixes. Use when the user asks about CI, build status, failing checks, failing jobs, test failures in CI, or whether the branch is ready after a push."
+description: "Check remote CI status and investigate failing jobs for the current branch or PR."
 ---
 
 # CI Check
@@ -25,9 +25,9 @@ Fallback tools, when exposed by the current harness:
 - If `local-ci` is on PATH and the repo root contains `.local-ci.toml`, treat
   local-ci as the repo-owned **local validation** path instead of a CI-status
   replacement.
-- Some repos may still show safety workflows or temporary compatibility stubs
-  in remote CI; missing local-ci contexts usually means local-ci has not been
-  run on that exact SHA yet.
+- Missing local-ci contexts leave validation/publication unknown. A local run
+  may exist without published statuses; visible safety jobs do not replace the
+  repository's required aggregate check.
 - Deploy helpers such as `scripts/deploy/trigger_validated_backend_deploy.sh`
   belong to release/deploy workflows, not this status-check skill.
 
@@ -43,11 +43,13 @@ Fallback tools, when exposed by the current harness:
    - Prefer `/ci-logs <job>` or the `r` log action inside `/ci-detail`.
    - If using fallback tools, call `ci_fetch_job_logs` with the appropriate id from the status output.
    - Use `jobId` for GitHub runs, `runId` for the databaseId, or `jobNumber` for CircleCI jobs.
-   - Logs may be truncated — focus on the tail (last 100-200 lines) where errors typically appear.
+   - Logs may contain only the first 500 lines. State truncation; do not claim
+     to have inspected an unavailable tail.
 
 3. **For each failure, determine: ours or flake?**
    - **Ours** — the failure is in code we touched or is clearly related to our changes. Examples: a test we modified now fails, a new import breaks lint, our code change causes a type error.
-   - **Pre-existing flake** — the same job fails intermittently on other branches/PRs, the error is in code we didn't touch, or the failure is a timeout/infra issue unrelated to our diff.
+   - **Pre-existing flake** — comparable runs show the same intermittent failure
+     independently of this change. Untouched code or a timeout alone is not proof.
    - **Pre-existing (not flake)** — a known failing test or build step that was broken before our branch. Note it but don't propose fixing it unless explicitly asked.
 
 4. **For each "ours" failure**, propose a fix:
@@ -56,8 +58,8 @@ Fallback tools, when exposed by the current harness:
    - If the fix is non-trivial, outline the approach before editing.
 
 5. **For each flake**, note it and move on:
-   - Mark it clearly as pre-existing so we don't waste time.
-   - If it's consistently flaky, suggest ignoring it. If it's clearly broken infrastructure, suggest reporting it.
+   - Cite the evidence and distinguish intermittent failure from a persistent
+     infrastructure problem. Do not bypass a required gate because it is flaky.
 
 6. **Summarize at the end** in a scannable format:
    - Overall status: ✅ all green / ❌ X failing / ⚠️ Y flaky
@@ -75,7 +77,7 @@ CI Status: ❌ 2 failing, ⚠️ 1 flaky
 |-----|--------|-------|--------|
 | backend-tests | ❌ | ✅ ours | Fix import in views.py |
 | frontend-lint | ❌ | ✅ ours | Run prettier on App.tsx |
-| e2e-safari | ❌ | 🚫 flake | Pre-existing — ignore |
+| e2e-safari | ❌ | 🚫 flake | Cite comparable runs; gate still failing |
 ```
 
 ## Safety rules
@@ -84,4 +86,5 @@ CI Status: ❌ 2 failing, ⚠️ 1 flaky
 - Do not propose fixes for code we didn't touch unless it's clearly a side-effect cleanup.
 - Do not mark a failure as a flake unless you can see evidence it also fails on other branches.
 - If you cannot determine whether a failure is ours or a flake, flag it as "unclear" and ask the user.
-- If CI is all green, confirm and stop — don't dig into passing jobs.
+- When all required checks are green for the exact head, report and stop.
+  Missing checks or failed discovery remain unknown, not green.

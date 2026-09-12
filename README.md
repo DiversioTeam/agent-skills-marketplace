@@ -77,12 +77,20 @@ skills, and Pi extensions.
 
 The `repo-docs` plugin is now explicitly informed by OpenAI's February 11,
 2026 article [Harness engineering: leveraging Codex in an agent-first
-world](https://openai.com/index/harness-engineering/).
+world](https://openai.com/index/harness-engineering/) and Eric Provencher's
+September 11, 2026 [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra).
+Its [model guidance](plugins/repo-docs/skills/repo-docs-generator/references/model-guidance.md)
+separates source-dated observations from portable repository rules.
 
 The practical takeaway for this repo is:
 - Keep `AGENTS.md` as a short routing map, not a giant handbook.
 - Put durable detail in focused repo-local docs.
 - Treat repeated failures as harness gaps to encode in docs, wrappers, or CI.
+- Use narrow skill triggers and read references by task, not as a universal checklist.
+- Define completion and verified-safe permissions without weakening required gates.
+
+See the [24-skill instruction audit](docs/quality/skill-instruction-audit.md) for
+scope and retained safety contracts.
 
 ## Repository Structure
 

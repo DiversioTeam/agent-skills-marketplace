@@ -1,6 +1,6 @@
 ---
 name: pr-description-writer
-description: "Create or update reviewer-friendly PR descriptions with evidence-backed scope, verification, and tldraw offline visuals when useful."
+description: "Draft or update a PR description from the complete diff and verified results."
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
 
