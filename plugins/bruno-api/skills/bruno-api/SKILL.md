@@ -1,6 +1,6 @@
 ---
 name: bruno-api
-description: "Generate comprehensive API docs from Bruno (.bru) files by mapping requests to a Django implementation (DRF/Django Ninja), including auth, multi-tenant filtering, schemas, and code references."
+description: "Document Bruno requests by tracing their Django DRF or Ninja endpoints and contracts."
 allowed-tools: Bash Read Edit Glob Grep
 ---
 
@@ -18,11 +18,9 @@ Optional flags:
 - `--dry-run` – produce an analysis plan only (no deep codebase search).
 - `--output <path>` – write the generated markdown documentation to a file.
 
-If inputs are missing or ambiguous, ask the user to confirm:
-
-- Which `.bru` file(s) to analyze.
-- Whether they want `--dry-run` or full documentation.
-- Whether an output file should be written.
+Use the supplied file or scan directory; ask if the endpoint scope is unclear.
+Default to full documentation in the response. `--dry-run` limits work to a
+plan; write files only when `--output` or the request supplies that intent.
 
 ## Output Shape & Severity Tags
 

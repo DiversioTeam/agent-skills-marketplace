@@ -100,6 +100,11 @@ npm run build
 
 ## Review Discipline
 
+The [skill instruction audit](skill-instruction-audit.md) records the full-skill
+scope and safety contracts retained during the Astra-guidance refresh. Validate
+moved reference links and wrapper/prompt consistency as well as line budgets;
+size checks alone do not prove good activation or model behavior.
+
 - After substantive edits, review the changed files plus the adjacent docs or
   metadata they rely on.
 - If a workflow changed, update the focused doc that owns it instead of

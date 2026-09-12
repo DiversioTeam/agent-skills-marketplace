@@ -15,7 +15,9 @@ rg -n "ty|pyright|mypy|ruff|eslint|prettier|djlint|pytest|vitest|jest|terraform|
   pyproject.toml package.json .pre-commit-config.yaml .pre-commit-config.yml .github/workflows Makefile scripts docs 2>/dev/null
 ```
 
-Read the docs that already exist before deciding to add more.
+Read existing entrypoints and the topic docs relevant to the requested scope
+before deciding to add more. Listing paths is not a requirement to load them
+all. For agent-instruction changes, use [model guidance](model-guidance.md).
 
 ## Generate Workflow Details
 
@@ -96,16 +98,23 @@ Check:
 - `AGENTS.md` is concise and mostly links outward.
 - `CLAUDE.md` contains no unique rules.
 - The docs mention repeated failure modes that would otherwise be rediscovered.
+- Reading routes name when a doc matters, rather than requiring every doc.
+- Safe-action permissions are verified; mandatory gates remain explicit.
+- Completion includes relevant verification, not arbitrary repeated passes.
+- Unexecuted commands are labeled; no live writes were used to prove docs.
 
 ## Canonicalize Workflow Details
 
-### 1. Find every doc entrypoint
+### 1. Find doc entrypoints within the requested path
 
 ```bash
 rg --files -g 'AGENTS.md' -g 'CLAUDE.md' -g 'README.md' -g 'docs/**' | sort
 ```
 
-In monorepos, group by directory and scope.
+In monorepos, group by directory and scope; do not expand into other checkouts.
+`--dry-run` produces a proposal without edits. Explicit canonicalization permits
+docs edits within that path, not code changes or removal of valuable content.
+Ask only for consequential ambiguity or expanded scope, not for each file.
 
 ### 2. Identify stale patterns
 

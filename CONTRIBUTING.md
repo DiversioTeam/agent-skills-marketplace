@@ -48,8 +48,18 @@ only inside `pi-packages/**` and should stay harness-focused.
 
 3. Keep skills small and portable
 
-   - `SKILL.md` should focus on activation workflow, priorities, and output
-     shape.
+   - Descriptions should state purpose and a narrow activation trigger; omit
+     implementation inventories, personas, and "use for anything" language.
+   - `SKILL.md` should expose the outcome, decision boundaries, and a small
+     router for multiple workflows. Load only the selected lane's references.
+   - Keep real invariants, prerequisites, exact-target evidence, and required
+     gates. Remove generic reminders, forced finding quotas, and redundant
+     approval pauses for already-authorized, verified-safe work.
+   - Define completion and consequential stop conditions. Reuse valid checks
+     for unchanged inputs instead of repeating them for each named phase.
+   - Keep shared instructions model-neutral. For model-specific updates, use
+     the repo-docs skill's [source-dated guidance](plugins/repo-docs/skills/repo-docs-generator/references/model-guidance.md);
+     verify newer official claims rather than treating a model label as authority.
    - Keep each changed `SKILL.md` at or below 500 lines.
    - Move long procedures into `references/` and reusable logic into `scripts/`.
    - Quote YAML frontmatter strings when they contain special characters.

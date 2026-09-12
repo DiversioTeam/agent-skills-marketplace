@@ -34,9 +34,10 @@ Fix any issues you find. Output a summary of what you found and what you fixed.
 reads: context.md
 progress: true
 
-Run the coding standards pass on the modified files from the previous step. Check:
+Run the coding standards pass on the modified files from the previous step.
+Follow repository rules first; these backend defaults apply only to Python/Django:
 
-- No local imports (check circular imports)
+- Follow import rules and fix circular dependencies
 - No unnecessary getattr() calls — use hasattr() only if needed
 - No overly large try/except blocks
 - Structured logging in optimo_ apps
@@ -44,32 +45,50 @@ Run the coding standards pass on the modified files from the previous step. Chec
 - Use TypedDict instead of loose dict with Any
 - Ruff must be happy with all files
 - No string-based type hints
-- Never use typing.cast() — it's a code smell
+- Prefer types that prove the contract; do not hide type errors with casts
 - No repeated fixtures in tests
 - Use Django ORM reverse relations to avoid unnecessary model imports
 - Be pedantic about type hints, avoid Any
 - Use ast-grep where helpful
 
-Apply fixes for everything you find.
+Fix scope-related issues and required gate errors. Preserve unrelated work;
+reuse valid checks for unchanged inputs and rerun affected checks after edits.
 
 ## reviewer
 reads: context.md
 progress: true
 
-Update the documentation for all code changed in this pipeline. Explain changes in simple, visual, first-principles-driven language. Focus on **why** each change was made. Use docstrings, comments, and any other documentation mechanisms.
+Update existing docs for changed contracts, commands, and non-obvious decisions.
+Explain why in plain language; use visuals only when useful. Do not restate code
+or require a doc per file. For agent instructions, use repo-docs-generator when
+available; keep reading task-specific and safe-action permissions verified.
 
 ## delegate
 reads: context.md
 progress: true
 
-Ship the work. First discover context:
-1. Check the current branch and look for existing GitHub PRs or issues
-2. If an existing PR is open for this branch, update it
-3. If no PR exists, create one, linking any related issues
-4. Ask me if you're unsure about anything
+Prepare the authorized commit/PR handoff. First identify the repository,
+branch, intended diff, existing PR, related issues, and target. Ask only about
+consequential uncertainty. API failure is not evidence that no PR exists.
+Existing CI is diagnostic context, not proof for unpushed changes.
 
-If the repo supports local-ci (repo root `.local-ci.toml` + `local-ci` on PATH), run it as the repo-owned local validation path before finalizing. If it fails, stop and dig into the failure.
+If the repo supports local-ci (repo root `.local-ci.toml` + `local-ci` on PATH),
+use `local-ci run --no-github` for authorized local validation. Investigate
+failures before claiming readiness. Preserve explicit no-commit/no-push limits;
+this chain never authorizes merges, status publication, or deployments.
 
-For backend release/master deploy flows, remember that PR-head local-ci is only a preflight. If `scripts/deploy/trigger_validated_backend_deploy.sh` exists, use it from the exact clean release/master head instead of assuming merge deploys automatically.
+For separately authorized backend deployments, PR-head validation is only a
+preflight. Follow the release skill and exact clean target-head deploy contract;
+do not invoke a deploy helper merely because it exists.
 
-Then: atomic commit (ensure everything passes), generate a PR description, and open the PR on GitHub.
+After required gates pass, commit atomically and push normally only when
+authorized. If prohibited, deliver the corresponding local handoff and report
+publication as pending. Then use the PR description writer to create/update the
+identified PR from the actual pushed diff, preserving repo-local base/draft
+conventions and linking issues.
+
+Finally inspect required CI for the exact remote PR head, after push and PR
+creation/update. An earlier green head is not proof. Investigate failures and
+repeat authorized fixes/checks/commit/push steps as needed, then check the new
+head. Pending/missing checks or failed discovery mean readiness is pending or
+unknown. Report the PR URL, head SHA, observed checks, and remaining blockers.

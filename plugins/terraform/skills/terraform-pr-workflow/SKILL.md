@@ -1,6 +1,6 @@
 ---
 name: terraform-pr-workflow
-description: "PR workflow Skill for Terraform/Terragrunt repos: branch naming, PR hygiene, read-only CI gates, and versioning expectations for interface changes."
+description: "Prepare or review Terraform/Terragrunt PRs for validation evidence, rollout risk, and module versioning."
 allowed-tools: Bash Read Edit Glob Grep
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: code-review-digest-writer
-description: "Generate weekly code-review digest docs from PR review comments for any GitHub repo, capturing themes, repeated issues, and concrete takeaways."
+description: "Write a dated review digest from GitHub PR feedback, highlighting recurring lessons."
 allowed-tools: Bash Read Edit Glob Grep
 ---
 
@@ -15,8 +15,9 @@ allowed-tools: Bash Read Edit Glob Grep
 - You want to highlight **themes, repeated issues, and concrete best practices**
   rather than just listing PRs.
 
-If the user does not provide both a start and end date, ask them to specify:
-`YYYY-MM-DD` → `YYYY-MM-DD` before proceeding.
+Derive inclusive dates from an unambiguous requested window and state them as
+`YYYY-MM-DD` → `YYYY-MM-DD`. Ask when the window or timezone is consequentially
+unclear; do not make the user repeat dates already supplied.
 
 ## Example Prompts
 

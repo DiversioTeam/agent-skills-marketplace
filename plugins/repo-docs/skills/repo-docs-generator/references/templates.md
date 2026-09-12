@@ -1,6 +1,8 @@
 # Templates
 
-Use these as starting points, then tailor to the actual repo.
+Use only the sections needed by the actual repo; these are not a minimum size
+or a required directory tree. Verify safety claims before filling permission
+placeholders; see [model guidance](model-guidance.md).
 
 ## AGENTS.md Template
 
@@ -14,9 +16,9 @@ Use these as starting points, then tailor to the actual repo.
 ## How To Navigate This Repo
 
 - Start here for commands and repo-wide rules.
-- Read `<linked doc>` for architecture boundaries.
-- Read `<linked doc>` for quality gates and wrappers.
-- Read `<linked doc>` for plans/specs/runbooks when relevant.
+- Use `<architecture doc>` when changing service boundaries.
+- Use `<quality doc>` to choose the gates required for the changed area.
+- Use `<deployment runbook>` when preparing an authorized deployment.
 
 ## Commands
 
@@ -32,12 +34,11 @@ Use these as starting points, then tailor to the actual repo.
 - <hard invariant>
 - <hard invariant>
 
-## Docs Index
+## Completion And Permissions
 
-- `docs/architecture/overview.md` - <what it explains>
-- `docs/quality/gates.md` - <what it explains>
-- `docs/runbooks/development.md` - <what it explains>
-- `docs/plans/` - <where execution plans live>
+- <Requested outcome and required verification; omit redundant generic advice.>
+- <Verified safe local actions allowed without repeated approval.>
+- <Actions needing separate authorization; name targets and side effects.>
 
 ## Keep The Harness Fresh
 

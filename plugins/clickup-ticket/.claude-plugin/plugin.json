@@ -1,6 +1,6 @@
 {
   "name": "clickup-ticket",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Fetch, filter, and create ClickUp tickets directly from Claude Code or Codex. Supports reading tickets by ID, powerful filtering (status, assignee, tags, dates), viewing your assigned tickets, multi-org workspaces, subtasks, and intelligent caching.",
   "author": {
     "name": "Diversio Devs"

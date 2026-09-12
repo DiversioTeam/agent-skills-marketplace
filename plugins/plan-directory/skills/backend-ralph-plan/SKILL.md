@@ -1,6 +1,6 @@
 ---
 name: backend-ralph-plan
-description: "Create a structured plan directory with Ralph Wiggum Loop integration for backend Django projects (PLAN.md, task files, and RALPH-PROMPT.md)."
+description: "Create a Django implementation plan and RALPH-PROMPT.md for an explicitly requested Ralph loop."
 allowed-tools: Read Write Edit Glob Bash
 ---
 
@@ -19,10 +19,9 @@ prompt, instructing Claude to work through tasks with strict quality gates.
 
 ## When to Use
 
-- Backend Django features requiring rigorous quality control
-- Multi-task implementations needing iterative, autonomous execution
-- When you want continuous regression testing between tasks
-- Projects where you'll walk away and let Ralph complete the work
+- The user explicitly wants a Django plan runnable through Ralph Wiggum.
+- The work needs bounded iterations with task-specific completion evidence.
+- Creating the plan does not itself start the loop or authorize commits.
 
 ## When NOT to Use
 
@@ -201,10 +200,9 @@ Claude should never lie to exit.
 
 ### 1. Gather Inputs
 
-Ask for all required inputs. Clarify:
-- Exact paths (trailing slashes matter)
-- Test filter that isolates this feature
-- Non-standard tooling (`.bin/` wrappers)
+Derive title, slug, tasks, paths, test filter, and wrappers from the request and
+repository. Ask only for missing decisions that affect scope, safe execution,
+or completion; verify inferred commands before putting them in the prompt.
 
 ### 2. Analyze Dependencies
 

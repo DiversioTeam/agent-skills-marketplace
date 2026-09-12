@@ -22,8 +22,8 @@ skills, commands, and supporting validation scripts.
 ## How To Navigate This Repo
 
 - Start here for repo-wide rules, verified commands, and doc routing.
-- Read `docs/architecture/overview.md` for the marketplace layout, boundaries,
-  and change flow.
+- Use `docs/architecture/overview.md` when changing marketplace layout,
+  ownership boundaries, or distribution flow.
 - Read `docs/quality/gates.md` for CI checks, manifest-sync rules, and the
   `SKILL.md` size guardrail.
 - Read `docs/runbooks/distribution.md` for Claude Code and Codex install,
@@ -32,7 +32,8 @@ skills, commands, and supporting validation scripts.
   slash commands.
 - Read `docs/python-typing-and-ty-best-practices.md` when editing a
   code-touching Python skill.
-- Read `CONTRIBUTING.md` when adding a plugin or reshaping a skill.
+- Use `CONTRIBUTING.md` when adding a plugin or reshaping skill instructions;
+  it owns narrow triggers, task-routed references, and completion guidance.
 
 ## Commands
 

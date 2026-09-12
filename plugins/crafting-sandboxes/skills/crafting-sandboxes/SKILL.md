@@ -1,6 +1,6 @@
 ---
 name: crafting-sandboxes
-description: "Create, inspect, or update Diversio Crafting sandbox instances with the cs CLI, branch overrides, frontend/design-system builds, and database snapshots."
+description: "Create, inspect, or update Diversio Crafting sandboxes, branches, builds, and approved snapshots."
 allowed-tools: Bash Read Glob Grep
 ---
 

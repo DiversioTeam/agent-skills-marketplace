@@ -4,6 +4,12 @@ This file extends `SKILL.md` with the design rules behind the repo-docs skill.
 
 Primary inspiration:
 - OpenAI, February 11, 2026: https://openai.com/index/harness-engineering/
+- OpenAI / Eric Provencher, September 11, 2026:
+  https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra
+
+Use [model guidance](model-guidance.md) for attributed observations and their
+limits. Shared instructions should describe task routes, safe action boundaries,
+and completion, not assume every agent uses Astra.
 
 ## Source Model
 
@@ -52,6 +58,10 @@ Avoid these anti-patterns:
 - Long runbooks better suited for `docs/runbooks/`
 - Plan details that belong in `docs/plans/`
 - Duplicated content already covered by topic docs
+- Mandatory reading stacks unrelated to the requested change
+- Repeated generic testing reminders instead of actual required gates
+- Automatic approval pauses for work already authorized and verified safe
+- Model-specific claims presented as universal permissions
 
 ## Topic Doc Heuristics
 

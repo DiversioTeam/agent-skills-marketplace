@@ -1,9 +1,6 @@
 ---
 name: process-code-review
-description: >
-  Process code review findings interactively - fix or skip issues from
-  monty-code-review output. Presents issues in severity order, applies fixes,
-  runs quality checks, and updates review documents with status markers.
+description: "Fix or explicitly defer findings from a Monty review document, interactively or with --auto."
 allowed-tools:
   - Bash
   - Read
@@ -122,9 +119,10 @@ Proposed Fix:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Then ask: **Fix this issue or skip it?**
-
-Wait for user response before proceeding.
+In default interactive mode, ask **Fix this issue or skip it?** and wait.
+With `--auto`, continue through the selected findings without per-issue approval;
+stop for consequential ambiguity or actions outside the authorized scope.
+`--dry-run` only reports proposals and never changes source or review status.
 
 ### 4. Handle User Response
 
@@ -132,9 +130,8 @@ Wait for user response before proceeding.
 
 1. Read the source file to understand current state
 2. Apply the proposed fix using Edit tool
-3. Run quality checks on the modified file:
-   - `.bin/ruff check <file> --fix`
-   - `.bin/ruff format <file>`
+3. Run the affected quality checks described below; do not run a duplicate
+   formatter/linter pass solely because the next section names it again.
 4. Update the review document to mark the issue as FIXED:
 
    ```markdown
@@ -173,7 +170,10 @@ For touched files, "baseline acceptable" is not allowed. Resolve all active
 type-gate errors before moving on. If repo policy requires wider type checks
 before merge, run them before final completion.
 
-If quality checks reveal additional issues, fix them before moving on.
+Fix check failures caused by the change and required touched-file gate errors.
+Report unrelated failures without expanding the task. Reuse passing checks for
+unchanged inputs; rerun affected checks after edits and any required wider gates
+before completion.
 
 ### 6. Summary After Processing
 

@@ -135,9 +135,9 @@ Carefully fix anything you uncover.`,
     sourceLabel: "core",
     prompt: `Please help me fix the files in \`git status\` so they match our coding standards and pre-commit requirements.
 
-Please check all of the following:
+Follow the target repository's AGENTS.md and required gates. Use the following backend defaults only where applicable; do not impose Python/Django rules on other stacks. Keep fixes within the requested change and preserve unrelated work:
 
-- No local imports at any cost. Do check circular imports.
+- Follow repository import rules; fix circular dependencies rather than hiding them.
 - No unnecessary \`getattr()\` calls. Use \`hasattr()\` only if really needed.
 - No unwanted or overly large \`try\` / \`except\` blocks.
 - In \`optimo_\` apps, strictly use structured logging.
@@ -145,7 +145,7 @@ Please check all of the following:
 - Use \`TypedDict\` instead of loose \`dict\` usage with \`Any\` or mixed-value \`or\` checks.
 - Make sure Ruff is completely happy with these files.
 - No string-based type hints, for example: \`OptimoRiskQuestionBank\`
-- Never use \`typing.cast()\`. It is a code smell.
+- Prefer types that prove the contract; do not use casts to hide type errors.
 - Make sure we are not repeating fixtures in tests.
 - Use reverse relations in Django ORM queries to prevent unnecessary model imports.
 - Be pedantic about type hints. They are very important. Add them without losing information where possible, and avoid \`Any\` as much as possible.
@@ -171,7 +171,7 @@ Please check all of the following:
 
 For a specific failing job, use /ci-logs <job-name> to pull its logs directly. If the ci-status package is not installed or the slash commands are unavailable, use get_ci_status and ci_fetch_job_logs if those tools are available. If neither path is available, ask the user to install ci-status before proceeding.
 
-If this repo supports local-ci (repo root has .local-ci.toml and local-ci is on PATH), note that local-ci is the repo-owned local validation path. Missing local-ci contexts in remote CI usually means nobody has run local-ci on that exact SHA yet. Keep this prompt focused on remote CI status unless I explicitly ask to run local-ci.
+If this repo supports local-ci (repo root has .local-ci.toml and local-ci is on PATH), note that local-ci is the repo-owned local validation path. Missing local-ci contexts leave validation/publication unknown; absence does not establish whether a local run happened. Keep this prompt focused on remote CI status unless I explicitly ask to run local-ci.
 
 For every failing job:
 - **Ours or flake?** Is this failure caused by our changes, or is it a pre-existing flake?
@@ -179,7 +179,7 @@ For every failing job:
 - **Fix.** Propose the specific code change, test update, or config tweak needed.
 - **If flake.** Note it clearly so we don't waste time chasing it.
 
-Summarize at the end: overall status, per-job verdict table, and fixes needed. If everything is green, confirm we're clear to proceed.`,
+Summarize observed status for the exact head, evidence for failure classification, and proposed fixes. Missing required checks or discovery errors stay unknown; green visible jobs alone do not prove readiness.`,
   },
   {
     code: "workflow.docs",
@@ -187,7 +187,7 @@ Summarize at the end: overall status, per-job verdict table, and fixes needed. I
     label: "Documentation pass",
     short: "Documentation pass — explain the why for future readers",
     whatItDoes: [
-      "Documents updated code, especially new additions",
+      "Updates docs for changed contracts and non-obvious decisions",
       "Uses simple, visual, first-principles-driven language",
       "Explains why changes were made, not just what changed",
     ],
@@ -195,11 +195,9 @@ Summarize at the end: overall status, per-job verdict table, and fixes needed. I
     example: "/workflow:docs focus on the new API endpoints",
     category: "core",
     sourceLabel: "core",
-    prompt: `Let's please make sure all the updated code, especially the newly added code, is very well documented in simple language.
+    prompt: `Update existing documentation for changed contracts, commands, and non-obvious decisions in this work. Explain why in plain language; add visuals only when useful. Do not restate obvious code or require a doc for every changed file.
 
-Please keep the documentation visual and first-principles-driven. Explain why those changes or additions are being made.
-
-Use commands, docs, strings, and anything else helpful so that future readers of the code can understand why we added something like this and how to make use of it.`,
+When changing AGENTS.md or repository harness docs, use the repo-docs-generator skill if available. Keep reading task-specific, preserve required gates, and document safe-action permissions only when verified. Check affected links and command claims, fix related gaps, and report what remains unverified.`,
   },
   {
     code: "workflow.ship",
@@ -207,7 +205,7 @@ Use commands, docs, strings, and anything else helpful so that future readers of
     label: "Ship",
     short: "Smart ship: discover PR context, atomic commit, open/update PR",
     whatItDoes: [
-      "Verifies CI first and fixes failures caused by our code",
+      "Inspects existing CI and verifies required checks again for the final remote head",
       "Discovers branch, existing PRs, and linked issues",
       "Runs atomic commit/pre-commit workflows and updates or opens the PR",
       "Uses PR description writer for a reviewer-friendly PR body",
@@ -216,27 +214,16 @@ Use commands, docs, strings, and anything else helpful so that future readers of
     example: "/workflow:ship target is staging",
     category: "core",
     sourceLabel: "core",
-    prompt: `Let's finalize and ship this work.
+    prompt: `Finalize this change through the authorized commit/PR handoff. Respect explicit no-commit/no-push limits; never merge, deploy, force-push, or publish local-ci statuses merely to ship a PR.
 
-First, check CI. Prefer the ci-status extension commands if they are available: /ci, /ci-detail, and /ci-logs <job>. If those commands are not available, use get_ci_status and ci_fetch_job_logs if those tools are available. If neither path is available, ask the user to install ci-status before proceeding.
+1. Discover the repository, branch, intended diff, existing PR, related issues, and target branch before mutation. Ask only about consequential uncertainty. An auth/network error is not proof that no PR exists.
+2. Inspect existing CI when available as diagnostic context, not proof for unpushed changes. Prefer /ci, /ci-detail, and /ci-logs; otherwise use get_ci_status and ci_fetch_job_logs when exposed. If neither path is available, report the missing ci-status prerequisite. An unpublished branch may have no remote checks yet.
+3. Use the atomic commit skill and required repository gates. For authorized local validation, use local-ci run --no-github when configured and installed; a configured required gate with a missing binary is a blocker. Fix failures caused by the change and required touched-file gate errors, rerun affected checks, and preserve unrelated work. Reuse evidence only when its code, configuration, environment, and required commit identity remain valid.
+4. Commit atomically and push normally only when authorized. Include every file required for the change. If either action is prohibited, stop at the corresponding local handoff and report publication as pending.
+5. Use the PR description writer to create or update the identified PR from the actual pushed diff and observed results. Link related issues and follow repo-local base/draft conventions; do not create a duplicate PR.
+6. After the final push and PR creation/update, inspect required CI for the exact remote PR head. Earlier green results do not prove this head passed. Investigate failures, repeat authorized fix/check/commit/push steps as needed, and recheck the new head. Pending, missing, or undiscoverable required checks mean readiness is pending or unknown, not green. Report the PR URL, head SHA, checks, and remaining blockers.
 
-If this repo supports local-ci (repo root has .local-ci.toml and local-ci is on PATH), run it as the repo-owned local validation path before the final commit/PR. If local-ci fails, stop and dig into the failure properly instead of treating it as a footnote. If this is a backend release/master deploy flow and scripts/deploy/trigger_validated_backend_deploy.sh exists, remember that PR-head local-ci is only a preflight; use the helper from the exact clean merged branch head instead of assuming merge deploys automatically.
-
-If anything is failing:
-- Determine if failures are from our changes or pre-existing flakes
-- Fix any failures caused by our code before proceeding
-- If everything is green, confirm and move on
-
-Next, discover PR context. Check what branch we're on and look for any existing GitHub PRs or issues related to this work. Use gh pr list, gh issue list, or whatever is needed.
-
-- If an existing PR is already open for this branch, update it with the current changes.
-- If no PR exists yet, create one.
-- If there's a related GitHub issue, link the PR to it.
-- If you are unsure about anything, ask me before proceeding.
-
-Then ship it. Use the atomic commit skill and make sure everything passes (lint, type-checks, tests, pre-commit). Do not compromise by excluding things that are part of this PR — anything touched needs to be improved as much as possible.
-
-Once the code is ready, use the PR description writer skill to generate a reviewer-friendly description, and open or update the PR on GitHub.`,
+A PR-head local-ci run is only a preflight for a backend deployment. Follow the release skill's exact clean merged-head contract only with separate deploy authorization; a helper's existence or green preflight does not authorize invoking it.`,
   },
   {
     code: "workflow.pr-review-comments",

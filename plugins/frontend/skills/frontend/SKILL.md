@@ -1,11 +1,12 @@
 ---
 name: frontend
-description: "Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows."
+description: "Implement, test, review, or prepare frontend changes using detected repository tooling and workflow lanes."
 ---
 
 # Frontend Skill
 
-Use this as the single entrypoint for all frontend work in any repo shape.
+Use for frontend implementation and its review, validation, or delivery lanes.
+Do not load unrelated lanes for a docs-only question or backend-only task.
 
 ## When to Use This Skill
 
@@ -110,7 +111,9 @@ file hashes or mtimes.
 
 ## Lane Routing
 
-After loading or detecting context, route the work into one lane.
+After loading or detecting context, choose the requested lane and read only
+its references. For cross-lane work, add references as their contracts become
+relevant; digest refresh alone needs the complete detection workflow.
 
 ### refresh-digest
 

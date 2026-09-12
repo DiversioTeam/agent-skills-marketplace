@@ -1,6 +1,6 @@
 ---
 name: backend-pr-workflow
-description: "Pedantic backend PR workflow skill that follows repo-local workflow docs, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes."
+description: "Prepare or review Django backend PR workflow, issue linkage, and migration rollout safety."
 allowed-tools: Read Bash Glob Grep
 ---
 
@@ -66,8 +66,8 @@ Before giving a full review, this Skill should gather:
   - Adds, modifies, or deletes migrations.
   - Is a normal feature/bugfix, a hotfix, or a release PR.
 
-If any of these are missing or unclear, ask the user to provide them before
-doing a full workflow review.
+Discover these from the checkout, PR, and diff. Ask only when missing or
+conflicting evidence changes the target, scope, or rollout decision.
 
 Before applying the checklist, inspect the repo harness:
 
@@ -256,187 +256,18 @@ If any of these fail obviously based on the PR description or user input, emit
 appropriate `[SHOULD_FIX]` or `[BLOCKING]` bullets. Type-gate failures should
 generally be `[BLOCKING]` for merge readiness.
 
-## Checklist 4 – Releases, Hotfixes, and Tags
+## Release And Hotfix Checks
 
-This Skill enforces a clean release flow.
+For release or hotfix PRs, read [release checks](references/release-checks.md).
+Ordinary feature PRs do not need that workflow. Release preparation, exact-head
+validation, deployment, publication, and synchronization remain separate actions.
 
-### 4.1 Normal release flow (via `dev` → `release` → `master`)
+## Migration And Schema Checks
 
-For normal deployments, check that:
-
-- Feature/bugfix PRs merge into `dev` (integration branch).
-- To stage changes:
-  - A **promotion PR** is opened from `dev` → `release`.
-  - A local-ci run on that promotion PR head is only a preflight. In
-    Django4Lyfe today it can run the full parity lanes, but exact
-    `origin/release` validation still happens after merge.
-  - If that preflight fails, stop and dig into the harness/code instead of
-    treating it as a footnote.
-  - Merging that PR does **not** deploy automatically.
-  - If the validated deploy helper exists, use it from the clean
-    `origin/release` checkout; it validates with local-ci and then triggers
-    staging deploy.
-  - Otherwise, if the repo supports local-ci, validate the exact
-    `origin/release` head locally and follow the repo-local deploy path.
-- Before releasing to production:
-  - The version (e.g. in `pyproject.toml`) is bumped to the intended release
-    version using `YYYY.MM.DD` or `YYYY.MM.DD-N`.
-- When ready to release:
-  - A PR is created from `release` → `master` with a title like
-    `Release: 21st January 2026` or `Release 2: 21st January 2026`.
-  - The release PR **lists all tickets / PRs included** in the description.
-  - A local-ci run on that release PR head is still only a preflight. In
-    Django4Lyfe today it can run the full parity lanes, but exact
-    `origin/master` parity happens on the clean merged branch head.
-  - If the validated deploy helper exists, use it from the clean
-    `origin/master` checkout; it validates with local-ci and then triggers
-    production deploy.
-  - Otherwise, if the repo supports local-ci, validate the exact
-    `origin/master` head locally and follow the repo-local deploy path.
-- Post-release:
-  - Create a GitHub Release targeting `master`.
-  - Sync `master` back into `release` and `dev` per repo docs.
-
-If any of these are obviously missing from the plan, emit `[SHOULD_FIX]`.
-
-### 4.2 Hotfix flow
-
-For hotfixes, enforce:
-
-- The hotfix PR targets `master` (not `release` or `dev`).
-- The title clearly indicates a hotfix, e.g. `Hotfix Release: 21st January 2026`.
-- After merge:
-  - if the validated deploy helper exists, use it from the clean
-    `origin/master` checkout; it validates with local-ci and then triggers
-    deploy
-  - otherwise, validate the exact `origin/master` head with local-ci when
-    supported and follow the repo-local deploy path
-  - merge changes back into `release` and **`dev`** so the integration branch
-    does not drift from production
-  - create a GitHub Release with the same `YYYY.MM.DD[-N]` version
-
-If a supposed hotfix PR is targeting `dev` or `release`, or a hotfix is not
-planned to be merged back into `release` **and `dev`**, emit `[BLOCKING]`.
-
-## Checklist 5 – Migrations: Cleanup and Regeneration
-
-When the PR includes Django model changes, this Skill should be pedantic about
-migrations.
-
-### 5.1 Avoid noisy chains of migrations from one PR
-
-If the PR has multiple intermediate migrations for the same feature
-(`...x1.py`, `...x2.py`, `...x3.py`, etc.), recommend cleaning them up before
-merge:
-
-- Identify which migrations were added by this PR vs. which already exist on
-  the main branches.
-- Conceptual cleanup workflow:
-  - Migrate back to the migration **just before** the first PR-specific
-    migration.
-  - Delete **only** the migrations introduced by this PR.
-  - Regenerate a minimal set of migrations representing the final schema.
-  - Apply the new migrations locally and ensure tests pass.
-
-Never recommend deleting migrations that are already on production.
-
-If the PR clearly contains many iterative migrations for one feature, emit:
-
-- `[SHOULD_FIX]` – asking the author to collapse them into a clean final
-  migration set.
-
-### 5.2 Respect environment-specific tooling
-
-When suggesting commands, align with the repo’s tooling:
-
-- For Django4Lyfe / Optimo, prefer:
-  - `uv run` / `.bin/django` wrappers as documented in `AGENTS.md` or linked
-    repo-local docs.
-
-This Skill should conceptually describe the migration cleanup steps, not hard
-code commands that may become outdated.
-
-## Checklist 6 – Downtime-Safe Schema Changes
-
-This is the most critical part of the Skill for production stability.
-
-### 6.1 Deleting a field or table
-
-If the PR both:
-
-- Removes a field from the database (or drops a table), **and**
-- Removes or changes code that uses that field,
-
-then:
-
-- Highlight the deployment risk:
-  - Between the time migrations run and the time all web workers are updated,
-    old code can still expect the field and will throw errors if it is already
-    dropped.
-
-Enforce the safe two-step pattern:
-
-1. **PR 1 – Code-only removal**
-   - Remove all usage of the field/table from code (queries, serializers,
-     forms, admin, etc.).
-   - Keep the field in the DB so old and new code can still run.
-   - Deploy fully.
-2. **PR 2 – Schema removal**
-   - Add a migration that drops the field/table.
-   - Deploy once no running code expects it.
-
-If a single PR contains both the schema drop and remaining code references, or
-removes code and schema at once in a way that risks downtime, emit:
-
-- `[BLOCKING]` – and explicitly recommend splitting into two PRs as above.
-
-### 6.2 Adding a non-volatile default on a large table
-
-For a new column on a large / hot table with a **static default** (e.g.
-`is_active = True`):
-
-- Explain the risk:
-  - A naive `AddField` with default can cause a long-running table rewrite and
-    lock, blocking writes and potentially causing errors.
-
-Enforce a safe pattern:
-
-1. **Migration 1 – Add nullable column, no default**
-   - Add the column with `null=True` and no default.
-   - This ensures the `ALTER TABLE ... ADD COLUMN` is fast.
-2. **Migration 2 – Set default and backfill**
-   - For Postgres 11+:
-     - Use `RunSQL` to set the default for **new rows** only, avoiding a full
-       table rewrite.
-   - For existing rows:
-     - Use a data migration, background job, or batched updates to set the
-       value in manageable chunks, ideally with `atomic = False` for large
-       operations.
-
-If the PR adds a non-nullable column with a default on a table that likely has
-many rows, emit:
-
-- `[SHOULD_FIX]` or `[BLOCKING]` depending on table size and risk, and
-  describe the two-step pattern above.
-
-### 6.3 Adding a volatile default (e.g. UUID, timestamps)
-
-For defaults that require dynamic values (e.g. generate UUIDs, timestamps):
-
-- Warn that:
-  - Setting such defaults on existing rows inside an atomic migration, for a
-    large table, can be very slow and lock-heavy.
-
-Recommend:
-
-1. Add the column as nullable without default.
-2. Backfill in batches using a non-atomic migration or out-of-band job.
-3. Only then, if needed, add a default for **new** rows.
-
-If a PR uses a volatile default in a way that will backfill a large table
-inside an atomic migration, emit:
-
-- `[BLOCKING]` – and propose the batched, non-atomic backfill approach.
+When model or migration changes are present, read
+[migration checks](references/migration-checks.md) before a readiness verdict.
+Preserve downtime-safe rollout, backfill, and deployed-history constraints.
+Review does not authorize database mutation or destructive rollback.
 
 ## How This Skill Should Behave in Practice
 
@@ -444,13 +275,10 @@ When invoked, this Skill should:
 
 1. Gather the inputs listed above (branch, PR title/description, base branch,
    migration/schema summary).
-2. Apply each checklist in order:
-   - Repo-local branch and PR conventions.
-   - WIP & base branch.
-   - PR description & self-review.
-   - Release/hotfix flow.
-   - Migrations.
-   - Downtime-safe schema changes.
+2. Use the checklists relevant to the PR: conventions, base, and description;
+   release/hotfix checks only for those workflows; migration and schema checks
+   only when those contracts change. Preserve ordering constraints within a
+   rollout; do not run deployment commands during review.
 3. Emit:
    - A short summary paragraph.
    - `What’s aligned` bullets.

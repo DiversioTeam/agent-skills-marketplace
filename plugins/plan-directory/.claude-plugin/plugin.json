@@ -1,6 +1,6 @@
 {
   "name": "plan-directory",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Create and maintain structured plan directories with a master PLAN.md index, numbered task files, and required fresh-eyes validation. Includes backend-ralph-plan for RALPH loop execution.",
   "author": {
     "name": "Diversio Devs"

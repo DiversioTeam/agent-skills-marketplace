@@ -10,7 +10,7 @@
     {
       "name": "crafting-sandboxes",
       "description": "Create, inspect, and update Diversio Crafting sandboxes with branch overrides, DS build consumption, snapshot safety, and readiness evidence.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": { "name": "Diversio Devs" },
       "source": "./plugins/crafting-sandboxes",
       "category": "process",
@@ -19,7 +19,7 @@
     {
       "name": "code-review-digest-writer",
       "description": "Generates weekly code review digest docs from PR review comments for any GitHub repo.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Diversio Devs"
       },
@@ -30,7 +30,7 @@
     {
       "name": "monolith-review-orchestrator",
       "description": "Monolith-local PR review harness for the Diversio monolith: deep PR understanding, thread-aware GitHub review acquisition, deterministic worktree reuse/bootstrap, persistent review context across passes, resolved-comment-aware reassessment, backend monty-review handoff, and author-guiding review output.",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "author": {
         "name": "Diversio Devs"
       },
@@ -41,7 +41,7 @@
     {
       "name": "monty-code-review",
       "description": "Hyper-pedantic Django4Lyfe backend code review Skill with correctness-first, harness-aware findings (Monty's taste), a pytest test-hardening lane, and persistent JSON-first review memory across review passes.",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -52,7 +52,7 @@
     {
       "name": "backend-pr-workflow",
       "description": "Diversio backend PR workflow plugin that follows repo-local PR docs, GitHub issue linkage, local-ci-aware release semantics, safe migrations, and downtime-safe schema changes.",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "author": {
         "name": "Diversio Devs"
       },
@@ -63,7 +63,7 @@
     {
       "name": "backend-atomic-commit",
       "description": "Pedantic backend pre-commit and atomic-commit Skill with an iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, repo-local docs, pre-commit hooks, .security/* helpers, repo-local commit hygiene, and local-ci validation when the repo exposes it.",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Diversio Devs"
       },
@@ -74,7 +74,7 @@
     {
       "name": "bruno-api",
       "description": "Comprehensive API documentation generator from Bruno (.bru) files that maps endpoints to Django4Lyfe implementations (DRF/Django Ninja).",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Diversio Devs"
       },
@@ -85,7 +85,7 @@
     {
       "name": "plan-directory",
       "description": "Create and maintain structured plan directories with a master PLAN.md index, numbered task files, and required fresh-eyes validation. Includes backend-ralph-plan for RALPH loop execution.",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "author": {
         "name": "Diversio Devs"
       },
@@ -96,7 +96,7 @@
     {
       "name": "pr-description-writer",
       "description": "Reviewer-friendly PR descriptions with evidence-backed scope, preferred tldraw offline visuals, editable assets, and repo-local workflow context.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -107,7 +107,7 @@
     {
       "name": "process-code-review",
       "description": "Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "author": {
         "name": "Diversio Devs"
       },
@@ -118,7 +118,7 @@
     {
       "name": "mixpanel-analytics",
       "description": "Optimo Mixpanel implementation and review with identity, tenant, producer, privacy, post-commit delivery, and domain regression guardrails.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -129,7 +129,7 @@
     {
       "name": "clickup-ticket",
       "description": "Fetch, filter, and create ClickUp tickets directly from Claude Code or Codex. Read tickets by ID, powerful filtering (status, assignee, tags, dates), view assigned tickets, multi-org workspaces, subtasks, and intelligent caching.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -140,7 +140,7 @@
     {
       "name": "github-ticket",
       "description": "Create, route, and inspect GitHub issues with gh CLI-backed defaults for DiversioTeam/monolith, repo-local execution repos, and project-board hydration.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "Diversio Devs"
       },
@@ -151,7 +151,7 @@
     {
       "name": "repo-docs",
       "description": "Generate and canonicalize repository harness docs: short AGENTS.md maps, repo-local docs, quality-gate guidance, and minimal CLAUDE.md stubs.",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "author": {
         "name": "Diversio Devs"
       },
@@ -162,7 +162,7 @@
     {
       "name": "visual-explainer",
       "description": "Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -173,7 +173,7 @@
     {
       "name": "dependabot-remediation",
       "description": "Unified backend/frontend Dependabot remediation workflow with dependabot.yml review/scaffold, alert deduplication, wave planning, execution guardrails, and post-merge closure verification.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -184,7 +184,7 @@
     {
       "name": "backend-release",
       "description": "Manages Django4Lyfe releases with captured-SHA scope, verified PR inclusion, exact-head validation, authorized deployment, exact-commit publication, and post-release branch sync.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -195,7 +195,7 @@
     {
       "name": "terraform",
       "description": "Terraform/Terragrunt workflow tools: atomic-commit quality gates and PR workflow checks.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Diversio Devs"
       },
@@ -206,7 +206,7 @@
     {
       "name": "login-cta-attribution-skill",
       "description": "CTA login attribution implementation Skill for Django4Lyfe: guides adding new CTA sources, button/tab attribution, and enum registration.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "author": {
         "name": "Diversio Devs"
       },
@@ -217,7 +217,7 @@
     {
       "name": "frontend",
       "description": "Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows.",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "author": {
         "name": "Diversio Devs"
       },

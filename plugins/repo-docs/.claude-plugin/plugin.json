@@ -1,6 +1,6 @@
 {
   "name": "repo-docs",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Generate and canonicalize repository harness docs: short AGENTS.md maps, repo-local docs, preserved README.md content, and minimal CLAUDE.md stubs.",
   "author": {
     "name": "Diversio Devs"

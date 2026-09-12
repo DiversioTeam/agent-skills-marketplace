@@ -1,6 +1,6 @@
 ---
 name: visual-explainer
-description: "Generate self-contained, presentation-ready HTML explainers for plans, diffs, docs, architecture, audits, and stakeholder updates. Use when the user wants a visual explainer, diagram, comparison, roadmap, mixed technical/non-technical summary, or an HTML alternative to a complex ASCII table. Gather missing audience/goal/source context interactively, separate confirmed facts from inference, save under ~/.agent/diagrams/, and optionally publish a fresh Netlify preview site."
+description: "Create a self-contained HTML visual explainer or requested slide deck from verified source material."
 allowed-tools: Bash Read Write Grep Glob
 ---
 
@@ -38,8 +38,8 @@ presentation-ready.
 ## Core Rules
 
 1. Default to HTML, not ASCII art
-   - If you are about to produce a table with 4+ rows or 3+ columns, generate an
-     HTML page instead.
+   - Use HTML for the requested visual artifact, not merely because a normal
+     answer contains a table. Respect explicit Markdown or other format requests.
    - Prefer real diagrams, structured cards, or semantic tables over dense text.
 
 2. Validate before explaining
@@ -49,14 +49,10 @@ presentation-ready.
      verification.
 
 3. Ask only for missing required inputs
-   - Required inputs are:
-     - topic
-     - audience
-     - goal
-     - source material
-   - Infer them from the request and local context when safe.
-   - If anything required is still missing, ask one concise follow-up covering
-     only the missing items.
+   - Derive topic, goal, and source material from the request and local context.
+   - Use the mixed-audience default unless the request indicates otherwise.
+   - Ask one concise follow-up only if missing facts materially change the
+     artifact; do not ask for an audience already covered by the default.
 
 4. Keep the tone audience-correct
    - Default: plain language, smart-but-busy audience, low jargon.

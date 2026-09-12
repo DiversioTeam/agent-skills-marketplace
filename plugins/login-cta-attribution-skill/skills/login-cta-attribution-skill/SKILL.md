@@ -1,6 +1,6 @@
 ---
 name: login-cta-attribution-skill
-description: "CTA login attribution implementation skill for Django4Lyfe: guides adding new CTA sources, button/tab attribution, enum registration, and tests."
+description: "Add or change Django4Lyfe login CTA sources and Slack, Teams, or Email attribution."
 allowed-tools: Bash Read Edit Write Glob Grep
 argument-hint: "[platform] [action] (e.g., slack survey_complete)"
 ---

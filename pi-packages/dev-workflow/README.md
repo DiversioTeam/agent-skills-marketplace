@@ -2,6 +2,21 @@
 
 Daily developer workflow for pi: plan review, self-review, standards, remote CI, local-ci-aware shipping/release prompts, documentation, PR review feedback, release PR prep, handoff, Crafting sandboxes, and shipping. Ships `16` core workflow prompts plus `/workflow:help`, `/workflow:flow`, `/workflow:run`, and `/workflow:prompts`, with XDG/project prompt customization.
 
+## Scope And Completion
+
+Choose the requested workflow pass; the full sequence is available, not required
+for every edit. Backend standards apply only to matching repositories. Reuse
+valid checks for unchanged inputs and document changed contracts rather than
+every line of code. `/workflow:docs` uses the repo-docs skill when available for
+source-dated model guidance and short, task-routed agent instructions.
+
+Finish authorized work through verification or report a concrete blocker. Keep
+explicit no-commit/no-push limits. Shipping never implies merge, deploy, or
+local-ci status-publication permission; local validation uses `--no-github`.
+Ship order is discovery → local gates → authorized commit/push → PR update →
+required CI on the final remote head. Earlier green checks do not validate a new
+push. Missing remote checks stay unknown, even if visible safety jobs are green.
+
 ## Install
 
 For normal use, install globally from a checkout of this repo. Use `$PWD` so Pi

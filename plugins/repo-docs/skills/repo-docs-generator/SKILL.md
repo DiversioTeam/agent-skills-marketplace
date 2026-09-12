@@ -1,6 +1,6 @@
 ---
 name: repo-docs-generator
-description: "Generate repository harness docs: a short AGENTS.md map, README.md, CLAUDE.md stub, and repo-local docs that make the codebase legible to agents."
+description: "Create or refresh AGENTS.md, README.md, CLAUDE.md pointers, and repository workflow docs."
 allowed-tools: Bash Read Edit Write Grep Glob
 argument-hint: "[path] (e.g., /path/to/repo or . for current directory)"
 ---
@@ -9,13 +9,11 @@ argument-hint: "[path] (e.g., /path/to/repo or . for current directory)"
 
 Build repository docs as an engineering harness, not a prose dump.
 
-This skill is aligned with OpenAI's February 11, 2026 harness-engineering
-article:
-- `AGENTS.md` should be a short routing map, not a giant manual.
-- Detailed knowledge should live in versioned, repo-local docs.
-- Repeated failures should become harness improvements: docs, wrappers, CI,
-  lints, or clearer error messages.
-- The goal is agent legibility and higher-quality autonomous work.
+Use short, task-routed instructions and versioned repo-local detail. Read
+[model guidance](references/model-guidance.md) when generating or revising
+agent instructions: it records OpenAI's September 11, 2026 GPT-6 Astra guidance
+alongside the February harness-engineering article. Keep shared docs usable by
+other models; model-specific observations are not permission to weaken gates.
 
 ## When to Use This Skill
 
@@ -45,13 +43,13 @@ Important nuance:
 
 ## Required Outcomes
 
-Every run should leave the repo with a clear harness shape:
+Within the requested scope, create or improve only the docs the repo needs:
 
 - `AGENTS.md`
   - Short, scannable, and command-heavy.
   - Explains what the repo is, where important docs live, how to run key
     commands, and which constraints are non-negotiable.
-  - Usually targets roughly 80-180 lines unless the repo is genuinely tiny.
+  - No minimum length; route by task rather than requiring all linked docs.
 - `README.md`
   - Preserves human-authored content.
   - Points readers to `AGENTS.md` and any major docs directories.
@@ -90,7 +88,7 @@ Use `/repo-docs:generate` when creating or rebuilding the harness from scratch.
 
 4. Encode the harness gap
    - If the repo repeatedly fails on the same issue, document the fix path and
-     recommend or add mechanical enforcement when reasonable.
+     recommend mechanical enforcement; add it only when tooling changes are in scope.
    - Prefer wrapper commands, lint messages, CI checks, and dedicated docs over
      repeating the same free-form instructions.
 
@@ -110,8 +108,10 @@ structured.
 ### Canonicalize Rules
 
 1. Analyze the actual repo before changing docs.
-2. Use `--dry-run` first or pause for human confirmation before broad,
-   ambiguous, or repo-wide reshaping.
+2. `--dry-run` inspects and proposes without edits. An explicit canonicalize
+   request authorizes docs edits within the supplied path; continue through
+   verification without another approval for each file. Ask before expanding
+   scope, deleting valuable content, or choosing between conflicting policies.
 3. Preserve valuable human-written content, but relocate it if it lives in the
    wrong layer.
 4. Prefer `docs/quality/`, `docs/architecture/`, `docs/runbooks/`,
@@ -164,8 +164,16 @@ The skill should optimize for:
 6. Never guess commands or tech stack details; verify them.
 7. If the repo already has a good docs hierarchy, improve it instead of
    replacing it with your preferred layout.
-8. If you find repeated review or lint failures, turn them into docs or
-   enforceable checks.
+8. Document repeated review or lint failures where they belong. Propose
+   executable enforcement separately unless code/tooling changes were requested.
+9. Document commands from source, help, and configuration; do not execute
+   deploys, migrations, paid calls, or remote writes to verify documentation.
+   Describe safe local test permissions only after verifying fixture isolation,
+   credentials, network use, and cost. Unknown safety is not approval.
+10. Finish the requested docs, check links/commands and adjacent consistency,
+    and fix scope-related gaps. Preserve required gates, report unverified
+    commands and blockers, and do not commit, push, publish, or deploy unless
+    authorized.
 
 ## Output Shape
 
@@ -197,6 +205,8 @@ Open follow-ups:
 
 Load only what you need:
 
+- `references/model-guidance.md`
+  - Source-dated model observations, task routing, permissions, and completion.
 - `references/harness-principles.md`
   - Core policy, migration heuristics, and harness design rules.
 - `references/generate-and-canonicalize-playbook.md`

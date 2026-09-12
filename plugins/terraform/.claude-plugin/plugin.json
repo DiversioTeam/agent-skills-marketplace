@@ -1,6 +1,6 @@
 {
   "name": "terraform",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Terraform/Terragrunt workflow tools: atomic-commit quality gates and PR workflow checks.",
   "author": {
     "name": "Diversio Devs"

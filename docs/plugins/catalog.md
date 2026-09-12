@@ -180,6 +180,9 @@ when command files change.
     `plugins/monolith-review-orchestrator/README.md`
   - Skill path:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator`
+  - Review quality: evidence-backed correctness and smallest-safe-fix guidance;
+    every Python slice follows the target repo's clarity guide or the bundled,
+    source-pinned `references/code-clarity-best-practices.md`, including handoffs.
   - Worktree/intake reference:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
   - Review-context reference:
@@ -292,6 +295,9 @@ when command files change.
   - Claude install: `claude plugin install repo-docs@diversiotech`
   - Skill path: `plugins/repo-docs/skills/repo-docs-generator`
   - Slash commands: `/repo-docs:generate`, `/repo-docs:canonicalize`
+  - Source-dated Astra guidance: short task routes, verified safe-action
+    permissions, and completion boundaries; shared docs remain model-neutral.
+    Canonicalize edits the requested path; `--dry-run` remains proposal-only.
 - `visual-explainer`
   - Purpose: presentation-ready HTML explainers for plans, diffs, diagrams,
     and stakeholder updates, with optional fresh Netlify preview publishing.
