@@ -299,8 +299,8 @@
     {
       "name": "skills-bridge",
       "title": "Skills Bridge",
-      "description": "Auto-discovers marketplace plugin skills, including Crafting sandboxes, and registers them as pi skills with custom-root and ancestor discovery.",
-      "version": "v0.0.2"
+      "description": "Selects marketplace roots through environment/config overrides or checkout discovery, then delegates plugin skill loading and filtering to native Pi.",
+      "version": "v0.0.3"
     },
     {
       "name": "ci-status",

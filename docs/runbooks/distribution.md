@@ -295,6 +295,17 @@ it fails; exact merged-head validation still happens on clean `origin/release`
 If your pi-subagents setup only scans `.pi/agents/`, copy that chain file there
 manually.
 
+Since `skills-bridge` 0.0.3, Pi performs recursive skill discovery inside each
+selected plugin `skills/` directory. Environment/config/ancestor precedence
+is unchanged; unexpected ancestor-inspection errors warn and stop automatic
+selection. Hidden, dependency, and ignored paths inside each supplied root now
+follow native filtering; ignore files above those roots are not inherited.
+Outside a matching checkout, configure an explicit marketplace root. Ordinary
+skill collections without `plugins/` belong in native Pi skill settings instead.
+Do not combine a fixed native marketplace manifest with the bridge and expect
+checkout overrides to win same-name collisions. See the package README for
+precedence, compatibility, and offline discovery tests.
+
 `/workflow:crafting <task>` delegates to the marketplace `crafting-sandboxes`
 skill. The root install exposes it through `skills-bridge`. With standalone
 `dev-workflow`, also load `plugins/crafting-sandboxes/skills/crafting-sandboxes`
