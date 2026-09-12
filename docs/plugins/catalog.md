@@ -143,11 +143,11 @@ when command files change.
   - One-off local test from repo root:
     `pi --no-extensions -e ./pi-packages/pi-timestamps`
 - `skills-bridge` (pi package)
-  - Purpose: auto-discovers Claude Code plugin skills from
-    `plugins/*/skills/` directories and registers them as pi
-    skills via the `resources_discover` extension hook. One install makes all
-    22 plugin skills available in pi without restructuring the
-    repo.
+  - Purpose: selects marketplace roots through environment/config overrides
+    or cwd ancestor discovery, then supplies `plugins/*/skills/` directories
+    through `resources_discover`. Pi owns recursive loading, ignore rules,
+    and skill boundaries. Starting outside a matching checkout needs an
+    explicit root; the extension's own checkout is not an implicit fallback.
   - Pi install from repo checkout:
     `pi install "$PWD/pi-packages/skills-bridge"`
   - Package path: `pi-packages/skills-bridge`
@@ -165,8 +165,8 @@ when command files change.
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
     `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes` (22 total).
-  - Context safe: only skill names + descriptions enter context at startup
-    (~5-10KB); full SKILL.md loads on demand via progressive disclosure.
+  - Context: Pi includes skill names, descriptions, and file locations at
+    startup; full SKILL.md instructions load on demand.
 - `monolith-review-orchestrator`
   - Purpose: monolith-local PR review harness with structured intake,
     deterministic worktree reuse/bootstrap, persistent review context across

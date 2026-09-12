@@ -1,9 +1,12 @@
 {
   "name": "skills-bridge",
-  "version": "0.0.2",
-  "description": "Pi extension that auto-discovers Claude Code plugin skills from plugins/*/skills/ directories and registers them as pi skills via the resources_discover hook. One install bridges marketplace plugin skills, including Crafting sandboxes, into pi.",
+  "version": "0.0.3",
+  "description": "Selects marketplace skill roots through environment, config, or checkout discovery, then delegates plugin skill loading to native Pi discovery.",
   "keywords": ["pi-package", "skills", "bridge"],
-  "files": ["extensions/", "README.md"],
+  "files": ["extensions/", "tests/", "README.md"],
+  "scripts": {
+    "test": "node --experimental-vm-modules --test tests/skills-bridge.test.mjs"
+  },
   "pi": {
     "extensions": ["./extensions/skills-bridge/index.ts"]
   },

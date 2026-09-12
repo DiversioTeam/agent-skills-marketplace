@@ -11,7 +11,7 @@ Pi-native packages that extend pi with tools, commands, skills, and UI widgets.
 | [`image-router`](./image-router) | Routes images to an explicitly approved secondary vision destination; RPC/extension/tool routing requires saved `auto` consent. Missing consent or destinations fail closed, with no provider/model fallback. Configure per-model routing via `/image-router`. |
 | [`oh-my-pi`](./oh-my-pi) | Pi-native cmux integration with notifications, readable split commands, and workspace tabs |
 | [`pi-timestamps`](./pi-timestamps) | Adds subtle per-turn transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
-| [`skills-bridge`](./skills-bridge) | Auto-discovers all marketplace plugin skills from `plugins/*/skills/` and registers them as pi skills — one install bridges the entire plugin ecosystem into pi |
+| [`skills-bridge`](./skills-bridge) | Selects marketplace roots through environment/config overrides or checkout discovery, then lets Pi load `plugins/*/skills/` using native filtering |
 
 ## Install
 

@@ -1,170 +1,136 @@
 # skills-bridge
 
-Pi extension that auto-discovers Claude Code plugin skills from `plugins/*/skills/` directories and registers them as pi skills. One install bridges all marketplace plugin skills into pi without restructuring the repo.
+Selects marketplace skill roots for Pi using an environment override, developer
+config, or the current checkout. Pi itself scans the selected
+`plugins/*/skills/` directories and loads skills on demand.
 
-## What it does
+## Why keep the bridge?
 
-The Diversio team maintains marketplace skills in `plugins/*/skills/`, including
-`crafting-sandboxes`. The root Pi manifest lists only the Pi-local skill folder;
-this extension supplies the marketplace paths through dynamic discovery.
-Current Pi versions also support explicitly loading nested skill directories
-with `--skill ./plugins` or skill settings; the bridge adds custom-root and
-ancestor discovery.
+Native Pi already supports nested skill directories through `--skill`, skill
+settings, and package manifests. The bridge adds **root selection**, not a
+separate skill loader:
 
-This extension bridges that gap. It uses pi's `resources_discover` hook to scan the plugins directory and register skill paths. One `pi install` per team member, then `/reload`, and the marketplace skills appear.
+- `PI_SKILLS_PATH` for a session override.
+- A persistent primary root and additional roots in developer config.
+- Automatic selection of the marketplace in the current monolith/worktree.
 
-**Context safety:** The extension only exposes skill names + descriptions (~5-10KB total) at startup. Full `SKILL.md` bodies load on demand when a skill is invoked. No context bloat.
+Pi lists skill names, descriptions, and file locations in the initial model
+context. Full instructions load on demand through native skill behavior. Claude Code
+`commands/` wrappers are not registered as Pi commands.
 
 ## Install
 
-**Global (recommended for worktree-heavy teams):**
+From the monolith root:
 
 ```bash
-# From the monolith root
 pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
 ```
 
-**Project-local (for single-repo teams):**
+For project-local installation, add `-l`. Restart Pi or run `/reload` afterward.
+The marketplace root package already includes this extension; do not also
+install the standalone package alongside it.
 
-```bash
-# From the monolith root
-pi install -l ./agent-skills-marketplace/pi-packages/skills-bridge
-```
+A global install persists across worktrees, but **the selected skill checkout
+still depends on the rules below**. Starting outside a matching checkout does
+not automatically select the extension's own checkout.
 
-Then restart pi or run `/reload` in an existing session.
+## Root selection
 
-## How it finds the skills
+1. **`PI_SKILLS_PATH`**: a non-empty value overrides config and ancestor discovery,
+   including `additionalPaths`. A nonexistent override returns no skills; it
+   never silently switches to another checkout.
+2. **Developer config**: `$XDG_CONFIG_HOME/pi/skills-bridge.json`, or
+   `~/.config/pi/skills-bridge.json` when that variable is unset/empty.
+   An existing `skillsPath` wins; if absent or
+   nonexistent, ancestor discovery supplies the primary root. Malformed config
+   warns and falls back. Missing/unreadable config also falls back.
+3. **Ancestor discovery**: walk upward from Pi's event cwd. At each ancestor,
+   prefer `agent-skills-marketplace/plugins/` over a direct `plugins/` directory.
+   The nearest matching ancestor wins. Missing candidates are skipped; other
+   inspection errors warn and stop automatic selection rather than silently
+   choosing a different checkout. Explicit `additionalPaths` still contribute.
 
-The extension uses three-tier resolution to find the `agent-skills-marketplace` root:
+Config `additionalPaths` supplement the primary root unless the environment
+variable is set. Nonexistent extra paths warn and are skipped; normalized
+identical roots are scanned once. Discovery runs again on `/reload`.
 
-1. **`PI_SKILLS_PATH` env var** (highest priority) — explicit session-level override. The extension uses this path and skips everything else.
-2. **`~/.config/pi/skills-bridge.json` config file** — persistent per-developer config with `skillsPath` and optional `additionalPaths`.
-3. **Cwd walk-up** (fallback) — walks up from the working directory looking
-   for a `plugins/` directory (repo-agnostic) or an
-   `agent-skills-marketplace/plugins/` child (monolith submodule convenience).
-
-For most developers in the monolith, tier 3 works automatically. No config needed.
-
-### Config file
-
-For developers who keep skills at a non-standard path or want extra skill sources:
-
-```bash
-mkdir -p ~/.config/pi
-```
-
-Create `~/.config/pi/skills-bridge.json`:
+Use absolute paths. Every bridge root must contain a `plugins/` directory:
 
 ```json
 {
-  "skillsPath": "/absolute/path/to/agent-skills-marketplace",
-  "additionalPaths": [
-    "/another/checkout/agent-skills-marketplace",
-    "/path/to/experimental-skills"
-  ]
+  "skillsPath": "/path/to/agent-skills-marketplace",
+  "additionalPaths": ["/path/to/another-marketplace"]
 }
 ```
 
-- `skillsPath` — primary skills root (optional; falls through to cwd walk-up if absent)
-- `additionalPaths` — extra skills roots to also scan (optional)
-- Both fields are optional; an empty file `{}` means "use cwd walk-up only"
-- The config file lives outside the package repo, so updating the repo never overwrites local config
-- When `PI_SKILLS_PATH` env var is set, the config file is ignored (env var is an explicit override)
+Both fields are optional. `{}` means ancestor discovery only. An existing root
+without readable `plugins/` contributes no skills and emits a warning.
+
+## Native discovery and compatibility
+
+Since **0.0.3**, the bridge returns plugin `skills/` directories rather than
+recursively locating individual `SKILL.md` files. Pi owns recursive discovery,
+ignore rules, skill-root boundaries, and name collisions.
+
+Discovery inside those directories follows these native rules:
+
+- Hidden directories, `node_modules`, and ignored paths are no longer exposed by
+  the custom scanner. Filtering applies within each supplied plugin `skills/`
+  root; ignore files above that root are not inherited.
+- As before, a skill-root boundary stops discovery of nested fixtures as
+  separate skills; Pi now enforces that boundary.
+- The bridge's old recursion-depth limit is gone.
+- Native root-level Markdown skills with valid frontmatter can also load.
+
+Validated with Pi **0.70.6** (the CI pin) and **0.85.1**. Root-selection precedence
+is unchanged; no user settings or config files are migrated.
+
+For ordinary skill collections without `plugins/`, use native Pi settings or
+`--skill /path/to/skills` instead. For one fixed marketplace checkout, a package
+manifest can use `"pi": {"skills": ["plugins/*/skills"]}` without a bridge. Do not add that
+alongside this bridge as an interchangeable fallback: same-name skill selection
+can favor the fixed package and defeat checkout-specific overrides.
 
 ## Verify
 
-After installing and restarting pi, check that skills appear:
-
-1. Type `/skill:<tab>` in pi — you should see `release-manager`, `monty-code-review`, `backend-atomic-commit`, and others
-2. Try `/skill:release-manager` — it should load the full release workflow instructions
-
-To verify discovery without restarting pi, run this standalone test:
+From the marketplace root:
 
 ```bash
-cd /path/to/monolith
-node -e "
-const { existsSync, readdirSync, statSync } = require('node:fs');
-const { join } = require('node:path');
-function findSkillDirs(root, depth=0) {
-  const results = [];
-  if (depth > 5) return results;
-  let entries;
-  try { entries = readdirSync(root); } catch { return results; }
-  for (const entry of entries) {
-    const full = join(root, entry);
-    let isDir;
-    try { isDir = statSync(full).isDirectory(); } catch { continue; }
-    if (!isDir) continue;
-    if (existsSync(join(full, 'SKILL.md'))) { results.push(full); continue; }
-    results.push(...findSkillDirs(full, depth+1));
-  }
-  return results;
-}
-const pluginsDir = 'agent-skills-marketplace/plugins';
-const plugins = readdirSync(pluginsDir);
-let total = 0;
-for (const p of plugins) {
-  const sd = join(pluginsDir, p, 'skills');
-  if (!existsSync(sd)) continue;
-  const found = findSkillDirs(sd);
-  total += found.length;
-}
-console.log('Skills discovered:', total);
-"
+PI_TEST_BINARY="$(command -v pi)" \
+  pnpm --config.verify-deps-before-run=false --dir pi-packages/skills-bridge test
+
+printf '{"id":"cmds","type":"get_commands"}\n' | \
+  PI_OFFLINE=1 PI_SKILLS_PATH="$PWD" pi --mode rpc --no-session \
+    --no-context-files --no-extensions -e ./pi-packages/skills-bridge \
+    --no-prompt-templates --no-skills
 ```
 
-## Skills bridged
+Inspect returned commands with `source: "skill"`. This tests actual Pi discovery,
+not a second hand-written scanner. Tests require Node 24 and Pi on PATH; set
+`PI_TEST_BINARY` to test another installed Pi binary. The command above captures
+the shell's Pi before pnpm adds dependency binaries to PATH. They use temporary roots
+and offline RPC discovery, including a reload that switches configured
+checkouts, without invoking skills or changing user settings.
 
-Discovery includes new marketplace skills such as `crafting-sandboxes` without
-extension code changes. See the maintained
-[plugin catalog](../../docs/plugins/catalog.md) for the full inventory.
+See the [plugin catalog](../../docs/plugins/catalog.md) for available skills.
 
-## Team setup
+## Troubleshooting and updates
 
-Each team member runs one command:
+- No skills: check the selected root contains `plugins/<plugin>/skills/` and the
+  monolith submodule is initialized. Outside a matching checkout, set an explicit
+  root or use native skill settings.
+- Missing previously exposed skills: check native ignore rules and whether the
+  files live in hidden/dependency directories.
+- Wrong checkout or name collisions: inspect returned skill source paths; avoid
+  loading the same skill names through both native fixed paths and the bridge.
+- Local-path installs read the checkout directly. After changing it, `/reload`
+  is sufficient; remove/reinstall is not required.
 
-```bash
-# In the monolith root
-pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
-```
-
-Then `/reload` (or restart pi). Skills appear immediately.
-
-### Worktree behavior
-
-Global install (without `-l`) persists across all git worktrees. If you use `scripts/create_worktree.py`, you only need to install once in the main monolith checkout.
-
-## Troubleshooting
-
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| Skills don't appear after `/reload` | Extension can't find skills root | Check `PI_SKILLS_PATH` or verify `agent-skills-marketplace/plugins/` exists |
-| "Skill name collision" warnings | Same skill registered from multiple sources | Check if the skill exists in both `~/.pi/agent/skills/` and the skills root |
-| Extension causes pi startup error | TypeScript syntax error in extension | Check pi startup logs |
-| Skills appear but `/skill:name` doesn't load content | SKILL.md structure issue | Verify the skill directory follows `plugins/<name>/skills/<skill>/SKILL.md` |
-| Submodule not initialized | `git submodule update --init` hasn't been run | Run `git submodule update --init agent-skills-marketplace` |
-
-## Rollback
+To remove the standalone package:
 
 ```bash
-# Find the installed package path
 pi list
-
-# Remove it
 pi remove /path/to/agent-skills-marketplace/pi-packages/skills-bridge
-
-# Restart pi or /reload
 ```
 
-The config file at `~/.config/pi/skills-bridge.json` is not affected by install/remove — it's a separate per-developer file. Delete it manually if you want to remove all traces.
-
-## Updating
-
-When new skills are added or the extension is updated:
-
-```bash
-# Remove and reinstall to pick up the latest extension code
-pi remove /path/to/agent-skills-marketplace/pi-packages/skills-bridge
-pi install /path/to/agent-skills-marketplace/pi-packages/skills-bridge
-# Then /reload
-```
+Restart or `/reload`. The separate developer config is left untouched.

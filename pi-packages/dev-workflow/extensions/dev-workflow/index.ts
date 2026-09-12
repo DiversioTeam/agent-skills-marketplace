@@ -72,7 +72,7 @@ const CORE_PROMPTS: WorkflowPrompt[] = [
     whenToUse: "When creating or changing a Diversio or Optimo Crafting instance, or checking an existing sandbox.",
     example: "/workflow:crafting create an Optimo sandbox for these backend and frontend PRs",
     category: "core",
-    source: "core",
+    sourceLabel: "core",
     prompt: `Use the crafting-sandboxes skill for this request. Load its SKILL.md and the relevant operations reference before running cs commands.
 If the skill is unavailable, ask the user to load plugins/crafting-sandboxes/skills/crafting-sandboxes from the Diversio marketplace or enable skills-bridge; do not invent the operational workflow.
 Discover live templates and repo manifests. Distinguish Diversio-Frontend from Optimo-Frontend even when both templates name their workspace frontend. Inspect first if the requested action is unclear.

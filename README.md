@@ -329,7 +329,7 @@ sub-package so pi can discover them from a single clone - see
 | `image-router` | Routes images only to an explicitly approved vision destination; no automatic fallback. Tool/RPC images need saved auto consent. Configure the destination with `/image-router` when upgrading from 0.1.x |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
 | `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
-| `skills-bridge` | Auto-discovers all 22 Claude Code plugin skills from plugins/*/skills/ and registers them as pi skills. One install bridges the gap between the plugin ecosystem and pi |
+| `skills-bridge` | Selects marketplace roots through environment/config overrides or the current checkout, then delegates `plugins/*/skills/` discovery to Pi. Preserves worktree selection while honoring native skill filtering |
 
 Helpful mental model:
 

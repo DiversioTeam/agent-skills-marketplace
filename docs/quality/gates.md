@@ -13,6 +13,7 @@ jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null
 pnpm --config.verify-deps-before-run=false --dir pi-packages/image-router test  # Node 24; no dependencies
 pnpm --config.verify-deps-before-run=false --dir pi-packages/ci-status test  # Node 24; mocked GitHub/CircleCI
+PI_TEST_BINARY="$(command -v pi)" pnpm --config.verify-deps-before-run=false --dir pi-packages/skills-bridge test  # Node 24 + Pi; offline discovery
 (cd pi-packages/<package> && npm pack --dry-run --json >/tmp/<package>-pack.json)
 printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
 ```
@@ -70,6 +71,10 @@ skills target:
     connection-time public-address checks (including DNS rebinding), and
     local-ci commit-status/native-log compatibility. Local fixture inspection
     is read-only: it neither executes validation nor publishes statuses.
+  - After installing the pinned Pi CLI, runs skills-bridge root-selection,
+    filtering, skill-boundary, reload, and real marketplace inventory tests.
+    The explicit binary path prevents dependency CLIs from shadowing the pin.
+    Native discovery uses offline RPC in temporary roots without invoking skills.
 - `Validate Website`
   - Triggered by changes under `website/**` or the website workflow file.
   - Runs a clean website dependency install and `cd website && npm run build`.
@@ -78,14 +83,15 @@ skills target:
   - Triggered by pushes to `main` that touch `plugins/**` or `pi-packages/**`.
   - Diffs the full pushed range, groups changes by marketplace item, and posts
     one Slack message with separate `Plugin items` and `Pi items` sections.
-- `Deploy Website to Cloudflare Pages`
-  - Triggered by website changes and site-doc source changes.
-  - Builds the static site in GitHub Actions, then uploads `website/dist` to
-    Cloudflare Pages.
-  - PR previews run only for same-repo PRs because forked PRs do not receive
-    Cloudflare secrets.
-  - Pushes to `main` publish production automatically once the required GitHub
-    secrets are configured.
+- `Trigger Engineering Website Deploy`
+  - On source-content changes merged to `main`, dispatches the exact merged
+    SHA to `DiversioTeam/engineering-website`, which owns deployment.
+  - Feature-branch pushes do not dispatch deployments.
+- `Deploy Website to Cloudflare Pages` (retired)
+  - The legacy workflow still contains duplicate job-level `if` keys. GitHub
+    rejects it before creating jobs, so failed runs have no job logs and may
+    be absent from the PR check rollup. Do not report these runs as green or
+    mistake them for the active engineering-website deployment workflow.
 
 Docs-only changes do not currently trigger the marketplace validation workflow,
 so run the local checks manually when you touch shared instructions.
