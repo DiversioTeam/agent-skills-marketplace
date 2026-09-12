@@ -324,7 +324,7 @@ sub-package so pi can discover them from a single clone - see
 
 | Package | Description |
 |---------|-------------|
-| `ci-status` | Checkout-scoped CI status with `/ci`, `/ci-detail`, `/ci-logs`, exact GitHub job selection, published local-ci checks and explicit native snapshot logs, real CircleCI console output, auto-watch, and LLM tools. No implicit sibling selection or local-ci execution/publication. |
+| `ci-status` | Checkout-scoped CI status with `/ci`, `/ci-detail`, `/ci-logs`, exact GitHub job selection, published local-ci checks, explicit native snapshot logs with historical publication receipts, real CircleCI console output, auto-watch, and LLM tools. No implicit sibling selection or local-ci execution/publication. |
 | `dev-workflow` | Pi-native daily developer workflow with 16 core workflow prompts including `/workflow:crafting`,  `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, remote CI analysis, local-ci-aware ship/release prompts, PR review feedback, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
 | `image-router` | Routes images only to an explicitly approved vision destination; no automatic fallback. Tool/RPC images need saved auto consent. Configure the destination with `/image-router` when upgrading from 0.1.x |
 | `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
