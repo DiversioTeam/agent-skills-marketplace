@@ -40,6 +40,7 @@ package project-locally as a developer.
 
 ## Crafting Sandbox Skill
 
+`/workflow:crafting` is a Core workflow command with a `[core]` source badge.
 `/workflow:crafting <task>` loads the marketplace `crafting-sandboxes` skill,
 then checks live templates, branch overrides, frontend DS consumption, and
 readiness. Database restores require explicit snapshot/target/data-loss approval.

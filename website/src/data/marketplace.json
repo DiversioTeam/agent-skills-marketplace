@@ -294,7 +294,7 @@
       "name": "dev-workflow",
       "title": "Dev Workflow",
       "description": "Daily developer workflow for pi: plan review, self-review, standards, CI, PR feedback, releases, Crafting sandboxes, docs, and shipping. 16 core prompts plus help, run, prompts, and flow.",
-      "version": "v0.0.8"
+      "version": "v0.0.9"
     },
     {
       "name": "skills-bridge",
