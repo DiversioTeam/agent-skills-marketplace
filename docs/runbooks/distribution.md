@@ -403,6 +403,7 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 SKILLS=(
   crafting-sandboxes
+  monolith-review-orchestrator
   monty-code-review
   backend-atomic-commit
   backend-pr-workflow
