@@ -61,8 +61,9 @@
      changed.
 2. Add or change a pi package
    - Update package resources under `pi-packages/<package>/`.
-   - Keep `package.json`, package README, repo README, and distribution docs in
-     sync with install commands and command inventory.
+   - Keep `package.json`, the package README, catalog, and distribution docs in
+     sync with install commands and command inventory. Update the root README only
+     when its shared Pi entrypoint or top-level summary changes.
    - If the package includes a pi extension, validate it against the pi docs and
      examples before publishing.
 3. Add or change the website

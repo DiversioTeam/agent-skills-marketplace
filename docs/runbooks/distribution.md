@@ -235,6 +235,17 @@ restarting or running `/reload`.
 
 After install, restart pi or run `/reload`.
 
+### Remove Pi packages
+
+Remove the git-installed bundle with the same source used to install it:
+
+```bash
+pi remove git:github.com/DiversioTeam/agent-skills-marketplace
+```
+
+For a project-local installation, add `-l`. For a local-path installation,
+pass that exact path to `pi remove`.
+
 Quick mental model:
 
 ```text
