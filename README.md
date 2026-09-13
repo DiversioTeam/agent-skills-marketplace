@@ -54,9 +54,11 @@ claude plugin update frontend@diversiotech
 ```
 
 See the [plugin catalog](docs/plugins/catalog.md) for every plugin, its purpose,
-and its slash commands. The [distribution runbook](docs/runbooks/distribution.md)
-keeps the complete Claude install-all and uninstall-all commands, project scope,
-troubleshooting, and the `visual-explainer` replacement caveat.
+and its slash commands. The distribution runbook keeps the complete Claude
+[install-all](docs/runbooks/distribution.md#install-all-marketplace-plugins) and
+[uninstall-all](docs/runbooks/distribution.md#uninstall-all-diversio-plugins)
+commands, project scope, troubleshooting, and the `visual-explainer` replacement
+caveat.
 
 ### Pi
 
@@ -77,8 +79,9 @@ This command does not install Claude Code plugins or copy skills into Codex.
 matching checkout or an explicit marketplace root is configured.
 
 Pi packages can execute code with your system permissions. Review package
-sources before installation. For package details, bridge configuration, and
-local-development commands, see [`pi-packages/README.md`](pi-packages/README.md).
+sources before installation. For individual package commands, see
+[local-path installation](pi-packages/README.md#one-package-at-a-time-local-dev).
+That package index also covers bridge configuration and package details.
 
 ### Codex
 
@@ -95,8 +98,10 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
 
 Restart Codex after installation. The
 [distribution runbook](docs/runbooks/distribution.md#codex-skill-installation)
-has the complete install-all and uninstall-all commands, every skill path,
-pinning guidance, and the replacement workflow.
+has the complete Codex
+[install-all](docs/runbooks/distribution.md#install-all-diversio-skills) and
+[uninstall-all](docs/runbooks/distribution.md#uninstall-all-diversio-codex-skills)
+commands, every skill path, pinning guidance, and the replacement workflow.
 
 ## Uninstall
 
