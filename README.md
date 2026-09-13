@@ -20,6 +20,10 @@ Use the [plugin catalog](docs/plugins/catalog.md) to choose a Claude Code plugin
 or skill. Use the [Pi package index](pi-packages/README.md) to see Pi commands,
 shortcuts, and package-specific documentation.
 
+Each runtime installs independently: `pi install` changes only Pi settings,
+Claude Code plugins use the Claude marketplace, and Codex skills use the Codex
+installer.
+
 ## Install
 
 ### Claude Code
@@ -50,9 +54,9 @@ claude plugin update frontend@diversiotech
 ```
 
 See the [plugin catalog](docs/plugins/catalog.md) for every plugin, its purpose,
-and its slash commands. See the
-[distribution runbook](docs/runbooks/distribution.md) for bulk installation,
-project scope, troubleshooting, and the `visual-explainer` replacement caveat.
+and its slash commands. The [distribution runbook](docs/runbooks/distribution.md)
+keeps the complete Claude install-all and uninstall-all commands, project scope,
+troubleshooting, and the `visual-explainer` replacement caveat.
 
 ### Pi
 
@@ -68,9 +72,13 @@ Run `/reload` in Pi after installation. Update later with:
 pi update --extensions
 ```
 
+This command does not install Claude Code plugins or copy skills into Codex.
+`skills-bridge` can expose marketplace skills inside Pi when Pi starts in a
+matching checkout or an explicit marketplace root is configured.
+
 Pi packages can execute code with your system permissions. Review package
-sources before installation. For package details and local-development commands,
-see [`pi-packages/README.md`](pi-packages/README.md).
+sources before installation. For package details, bridge configuration, and
+local-development commands, see [`pi-packages/README.md`](pi-packages/README.md).
 
 ### Codex
 
@@ -87,8 +95,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
 
 Restart Codex after installation. The
 [distribution runbook](docs/runbooks/distribution.md#codex-skill-installation)
-has the multiple-skill pattern, every skill path, pinning guidance, and the
-replacement workflow.
+has the complete install-all and uninstall-all commands, every skill path,
+pinning guidance, and the replacement workflow.
 
 ## Uninstall
 

@@ -361,9 +361,9 @@ Preferred pattern:
 - Add `--ref <branch-or-tag>` when you want to pin a branch, tag, or commit.
 - Restart Codex after installation.
 
-### Install multiple skills
+### Install all Diversio skills
 
-Repeat `--path` once per skill:
+Pass one `--path` followed by every skill path:
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -371,11 +371,35 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo DiversioTeam/agent-skills-marketplace \
   --ref main \
-  --path plugins/repo-docs/skills/repo-docs-generator \
-  --path plugins/visual-explainer/skills/visual-explainer
+  --path \
+    plugins/crafting-sandboxes/skills/crafting-sandboxes \
+    plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
+    plugins/monty-code-review/skills/monty-code-review \
+    plugins/backend-atomic-commit/skills/backend-atomic-commit \
+    plugins/backend-pr-workflow/skills/backend-pr-workflow \
+    plugins/bruno-api/skills/bruno-api \
+    plugins/code-review-digest-writer/skills/code-review-digest-writer \
+    plugins/plan-directory/skills/plan-directory \
+    plugins/plan-directory/skills/backend-ralph-plan \
+    plugins/pr-description-writer/skills/pr-description-writer \
+    plugins/process-code-review/skills/process-code-review \
+    plugins/mixpanel-analytics/skills/mixpanel-analytics \
+    plugins/clickup-ticket/skills/clickup-ticket \
+    plugins/github-ticket/skills/github-ticket \
+    plugins/repo-docs/skills/repo-docs-generator \
+    plugins/visual-explainer/skills/visual-explainer \
+    plugins/backend-release/skills/release-manager \
+    plugins/dependabot-remediation/skills/dependabot-remediation \
+    plugins/terraform/skills/terraform-atomic-commit \
+    plugins/terraform/skills/terraform-pr-workflow \
+    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+    plugins/frontend/skills/frontend
 ```
 
-Codex console example:
+The installer does not overwrite existing skill directories. Remove or move an
+existing copy before reinstalling it.
+
+Codex console example for one skill:
 
 ```text
 $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace path=plugins/repo-docs/skills/repo-docs-generator
