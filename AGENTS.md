@@ -26,7 +26,7 @@ skills, commands, and supporting validation scripts.
   ownership boundaries, or distribution flow.
 - Read `docs/quality/gates.md` for CI checks, manifest-sync rules, and the
   `SKILL.md` size guardrail.
-- Read `docs/runbooks/distribution.md` for Claude Code and Codex install,
+- Read `docs/runbooks/distribution.md` for Claude Code, Pi, and Codex install,
   uninstall, and reinstall workflows.
 - Read `docs/plugins/catalog.md` for the plugin inventory, skill paths, and
   slash commands.
@@ -80,9 +80,11 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
   colons, commas, brackets, or quotes.
 - `CLAUDE.md` is a minimal `@AGENTS.md` pointer only. Put durable rules here or
   in repo-local docs, not in `CLAUDE.md`.
-- `README.md` is still a maintained engineer-facing document. When plugin
-  inventory, install flows, slash-command examples, or the top-level repo shape
-  change, update `README.md` as well as the focused docs.
+- Keep `README.md` as a short engineer-facing quickstart: purpose, basic
+  install/update/uninstall commands, top-level layout, and links to focused docs.
+  Keep plugin inventory and slash commands in `docs/plugins/catalog.md`, detailed
+  distribution guidance in `docs/runbooks/distribution.md`, and Pi details in
+  `pi-packages/` READMEs.
 - For Python code-touching skills, document type-gate detection in this order:
   `ty`, then `pyright`, then `mypy`. If `ty` is configured in the target repo,
   treat it as mandatory and blocking.
@@ -113,7 +115,7 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
 - `README.md` - human-first quickstart and entrypoint
 - `docs/architecture/overview.md` - structure, ownership boundaries, and flows
 - `docs/quality/gates.md` - validation, CI coverage, and recurring failure modes
-- `docs/runbooks/distribution.md` - Claude Code and Codex install workflows
+- `docs/runbooks/distribution.md` - Claude Code, Pi, and Codex install workflows
 - `docs/plugins/catalog.md` - plugin inventory, commands, and skill paths
 - `docs/python-typing-and-ty-best-practices.md` - policy for code-touching
   Python skills
@@ -125,9 +127,9 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
   remain tribal knowledge.
 - If install or distribution behavior changes, update
   `docs/runbooks/distribution.md` and any top-level pointers that reference it.
-- If the plugin or pi-package inventory or command surface changes, update both
-  `docs/plugins/catalog.md` and `README.md`. Keep the catalog as the structured
-  inventory and keep `README.md` accurate for engineers who use it as the main
-  handbook.
+- If the plugin or Pi-package inventory or command surface changes, update
+  `docs/plugins/catalog.md` and the owning package/plugin docs. Update the root
+  `README.md` only when its basic install flow, top-level grouping, or doc routes
+  change.
 - Add focused docs under `docs/` instead of turning this file back into a
   handbook.

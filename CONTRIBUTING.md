@@ -74,14 +74,12 @@ only inside `pi-packages/**` and should stay harness-focused.
 
    - Update `docs/plugins/catalog.md` when plugin inventory or slash commands
      change.
-   - Update `README.md` when plugin inventory, install commands, slash command
-     examples, or the repository structure summary change.
-   - Keep the engineer-facing README sections current:
-     - repository tree diagram
-     - available plugins table
-     - install examples
-     - slash command examples
-   - Update `docs/runbooks/distribution.md` when install, uninstall, or Codex
+   - Update the root `README.md` only when its basic install/update/uninstall
+     flow, top-level repository summary, or documentation routes change.
+   - Keep complete plugin inventory and slash commands in
+     `docs/plugins/catalog.md`; keep detailed installation and troubleshooting in
+     `docs/runbooks/distribution.md`.
+   - Update `docs/runbooks/distribution.md` when Claude Code, Pi, or Codex
      distribution guidance changes.
    - Update `AGENTS.md` when repo-wide navigation, commands, or agent-facing
      rules change.
@@ -95,8 +93,9 @@ pi extension, TUI component, or pi-local skill that does not fit the Claude Code
 marketplace plugin shape.
 
 Keep the package `README.md`, `package.json`, `docs/runbooks/distribution.md`,
-`docs/plugins/catalog.md`, and the top-level `README.md` in sync when commands,
-shortcuts, install paths, or packaged resources change.
+and `docs/plugins/catalog.md` in sync when commands, shortcuts, install paths, or
+packaged resources change. Update the top-level `README.md` only when its shared
+Pi install entrypoint or top-level package summary changes.
 
 **When adding or removing a pi package**, update the root `package.json`
 `pi.extensions` and `pi.skills` arrays so the git-based install stays accurate.
@@ -145,8 +144,8 @@ Before opening a PR or pushing directly:
 - [ ] Changed `SKILL.md` files stay within the 500-line budget.
 - [ ] `docs/plugins/catalog.md` reflects any added, removed, or renamed plugins
       and commands.
-- [ ] `README.md` reflects any changed plugin inventory, install flows,
-      repository structure summaries, or slash command examples.
+- [ ] Focused catalog/package docs reflect inventory and command changes;
+      `README.md` still provides an accurate quickstart and routes to them.
 - [ ] `docs/runbooks/distribution.md` still matches the supported Claude Code
       and Codex installation flows.
 - [ ] `README.md` and `AGENTS.md` still point to the right docs.

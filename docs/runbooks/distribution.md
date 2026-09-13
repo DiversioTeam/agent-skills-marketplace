@@ -1,7 +1,7 @@
 # Distribution Runbook
 
 Use this file for installation, uninstallation, and reinstall workflows across
-Claude Code and Codex.
+Claude Code, Pi, and Codex.
 
 ## Claude Code Marketplace
 
@@ -44,6 +44,7 @@ claude plugin uninstall visual-explainer@visual-explainer-marketplace
 ```bash
 PLUGINS=(
   crafting-sandboxes
+  monolith-review-orchestrator
   monty-code-review
   backend-atomic-commit
   backend-pr-workflow
@@ -85,6 +86,7 @@ Then uninstall the user-scoped copies:
 ```bash
 PLUGINS=(
   crafting-sandboxes
+  monolith-review-orchestrator
   monty-code-review
   backend-atomic-commit
   backend-pr-workflow
@@ -150,11 +152,11 @@ pi update --extensions
 
 This does a `git pull` on the cloned repo and reloads all extensions and
 skills. Versions are not pinned, so `pi update --extensions` always fetches
-the latest `main`. If you want to freeze at a known version, pin the install
-with a tag:
+the latest `main`. If you want to freeze at a known version, pin the install to
+an existing tag or full commit SHA. For example:
 
 ```bash
-pi install git:github.com/DiversioTeam/agent-skills-marketplace@v0.0.1
+pi install git:github.com/DiversioTeam/agent-skills-marketplace@3eb0ac5141c781bc6aa01e4df141cf5cc4f268d2
 ```
 
 Pinned refs are skipped by `pi update --extensions`.
@@ -235,6 +237,17 @@ restarting or running `/reload`.
 
 After install, restart pi or run `/reload`.
 
+### Remove Pi packages
+
+Remove the git-installed bundle with the same source used to install it:
+
+```bash
+pi remove git:github.com/DiversioTeam/agent-skills-marketplace
+```
+
+For a project-local installation, add `-l`. For a local-path installation,
+pass that exact path to `pi remove`.
+
 Quick mental model:
 
 ```text
@@ -251,7 +264,7 @@ oh-my-pi     -> explicit cmux notifications, split-pane commands,
 pi-timestamps -> subtle per-turn transcript timing rows for exact timestamps,
                  timezone labels, and a live newest-turn status line
 
-skills-bridge -> exposes marketplace plugin skills inside Pi
+skills-bridge -> selects marketplace skills from config or the current checkout
 ```
 
 `image-router` 0.2.x removes automatic cross-model/provider fallback. Saved
@@ -307,10 +320,12 @@ checkout overrides to win same-name collisions. See the package README for
 precedence, compatibility, and offline discovery tests.
 
 `/workflow:crafting <task>` delegates to the marketplace `crafting-sandboxes`
-skill. The root install exposes it through `skills-bridge`. With standalone
-`dev-workflow`, also load `plugins/crafting-sandboxes/skills/crafting-sandboxes`
-through Pi skill settings or `--skill <path>`, or install `skills-bridge`.
-The Crafting `cs` CLI and organization authentication are separate prerequisites.
+skill. The root install includes `skills-bridge`, but the bridge exposes skills
+only when Pi starts inside a matching marketplace/monolith checkout or an
+explicit root is configured. With standalone `dev-workflow`, also load
+`plugins/crafting-sandboxes/skills/crafting-sandboxes` through Pi skill settings
+or `--skill <path>`, or install and configure `skills-bridge`. The Crafting `cs`
+CLI and organization authentication are separate prerequisites.
 
 The PR description writer prefers
 [tldraw offline](https://tldraw.notion.site/User-manual-tldraw-offline-39a3e4c324c080e7b2eacc5afd078e85)
@@ -346,9 +361,9 @@ Preferred pattern:
 - Add `--ref <branch-or-tag>` when you want to pin a branch, tag, or commit.
 - Restart Codex after installation.
 
-### Install multiple skills
+### Install all Diversio skills
 
-Repeat `--path` once per skill:
+Pass one `--path` followed by every skill path:
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -356,11 +371,35 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo DiversioTeam/agent-skills-marketplace \
   --ref main \
-  --path plugins/repo-docs/skills/repo-docs-generator \
-  --path plugins/visual-explainer/skills/visual-explainer
+  --path \
+    plugins/crafting-sandboxes/skills/crafting-sandboxes \
+    plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
+    plugins/monty-code-review/skills/monty-code-review \
+    plugins/backend-atomic-commit/skills/backend-atomic-commit \
+    plugins/backend-pr-workflow/skills/backend-pr-workflow \
+    plugins/bruno-api/skills/bruno-api \
+    plugins/code-review-digest-writer/skills/code-review-digest-writer \
+    plugins/plan-directory/skills/plan-directory \
+    plugins/plan-directory/skills/backend-ralph-plan \
+    plugins/pr-description-writer/skills/pr-description-writer \
+    plugins/process-code-review/skills/process-code-review \
+    plugins/mixpanel-analytics/skills/mixpanel-analytics \
+    plugins/clickup-ticket/skills/clickup-ticket \
+    plugins/github-ticket/skills/github-ticket \
+    plugins/repo-docs/skills/repo-docs-generator \
+    plugins/visual-explainer/skills/visual-explainer \
+    plugins/backend-release/skills/release-manager \
+    plugins/dependabot-remediation/skills/dependabot-remediation \
+    plugins/terraform/skills/terraform-atomic-commit \
+    plugins/terraform/skills/terraform-pr-workflow \
+    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
+    plugins/frontend/skills/frontend
 ```
 
-Codex console example:
+The installer does not overwrite existing skill directories. Remove or move an
+existing copy before reinstalling it.
+
+Codex console example for one skill:
 
 ```text
 $skill-installer install from github repo=DiversioTeam/agent-skills-marketplace path=plugins/repo-docs/skills/repo-docs-generator
@@ -388,6 +427,7 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 SKILLS=(
   crafting-sandboxes
+  monolith-review-orchestrator
   monty-code-review
   backend-atomic-commit
   backend-pr-workflow

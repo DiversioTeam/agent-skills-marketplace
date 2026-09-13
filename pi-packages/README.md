@@ -33,9 +33,15 @@ To pull the latest updates later:
 pi update --extensions
 ```
 
-This does a `git pull` on the cloned repo and reloads all extensions and skills.
-Versions are not pinned, so `pi update --extensions` always fetches the latest
-`main`.
+Remove the bundle with:
+
+```bash
+pi remove git:github.com/DiversioTeam/agent-skills-marketplace
+```
+
+This update does a `git pull` on the cloned repo and reloads all extensions and
+skills. Versions are not pinned, so `pi update --extensions` always fetches the
+latest `main`.
 
 ### One package at a time (local dev)
 
@@ -114,5 +120,5 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full guide. Key rules:
 
 ## More
 
-- [Root README](../README.md) — full repo overview and plugin catalog
+- [Root README](../README.md) — quickstart and documentation routes
 - [Distribution runbook](../docs/runbooks/distribution.md) — install, uninstall, and migration guides

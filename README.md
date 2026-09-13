@@ -1,772 +1,91 @@
-# agent-skills-marketplace
+# Agent Skills Marketplace
 
-Agent Skills marketplace for Diversio.
+Diversio's shared agent workflows for Claude Code, Pi, and Codex.
 
-**🌐 Docs & tools → [engineering.diversio.com](https://engineering.diversio.com)**
+**Browse the rendered docs and tools at
+[engineering.diversio.com](https://engineering.diversio.com).**
 
-## Agent Skills Standard
+## What This Repository Provides
 
-This repo follows the [Agent Skills standard](https://agentskills.io/specification): an
-open, tool-agnostic format for packaging capabilities and workflows for agents.
-A skill is a directory with a required `SKILL.md` that contains YAML frontmatter
-(`name`, `description`) and Markdown instructions, plus optional `scripts/`,
-`references/`, and `assets/`.
+- **Claude Code plugins** for review, planning, releases, documentation,
+  frontend/backend workflows, and operational tasks.
+- **Pi packages** for CI visibility, daily workflows, image routing, cmux
+  integration, timestamps, and marketplace skill discovery.
+- **Portable Agent Skills** using the open
+  [Agent Skills standard](https://agentskills.io/specification).
+- **Source documentation** for the Agentic Tools section of the Diversio
+  Engineering website.
 
-Key points from the standard:
-- `SKILL.md` is required and starts with YAML frontmatter.
-- `name` must match the skill directory and use lowercase letters, numbers, and hyphens.
-- `description` should explain what the skill does and when to use it.
-- Optional frontmatter fields include `license`, `compatibility`, `metadata`, and experimental `allowed-tools` (space-delimited string).
-- Keep `SKILL.md` focused; link to longer guidance in `references/` or helpers in `scripts/`.
+Use the [plugin catalog](docs/plugins/catalog.md) to choose a Claude Code plugin
+or skill. Use the [Pi package index](pi-packages/README.md) to see Pi commands,
+shortcuts, and package-specific documentation.
 
-Skills are designed for progressive disclosure: agents read metadata first,
-load the full `SKILL.md` when invoked, and open `references/` or `scripts/`
-only if needed.
+Each runtime installs independently: `pi install` changes only Pi settings,
+Claude Code plugins use the Claude marketplace, and Codex skills use the Codex
+installer.
 
-### Compatibility (Codex + Claude Code)
+## Install
 
-To keep Skills portable across both OpenAI Codex and Claude Code:
-- Prefer only `name` + `description` in YAML frontmatter; treat other fields as optional/ignored by many runtimes.
-- Keep `description` single-line and ≤500 chars (Codex validates this at startup).
-- Avoid `anthropic`/`claude` in Skill names and don’t include XML tags in `name`/`description` (Claude).
-- Keep `SKILL.md` reasonably small (≈<500 lines); move deep docs into `references/`.
+### Claude Code
 
-### SKILL.md Size Guardrail (CI-Enforced)
-
-To keep Skills reliable and LLM-friendly, treat `SKILL.md` as an orchestrator, not a dump:
-- Hard limit: each changed `SKILL.md` in a PR/push must stay at or below 500 lines (CI fails above this).
-- Keep only activation workflow, core priorities, and output contract in `SKILL.md`.
-- Move long procedures/examples into `references/*.md`.
-- Move reusable command logic into `scripts/`.
-- Keep reference depth shallow (one level deep where possible) for progressive disclosure.
-
-Run the guard locally before opening a PR:
-
-```bash
-bash scripts/validate-skills.sh
-```
-
-This default mode validates changed and untracked `SKILL.md` files in your working tree.
-Use `bash scripts/validate-skills.sh --all` for a full-repo audit.
-
-## Working on Skills (LLM checklist)
-
-- Start with `AGENTS.md` (source of truth); `CLAUDE.md` only includes it.
-- Required structure: `plugins/<plugin>/skills/<skill-name>/SKILL.md` with YAML frontmatter (`name`, `description`).
-- Ensure the skill directory name matches `name` and stays in kebab-case.
-- Add or update a corresponding `plugins/<plugin>/commands/*.md` entrypoint.
-- Keep `SKILL.md` focused; put deep docs in `references/` and helpers in `scripts/`.
-- After substantive edits, do a fresh-eyes self-review of the changed skill,
-  adjacent commands/docs, and version metadata, then fix obvious issues before
-  stopping.
-- If you change a plugin, bump its version in `plugins/<plugin>/.claude-plugin/plugin.json`
-  and keep `.claude-plugin/marketplace.json` in sync.
-
-## Overview
-
-This repository hosts Diversio-maintained Agent Skills and plugin manifests so
-the same skills can be distributed via the Claude Code marketplace or other
-channels.
-
-It also now includes the Astro website in `website/`, which targets
-`https://engineering.diversio.com`. That site is the Diversio Engineering hub,
-including the `Agentic Tools` section for marketplace plugins, individual
-skills, and Pi extensions.
-
-## Documentation Philosophy
-
-The `repo-docs` plugin is now explicitly informed by OpenAI's February 11,
-2026 article [Harness engineering: leveraging Codex in an agent-first
-world](https://openai.com/index/harness-engineering/) and Eric Provencher's
-September 11, 2026 [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra).
-Its [model guidance](plugins/repo-docs/skills/repo-docs-generator/references/model-guidance.md)
-separates source-dated observations from portable repository rules.
-
-The practical takeaway for this repo is:
-- Keep `AGENTS.md` as a short routing map, not a giant handbook.
-- Put durable detail in focused repo-local docs.
-- Treat repeated failures as harness gaps to encode in docs, wrappers, or CI.
-- Use narrow skill triggers and read references by task, not as a universal checklist.
-- Define completion and verified-safe permissions without weakening required gates.
-
-See the [24-skill instruction audit](docs/quality/skill-instruction-audit.md) for
-scope and retained safety contracts.
-
-## Repository Structure
-
-```
-agent-skills-marketplace/
-├── .claude-plugin/
-│   └── marketplace.json               # Marketplace definition
-├── pi-packages/
-│   ├── ci-status/                     # Pi-native CI status extension
-│   ├── dev-workflow/                  # Pi-native daily developer workflow extension + skills
-│   ├── image-router/                  # Pi-native vision bridge for text-only models
-│   ├── oh-my-pi/                      # Pi-native cmux integration (notifications, split panes, workspace tabs)
-│   ├── pi-timestamps/                 # Pi-native subtle transcript timing rows
-│   └── skills-bridge/                 # Pi-native bridge to Claude Code plugin skills
-├── website/                           # Astro site for engineering.diversio.com
-│   ├── src/pages/                     # Homepage, /agentic-tools, registry, docs, /skills/*, /pi/*, /blog/*
-│   ├── src/data/site-docs.ts          # Build-time extraction from SKILL.md + package READMEs
-│   └── public/                        # Branding assets, headers, OG image
-├── plugins/
-│   ├── crafting-sandboxes/           # Crafting instances, branches, DS builds, snapshots
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/crafting-sandboxes/ # SKILL.md + references/operations.md
-│   │   └── commands/sandbox.md
-│   ├── monty-code-review/             # Monty backend code review plugin
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/monty-code-review/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/
-│   │       ├── code-review.md
-│   │       └── test-hardening.md
-│   ├── monolith-review-orchestrator/  # Monolith PR review orchestration plugin
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/monolith-review-orchestrator/
-│   │   │   ├── SKILL.md
-│   │   │   ├── references/
-│   │   │   └── scripts/
-│   │   └── commands/
-│   │       ├── review-prs.md
-│   │       ├── reassess-prs.md
-│   │       └── post-review.md
-│   ├── backend-atomic-commit/         # Backend pre-commit & atomic-commit plugin
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/backend-atomic-commit/SKILL.md
-│   │   └── commands/
-│   │       ├── pre-commit.md
-│   │       ├── atomic-commit.md
-│   │       └── commit.md
-│   ├── backend-pr-workflow/           # Backend PR workflow plugin
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/backend-pr-workflow/SKILL.md
-│   │   └── commands/check-pr.md
-│   ├── bruno-api/                     # Bruno API docs generator
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/bruno-api/SKILL.md
-│   │   └── commands/docs.md
-│   ├── code-review-digest-writer/     # Code review digest generator
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/code-review-digest-writer/SKILL.md
-│   │   └── commands/review-digest.md
-│   ├── plan-directory/                # Structured plan directories + RALPH loop
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/
-│   │   │   ├── plan-directory/
-│   │   │   │   ├── SKILL.md
-│   │   │   │   └── references/        # Extended guidance
-│   │   │   └── backend-ralph-plan/    # RALPH loop integration
-│   │   │       ├── SKILL.md
-│   │   │       ├── references/
-│   │   │       └── examples/
-│   │   └── commands/
-│   │       ├── plan.md
-│   │       ├── backend-ralph-plan.md
-│   │       └── run.md                 # Execute RALPH plans
-│   ├── pr-description-writer/         # PR description generator
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/pr-description-writer/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/write-pr.md
-│   ├── process-code-review/           # Code review processor (fix/skip issues)
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/process-code-review/SKILL.md
-│   │   └── commands/process-review.md
-│   ├── mixpanel-analytics/            # MixPanel tracking implementation & review
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/mixpanel-analytics/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/
-│   │       ├── implement.md
-│   │       └── review.md
-│   ├── clickup-ticket/                # ClickUp ticket management
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/clickup-ticket/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/
-│   │       ├── configure.md
-│   │       ├── create-ticket.md
-│   │       ├── quick-ticket.md
-│   │       ├── create-subtask.md
-│   │       ├── add-to-backlog.md
-│   │       ├── list-spaces.md
-│   │       ├── switch-org.md
-│   │       ├── add-org.md
-│   │       └── refresh-cache.md
-│   ├── github-ticket/                 # GitHub issue management
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/github-ticket/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/
-│   │       ├── configure.md
-│   │       ├── get-issue.md
-│   │       ├── list-issues.md
-│   │       ├── my-issues.md
-│   │       ├── create-issue.md
-│   │       ├── quick-issue.md
-│   │       ├── add-to-backlog.md
-│   │       ├── create-linked-issue.md
-│   │       └── route.md
-│   ├── repo-docs/                     # Repository harness docs generator
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/repo-docs-generator/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/           # Harness principles, templates, playbooks
-│   │   └── commands/
-│   │       ├── generate.md
-│   │       └── canonicalize.md
-│   ├── visual-explainer/              # HTML visual explainers for mixed audiences
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/visual-explainer/
-│   │   │   ├── SKILL.md
-│   │   │   ├── references/           # Stakeholder mode, layout, diagram, and slide guidance
-│   │   │   ├── scripts/              # Optional publish helpers for hosted previews
-│   │   │   └── templates/            # Reference HTML templates
-│   │   └── commands/explain.md
-│   ├── backend-release/               # Django4Lyfe release workflow
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/release-manager/SKILL.md
-│   │   └── commands/
-│   │       ├── check.md
-│   │       ├── create.md
-│   │       └── publish.md
-│   ├── dependabot-remediation/        # Unified backend/frontend Dependabot remediation
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/dependabot-remediation/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/
-│   │       ├── backend.md
-│   │       └── frontend.md
-│   ├── terraform/                     # Terraform/Terragrunt workflows
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/
-│   │   │   ├── terraform-atomic-commit/SKILL.md
-│   │   │   └── terraform-pr-workflow/SKILL.md
-│   │   └── commands/
-│   │       ├── pre-commit.md
-│   │       ├── atomic-commit.md
-│   │       └── check-pr.md
-│   ├── login-cta-attribution-skill/   # CTA login attribution
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/login-cta-attribution-skill/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/implement.md
-│   ├── frontend/                      # Digest-first frontend skill (all lanes)
-│   │   ├── .claude-plugin/plugin.json
-│   │   ├── skills/frontend/
-│   │   │   ├── SKILL.md
-│   │   │   └── references/
-│   │   └── commands/
-│   │       ├── work.md
-│   │       ├── refresh-digest.md
-│   │       ├── review.md
-│   │       ├── commit.md
-│   │       └── new-branch.md
-├── AGENTS.md                          # Source of truth for Claude Code behavior
-├── CLAUDE.md                          # Sources AGENTS.md
-├── README.md
-├── CONTRIBUTING.md
-└── LICENSE
-```
-
-## Available Plugins
-
-| Plugin | Description |
-|--------|-------------|
-| `monolith-review-orchestrator` | Monolith-local PR review harness with stack-layer-aware exact scope, thread-aware GitHub context, deterministic worktrees, backend/frontend specialist handoffs, persistent reassessment, and controlled publication |
-| `monty-code-review` | Exact-scope Django4Lyfe backend review with evidence-backed findings, tenant/contract safety, migration checks, pytest hardening, and persistent review memory |
-| `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, repo-local commit hygiene, and `local-ci run --no-github` when the repo exposes local-ci |
-| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local and GitHub stacked-PR rules, issue linkage, migration safety checks, and the local-ci preflight + validated-deploy-helper backend release model |
-| `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
-| `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
-| `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |
-| `pr-description-writer` | Reviewer-friendly PR descriptions with preferred tldraw offline visuals, editable source + rendered assets, and evidence-backed scope/verification |
-| `process-code-review` | Process code review findings - interactively fix or skip issues from monty-code-review output with status tracking |
-| `mixpanel-analytics` | Optimo Mixpanel implementation/review with #3203 identity, tenant, producer ownership, privacy, post-commit delivery, and domain regression guardrails |
-| `crafting-sandboxes` | Create, inspect, or update Crafting instances with live template discovery, branch overrides, frontend DS consumption, snapshot safety, and readiness evidence |
-| `clickup-ticket` | Legacy ClickUp ticket management during the GitHub work-management migration |
-| `github-ticket` | GitHub-native issue management with smart defaults for `monolith`, backlog capture, repo-local execution routing, and project-board hydration |
-| `repo-docs` | Generate and canonicalize repository harness docs: short AGENTS.md maps, README.md, CLAUDE.md stubs, and focused repo-local docs for architecture, gates, and runbooks |
-| `visual-explainer` | Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing |
-| `backend-release` | Django4Lyfe release workflow - captured-SHA scope and verified PR inclusion, promotion/release preflights, exact-head local-ci, authorized deploys, date-based versioning (YYYY.MM.DD), and publication at the selected PR's merge commit |
-| `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
-| `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
-| `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
-| `frontend` | Digest-first frontend skill with pinned policy-root, exact-scope review and internal lanes for API, testing, analytics, observability, CI/CD, planning, and commit workflows |
-
-PR visuals prefer [tldraw offline](https://tldraw.notion.site/User-manual-tldraw-offline-39a3e4c324c080e7b2eacc5afd078e85).
-The writer offers installation/opening when unavailable, or Mermaid if declined;
-it never installs software or publishes private assets without consent.
-Complex data flows use staged animated walkthroughs when helpful, with captions,
-pause/step controls, reduced-motion support, and a static overview. GitHub can
-show an authorized video capture; it does not run the editable canvas scripts.
-
-Crafting in Pi: `/workflow:crafting <task>` uses the `crafting-sandboxes` skill
-(discovered by `skills-bridge` in the root installation). A standalone
-`dev-workflow` install also needs that marketplace skill loaded. The command
-checks readiness separately from authenticated UI proof and requires explicit
-approval before replacing sandbox database data.
-
-## Available Pi Packages
-
-All six packages are installable together from one git URL (recommended) or
-individually from a local checkout. The root `package.json` declares every
-sub-package so pi can discover them from a single clone - see
-[Git-based install](#git-based-install-recommended) for the one-liner.
-
-| Package | Description |
-|---------|-------------|
-| `ci-status` | Checkout-scoped CI status with `/ci`, `/ci-detail`, `/ci-logs`, exact GitHub job selection, published local-ci checks, explicit native snapshot logs with historical publication receipts, real CircleCI console output, auto-watch, and LLM tools. No implicit sibling selection or local-ci execution/publication. |
-| `dev-workflow` | Pi-native daily developer workflow with 16 core workflow prompts including `/workflow:crafting`,  `/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`, XDG/project prompt config, remote CI analysis, local-ci-aware ship/release prompts, PR review feedback, local skills, optional pi-subagents chain, and default cmux split launching for subagent-style workflow prompts when Pi runs inside cmux |
-| `image-router` | Routes images only to an explicitly approved vision destination; no automatic fallback. Tool/RPC images need saved auto consent. Configure the destination with `/image-router` when upgrading from 0.1.x |
-| `oh-my-pi` | Pi-native cmux integration with native cmux notifications (Waiting / Task Complete / Error), readable split pane commands (`/omp-split-*`) and workspace tab commands (`/omp-workspace*`), plus short aliases for faster typing. Low-level cmux primitives are shared via `@diversio/pi-cmux`. Works only inside cmux |
-| `pi-timestamps` | Pi-native subtle transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
-| `skills-bridge` | Selects marketplace roots through environment/config overrides or the current checkout, then delegates `plugins/*/skills/` discovery to Pi. Preserves worktree selection while honoring native skill filtering |
-
-Helpful mental model:
-
-```text
-@diversio/pi-cmux
-  -> shared low-level cmux primitives
-  -> split/workspace launch mechanics, command building, notifications
-
-oh-my-pi
-  -> explicit cmux commands you can run yourself
-  -> /omp-split-*, /omp-workspace*
-
-dev-workflow
-  -> workflow UX + seeded session/context behavior
-  -> automatic cmux use when the workflow clearly benefits
-  -> /workflow:scout, /workflow:oracle, /workflow:reviewer, /workflow:parallel
-```
-
-## Marketplace update notifications
-
-Pushes to `main` that change marketplace-delivered artifacts now post one Slack
-message from this repo's own GitHub Actions workflow.
-
-Why this exists:
-
-- plugin updates and Pi package updates both matter to engineers
-- Pi updates should not be hidden inside plugin-only notifications
-- product-release Slack is the wrong layer for marketplace-local Pi changes
-
-Mental model:
-
-```text
-push to main
-  ├─ changed plugins?     -> Plugin items section
-  ├─ changed pi-packages? -> Pi items section
-  └─ one compact Slack post in #ask-tech-team
-```
-
-## Installation
-
-### 1. Add the marketplace
-
-From your terminal (outside Claude Code):
+Add the marketplace once:
 
 ```bash
 claude plugin marketplace add DiversioTeam/agent-skills-marketplace
 ```
 
-Or from within a Claude Code session:
+Install the plugin you need. For example:
 
+```bash
+claude plugin install monty-code-review@diversiotech
+claude plugin install frontend@diversiotech
 ```
-/plugin marketplace add DiversioTeam/agent-skills-marketplace
+
+User scope is the recommended default because it works across git worktrees.
+Use `--scope project` only when the plugin should be recorded in project
+settings.
+
+List or update installed plugins:
+
+```bash
+claude plugin list
+claude plugin marketplace update diversiotech
+claude plugin update frontend@diversiotech
 ```
 
-### 2. Install plugins
+See the [plugin catalog](docs/plugins/catalog.md) for every plugin, its purpose,
+and its slash commands. The distribution runbook keeps the complete Claude
+[install-all](docs/runbooks/distribution.md#install-all-marketplace-plugins) and
+[uninstall-all](docs/runbooks/distribution.md#uninstall-all-diversio-plugins)
+commands, project scope, troubleshooting, and the `visual-explainer` replacement
+caveat.
 
-**Recommended:** Install at user scope (default) for compatibility with git worktrees.
-Project-scope plugins don't persist across worktrees.
+### Pi
 
-### Pi-native packages
-
-Pi-native packages live under `pi-packages/` and install with the pi CLI instead
-of the Claude Code marketplace.
-
-#### Git-based install (recommended)
-
-A root `package.json` at the top of this repo declares every sub-package so pi
-can discover `ci-status`, `dev-workflow`, `image-router`, `oh-my-pi`, `pi-timestamps`, and `skills-bridge` from one clone:
+Install all Pi packages, including `skills-bridge`, from one stable source:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
 ```
 
-`dev-workflow` and `oh-my-pi` depend on `@diversio/pi-cmux`, which is
-published on the public npm registry — no auth or `.npmrc` setup needed.
-
-Run `/reload` in pi after installation. To pull the latest updates later:
+Run `/reload` in Pi after installation. Update later with:
 
 ```bash
 pi update --extensions
 ```
 
-**Why this exists.** Before this root manifest, each package needed its own
-`pi install "$PWD/pi-packages/<pkg>"` command. Those local paths were relative to
-whichever worktree you happened to be in. Two problems emerged:
+This command does not install Claude Code plugins or copy skills into Codex.
+`skills-bridge` can expose marketplace skills inside Pi when Pi starts in a
+matching checkout or an explicit marketplace root is configured.
 
-1. **Duplicate extensions.** If the same package was installed from two different
-   worktrees (e.g. `monolith/agent-skills-marketplace` and
-   `monolith-for-release/agent-skills-marketplace`), pi saw them as distinct
-   packages because their resolved absolute paths differed. Both copies loaded,
-   producing duplicate tool registrations and confusing `[Extensions]` output.
-2. **Fragile paths.** When a worktree was deleted, pi failed to find the package
-   at the old path. Team members on different machines or worktrees inevitably
-   had different paths.
+Pi packages can execute code with your system permissions. Review package
+sources before installation. For individual package commands, see
+[local-path installation](pi-packages/README.md#one-package-at-a-time-local-dev).
+That package index also covers bridge configuration and package details.
 
-The git-based install solves both: one stable URL that works on any machine,
-any worktree, and always loads exactly one copy of each extension.
+### Codex
 
-#### Local-path install (legacy)
-
-If you need to install from a local checkout - for example, when testing a
-local change before pushing:
-
-```bash
-pi install "$PWD/pi-packages/ci-status"
-pi install "$PWD/pi-packages/dev-workflow"
-pi install "$PWD/pi-packages/image-router"
-pi install "$PWD/pi-packages/oh-my-pi"
-pi install "$PWD/pi-packages/pi-timestamps"
-pi install "$PWD/pi-packages/skills-bridge"
-```
-
-Before local-path installs or `-e` smoke tests of `dev-workflow` or `oh-my-pi`,
-run `npm install` either at the repo root or inside the target
-package directory so `@diversio/pi-cmux` is available (public npm, no auth needed).
-
-Plain `pi install` writes to global user settings. Use `pi --no-extensions -e ./pi-packages/<package>`
-for one-off extension testing from the repo root without loading a duplicate copy
-from the root marketplace manifest. Use `pi install -l` only when you need to
-test project-local install, reload, or persistence behavior.
-
-Install each pi package in one scope at a time. If `ci-status` is installed
-globally and also from a different project-local path, Pi can load both copies
-and duplicate `get_ci_status` / `ci_fetch_job_logs` tool registration. Remove
-the duplicate project package entry from `.pi/settings.json` or uninstall the
-global copy before reloading.
-
-Run `/reload` in pi after installation. See `pi-packages/ci-status/README.md`,
-`pi-packages/dev-workflow/README.md`, `pi-packages/image-router/README.md`,
-`pi-packages/oh-my-pi/README.md`, and `pi-packages/pi-timestamps/README.md` for
-command inventory, contribution workflow, and local testing commands.
-
-### Monolith Review Orchestrator
-
-`monolith-review-orchestrator` is a harness-local workflow for Diversio
-monolith review work. Read `plugins/monolith-review-orchestrator/README.md`
-for prerequisites, helper commands, and usage examples.
-
-If you already use the upstream `visual-explainer` plugin, uninstall it before
-installing this marketplace version:
-
-```bash
-claude plugin uninstall visual-explainer@visual-explainer-marketplace
-```
-
-<details>
-<summary><strong>Install All Plugins (CLI commands)</strong></summary>
-
-Copy-paste these commands in your terminal:
-
-```bash
-claude plugin install monolith-review-orchestrator@diversiotech
-claude plugin install monty-code-review@diversiotech
-claude plugin install backend-atomic-commit@diversiotech
-claude plugin install backend-pr-workflow@diversiotech
-claude plugin install bruno-api@diversiotech
-claude plugin install code-review-digest-writer@diversiotech
-claude plugin install crafting-sandboxes@diversiotech
-claude plugin install plan-directory@diversiotech
-claude plugin install pr-description-writer@diversiotech
-claude plugin install process-code-review@diversiotech
-claude plugin install mixpanel-analytics@diversiotech
-claude plugin install clickup-ticket@diversiotech
-claude plugin install github-ticket@diversiotech
-claude plugin install repo-docs@diversiotech
-claude plugin install visual-explainer@diversiotech
-claude plugin install backend-release@diversiotech
-claude plugin install dependabot-remediation@diversiotech
-claude plugin install terraform@diversiotech
-claude plugin install login-cta-attribution-skill@diversiotech
-claude plugin install frontend@diversiotech
-```
-
-For project-scoped installation (shared with collaborators via `.claude/settings.json`):
-
-```bash
-claude plugin install monty-code-review@diversiotech --scope project
-# ... repeat for each plugin
-```
-
-</details>
-
-<details>
-<summary><strong>Install Individual Plugins</strong></summary>
-
-| Plugin | CLI Command |
-|--------|-------------|
-| Monolith PR review orchestrator | `claude plugin install monolith-review-orchestrator@diversiotech` |
-| Monty backend code review | `claude plugin install monty-code-review@diversiotech` |
-| Backend pre-commit / atomic commit | `claude plugin install backend-atomic-commit@diversiotech` |
-| Backend PR workflow | `claude plugin install backend-pr-workflow@diversiotech` |
-| Bruno API docs generator | `claude plugin install bruno-api@diversiotech` |
-| Code review digest writer | `claude plugin install code-review-digest-writer@diversiotech` |
-| Crafting sandboxes | `claude plugin install crafting-sandboxes@diversiotech` |
-| Plan directory + RALPH loop | `claude plugin install plan-directory@diversiotech` |
-| PR description writer | `claude plugin install pr-description-writer@diversiotech` |
-| Code review processor | `claude plugin install process-code-review@diversiotech` |
-| MixPanel analytics | `claude plugin install mixpanel-analytics@diversiotech` |
-| ClickUp ticket management | `claude plugin install clickup-ticket@diversiotech` |
-| GitHub issue management | `claude plugin install github-ticket@diversiotech` |
-| Repository docs generator | `claude plugin install repo-docs@diversiotech` |
-| Visual explainer | `claude plugin install visual-explainer@diversiotech` |
-| Backend release workflow | `claude plugin install backend-release@diversiotech` |
-| Dependabot remediation (backend/frontend) | `claude plugin install dependabot-remediation@diversiotech` |
-| Terraform workflows | `claude plugin install terraform@diversiotech` |
-| Login CTA attribution | `claude plugin install login-cta-attribution-skill@diversiotech` |
-| Frontend (all lanes) | `claude plugin install frontend@diversiotech` |
-
-</details>
-
-### 3. Use slash commands
-
-Once plugins are installed:
-
-   ```text
-   /monolith-review-orchestrator:review-prs    # Monolith-local v1 review harness for one PR or one linked cross-repo PR pair
-   /monolith-review-orchestrator:reassess-prs  # Reload structured state and reassess after a PR or linked cross-repo PR pair changes
-   /monolith-review-orchestrator:post-review   # Narrow v1 posting path; backend-safe path should reuse Monty machinery
-   /monty-code-review:code-review            # Hyper-pedantic backend code review
-   /monty-code-review:test-hardening         # Pytest-only dangerous-pattern hardening lane
-   /backend-atomic-commit:pre-commit         # Fix backend files to meet AGENTS/pre-commit/.security standards
-   /backend-atomic-commit:atomic-commit      # Strict atomic commit helper (all gates green, no AI signature)
-   /backend-atomic-commit:commit             # Run all gates, fix, and create commit (full closure)
-   /backend-pr-workflow:check-pr             # Backend PR workflow & migrations check
-   /bruno-api:docs                           # Generate endpoint docs from Bruno (.bru) files
-   /code-review-digest-writer:review-digest  # Generate a code review digest
-   /plan-directory:plan                      # Create structured plan directory with PLAN.md
-   /plan-directory:backend-ralph-plan        # Create RALPH loop-integrated plan for backend
-   /plan-directory:run <slug>                # Execute a RALPH plan via ralph-wiggum loop
-   /pr-description-writer:write-pr           # PR description with preferred tldraw offline visuals
-   /crafting-sandboxes:sandbox               # Create, inspect, or update a Crafting instance
-   /process-code-review:process-review       # Process code review findings (fix/skip issues)
-   /mixpanel-analytics:implement             # Implement new MixPanel tracking events
-   /mixpanel-analytics:review                # Review MixPanel implementations for compliance
-   /clickup-ticket:configure                 # Initial setup and org configuration
-   /clickup-ticket:create-ticket             # Full interactive ticket creation
-   /clickup-ticket:quick-ticket              # Fast ticket with minimal prompts
-   /clickup-ticket:create-subtask            # Add subtask to existing ticket
-   /clickup-ticket:add-to-backlog            # Quick add to configured backlog list
-   /clickup-ticket:list-spaces               # Browse workspace hierarchy
-   /clickup-ticket:switch-org                # Switch between organizations
-   /clickup-ticket:add-org                   # Add a new organization
-   /clickup-ticket:refresh-cache             # Force refresh cached data
-   /github-ticket:configure                  # Configure planning repo, execution repos, project defaults, and labels
-   /github-ticket:get-issue                  # Fetch one GitHub issue in detail
-   /github-ticket:list-issues                # List/search issues across one repo or a small repo set
-   /github-ticket:my-issues                  # Show assigned work across configured repos
-   /github-ticket:create-issue               # Create a full issue with canonical sections
-   /github-ticket:quick-issue                # Create a minimal issue quickly
-   /github-ticket:add-to-backlog             # Capture backlog work in monolith with default labels
-   /github-ticket:create-linked-issue        # Create a linked follow-up or execution issue
-   /github-ticket:route                      # Route planning work into the right execution repo
-   /repo-docs:generate                       # Generate harness docs (AGENTS map + README + CLAUDE + focused docs)
-   /repo-docs:canonicalize                   # Audit and fix existing docs (trim AGENTS, normalize CLAUDE, add topic docs)
-   /visual-explainer:explain                 # Create a presentation-ready HTML explainer with interactive intake
-   /visual-explainer:explain "Auth rollout" --publish --open-url  # Publish a fresh Netlify preview and open it
-   /backend-release:check                    # Check what commits are pending release
-   /backend-release:create                   # Create release PR with merge method
-   /backend-release:publish                  # Publish GitHub release after PR merge
-   /dependabot-remediation:backend           # Backend lane: triage (includes config review/scaffold + backend scope filter) | execute-wave <N> | release
-   /dependabot-remediation:frontend          # Frontend lane: triage (includes config review/scaffold) | execute | release
-   /terraform:pre-commit                     # Fix Terraform/Terragrunt repos to meet fmt/validate/docs standards
-   /terraform:atomic-commit                  # Strict atomic commit helper for Terraform/Terragrunt repos
-   /terraform:check-pr                       # Terraform/Terragrunt PR workflow check
-   /login-cta-attribution-skill:implement   # Add new CTA login attribution source
-   /frontend:work                          # Main frontend entrypoint - routes to the correct lane based on arguments
-   /frontend:refresh-digest                # Persist a full frontend project digest to docs/frontend-skill-digest/
-   /frontend:review                        # Review a frontend PR using the repo-local digest and Bumang-style priorities
-   /frontend:commit                        # Create a digest-aware atomic frontend commit with quality gates
-   /frontend:new-branch                    # Create a frontend branch using the repo's detected branch model
-   /omp-split-right                          # Recommended default: open new right-side cmux split → fresh Pi session
-   /omp-split-right-command <cmd>            # Recommended default: open new right-side cmux split → shell command
-   /omp-split-down                           # Recommended default: open new down-side cmux split → fresh Pi session
-   /omp-split-down-command <cmd>             # Recommended default: open new down-side cmux split → shell command
-   /omp-workspace [--name <title>] [prompt]  # Stronger isolation: open new cmux workspace tab → fresh Pi session (focus-switching)
-   /omp-workspace-command [--name <title>] <cmd> # Stronger isolation: open new cmux workspace tab → shell command (focus-switching)
-   ```
-
-## Monty Review Memory
-
-`monty-code-review` now includes persistent JSON-first review memory.
-
-Why this exists:
-
-- PR review is iterative, so the reviewer often comes back after new commits.
-- Re-reading every old markdown review wastes tokens and repeats old findings.
-- Structured memory lets the skill load only the small amount of prior context
-  it actually needs.
-
-Mental model:
-
-```text
-resolve target -> load compact memory summary -> run new review
-               -> write repo-local *_review.md for humans
-               -> persist structured memory for the next pass
-```
-
-Important rule:
-
-- Structured JSON/JSONL files are the canonical memory store.
-- The repo-local `*_review.md` is still the human-facing artifact and the
-  current compatibility input for `process-code-review`.
-- The small v1 persistence model is just `state.json` plus `reviews.jsonl`
-  inside one deterministic scope directory.
-
-The helper lives at:
-
-- `plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py`
-
-Useful commands:
-
-```bash
-uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py --help
-
-uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
-  resolve-scope \
-  --provider github \
-  --host github.com \
-  --owner DiversioTeam \
-  --repo monolith \
-  --pull-number 1842
-
-uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
-  summarize-context \
-  --scope-dir "<resolved-scope-dir>"
-
-cat <<'EOF' | uv run --script plugins/monty-code-review/skills/monty-code-review/scripts/review_memory.py \
-  record-review \
-  --scope-dir "<resolved-scope-dir>"
-{
-  "head_sha": "abc123",
-  "history_status": "linear",
-  "repo_review_file": "docs/code_reviews/pr_1842_review.md",
-  "recommendation": "request_changes",
-  "findings": {
-    "new": [],
-    "carried_forward": [],
-    "resolved": []
-  }
-}
-EOF
-```
-
-For the full protocol, schema, and maintenance rules, read:
-
-- `plugins/monty-code-review/skills/monty-code-review/references/review-memory-protocol.md`
-
-### Uninstall Plugins (Claude Code)
-
-<details>
-<summary><strong>Uninstall All Diversio Plugins</strong></summary>
-
-**Step 1: Check what's installed**
-
-```bash
-claude plugin list
-```
-
-Or inside Claude Code: `/plugin list`
-
-Look for plugins with `@diversiotech` - note the `Scope:` field (user or project).
-
-**Step 2: Uninstall user-scoped plugins**
-
-Copy-paste these commands in your terminal:
-
-```bash
-claude plugin uninstall monolith-review-orchestrator@diversiotech
-claude plugin uninstall monty-code-review@diversiotech
-claude plugin uninstall backend-atomic-commit@diversiotech
-claude plugin uninstall backend-pr-workflow@diversiotech
-claude plugin uninstall bruno-api@diversiotech
-claude plugin uninstall code-review-digest-writer@diversiotech
-claude plugin uninstall plan-directory@diversiotech
-claude plugin uninstall pr-description-writer@diversiotech
-claude plugin uninstall process-code-review@diversiotech
-claude plugin uninstall mixpanel-analytics@diversiotech
-claude plugin uninstall clickup-ticket@diversiotech
-claude plugin uninstall github-ticket@diversiotech
-claude plugin uninstall repo-docs@diversiotech
-claude plugin uninstall visual-explainer@diversiotech
-claude plugin uninstall backend-release@diversiotech
-claude plugin uninstall dependabot-remediation@diversiotech
-claude plugin uninstall terraform@diversiotech
-claude plugin uninstall login-cta-attribution-skill@diversiotech
-claude plugin uninstall frontend@diversiotech
-```
-
-**Step 3: Uninstall project-scoped plugins (if any)**
-
-If `claude plugin list` shows plugins at `Scope: project`:
-
-```bash
-claude plugin uninstall monolith-review-orchestrator@diversiotech --scope project
-claude plugin uninstall monty-code-review@diversiotech --scope project
-claude plugin uninstall backend-atomic-commit@diversiotech --scope project
-claude plugin uninstall backend-pr-workflow@diversiotech --scope project
-claude plugin uninstall bruno-api@diversiotech --scope project
-claude plugin uninstall code-review-digest-writer@diversiotech --scope project
-claude plugin uninstall plan-directory@diversiotech --scope project
-claude plugin uninstall pr-description-writer@diversiotech --scope project
-claude plugin uninstall process-code-review@diversiotech --scope project
-claude plugin uninstall mixpanel-analytics@diversiotech --scope project
-claude plugin uninstall clickup-ticket@diversiotech --scope project
-claude plugin uninstall github-ticket@diversiotech --scope project
-claude plugin uninstall repo-docs@diversiotech --scope project
-claude plugin uninstall visual-explainer@diversiotech --scope project
-claude plugin uninstall backend-release@diversiotech --scope project
-claude plugin uninstall dependabot-remediation@diversiotech --scope project
-claude plugin uninstall terraform@diversiotech --scope project
-claude plugin uninstall login-cta-attribution-skill@diversiotech --scope project
-claude plugin uninstall frontend@diversiotech --scope project
-```
-
-</details>
-
-<details>
-<summary><strong>Troubleshooting</strong></summary>
-
-| Problem | Solution |
-|---------|----------|
-| Plugin shows in list but "not found" on uninstall | Try the other scope: `--scope project` or `--scope user` |
-| Plugin stuck in disabled state | Enable first (`claude plugin enable ...`), then uninstall |
-| Project-scoped plugins don't persist in git worktrees | Uninstall with `--scope project`, reinstall at user scope |
-| Manual cleanup needed | Delete `.claude/` directory in project root, or check `~/.claude/` for user config |
-
-</details>
-
-After uninstalling, reinstall using the install commands above.
-
-## Install As Codex Skills
-
-Codex can install these Skills directly from GitHub (separate from Claude's
-marketplace) using the Skill Installer.
-
-<details>
-<summary><strong>Install All Skills (Codex)</strong></summary>
+Install an individual skill with Codex's bundled skill installer:
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -774,131 +93,91 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo DiversioTeam/agent-skills-marketplace \
   --ref main \
-  --path \
-    plugins/monty-code-review/skills/monty-code-review \
-    plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
-    plugins/backend-atomic-commit/skills/backend-atomic-commit \
-    plugins/backend-pr-workflow/skills/backend-pr-workflow \
-    plugins/bruno-api/skills/bruno-api \
-    plugins/code-review-digest-writer/skills/code-review-digest-writer \
-    plugins/plan-directory/skills/plan-directory \
-    plugins/plan-directory/skills/backend-ralph-plan \
-    plugins/pr-description-writer/skills/pr-description-writer \
-    plugins/process-code-review/skills/process-code-review \
-    plugins/mixpanel-analytics/skills/mixpanel-analytics \
-    plugins/clickup-ticket/skills/clickup-ticket \
-    plugins/github-ticket/skills/github-ticket \
-    plugins/repo-docs/skills/repo-docs-generator \
-    plugins/visual-explainer/skills/visual-explainer \
-    plugins/backend-release/skills/release-manager \
-    plugins/dependabot-remediation/skills/dependabot-remediation \
-    plugins/terraform/skills/terraform-atomic-commit \
-    plugins/terraform/skills/terraform-pr-workflow \
-    plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
-    plugins/frontend/skills/frontend
-```
-
-**Codex console alternative:**
-
-```text
-$skill-installer install from github repo=DiversioTeam/agent-skills-marketplace \
-  path=plugins/monty-code-review/skills/monty-code-review \
-  path=plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
-  path=plugins/backend-atomic-commit/skills/backend-atomic-commit \
-  path=plugins/backend-pr-workflow/skills/backend-pr-workflow \
-  path=plugins/bruno-api/skills/bruno-api \
-  path=plugins/code-review-digest-writer/skills/code-review-digest-writer \
-  path=plugins/plan-directory/skills/plan-directory \
-  path=plugins/plan-directory/skills/backend-ralph-plan \
-  path=plugins/pr-description-writer/skills/pr-description-writer \
-  path=plugins/process-code-review/skills/process-code-review \
-  path=plugins/mixpanel-analytics/skills/mixpanel-analytics \
-  path=plugins/clickup-ticket/skills/clickup-ticket \
-  path=plugins/github-ticket/skills/github-ticket \
-  path=plugins/repo-docs/skills/repo-docs-generator \
-  path=plugins/visual-explainer/skills/visual-explainer \
-  path=plugins/backend-release/skills/release-manager \
-  path=plugins/dependabot-remediation/skills/dependabot-remediation \
-  path=plugins/terraform/skills/terraform-atomic-commit \
-  path=plugins/terraform/skills/terraform-pr-workflow \
-  path=plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
-  path=plugins/frontend/skills/frontend
-```
-
-</details>
-
-<details>
-<summary><strong>Install Individual Skills (Codex)</strong></summary>
-
-```bash
-CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-
-python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo DiversioTeam/agent-skills-marketplace \
   --path plugins/monty-code-review/skills/monty-code-review
 ```
 
-Or from the Codex console:
+Restart Codex after installation. The
+[distribution runbook](docs/runbooks/distribution.md#codex-skill-installation)
+has the complete Codex
+[install-all](docs/runbooks/distribution.md#install-all-diversio-skills) and
+[uninstall-all](docs/runbooks/distribution.md#uninstall-all-diversio-codex-skills)
+commands, every skill path, pinning guidance, and the replacement workflow.
 
-```text
-$skill-installer install from github repo=DiversioTeam/agent-skills-marketplace path=plugins/monty-code-review/skills/monty-code-review
+## Uninstall
+
+### Claude Code
+
+For example:
+
+```bash
+claude plugin uninstall frontend@diversiotech
 ```
 
-</details>
+Use the [plugin catalog](docs/plugins/catalog.md) for exact plugin names. Add
+`--scope project` when removing a project-scoped copy. After uninstalling
+all Diversio plugins, remove the marketplace if it is no longer needed:
 
-<details>
-<summary><strong>Uninstall All Skills (Codex)</strong></summary>
+```bash
+claude plugin marketplace remove diversiotech
+```
+
+### Pi
+
+```bash
+pi remove git:github.com/DiversioTeam/agent-skills-marketplace
+```
+
+Use `-l` only when removing a project-local installation.
+
+### Codex
+
+The Codex installer does not currently provide an uninstall command. Remove the
+installed skill directory, then restart Codex:
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-rm -rf "$CODEX_HOME/skills/monty-code-review" \
-       "$CODEX_HOME/skills/monolith-review-orchestrator" \
-       "$CODEX_HOME/skills/backend-atomic-commit" \
-       "$CODEX_HOME/skills/backend-pr-workflow" \
-       "$CODEX_HOME/skills/bruno-api" \
-       "$CODEX_HOME/skills/code-review-digest-writer" \
-       "$CODEX_HOME/skills/plan-directory" \
-       "$CODEX_HOME/skills/backend-ralph-plan" \
-       "$CODEX_HOME/skills/pr-description-writer" \
-       "$CODEX_HOME/skills/process-code-review" \
-       "$CODEX_HOME/skills/mixpanel-analytics" \
-       "$CODEX_HOME/skills/clickup-ticket" \
-       "$CODEX_HOME/skills/github-ticket" \
-       "$CODEX_HOME/skills/repo-docs-generator" \
-       "$CODEX_HOME/skills/visual-explainer" \
-       "$CODEX_HOME/skills/release-manager" \
-       "$CODEX_HOME/skills/dependabot-remediation" \
-       "$CODEX_HOME/skills/terraform-atomic-commit" \
-       "$CODEX_HOME/skills/terraform-pr-workflow" \
-       "$CODEX_HOME/skills/login-cta-attribution-skill" \
-       "$CODEX_HOME/skills/frontend"
-echo "Done. Restart Codex and reinstall skills."
+rm -rf "$CODEX_HOME/skills/monty-code-review"
 ```
 
-</details>
+For bulk uninstall commands and scope troubleshooting, use the
+[distribution runbook](docs/runbooks/distribution.md).
 
-**Notes:**
-- Add `--ref <branch-or-tag>` to pin a version.
-- The installer does not overwrite existing Skills; delete `$CODEX_HOME/skills/<skill-name>` first to update.
-- If you are replacing the upstream `visual-explainer` skill, delete
-  `$CODEX_HOME/skills/visual-explainer` first, then install this repo's
-  version.
-- Codex installs Skills into `~/.codex/skills` by default.
-- Restart Codex after installing Skills.
+## Repository Layout
 
-## Documentation
+```text
+.claude-plugin/   Claude Code marketplace manifest
+plugins/          Plugin manifests, skills, commands, and focused references
+pi-packages/      Pi extensions and Pi-local skills
+website/          Astro site for engineering.diversio.com
+docs/             Architecture, catalog, quality, and distribution guidance
+```
 
-- [Agent Skills Standard](https://agentskills.io/specification)
-- [Agent Skills Best Practices](https://agentskills.io/best-practices)
-- [Claude Agent Skills Best Practices](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices)
-- [OpenAI Codex Skills](https://developers.openai.com/codex/skills)
-- [OpenAI Codex Skills (Install new skills)](https://developers.openai.com/codex/skills#install-new-skills)
-- [Claude Agent Skills Overview](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
-- [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
-- [Discover and Install Plugins](https://code.claude.com/docs/en/discover-plugins)
-- [Plugin Marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
-- [Agent Skills](https://code.claude.com/docs/en/skills)
+Detailed behavior belongs with its owner:
+
+- plugin and slash-command inventory: [`docs/plugins/catalog.md`](docs/plugins/catalog.md)
+- installation and troubleshooting: [`docs/runbooks/distribution.md`](docs/runbooks/distribution.md)
+- Pi package details: [`pi-packages/README.md`](pi-packages/README.md) and each
+  package's README
+- orchestrated PR review: [`plugins/monolith-review-orchestrator/README.md`](plugins/monolith-review-orchestrator/README.md)
+- repository architecture: [`docs/architecture/overview.md`](docs/architecture/overview.md)
+
+## Contributing
+
+Start with [`AGENTS.md`](AGENTS.md), then read
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Keep the root README focused on discovery
+and installation; put detailed behavior in the owning plugin, package, or
+focused document.
+
+Useful validation commands:
+
+```bash
+bash scripts/validate-skills.sh
+jq -e . .claude-plugin/marketplace.json >/dev/null
+```
+
+See [`docs/quality/gates.md`](docs/quality/gates.md) for the complete validation
+matrix.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE).
