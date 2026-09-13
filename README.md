@@ -30,13 +30,7 @@ Add the marketplace once:
 claude plugin marketplace add DiversioTeam/agent-skills-marketplace
 ```
 
-Install the plugin you need:
-
-```bash
-claude plugin install <plugin-name>@diversiotech
-```
-
-For example:
+Install the plugin you need. For example:
 
 ```bash
 claude plugin install monty-code-review@diversiotech
@@ -52,7 +46,7 @@ List or update installed plugins:
 ```bash
 claude plugin list
 claude plugin marketplace update diversiotech
-claude plugin update <plugin-name>@diversiotech
+claude plugin update frontend@diversiotech
 ```
 
 See the [plugin catalog](docs/plugins/catalog.md) for every plugin, its purpose,
@@ -62,7 +56,7 @@ project scope, troubleshooting, and the `visual-explainer` replacement caveat.
 
 ### Pi
 
-Install all Pi packages and bridged marketplace skills from one stable source:
+Install all Pi packages, including `skills-bridge`, from one stable source:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -100,11 +94,14 @@ replacement workflow.
 
 ### Claude Code
 
+For example:
+
 ```bash
-claude plugin uninstall <plugin-name>@diversiotech
+claude plugin uninstall frontend@diversiotech
 ```
 
-Add `--scope project` when removing a project-scoped copy. After uninstalling
+Use the [plugin catalog](docs/plugins/catalog.md) for exact plugin names. Add
+`--scope project` when removing a project-scoped copy. After uninstalling
 all Diversio plugins, remove the marketplace if it is no longer needed:
 
 ```bash
@@ -126,7 +123,7 @@ installed skill directory, then restart Codex:
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-rm -rf "$CODEX_HOME/skills/<skill-name>"
+rm -rf "$CODEX_HOME/skills/monty-code-review"
 ```
 
 For bulk uninstall commands and scope troubleshooting, use the

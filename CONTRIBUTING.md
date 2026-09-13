@@ -79,7 +79,7 @@ only inside `pi-packages/**` and should stay harness-focused.
    - Keep complete plugin inventory and slash commands in
      `docs/plugins/catalog.md`; keep detailed installation and troubleshooting in
      `docs/runbooks/distribution.md`.
-   - Update `docs/runbooks/distribution.md` when install, uninstall, or Codex
+   - Update `docs/runbooks/distribution.md` when Claude Code, Pi, or Codex
      distribution guidance changes.
    - Update `AGENTS.md` when repo-wide navigation, commands, or agent-facing
      rules change.

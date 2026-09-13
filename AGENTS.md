@@ -26,7 +26,7 @@ skills, commands, and supporting validation scripts.
   ownership boundaries, or distribution flow.
 - Read `docs/quality/gates.md` for CI checks, manifest-sync rules, and the
   `SKILL.md` size guardrail.
-- Read `docs/runbooks/distribution.md` for Claude Code and Codex install,
+- Read `docs/runbooks/distribution.md` for Claude Code, Pi, and Codex install,
   uninstall, and reinstall workflows.
 - Read `docs/plugins/catalog.md` for the plugin inventory, skill paths, and
   slash commands.
@@ -115,7 +115,7 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
 - `README.md` - human-first quickstart and entrypoint
 - `docs/architecture/overview.md` - structure, ownership boundaries, and flows
 - `docs/quality/gates.md` - validation, CI coverage, and recurring failure modes
-- `docs/runbooks/distribution.md` - Claude Code and Codex install workflows
+- `docs/runbooks/distribution.md` - Claude Code, Pi, and Codex install workflows
 - `docs/plugins/catalog.md` - plugin inventory, commands, and skill paths
 - `docs/python-typing-and-ty-best-practices.md` - policy for code-touching
   Python skills

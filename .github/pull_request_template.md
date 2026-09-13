@@ -29,17 +29,19 @@ Please confirm that you have:
         (e.g. `0.1.0` → `0.1.1`).
   - [ ] Matching entry exists in `.claude-plugin/marketplace.json` with the
         same `name` and `version`.
-- [ ] SKILL docs include:
+- [ ] Each changed `SKILL.md` includes:
   - [ ] A clear “When to Use This Skill” section.
   - [ ] One or more “Example Prompts”.
   - [ ] Any severity tags / output shape expectations the Skill relies on.
-- [ ] Command files under `plugins/<plugin>/commands/*.md`:
+- [ ] Each changed command under `plugins/<plugin>/commands/*.md`:
   - [ ] Are thin wrappers that tell Claude to use the correct Skill.
   - [ ] Clearly describe the mode or behavior (e.g. pre-commit vs atomic-commit).
-- [ ] `README.md` is updated (tree diagram, Available Plugins table, install and
-      usage examples) when introducing or renaming plugins.
-- [ ] `AGENTS.md` is updated with install instructions and a short usage note
-      when adding new plugins meant for general use.
+- [ ] `docs/plugins/catalog.md` reflects added, removed, or renamed plugins and
+      commands; `docs/runbooks/distribution.md` reflects distribution changes.
+- [ ] The root `README.md` changed only when its basic quickstart, top-level
+      summary, or documentation routes changed.
+- [ ] `AGENTS.md` changed only when repo-wide agent rules or documentation routes
+      changed.
 - [ ] No secrets, tokens, or customer-specific confidential details have been
       added (including example data or URLs).
 - [ ] Any LLM-generated content (SKILL docs, commands, etc.) has been reviewed
