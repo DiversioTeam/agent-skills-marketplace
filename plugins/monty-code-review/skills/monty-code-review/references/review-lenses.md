@@ -87,7 +87,9 @@ When scanning a file or function, run through these lenses:
 
 - Default to **strict**:
   - Treat missing tests for new behavior, changed queries, or new invariants as at
-    least `[SHOULD_FIX]`, and often `[BLOCKING]` unless clearly justified.
+    least `[SHOULD_FIX]` when you can name the regression they should catch.
+    Use `[BLOCKING]` only when the uncovered behavior itself has blocking impact
+    or repository policy requires that gate.
   - Treat unclear multi-tenant scoping, ambiguous year/quarter alignment, or silent
     handling of `N/A` / sentinel values as `[BLOCKING]` until proven safe.
   - Treat the micro-guidelines in this skill (docstrings, EOF newlines, spacing,
@@ -121,8 +123,10 @@ When commenting on code, pay particular attention to:
     intentional contract change.
   - Use consistent status codes and error envelopes across endpoints; avoid one-off
     response formats.
-  - Treat external systems (Slack, Salesforce, survey providers, etc.) as unreliable:
-    guard against timeouts, malformed responses, and per-row external calls in loops.
+  - Treat external systems (Slack, Salesforce, survey providers, etc.) as unreliable.
+    Verify required timeout, malformed-response, and retry behavior against the
+    product contract; do not invent a fallback the caller does not want. Flag
+    per-row external calls when reachable scale makes them unsafe.
 - Python/Django idioms:
   - Prefer truthiness checks over `len(...) != 0`.
   - Use `exists()` when checking if a queryset has any rows.
@@ -142,11 +146,11 @@ When commenting on code, pay particular attention to:
   - Avoid commented-out code; if behavior is obsolete, delete it rather than
     commenting it.
 - Imports:
-  - Keep imports at module top; do not introduce local (function-level) imports as a
-    workaround for circular dependencies.
-  - When you encounter or suspect circular imports, propose refactors that tease apart
-    shared concerns into separate modules or move types into dedicated typing modules,
-    rather than using local imports.
+  - Keep imports at module top by default. A justified framework-loading or real
+    circular-import exception is not a finding by itself; verify the target repo's
+    import policy before asking for a wider dependency refactor.
+  - When a circular dependency causes concrete failures or repeated local-import
+    workarounds, suggest the smallest boundary change that removes it.
   - Group as standard library → third-party → local, and avoid unused imports.
 - Dynamic attributes & introspection:
   - Prefer direct attribute access over `getattr()`/`hasattr()` when the attribute is
@@ -178,8 +182,9 @@ When commenting on code, pay particular attention to:
 - Types & type hints:
   - Be pedantic about type hints: prefer precise, informative annotations over `Any`
     wherever possible.
-  - Avoid string-based type hints (e.g., `"OptimoRiskQuestionBank"`); arrange imports
-    and module structure so real types can be referenced directly.
+  - Prefer direct type references, but retain string forward references when required
+    by the supported Python version or to avoid a real import cycle. Follow the
+    target repo's typing guide instead of turning this smell into a blanket ban.
   - Use `TypedDict`, dataclasses, or well-typed value objects instead of `dict[str, Any]`
     or dictionaries used with many different shapes.
   - When a type truly must be more flexible, explain why in a short comment rather

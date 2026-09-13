@@ -16,6 +16,13 @@ Infer the PR type from:
 2. digest workflow conventions
 3. repo-local docs/templates
 
+If `gh stack view --json` shows that the branch belongs to a locally tracked
+GitHub stack, preserve that chain: the bottom PR targets the repo's normal base
+and each higher PR targets the branch directly below it. Use `gh stack submit`
+for creation or updates rather than flattening every layer onto the normal base.
+Do not require the extension for standalone PRs or infer stack membership from a
+branch name alone.
+
 If still ambiguous, ask the user a short question.
 
 Common outcomes:
@@ -92,7 +99,8 @@ actually uses it.
 ## Step 5: Create The PR
 
 Push the branch if needed, then create the PR with:
-- the correct base branch from the digest/repo docs
+- the direct parent branch from the tracked stack, otherwise the correct base
+  branch from the digest/repo docs
 - the correct template/body shape
 - any required package, preview, or backend metadata
 

@@ -60,7 +60,8 @@ Before giving a full review, this Skill should gather:
 - The **repository** and context (e.g. Django4Lyfe backend / monolith).
 - The **branch name**.
 - The **PR title** and **PR description** (or the planned ones).
-- The **base branch** (what the PR targets: `dev`, `release`, `master`, etc.).
+- The **base branch** (what the PR targets: `dev`, a direct parent stack
+  branch, `release`, `master`, etc.).
 - Whether the PR:
   - Includes Django model changes.
   - Adds, modifies, or deletes migrations.
@@ -175,13 +176,19 @@ If not, emit:
 
 ### 2.2 Base branch selection
 
-Confirm the base branch matches the project’s release workflow:
+Confirm the base branch matches the project's release workflow:
 
-- **Normal feature / bugfix work**:
+- **Standalone feature / bugfix work, or the bottom of a GitHub stack**:
   - Base branch should be `dev` (the integration branch).
   - Merging into `dev` runs validation only — no staging deploy.
   - On an open PR to `dev`, local-ci on the exact PR head is the real backend
     validation path; GitHub Actions may still show only safety or advisory jobs.
+- **Higher layer of a GitHub stack**:
+  - Base branch should be the branch directly below it, not `dev`.
+  - Verify stack order from live PR metadata or `gh stack view --json`; do not
+    infer it from branch names.
+  - Preserve the chain with `gh stack submit` or the equivalent GitHub stack
+    update instead of manually flattening every PR onto `dev`.
 - **Staging promotion**:
   - Base branch should be `release`.
   - A PR from `dev` → `release` is a **promotion PR** — merging moves the
@@ -233,8 +240,8 @@ If key context is missing, emit:
 
 Prompt the author to confirm they have checked:
 
-- Branch is up to date with the base branch; diff is not polluted by unrelated
-  files.
+- Branch is up to date with its direct base branch; for a stacked PR, its diff
+  contains only that layer rather than all downstack changes.
 - All debugging code is removed:
   - No `print()` / `ipdb` / `pdb` left behind.
 - Tests have been added or updated for new functionality.

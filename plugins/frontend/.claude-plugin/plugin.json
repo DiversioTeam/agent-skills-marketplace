@@ -1,7 +1,7 @@
 {
   "name": "frontend",
-  "version": "0.0.2",
-  "description": "Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, analytics, observability, CI/CD, planning, and commit workflows.",
+  "version": "0.0.3",
+  "description": "Digest-first frontend skill with repo-aware, exact-scope review and internal lanes for API, testing, analytics, observability, CI/CD, planning, and commit workflows.",
   "author": {
     "name": "Diversio Devs"
   }

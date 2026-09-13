@@ -4,8 +4,8 @@
       "name": "monty-code-review",
       "category": "Code Analysis",
       "title": "Monty Code Review",
-      "description": "Hyper-pedantic Django code review with correctness-first, multi-tenant-safe, harness-aware review style.",
-      "version": "v1.3.1",
+      "description": "Django review with exact-scope coverage, evidence-backed findings, tenant safety, contract checks, and migration risk analysis.",
+      "version": "v1.3.2",
       "skills": [
         {
           "name": "monty-code-review",
@@ -32,8 +32,8 @@
       "name": "backend-pr-workflow",
       "category": "Process",
       "title": "Backend PR Workflow",
-      "description": "PR workflow for Django/Optimo repos: branch naming, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes.",
-      "version": "v0.1.9",
+      "description": "PR workflow for Django/Optimo repos: branch naming, stacked PR bases, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes.",
+      "version": "v0.1.10",
       "skills": [
         {
           "name": "backend-pr-workflow",
@@ -60,8 +60,8 @@
       "name": "monolith-review-orchestrator",
       "category": "Process",
       "title": "Monolith Review Orchestrator",
-      "description": "PR review harness for the Diversio monolith: deep PR understanding, thread-aware GitHub review, deterministic worktree reuse, and monty-review handoff.",
-      "version": "v0.2.5",
+      "description": "PR review harness with exact-scope coverage, thread-aware context, deterministic worktrees, backend and frontend handoffs, and controlled publication.",
+      "version": "v0.2.6",
       "skills": [
         {
           "name": "monolith-review-orchestrator",
@@ -278,8 +278,8 @@
       "name": "frontend",
       "category": "Process",
       "title": "Frontend Workflow",
-      "description": "Digest-first frontend skill with repo classification, dynamic detection, and internal lane routing for review, API, testing, and CI/CD workflows.",
-      "version": "v0.0.2",
+      "description": "Digest-first frontend skill with repo-aware, exact-scope review and internal lanes for implementation and delivery workflows.",
+      "version": "v0.0.3",
       "skills": [
         {
           "name": "frontend",

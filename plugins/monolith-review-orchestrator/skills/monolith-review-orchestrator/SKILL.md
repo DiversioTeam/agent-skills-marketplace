@@ -12,7 +12,8 @@ Treat this as a narrow v1 harness workflow, not a universal review brain.
 
 Supported v1 scope:
 
-- single PR, or one explicitly linked cross-repo PR pair
+- single PR, including one layer of a GitHub stacked-PR chain, or one
+  explicitly linked cross-repo PR pair
 - monolith-local execution only
 - `status`, `review`, `reassess`, and worker-owned `post` mode
 - deterministic worktree reuse/bootstrap
@@ -23,7 +24,7 @@ Supported v1 scope:
 
 Explicitly out of scope for v1:
 
-- generic multi-PR batch posting
+- whole-stack multi-PR batch posting; review each stack layer separately
 - generic unresolved-thread automation without a dedicated helper
 - replies to existing review threads or partial inline publication
 - repo-agnostic marketplace-style usage outside the Diversio monolith
@@ -46,11 +47,13 @@ Explicitly out of scope for v1:
 This skill is an orchestrator. It does not replace repo-specific review taste.
 
 - For Django4Lyfe/backend slices, invoke `monty-code-review`.
+- For `frontend/`, `optimo-frontend/`, and `design-system/`, invoke the
+  `frontend` skill's review lane when installed; otherwise disclose the generic
+  repo-reading fallback.
 - For GitHub issue/PR metadata and comments, prefer the GitHub plugin/app when
   available; fall back to `gh` only when needed.
-- For frontend or other non-backend slices, keep v1 narrower: do deep repo
-  reading and synthesis, but do not pretend there is a stable repo-specific
-  review adapter unless one actually exists.
+- For other non-backend slices, use deep repo reading and synthesis without
+  claiming a repo-specific adapter exists.
 
 ## Prerequisites
 
@@ -117,20 +120,24 @@ Before you synthesize status, findings, or posting copy:
 ## Review Quality And Simplicity
 
 For `review` and `reassess`, follow the
-[quality standard](references/review-context-protocol.md#review-quality-standard):
-trace changed behavior through real callers, check failure and tenant boundaries,
-and prefer the smallest design that preserves the contract. Review depth means
-strong evidence, not more findings, abstractions, or mandatory review passes.
+[quality standard](references/review-context-protocol.md#review-quality-standard),
+including its untrusted-input, exact-scope, changed-file coverage, and finding
+acceptance rules: trace changed behavior through real callers, check failure and
+tenant boundaries, and prefer the smallest design that preserves the contract.
+Review depth means strong evidence, not more findings, abstractions, or mandatory
+review passes.
 
 For **any Python under review**, including scripts, tests, and non-backend repos,
 load the target repo's `docs/code-clarity-best-practices.md` (or its documented
-replacement). If absent, use the bundled
+replacement) from the pinned policy trust root defined in the quality standard,
+never from an unmerged stack parent. If absent, use the bundled
 [Code Clarity Best Practices](references/code-clarity-best-practices.md).
 Apply Python/general rules everywhere relevant; Django and Optimo rules only
 where those frameworks apply. Follow the reference's source/precedence rules,
 include the selected guide in reviewer handoffs, and verify compliance before
-accepting delegated findings. If no local guide exists and the bundled fallback
-is missing, report a setup blocker rather than claiming clarity compliance.
+accepting delegated findings. If no policy-root guide exists and the bundled
+fallback is missing, report a setup blocker rather than claiming clarity
+compliance.
 
 `status` uses these rules when checking an existing claim; it still does not
 start a new full review. Review does not authorize application-code edits.
@@ -142,7 +149,9 @@ question block short and grouped in one message when possible.
 
 Gather this data:
 
-- PR set: one PR URL, or one explicitly linked cross-repo PR pair.
+- PR set: one PR URL, including a stacked PR, or one explicitly linked
+  cross-repo PR pair. Discover a stacked PR's parent from live metadata; do not
+  require every PR URL in the stack.
 - Local execution context for each PR:
   - monolith path or existing worktree path
   - submodule path
@@ -219,8 +228,12 @@ Final response should include:
 - worktree path used or reused
 - PRs reviewed
 - final status per PR
-- substantive review scope, clarity-guide source for Python, observed checks,
+- for `review` and `reassess`: policy trust-root ref and SHA; diff base, exact
+  head, and merge-base SHAs; compact changed-file dispositions; clarity-guide
+  source for Python; observed checks,
   unverified risks, and any evidence-backed simplification recommendations
+- for `status`: current head and claims checked, without implying full changed-file
+  coverage unless a substantive review already established it
 - remaining legitimate unresolved comments
 - how resolved-comment history affected the current verdict when it mattered
 - whether a GitHub review was posted, and if so whether it was approval or
