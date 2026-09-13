@@ -287,6 +287,20 @@
         }
       ],
       "commands": ["review", "commit", "work", "new-branch", "refresh-digest"]
+    },
+    {
+      "name": "crafting-design-system",
+      "category": "Development",
+      "title": "Crafting Design-System Experiments",
+      "description": "Guided remote-only design-system experimentation for non-technical staff, with private Crafting sandboxes, live Storybook iteration, and atomic components for new reusable patterns.",
+      "version": "v0.1.0",
+      "skills": [
+        {
+          "name": "crafting-design-system",
+          "description": "Guide non-technical staff through building and iterating on Diversio design-system experiments entirely in a Crafting sandbox with a live Storybook URL."
+        }
+      ],
+      "commands": ["experiment"]
     }
   ],
   "piPackages": [
