@@ -1,5 +1,5 @@
 ---
-description: "Review a frontend PR using the repo-local digest and Bumang-style priorities."
+description: "Review a frontend PR using trusted-base repo guidance and Bumang-style priorities."
 argument-hint: "[PR number]"
 ---
 

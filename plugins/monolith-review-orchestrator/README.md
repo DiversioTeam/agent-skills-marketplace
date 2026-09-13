@@ -14,15 +14,17 @@ Use this plugin when the goal is not just to skim a diff, but to:
 
 ## Review Quality And Simplicity
 
-Reviews trace changed behavior through real callers and check correctness,
+Reviews anchor to the base ref, exact head and merge-base SHAs, account for the
+changed files, trace behavior through real callers, and check correctness,
 tenant/data boundaries, failure modes, and regression evidence before style.
 Simplification findings must show a concrete benefit and the smallest safe
 correction: prefer existing code, standard-library/framework features, and
 removing unnecessary layers. No finding quotas or speculative redesigns.
 
 Every Python slice—including scripts and tests outside backend—uses the target
-repo's current `docs/code-clarity-best-practices.md` or documented replacement.
-When absent, the skill includes a [verbatim portable snapshot](skills/monolith-review-orchestrator/references/code-clarity-best-practices.md).
+repo's `docs/code-clarity-best-practices.md` or documented replacement from the
+trusted base revision. When absent, the skill includes a
+[verbatim portable snapshot](skills/monolith-review-orchestrator/references/code-clarity-best-practices.md).
 [Source and precedence](skills/monolith-review-orchestrator/references/review-context-protocol.md#python-clarity-source-and-precedence)
 are recorded with the review and passed to Monty/delegated reviewers. Framework-
 specific rules apply only to matching code; justified exceptions are not blanket
@@ -44,6 +46,8 @@ the plugin figures out:
   - worktree reuse or preparation
   - thread-aware GitHub review history
   - durable local review context
+  - exact changed-file coverage and risk groups for substantive reviews
+  - backend or frontend specialist handoff when installed
   - what changed since the last pass
 ```
 

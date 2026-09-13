@@ -38,6 +38,15 @@ local stack and workflow context.
      contract clearly.
    - Remove stale rationale that contradicts the shipped code.
 
+7. Complexity must pay for itself.
+   - Reuse an existing component, hook, browser feature, CSS capability, or
+     installed dependency before adding another layer.
+   - Question one-use abstractions, duplicate state, speculative options, and
+     app code that recreates a design-system contract.
+   - Simplification must preserve accessibility, validation, error visibility,
+     privacy, compatibility, and measured performance. Fewer lines alone are
+     not proof of a safer design.
+
 ## Common Findings This Taste Produces
 
 - hidden UI contract regressions
@@ -45,6 +54,7 @@ local stack and workflow context.
 - stale docs or PR descriptions that no longer match the implementation
 - weak regression testing at the wrong layer
 - inconsistent import, naming, or key-registration patterns
+- duplicate state or abstractions without a current contract need
 
 ## Tone
 

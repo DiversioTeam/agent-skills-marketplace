@@ -98,6 +98,11 @@ For each PR, inspect:
 - what prior reviewers already identified, what changed since then, and whether
   the fix actually addressed the root cause
 
+Before synthesis, account for every changed file using the scope-and-coverage
+protocol. Put the base ref, exact head and merge-base SHAs, behavioral groups,
+exclusions, and any second-pass reason in the artifact's review scope. Do not add
+another persistent state schema for this ledger.
+
 Backend rule:
 
 - If a PR touches `backend/`, invoke `monty-code-review` for that slice.
@@ -108,11 +113,22 @@ Backend rule:
 - Reuse Monty's backend review taste and memory context when it helps, but keep
   the final GitHub publish step on this orchestrator's worker-owned path.
 
-Non-backend rule:
+Frontend rule:
 
-- Keep v1 to code reading, repo-local pattern checks, and synthesis.
+- For `frontend/`, `optimo-frontend/`, and `design-system/`, invoke the installed
+  `frontend` skill's review lane when available.
+- Give it the PR/thread context, exact review range, affected behavioral groups,
+  trusted-base repo digest or an ephemeral detection result verified against the
+  base revision, and this quality standard.
+- Verify its findings against current code and the finding-acceptance rules.
+  The adapter informs the orchestrator; it does not own worktree state, memory,
+  or GitHub publication.
+
+Other non-backend rule:
+
+- Use code reading, repo-local policy and pattern checks, and synthesis.
 - Do not manufacture Monty-specific Django findings for frontend-only work.
-- If a stable repo-specific review adapter does not exist, say so explicitly.
+- If no stable repo-specific review adapter exists, say so explicitly.
 - Python scripts/tests in these repos still receive the Python clarity review;
   Django/Optimo-only rules do not apply to unrelated frameworks.
 
@@ -127,10 +143,12 @@ Ownership model:
 
 - main agent owns intake, local state management, final synthesis, and the
   final drafted review bundle
-- sidecar agents own bounded analysis tasks only; include the selected clarity
-  guide and quality standard in each relevant handoff
-- the main agent checks their evidence and smallest-safe-fix recommendations;
-  agreement among agents is not independent proof
+- sidecar agents own bounded, non-overlapping behavioral groups only; include
+  the base ref, exact head and merge-base SHAs, selected clarity guide, and
+  quality standard in each relevant handoff
+- the main agent accounts for every group and checks sidecar evidence and
+  smallest-safe-fix recommendations; agreement among agents is not independent
+  proof
 
 Good parallel splits:
 

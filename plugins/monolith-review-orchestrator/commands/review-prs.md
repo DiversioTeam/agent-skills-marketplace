@@ -13,7 +13,9 @@ When GitHub auth is available, use the orchestrator's thread-aware
 `fetch_review_threads.py` helper instead of flat comment reads.
 
 If the prompt includes backend/Django4Lyfe work, invoke `monty-code-review` for
-the backend slice instead of inventing a parallel backend rubric.
+the backend slice. For `frontend/`, `optimo-frontend/`, or `design-system/`,
+invoke the `frontend` review lane when installed. Keep worktree state, synthesis,
+and publication in this orchestrator.
 
 If the prompt includes multiple PRs or multiple repos, keep v1 narrow:
 coordinate a single PR or one explicitly linked cross-repo PR pair unless the

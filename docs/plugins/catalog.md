@@ -168,10 +168,10 @@ when command files change.
   - Context: Pi includes skill names, descriptions, and file locations at
     startup; full SKILL.md instructions load on demand.
 - `monolith-review-orchestrator`
-  - Purpose: monolith-local PR review harness with structured intake,
-    deterministic worktree reuse/bootstrap, persistent review context across
-    passes, resolved-comment-aware reassessment, and narrow v1 posting
-    boundaries.
+  - Purpose: monolith-local PR review harness with structured intake, exact
+    changed-file scope, deterministic worktree reuse/bootstrap, backend and
+    frontend specialist handoffs, persistent review context across passes,
+    resolved-comment-aware reassessment, and narrow v1 posting boundaries.
   - Recent helper additions:
     - monolith PR support without a submodule path
     - external review/artifact and deterministic worktree roots
@@ -183,8 +183,9 @@ when command files change.
   - Skill path:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator`
   - Review quality: evidence-backed correctness and smallest-safe-fix guidance;
-    every Python slice follows the target repo's clarity guide or the bundled,
-    source-pinned `references/code-clarity-best-practices.md`, including handoffs.
+    every Python slice follows the target repo's trusted-base clarity guide or
+    the bundled, source-pinned `references/code-clarity-best-practices.md`,
+    including handoffs.
   - Worktree/intake reference:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator/references/intake-and-worktree-protocol.md`
   - Review-context reference:
@@ -201,7 +202,8 @@ when command files change.
     `/monolith-review-orchestrator:reassess-prs`,
     `/monolith-review-orchestrator:post-review`
 - `monty-code-review`
-  - Purpose: hyper-pedantic Django4Lyfe backend code review with persistent JSON-first review memory.
+  - Purpose: exact-scope Django4Lyfe backend review with evidence-backed findings,
+    tenant/contract safety, migration checks, and persistent JSON-first memory.
   - Claude install: `claude plugin install monty-code-review@diversiotech`
   - Skill path: `plugins/monty-code-review/skills/monty-code-review`
   - Memory helper:
