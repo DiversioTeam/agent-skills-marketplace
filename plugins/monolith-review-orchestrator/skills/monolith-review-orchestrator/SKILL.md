@@ -12,7 +12,8 @@ Treat this as a narrow v1 harness workflow, not a universal review brain.
 
 Supported v1 scope:
 
-- single PR, or one explicitly linked cross-repo PR pair
+- single PR, including one layer of a GitHub stacked-PR chain, or one
+  explicitly linked cross-repo PR pair
 - monolith-local execution only
 - `status`, `review`, `reassess`, and worker-owned `post` mode
 - deterministic worktree reuse/bootstrap
@@ -23,7 +24,7 @@ Supported v1 scope:
 
 Explicitly out of scope for v1:
 
-- generic multi-PR batch posting
+- whole-stack multi-PR batch posting; review each stack layer separately
 - generic unresolved-thread automation without a dedicated helper
 - replies to existing review threads or partial inline publication
 - repo-agnostic marketplace-style usage outside the Diversio monolith
@@ -147,7 +148,9 @@ question block short and grouped in one message when possible.
 
 Gather this data:
 
-- PR set: one PR URL, or one explicitly linked cross-repo PR pair.
+- PR set: one PR URL, including a stacked PR, or one explicitly linked
+  cross-repo PR pair. Discover a stacked PR's parent from live metadata; do not
+  require every PR URL in the stack.
 - Local execution context for each PR:
   - monolith path or existing worktree path
   - submodule path

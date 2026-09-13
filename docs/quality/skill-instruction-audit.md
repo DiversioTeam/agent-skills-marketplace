@@ -20,7 +20,7 @@ is added to every skill.
 | Skill | Additional change or reason to retain the workflow |
 |---|---|
 | backend-atomic-commit | Validation reference retains hook-first execution, cache identity, type gates, bounded retries, and commit modes. |
-| backend-pr-workflow | Discover inputs before asking; release and migration references load only for those changes. |
+| backend-pr-workflow | Discover inputs before asking; preserve direct-parent bases for stacked PRs; release and migration references load only for those changes. |
 | release-manager | Retain captured-SHA attribution, exact-head validation, publication and deployment boundaries. |
 | bruno-api | Default to documentation in the response; ask only for ambiguous endpoint scope or consequential output layout. |
 | clickup-ticket | Route to the requested command; preserve interactive creation versus quick defaults and read-only inspection. |

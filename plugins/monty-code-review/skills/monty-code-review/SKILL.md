@@ -75,10 +75,15 @@ When this skill is active and you are asked to review a change or diff, follow t
      multi-tenant and time-dimension invariants, performance or scaling constraints.
 
 2. Understand the change
-   - Record the base ref, exact head SHA, and exact merge-base SHA. For a PR,
-     derive the changed-file list from `<merge-base>..<head SHA>`. For a local
-     workspace review, also include staged, unstaged, and untracked files and
-     record that workspace state. Recompute the scope if the head changes.
+   - Record the live base ref, exact head SHA, and exact merge-base SHA. For a
+     PR, derive the changed-file list from `<merge-base>..<head SHA>`. Treat an
+     immediate parent feature branch in a GitHub stack as the real base and
+     review only that layer; inspect downstack code only for dependency context.
+     Ordinary PR metadata is sufficient, so `gh stack` is not required. Before
+     synthesis or publication, fetch the base ref and head SHA again and
+     recompute the merge base. Rebuild the scope if any of those values changed.
+     For a local workspace review, also include staged, unstaged, and untracked
+     files and record that workspace state.
    - Restate in your own words what problem is being solved and what the desired
      behavior is.
    - Group changed files by behavior or contract, not extension. Review high-risk

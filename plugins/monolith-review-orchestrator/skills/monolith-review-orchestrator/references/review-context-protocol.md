@@ -44,11 +44,22 @@ executed results from code inspection and unverified hypotheses.
 
 ### Scope And Coverage
 
-Record the base ref, exact head SHA, and exact merge-base SHA. Build the changed
-file list from `<merge-base>..<head SHA>`, then group files by behavior or
-contract rather than extension. Keep groups small enough to reason about as one
-change; split groups larger than about ten files unless those files are mechanical
-copies or generated output.
+Record the live base ref, exact head SHA, and exact merge-base SHA. Treat the
+PR's current base as authoritative even when it is another feature branch in a
+GitHub stacked-PR chain. Build the changed file list for only that stack layer
+from `<merge-base>..<head SHA>`; downstack changes are dependency context, not
+changed-file scope or inline-comment targets. Discover this from ordinary PR
+metadata so review does not require the `gh stack` extension.
+
+Before synthesis or publication, fetch the live base ref and head SHA again and
+recompute the merge base. If the base ref, head SHA, or merge-base SHA changed,
+rebuild the file list, groups, and dispositions and revalidate findings. This
+covers PR retargeting, rewritten base history, and `gh stack rebase` or `gh stack
+sync` changing the layer boundary.
+
+Group files by behavior or contract rather than extension. Keep groups small
+enough to reason about as one change; split groups larger than about ten files
+unless those files are mechanical copies or generated output.
 
 Review high-risk groups first: authorization and tenant boundaries, schemas and
 migrations, persisted state, external side effects, public contracts, then tests
@@ -58,10 +69,12 @@ excluded with a concrete reason. Generated files and snapshots still require a
 source-of-truth and drift check; file accounting is not a demand to read every
 line equally.
 
-Use a second focused pass only when the first pass exposes unresolved high-risk
-behavior, a cross-file contract, or an under-reviewed group. Coverage means the
-known change set was accounted for; it does not prove the implementation correct.
-Recompute the range if the head changes.
+When the changed behavior depends on a downstack PR, inspect the needed contract
+at the current base revision and report any dependency risk separately from this
+layer's findings. Use a second focused pass only when the first pass exposes
+unresolved high-risk behavior, a cross-file contract, or an under-reviewed group.
+Coverage means the known change set was accounted for; it does not prove the
+implementation correct.
 
 ### Simplicity Test
 

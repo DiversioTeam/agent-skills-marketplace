@@ -281,10 +281,10 @@ agent-skills-marketplace/
 
 | Plugin | Description |
 |--------|-------------|
-| `monolith-review-orchestrator` | Monolith-local PR review harness with exact changed-file scope, thread-aware GitHub context, deterministic worktrees, backend/frontend specialist handoffs, persistent reassessment, and controlled publication |
+| `monolith-review-orchestrator` | Monolith-local PR review harness with stack-layer-aware exact scope, thread-aware GitHub context, deterministic worktrees, backend/frontend specialist handoffs, persistent reassessment, and controlled publication |
 | `monty-code-review` | Exact-scope Django4Lyfe backend review with evidence-backed findings, tenant/contract safety, migration checks, pytest hardening, and persistent review memory |
 | `backend-atomic-commit` | Backend pre-commit / atomic-commit Skill with iterative convergence protocol (budgets + stuck detection), enforcing AGENTS.md, pre-commit hooks (including djlint), .security helpers, repo-local commit hygiene, and `local-ci run --no-github` when the repo exposes local-ci |
-| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local workflow docs, GitHub issue linkage, migration safety checks, and the local-ci preflight + validated-deploy-helper backend release model |
+| `backend-pr-workflow` | Backend PR workflow Skill that follows repo-local and GitHub stacked-PR rules, issue linkage, migration safety checks, and the local-ci preflight + validated-deploy-helper backend release model |
 | `bruno-api` | API endpoint documentation generator from Bruno (`.bru`) files that traces Django4Lyfe implementations (DRF/Django Ninja) |
 | `code-review-digest-writer` | Weekly code-review digest writer Skill (repo-agnostic) |
 | `plan-directory` | Structured plan directories with PLAN.md index, numbered task files, and RALPH loop integration for iterative execution |

@@ -59,7 +59,10 @@ State clearly what you updated and what you intentionally left untouched.
 
 For each PR:
 
-- read the PR metadata, description, and changed files
+- read the live PR metadata, description, and changed files
+- use its current base ref as the layer boundary; if that ref is the head of
+  another open same-repo PR, record that PR as a downstack dependency without
+  adding it to the changed-file scope
 - read all review comments, replies, and resolved threads when available
 - use `scripts/fetch_review_threads.py` as the default thread-aware acquisition
   path when GitHub auth is available
@@ -100,8 +103,12 @@ For each PR, inspect:
 
 Before synthesis, account for every changed file using the scope-and-coverage
 protocol. Put the base ref, exact head and merge-base SHAs, behavioral groups,
-exclusions, and any second-pass reason in the artifact's review scope. Do not add
-another persistent state schema for this ledger.
+exclusions, and any second-pass reason in the artifact's review scope. For a
+stacked PR, review only the current base-to-head layer and record downstack
+contracts or blockers separately. Ordinary GitHub PR metadata is sufficient;
+`gh stack view --json` may confirm locally tracked stack order when available,
+but its absence is not a blocker. Do not add another persistent state schema for
+this ledger.
 
 Backend rule:
 
@@ -235,8 +242,11 @@ Phase 2a posting contract:
 - Codex drafts one authoritative top-level review body and zero or more inline
   comments.
 - Codex does not post the final review to GitHub directly.
-- The worker re-checks the live PR summary, unresolved-thread state, and
-  top-level review/comment activity immediately before publish.
+- The worker re-checks the live base ref and head SHA, recomputes the merge base,
+  and refreshes the PR summary, unresolved-thread state, and top-level
+  review/comment activity immediately before publish.
+- If the base ref, head SHA, or merge-base SHA differs from the reviewed scope,
+  the worker stops publication until the layer is reviewed again.
 - The worker validates inline anchors against the current diff.
 - The worker publishes one atomic review through local `gh` / `gh api`, or
   publishes nothing if the stale-input or anchor checks fail.

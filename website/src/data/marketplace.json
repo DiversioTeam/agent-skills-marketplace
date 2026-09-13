@@ -32,8 +32,8 @@
       "name": "backend-pr-workflow",
       "category": "Process",
       "title": "Backend PR Workflow",
-      "description": "PR workflow for Django/Optimo repos: branch naming, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes.",
-      "version": "v0.1.9",
+      "description": "PR workflow for Django/Optimo repos: branch naming, stacked PR bases, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes.",
+      "version": "v0.1.10",
       "skills": [
         {
           "name": "backend-pr-workflow",

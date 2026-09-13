@@ -219,8 +219,9 @@ when command files change.
   - Slash commands: `/backend-atomic-commit:pre-commit`,
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
-  - Purpose: backend PR workflow for the dev→release→master branch model
-    (feature PRs target dev, promotion/release PR heads can run local-ci
+  - Purpose: backend PR workflow for GitHub stacked feature PRs and the
+    dev→release→master branch model (standalone and bottom feature PRs target
+    dev, higher layers target their direct parent, and promotion/release PR heads can run local-ci
     preflight parity, and release/master deploys use local-ci plus the
     validated deploy helper instead of auto-deploying on PR merge), GitHub
     issue linkage, Django migration safety, and downtime-safe schema changes.

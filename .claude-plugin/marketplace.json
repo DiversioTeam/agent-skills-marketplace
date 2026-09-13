@@ -51,8 +51,8 @@
     },
     {
       "name": "backend-pr-workflow",
-      "description": "Diversio backend PR workflow plugin that follows repo-local PR docs, GitHub issue linkage, local-ci-aware release semantics, safe migrations, and downtime-safe schema changes.",
-      "version": "0.1.9",
+      "description": "Diversio backend PR workflow plugin that follows repo-local and stacked PR docs, GitHub issue linkage, local-ci-aware release semantics, safe migrations, and downtime-safe schema changes.",
+      "version": "0.1.10",
       "author": {
         "name": "Diversio Devs"
       },

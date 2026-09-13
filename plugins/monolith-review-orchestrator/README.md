@@ -14,8 +14,9 @@ Use this plugin when the goal is not just to skim a diff, but to:
 
 ## Review Quality And Simplicity
 
-Reviews anchor to the base ref, exact head and merge-base SHAs, account for the
-changed files, trace behavior through real callers, and check correctness,
+Reviews anchor to the live base ref, exact head and merge-base SHAs, including
+direct-parent bases for GitHub stacked PRs. They account for only the current
+stack layer's changed files, trace behavior through real callers, and check correctness,
 tenant/data boundaries, failure modes, and regression evidence before style.
 Simplification findings must show a concrete benefit and the smallest safe
 correction: prefer existing code, standard-library/framework features, and
