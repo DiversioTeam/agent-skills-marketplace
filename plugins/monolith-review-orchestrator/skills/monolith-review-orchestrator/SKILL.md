@@ -129,12 +129,13 @@ review passes.
 
 For **any Python under review**, including scripts, tests, and non-backend repos,
 load the target repo's `docs/code-clarity-best-practices.md` (or its documented
-replacement) from the trusted base revision. If absent, use the bundled
+replacement) from the pinned policy trust root defined in the quality standard,
+never from an unmerged stack parent. If absent, use the bundled
 [Code Clarity Best Practices](references/code-clarity-best-practices.md).
 Apply Python/general rules everywhere relevant; Django and Optimo rules only
 where those frameworks apply. Follow the reference's source/precedence rules,
 include the selected guide in reviewer handoffs, and verify compliance before
-accepting delegated findings. If no trusted-base guide exists and the bundled
+accepting delegated findings. If no policy-root guide exists and the bundled
 fallback is missing, report a setup blocker rather than claiming clarity
 compliance.
 
@@ -227,8 +228,9 @@ Final response should include:
 - worktree path used or reused
 - PRs reviewed
 - final status per PR
-- for `review` and `reassess`: base ref, exact head and merge-base SHAs, compact
-  changed-file dispositions, clarity-guide source for Python, observed checks,
+- for `review` and `reassess`: policy trust-root ref and SHA; diff base, exact
+  head, and merge-base SHAs; compact changed-file dispositions; clarity-guide
+  source for Python; observed checks,
   unverified risks, and any evidence-backed simplification recommendations
 - for `status`: current head and claims checked, without implying full changed-file
   coverage unless a substantive review already established it

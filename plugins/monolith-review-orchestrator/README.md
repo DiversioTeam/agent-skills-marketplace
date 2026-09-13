@@ -14,9 +14,10 @@ Use this plugin when the goal is not just to skim a diff, but to:
 
 ## Review Quality And Simplicity
 
-Reviews anchor to the live base ref, exact head and merge-base SHAs, including
-direct-parent bases for GitHub stacked PRs. They account for only the current
-stack layer's changed files, trace behavior through real callers, and check correctness,
+Reviews use the live direct-parent base only as the diff boundary for GitHub
+stacked PRs, while repository policy and commands come from a separately pinned
+protected/default trust-root commit. They account for only the current stack
+layer's changed files, trace behavior through real callers, and check correctness,
 tenant/data boundaries, failure modes, and regression evidence before style.
 Simplification findings must show a concrete benefit and the smallest safe
 correction: prefer existing code, standard-library/framework features, and
@@ -24,7 +25,7 @@ removing unnecessary layers. No finding quotas or speculative redesigns.
 
 Every Python slice—including scripts and tests outside backend—uses the target
 repo's `docs/code-clarity-best-practices.md` or documented replacement from the
-trusted base revision. When absent, the skill includes a
+pinned policy trust root. When absent, the skill includes a
 [verbatim portable snapshot](skills/monolith-review-orchestrator/references/code-clarity-best-practices.md).
 [Source and precedence](skills/monolith-review-orchestrator/references/review-context-protocol.md#python-clarity-source-and-precedence)
 are recorded with the review and passed to Monty/delegated reviewers. Framework-

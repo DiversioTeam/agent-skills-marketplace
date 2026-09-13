@@ -183,7 +183,7 @@ when command files change.
   - Skill path:
     `plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator`
   - Review quality: evidence-backed correctness and smallest-safe-fix guidance;
-    every Python slice follows the target repo's trusted-base clarity guide or
+    every Python slice follows the target repo's pinned policy-root clarity guide or
     the bundled, source-pinned `references/code-clarity-best-practices.md`,
     including handoffs.
   - Worktree/intake reference:

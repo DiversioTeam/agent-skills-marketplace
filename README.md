@@ -300,7 +300,7 @@ agent-skills-marketplace/
 | `dependabot-remediation` | Unified backend/frontend Dependabot remediation workflow: `.github/dependabot.yml` review/scaffold, backend waves, frontend triage/execute/release, and post-merge closure verification |
 | `terraform` | Terraform/Terragrunt workflows: atomic-commit quality gates and PR workflow checks |
 | `login-cta-attribution-skill` | CTA login attribution implementation Skill for Django4Lyfe - guides adding new CTA sources, button/tab attribution, and enum registration |
-| `frontend` | Digest-first frontend skill with trusted-base, exact-scope review and internal lanes for API, testing, analytics, observability, CI/CD, planning, and commit workflows |
+| `frontend` | Digest-first frontend skill with pinned policy-root, exact-scope review and internal lanes for API, testing, analytics, observability, CI/CD, planning, and commit workflows |
 
 PR visuals prefer [tldraw offline](https://tldraw.notion.site/User-manual-tldraw-offline-39a3e4c324c080e7b2eacc5afd078e85).
 The writer offers installation/opening when unavailable, or Mermaid if declined;
