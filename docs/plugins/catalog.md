@@ -164,7 +164,8 @@ when command files change.
     `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
-    `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes` (22 total).
+    `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes`,
+    `crafting-design-system`.
   - Context: Pi includes skill names, descriptions, and file locations at
     startup; full SKILL.md instructions load on demand.
 - `monolith-review-orchestrator`
@@ -321,6 +322,16 @@ when command files change.
   - Slash command: `/crafting-sandboxes:sandbox`
   - Pi workflow command: `/workflow:crafting` (loads this skill; standalone
     `dev-workflow` users must also load it or enable `skills-bridge`).
+
+- `crafting-design-system`
+  - Purpose: guide non-technical staff through remote-only design-system
+    experiments in private Crafting sandboxes with live Storybook iteration.
+  - Claude install: `claude plugin install crafting-design-system@diversiotech`
+  - Skill path: `plugins/crafting-design-system/skills/crafting-design-system`
+  - References: `references/non-technical-intake.md`,
+    `references/crafting-operations.md`, `references/desktop-bootstrap.md`,
+    `references/design-system-experiment-rules.md`
+  - Slash command: `/crafting-design-system:experiment`
 
 - `clickup-ticket`
   - Purpose: legacy ClickUp ticket management during the GitHub migration.
