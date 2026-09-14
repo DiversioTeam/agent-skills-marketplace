@@ -293,7 +293,7 @@
       "category": "Development",
       "title": "Crafting Design-System Experiments",
       "description": "Guided remote-only design-system experimentation for non-technical staff, with private Crafting sandboxes, live Storybook iteration, and atomic components for new reusable patterns.",
-      "version": "v0.1.1",
+      "version": "v0.1.0",
       "skills": [
         {
           "name": "crafting-design-system",

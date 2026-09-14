@@ -1,6 +1,6 @@
 {
   "name": "crafting-design-system",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "Guided, remote-only design-system experimentation for non-technical staff using private Crafting sandboxes and live Storybook previews.",
   "author": {
     "name": "Diversio Devs"
