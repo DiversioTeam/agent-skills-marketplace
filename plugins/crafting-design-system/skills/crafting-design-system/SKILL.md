@@ -35,6 +35,8 @@ Assume the user knows the product, not the codebase.
 - Show the live URL early. Iterate from what they can see, not from technical descriptions.
 - When blocked, explain the user action, not the underlying stack trace. Keep technical details in a collapsed summary or
   offer them only if requested.
+- If the user must do something, give them one small step in everyday language, explain where to do it, and wait before
+  giving the next step.
 
 Read [non-technical intake](references/non-technical-intake.md) for question order.
 
@@ -160,12 +162,20 @@ A shareable sandbox URL does not require package publication. When the user says
 
 ## Completion response
 
-Always provide:
+After a preview is available, provide:
 
 1. **Live experiment:** direct Crafting Storybook URL
 2. **What to look at:** 1-3 plain-language bullets
 3. **What is simulated:** short explicit list
 4. **Saved state:** sandbox name plus branch/commit, or “sandbox-only, not committed”
 5. **Next question:** one concrete visual/product choice
+
+If work stops before a preview is available, do not invent a URL or claim anything was saved. Give a friendly blocked
+response with:
+
+1. **What happened:** one plain-language sentence without raw errors
+2. **What you can do:** one small next step, including where to do it
+3. **What is safe:** whether a sandbox or files were created, and confirmation that nothing was published
+4. **What happens next:** offer to continue from the same point after that step
 
 For engineering handoff, also include remote checks and unresolved product/accessibility/acceptance questions.

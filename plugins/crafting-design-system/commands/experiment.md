@@ -1,5 +1,5 @@
 ---
-description: Build and iterate on a Diversio design-system idea entirely in a Crafting sandbox, with guided non-technical intake and a live Storybook link.
+description: "Build and iterate on a Diversio design-system idea entirely in a Crafting sandbox, with guided non-technical intake and a live Storybook link."
 argument-hint: "[idea, screenshot, or existing Storybook link]"
 ---
 
