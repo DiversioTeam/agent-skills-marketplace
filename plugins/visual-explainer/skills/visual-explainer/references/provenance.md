@@ -10,9 +10,6 @@ upstream project:
 
 Copied or adapted upstream assets in this skill:
 
-- `references/css-patterns.md`
-- `references/libraries.md`
-- `references/responsive-nav.md`
 - `references/slide-patterns.md`
 - `templates/architecture.html`
 - `templates/data-table.html`
@@ -23,7 +20,9 @@ Diversio-specific additions in this repo include:
 
 - the repo-native `SKILL.md`
 - the interactive `/visual-explainer:explain` command wrapper
-- the stakeholder explainer mode guidance
+- `references/page-basics.md`, `references/tables.md`, and
+  `references/mermaid.md`
+- the default explainer workflow and Internal Share publishing guidance
 - marketplace metadata and installation docs
 
 ## Upstream MIT Notice

@@ -1,249 +1,111 @@
 ---
 name: visual-explainer
-description: "Create a self-contained HTML visual explainer or requested slide deck from verified source material."
+description: "Create clear HTML explainers for plans, changes, diagrams, audits, and updates. Label facts and assumptions, and optionally upload the result to Diversio Internal Share."
 allowed-tools: Bash Read Write Grep Glob
 ---
 
 # Visual Explainer
 
-Create self-contained HTML pages that explain complex material faster than a
-terminal wall of prose or ASCII tables.
+## When to Use
 
-This skill is optimized for mixed audiences by default:
-- stakeholder updates
-- architecture explainers
-- plan and diff walkthroughs
-- audits, comparisons, and status reviews
-- customer, IT, or security reassurance docs
+Use this skill when the user asks for a visual HTML explanation of a plan,
+change, architecture, audit, comparison, or update. Use slides only when the
+user asks for them.
 
-If the user explicitly asks for a deeper technical explainer, include more code
-and implementation detail. Otherwise, keep the page accessible and
-presentation-ready.
+## Example Prompts
 
-## Prerequisites
+- Explain this implementation plan for a mixed technical audience.
+- Turn these audit findings into a clear HTML page with a table.
+- Create and publish a diagram showing this request flow.
 
-- Local HTML generation needs no extra setup.
-- Publish mode is opt-in and requires environment variables, not hardcoded
-  secrets.
-- The publish helper reads secrets from the current runtime environment. It does
-  not read `~/.zshrc` or other shell startup files directly.
-- Store only env-var names in `~/.config/visual-explainer/global.json`.
-- Create `~/.agent/diagrams/` and `~/.config/visual-explainer/` if they are
-  missing.
-- When publish mode is requested, read:
-  - `references/netlify-publishing.md`
-  - `references/config-layout.md`
-  - `references/error-handling.md`
+## Workflow
 
-## Core Rules
+1. Read the request and all referenced source material.
+2. Work out the topic, audience, goal, and source. Ask one short question only
+   when a missing detail would materially change the result.
+3. Check the source before making claims. Distinguish:
+   - confirmed facts
+   - likely but unconfirmed assumptions
+   - facts that still need checking
+4. Use the simplest useful layout.
+5. Write the final HTML to `~/.agent/diagrams/` with a descriptive filename.
+6. Try to open the local HTML in the browser and report its path.
+7. Publish only when the user explicitly asks or passes `--publish`.
 
-1. Default to HTML, not ASCII art
-   - Use HTML for the requested visual artifact, not merely because a normal
-     answer contains a table. Respect explicit Markdown or other format requests.
-   - Prefer real diagrams, structured cards, or semantic tables over dense text.
+## Default Page
 
-2. Validate before explaining
-   - Read the actual source material first.
-   - Validate the current state before making claims.
-   - Separate what is confirmed, what is inferred, and what still needs
-     verification.
+Start with four sections when they fit:
 
-3. Ask only for missing required inputs
-   - Derive topic, goal, and source material from the request and local context.
-   - Use the mixed-audience default unless the request indicates otherwise.
-   - Ask one concise follow-up only if missing facts materially change the
-     artifact; do not ask for an audience already covered by the default.
+1. Summary
+2. Evidence or key details
+3. Risks and unknowns
+4. Next steps
 
-4. Keep the tone audience-correct
-   - Default: plain language, smart-but-busy audience, low jargon.
-   - Do not sound like an engineering memo unless the user asks for that.
-   - Avoid file paths, code references, and test commands in stakeholder mode.
-   - Use direct current-state wording only when the evidence supports it.
+Add comparisons, diagrams, implementation status, examples, or a reply draft
+only when they help explain the material. Do not force every page into the same
+structure.
 
-5. Keep secrets out of repo content
-   - Never store literal Netlify tokens in repo files, prompt files, receipts,
-     or committed JSON.
-   - Resolve real secret values from environment variables at runtime only.
-   - Config files may store env-var names such as
-     `NETLIFY_VISUAL_EXPLAINER_TOKEN`, never the token itself.
+Use plain language for a smart but busy audience unless the user asks for a
+technical treatment. Keep stakeholder pages free of unnecessary file paths,
+code references, and test commands.
 
-6. Deliver a shareable artifact
-   - Always write the final HTML to `~/.agent/diagrams/` with a descriptive
-     filename.
-   - Attempt to open the local HTML in the browser.
-   - Tell the user the local file path.
-   - If useful or explicitly requested, also write a Markdown summary to
-     `~/Downloads/`.
-   - If publish mode is explicitly requested, publish the local HTML after it is
-     written and return the deploy URL as well.
+## Load Only What You Need
 
-7. Keep publish mode explicit
-   - Publish only when the user explicitly asks to publish or the wrapper passes
-     `--publish`.
-   - Use a fresh Netlify preview site for every publish. Do not reuse sites.
-   - Verify the required `NETLIFY_VISUAL_EXPLAINER_*` variables are available in
-     the current process before running the publish helper.
-   - If the user just added or changed shell exports, tell them to restart
-     the current tool session or retry from a shell session that actually
-     inherited those exports.
-   - If publishing fails, preserve the local HTML and report the actionable
-     error.
+Resolve all paths below from this skill directory, not from the user's current
+working directory.
 
-## Intake Protocol
+- Read `references/page-basics.md` for every page.
+- Read `references/tables.md` only for audits, comparisons, or structured data.
+- Read `references/mermaid.md` only when a diagram is useful.
+- Read `references/slide-patterns.md` only when slides are requested.
+- Read `references/internal-share-publishing.md` only when publishing is
+  requested.
 
-Follow this order:
+Use a template only when it matches the requested output:
 
-1. Read the request and any provided files, notes, plans, or diffs.
-2. Resolve the minimum viable brief:
-   - topic
-   - audience
-   - goal
-   - source material
-3. Collect optional preferences only when they materially affect output:
-   - non-technical vs technical
-   - include Markdown summary
-   - include reply draft
-   - slide deck instead of scrollable page
-   - publish the explainer
-   - open the deployed URL after publish
-4. If source material is referenced but not yet read, read it before making
-   structural decisions.
+- `templates/architecture.html` for text-heavy architecture pages
+- `templates/data-table.html` for tables and audits
+- `templates/mermaid-flowchart.html` for Mermaid diagrams
+- `templates/slide-deck.html` for requested slide decks
 
-## Verification Model
+Templates are examples, not mandatory designs. Adapt or simplify them.
 
-Before writing HTML, build a compact fact sheet for yourself:
-- confirmed facts
-- reasonable inferences
-- items still needing external verification
+## Quality Rules
 
-Use that split in the page whenever it helps the reader trust the document.
+- Prefer semantic HTML, readable text, and clear visual hierarchy.
+- Use real HTML tables for tabular data.
+- Use Mermaid when relationships or sequence matter more than prose.
+- Keep content readable on narrow screens and prevent horizontal overflow.
+- Use sufficient contrast and respect `prefers-reduced-motion` when adding
+  animation.
+- Avoid unsupported claims. Say what is true now and label assumptions.
+- A self-contained page must not depend on local files.
 
-If the request depends on unstable external facts and browsing is available,
-verify them before presenting them as current.
+## Publishing
 
-## Page Structure
+Publishing is optional. Follow `references/internal-share-publishing.md` when it
+is requested.
 
-For the default stakeholder explainer flow, read:
-- `references/stakeholder-explainer.md`
+Never request, print, or store the user's emailed one-time PIN or Cloudflare
+Access token. The user completes authentication in the browser.
 
-For layout, styling, and reusable UI patterns, read:
-- `references/css-patterns.md`
-- `references/libraries.md`
-- `references/responsive-nav.md` for pages with 4+ sections
+The publishing helper is relative to this skill directory. Invoke it with the
+resolved absolute skill path; do not assume the user's project contains a
+`scripts/` directory.
 
-If publish mode is requested, also read:
-- `references/netlify-publishing.md`
-- `references/config-layout.md`
-- `references/error-handling.md`
+After publishing, report:
 
-For reference templates, read only the relevant files:
-- text-heavy architecture overviews:
-  `templates/architecture.html`
-- flowcharts, sequences, ER diagrams, state machines, mind maps:
-  `templates/mermaid-flowchart.html`
-- audits, comparisons, and structured tables:
-  `templates/data-table.html`
-- slide decks only when the user explicitly wants slides:
-  `references/slide-patterns.md`
-  `templates/slide-deck.html`
+- local HTML path
+- Diversio Internal Share URL
+- that viewers must sign in with a Diversio account
 
-## Visual Taste
+If publishing fails, keep and report the local HTML path.
 
-Apply these constraints consistently:
+## Optional Flags
 
-- Avoid generic AI styling.
-- Do not default to Inter plus purple/indigo accents.
-- Use a distinct palette and intentional typography.
-- Prefer side-by-side comparison cards when "before vs after" matters.
-- Use Mermaid when topology or flow matters more than rich card text.
-- Use real HTML tables for audits and comparisons.
-- Make the page easy to skim in under two minutes unless the user asks for a
-  deeper technical artifact.
-
-## Default Deliverable
-
-Unless the user asks for a different structure, the HTML should usually include:
-
-1. Short headline summary
-2. Confirmed vs inferred vs still-unverified view
-3. Before vs after explanation when relevant
-4. How it works
-5. Why this approach is better
-6. What is already done
-7. What is left
-8. Key caveats or risks
-9. Recommended next step
-10. Reply draft when the audience is customer, IT, security, or leadership
-
-Use 2-5 concrete examples where they improve clarity.
-
-## Publish Mode
-
-Publish mode is opt-in.
-
-Use it only when:
-- the user explicitly asks for a hosted preview
-- the wrapper includes `--publish`
-
-When publish mode is enabled:
-- always write the local HTML first
-- ensure `~/.config/visual-explainer/` exists
-- bootstrap `global.json` with env-var names only if it does not exist yet
-- verify the required environment variables are visible to the current runtime
-  before invoking the helper script
-- run `scripts/publish_netlify_preview.py` against the generated HTML
-- pass `--open-url` only when the user asked to open the deploy URL
-- return:
-  - local HTML path
-  - deploy URL
-  - publish receipt path
-  - any important unverified points
-
-When publish mode is disabled:
-- local HTML delivery remains the default
-- manual Netlify Drop remains an optional suggestion only
-
-## Slide Deck Mode
-
-Slides are opt-in only.
-
-Use slide mode only when:
-- the user explicitly asks for slides
-- a command wrapper explicitly requests slides
-
-When slide mode is requested:
-- read `references/slide-patterns.md`
-- read `templates/slide-deck.html`
-- preserve the same factual coverage, not a watered-down summary
-
-## Final Step
-
-After delivery:
-
-- if publish mode was used, report the deploy URL and receipt path
-- if publish mode was not used and sharing would help, you may suggest Netlify
-  Drop as a manual option
-
-Do not imply that Netlify Drop itself is password-protected by default, and do
-not suggest it as though it replaced automated publish mode.
-
-## References
-
-- `references/stakeholder-explainer.md`
-  - default mixed-audience workflow, content shape, and tone
-- `references/css-patterns.md`
-  - card, table, animation, overflow, and Mermaid interaction patterns
-- `references/libraries.md`
-  - fonts, Mermaid setup, Chart.js, and theming guidance
-- `references/responsive-nav.md`
-  - section navigation for multi-section pages
-- `references/slide-patterns.md`
-  - slide-specific layout guidance when slide mode is explicitly requested
-- `references/netlify-publishing.md`
-  - publish contract, env vars, Netlify API flow, and helper-script usage
-- `references/config-layout.md`
-  - local config bootstrap, `global.json`, and publish receipt shape
-- `references/error-handling.md`
-  - actionable publish and auth errors for Netlify mode
-- `references/provenance.md`
-  - upstream attribution and MIT notice for copied/adapted assets
+- `--technical`: include more implementation detail
+- `--summary`: also write a Markdown summary to `~/Downloads/` when useful
+- `--reply-draft`: include a reply draft when useful
+- `--slides`: create a slide deck instead of a scrolling page
+- `--publish`: upload the finished HTML to Diversio Internal Share
+- `--open-url`: open the Internal Share URL after upload
