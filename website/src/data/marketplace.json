@@ -162,12 +162,12 @@
       "name": "visual-explainer",
       "category": "Documentation",
       "title": "Visual Explainer",
-      "description": "Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with optional Netlify preview.",
-      "version": "v0.2.1",
+      "description": "Create clear HTML explainers for plans, changes, diagrams, audits, and updates, with optional Diversio Internal Share publishing.",
+      "version": "v0.3.0",
       "skills": [
         {
           "name": "visual-explainer",
-          "description": "Create a self-contained HTML visual explainer or requested slide deck from verified source material."
+          "description": "Create clear HTML explainers and requested slide decks from verified source material."
         }
       ],
       "commands": ["explain"]

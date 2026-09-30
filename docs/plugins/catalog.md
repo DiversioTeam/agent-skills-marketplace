@@ -304,8 +304,8 @@ when command files change.
     permissions, and completion boundaries; shared docs remain model-neutral.
     Canonicalize edits the requested path; `--dry-run` remains proposal-only.
 - `visual-explainer`
-  - Purpose: presentation-ready HTML explainers for plans, diffs, diagrams,
-    and stakeholder updates, with optional fresh Netlify preview publishing.
+  - Purpose: clear HTML explainers for plans, changes, diagrams, audits, and
+    updates, with optional Diversio Internal Share publishing.
   - Claude install: `claude plugin install visual-explainer@diversiotech`
   - Skill path: `plugins/visual-explainer/skills/visual-explainer`
   - Slash commands: `/visual-explainer:explain`

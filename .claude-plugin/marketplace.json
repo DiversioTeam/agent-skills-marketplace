@@ -161,14 +161,14 @@
     },
     {
       "name": "visual-explainer",
-      "description": "Generate presentation-ready HTML explainers for plans, diffs, diagrams, audits, and stakeholder updates with interactive intake, explicit fact-vs-inference separation, and optional Netlify preview publishing.",
-      "version": "0.2.1",
+      "description": "Create clear HTML explainers for plans, changes, diagrams, audits, and updates. Label facts and assumptions, and optionally upload the result to Diversio Internal Share.",
+      "version": "0.3.0",
       "author": {
         "name": "Diversio Devs"
       },
       "source": "./plugins/visual-explainer",
       "category": "documentation",
-      "keywords": ["html", "diagrams", "visualization", "stakeholder", "architecture", "plans", "diffs", "netlify", "diversio"]
+      "keywords": ["html", "diagrams", "visualization", "stakeholder", "architecture", "plans", "diffs", "internal-share", "diversio"]
     },
     {
       "name": "dependabot-remediation",
