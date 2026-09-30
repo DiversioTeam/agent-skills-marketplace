@@ -48,10 +48,10 @@ def main() -> int:
             raise PublishError(
                 "cloudflared is required to publish to Diversio Internal Share.\n\n"
                 "Install it with:\n\n"
-                "  brew install cloudflared\n\n"
-                "The local HTML is still available."
+                "  brew install cloudflared"
             )
 
+        authenticate(cloudflared)
         upload_name = build_upload_name(args.title)
         share_url = upload(cloudflared, html_path, upload_name)
         if args.open_url:
@@ -76,8 +76,8 @@ def ensure_publishable(html_path: Path) -> None:
         )
     if html_path.stat().st_size > MAX_UPLOAD_BYTES:
         raise PublishError(
-            "Diversio Internal Share accepts files up to 25 MB.\n\n"
-            "The local HTML is still available. Reduce its size and retry."
+            "Diversio Internal Share accepts files up to 25 MB. "
+            "Reduce the file size and retry."
         )
 
 
@@ -94,13 +94,6 @@ def upload(cloudflared: str, html_path: Path, upload_name: str) -> str:
         shutil.copy2(html_path, staged_path)
 
         completed = run_upload(cloudflared, staged_path)
-        if authentication_required(completed):
-            print(
-                "Cloudflare Access authentication is required. Complete the Diversio "
-                "email and one-time PIN steps in the browser."
-            )
-            authenticate(cloudflared)
-            completed = run_upload(cloudflared, staged_path)
 
     output = f"{completed.stdout}\n{completed.stderr}"
     statuses = re.findall(r"^HTTP/\S+\s+(\d{3})", output, flags=re.MULTILINE)
@@ -109,16 +102,9 @@ def upload(cloudflared: str, html_path: Path, upload_name: str) -> str:
     if completed.returncode == 0 and "303" in statuses and locations:
         return urllib.parse.urljoin(INTERNAL_SHARE_URL, locations[-1])
 
-    if authentication_required(completed):
-        raise PublishError(
-            "Cloudflare Access authentication did not complete.\n\n"
-            "The local HTML is still available. Retry publish mode and complete "
-            "the browser sign-in."
-        )
-
     raise PublishError(
-        "Could not upload the explainer to Diversio Internal Share.\n\n"
-        "The local HTML is still available. Check the connection and retry."
+        "Could not upload the explainer to Diversio Internal Share. "
+        "Check the connection and retry."
     )
 
 
@@ -144,42 +130,30 @@ def run_upload(cloudflared: str, staged_path: Path) -> subprocess.CompletedProce
         )
     except subprocess.TimeoutExpired as error:
         raise PublishError(
-            "The Internal Share upload timed out.\n\n"
-            "The local HTML is still available. Check the connection and retry."
+            "The Internal Share upload timed out. Check the connection and retry."
         ) from error
 
 
-def authentication_required(completed: subprocess.CompletedProcess[str]) -> bool:
-    output = f"{completed.stdout}\n{completed.stderr}".lower()
-    return (
-        "cloudflareaccess.com" in output
-        or "failed to fetch token" in output
-        or "access login" in output
-        or "authentication" in output
-    )
-
-
 def authenticate(cloudflared: str) -> None:
+    print(
+        "Checking Cloudflare Access. If the browser does not open, use the URL below.",
+        flush=True,
+    )
     try:
         completed = subprocess.run(
-            [cloudflared, "access", "login", INTERNAL_SHARE_URL],
-            capture_output=True,
-            text=True,
+            [cloudflared, "access", "login", "--quiet", INTERNAL_SHARE_URL],
             timeout=600,
             check=False,
         )
     except subprocess.TimeoutExpired as error:
         raise PublishError(
-            "Cloudflare Access authentication timed out.\n\n"
-            "The local HTML is still available. Retry when ready to complete the "
-            "browser sign-in."
+            "Cloudflare Access sign-in timed out. Retry when ready to sign in."
         ) from error
 
     if completed.returncode != 0:
         raise PublishError(
-            "Cloudflare Access authentication did not complete.\n\n"
-            "The local HTML is still available. Retry publish mode and complete "
-            "the browser sign-in."
+            "Cloudflare Access sign-in did not complete. Retry and finish the "
+            "browser sign-in."
         )
 
 

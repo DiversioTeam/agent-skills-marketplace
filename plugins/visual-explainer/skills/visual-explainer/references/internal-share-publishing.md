@@ -8,7 +8,7 @@ first.
 - URL: `https://internal-share.diversio.com/`
 - Diversio accounts only; public sharing is unavailable.
 - Maximum file size: 25 MB.
-- Files use one flat namespace and cannot overwrite an existing filename.
+- Files share one filename list and cannot overwrite an existing file.
 - The uploader can delete a file from the browser UI for 24 hours.
 
 The helper adds a timestamp and short random suffix to avoid filename
@@ -40,10 +40,12 @@ Use `--open-url` only when the user asks to open the shared page.
 
 ## Authentication
 
-The helper first tries the existing Cloudflare Access session. If authentication
-is missing or expired, it opens the browser and waits while the user enters
-their Diversio email and emailed one-time PIN. It captures the login command's
-output so the Access token is not printed, then retries the upload once.
+Before uploading, the helper runs `cloudflared access login --quiet`. If the
+user is already signed in, it continues immediately. Otherwise, Cloudflare
+opens the browser for the Diversio email and one-time PIN.
+
+The login command prints a fallback URL when the browser cannot open. The
+`--quiet` flag hides the Access token. After sign-in, the helper uploads once.
 
 Never ask the user to provide the PIN in chat.
 

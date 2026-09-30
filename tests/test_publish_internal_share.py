@@ -1,3 +1,4 @@
+import argparse
 import importlib.util
 import subprocess
 import tempfile
@@ -37,6 +38,64 @@ class PublishInternalShareTests(unittest.TestCase):
             headers += f"location: {location}\n"
         return subprocess.CompletedProcess([], 0, stdout=headers, stderr="")
 
+    def test_main_authenticates_before_upload(self) -> None:
+        events = []
+
+        def authenticate(_: str) -> None:
+            events.append("authenticate")
+
+        def upload(_: str, __: Path, ___: str) -> str:
+            events.append("upload")
+            return "https://internal-share.diversio.com/shared-explainer.html"
+
+        args = argparse.Namespace(
+            html_path=str(self.html_path),
+            title="Shared explainer",
+            open_url=False,
+        )
+        with (
+            mock.patch.object(publisher, "parse_args", return_value=args),
+            mock.patch.object(publisher.shutil, "which", return_value="cloudflared"),
+            mock.patch.object(publisher, "authenticate", side_effect=authenticate),
+            mock.patch.object(publisher, "upload", side_effect=upload),
+            mock.patch("builtins.print"),
+        ):
+            result = publisher.main()
+
+        self.assertEqual(result, 0)
+        self.assertEqual(events, ["authenticate", "upload"])
+
+    def test_authenticate_uses_quiet_login_and_inherits_output(self) -> None:
+        completed = subprocess.CompletedProcess([], 0)
+
+        with (
+            mock.patch.object(publisher.subprocess, "run", return_value=completed) as run,
+            mock.patch("builtins.print"),
+        ):
+            publisher.authenticate("cloudflared")
+
+        run.assert_called_once_with(
+            [
+                "cloudflared",
+                "access",
+                "login",
+                "--quiet",
+                publisher.INTERNAL_SHARE_URL,
+            ],
+            timeout=600,
+            check=False,
+        )
+
+    def test_authenticate_raises_when_login_fails(self) -> None:
+        completed = subprocess.CompletedProcess([], 1)
+
+        with (
+            mock.patch.object(publisher.subprocess, "run", return_value=completed),
+            mock.patch("builtins.print"),
+        ):
+            with self.assertRaisesRegex(publisher.PublishError, "did not complete"):
+                publisher.authenticate("cloudflared")
+
     def test_upload_returns_location_from_303(self) -> None:
         completed = self.response(303, "/shared-explainer.html")
 
@@ -47,36 +106,6 @@ class PublishInternalShareTests(unittest.TestCase):
             url,
             "https://internal-share.diversio.com/shared-explainer.html",
         )
-
-    def test_upload_authenticates_once_and_retries(self) -> None:
-        login_redirect = self.response(302, "https://example.cloudflareaccess.com/login")
-        uploaded = self.response(303, "/shared-explainer.html")
-
-        with (
-            mock.patch.object(
-                publisher,
-                "run_upload",
-                side_effect=[login_redirect, uploaded],
-            ) as run_upload,
-            mock.patch.object(publisher, "authenticate") as authenticate,
-            mock.patch("builtins.print"),
-        ):
-            url = publisher.upload("cloudflared", self.html_path, "shared-explainer.html")
-
-        self.assertEqual(url, "https://internal-share.diversio.com/shared-explainer.html")
-        authenticate.assert_called_once_with("cloudflared")
-        self.assertEqual(run_upload.call_count, 2)
-
-    def test_upload_fails_when_authentication_does_not_complete(self) -> None:
-        login_redirect = self.response(302, "https://example.cloudflareaccess.com/login")
-
-        with (
-            mock.patch.object(publisher, "run_upload", return_value=login_redirect),
-            mock.patch.object(publisher, "authenticate"),
-            mock.patch("builtins.print"),
-        ):
-            with self.assertRaisesRegex(publisher.PublishError, "did not complete"):
-                publisher.upload("cloudflared", self.html_path, "shared-explainer.html")
 
     def test_rejects_missing_and_oversized_files(self) -> None:
         with self.assertRaisesRegex(publisher.PublishError, "was not found"):
