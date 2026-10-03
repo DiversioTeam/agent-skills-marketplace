@@ -224,6 +224,17 @@
       "source": "./plugins/frontend",
       "category": "process",
       "keywords": ["frontend", "digest", "react", "monorepo", "design-system", "review", "testing", "api", "cicd", "workflow", "diversio"]
+    },
+    {
+      "name": "crafting-design-system",
+      "description": "Guided, remote-only design-system experimentation for non-technical staff using private Crafting sandboxes and live Storybook previews.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Diversio Devs"
+      },
+      "source": "./plugins/crafting-design-system",
+      "category": "development",
+      "keywords": ["crafting", "sandbox", "design-system", "storybook", "prototype", "composition", "stakeholder", "remote", "diversio"]
     }
   ]
 }

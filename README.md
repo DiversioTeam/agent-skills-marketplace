@@ -39,6 +39,7 @@ Install the plugin you need. For example:
 ```bash
 claude plugin install monty-code-review@diversiotech
 claude plugin install frontend@diversiotech
+claude plugin install crafting-design-system@diversiotech
 ```
 
 User scope is the recommended default because it works across git worktrees.
