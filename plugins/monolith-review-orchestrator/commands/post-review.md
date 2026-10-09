@@ -21,6 +21,7 @@ Operate in posting mode:
   top-level review body instead
 - explain risk and concrete next step in every serious comment
 - approve only when no legitimate blocking issues remain
-- when not approving, end the body with the re-review steps: reply on each
-  thread, resolve every thread (any reviewer's), then re-request review
+- when the review asks for changes, end the body with the re-review steps:
+  reply on each thread, resolve every thread (any reviewer's), then
+  re-request review unless a request is already pending
 - do not imply support for thread replies or partial inline publication
