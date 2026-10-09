@@ -279,6 +279,14 @@ Drafting rules for `post` mode:
   actionable guidance
 - approve only when there are no legitimate blocking issues remaining
 - if not approving, provide clear options and next steps
+- when not approving, end the top-level body with the re-review steps the
+  auto-reviewer worker enforces, so the author is not left waiting:
+  1. push the fix and reply on each thread with the commit (or why the point
+     does not apply);
+  2. click **Resolve conversation** on every thread, including threads from
+     other reviewers: the worker skips a PR while any thread is unresolved;
+  3. re-request a review from the auto-reviewer: its own submitted review
+     clears the request, and a new run starts only from a pending request.
 
 For linked PRs, keep the reviews coordinated:
 

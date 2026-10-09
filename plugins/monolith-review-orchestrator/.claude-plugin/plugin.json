@@ -1,6 +1,6 @@
 {
   "name": "monolith-review-orchestrator",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Monolith-local PR review harness with exact-scope coverage, thread-aware context, deterministic worktrees, persistent reassessment, backend and frontend review handoffs, and controlled publication.",
   "author": {
     "name": "Diversio Devs"
