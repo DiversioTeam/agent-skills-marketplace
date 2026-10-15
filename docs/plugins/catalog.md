@@ -290,6 +290,8 @@ when command files change.
     pause/step controls and static/reduced-motion alternatives; optional video
     captures make playback viewable on GitHub. Offers install/open or Mermaid
     fallback when tldraw offline is unavailable; no implicit asset publishing.
+    Optional collapsible local setup section for PRs that need more than
+    checkout and start (`--setup`); opt-in, placed on the top PR of a stack.
   - Claude install:
     `claude plugin install pr-description-writer@diversiotech`
   - Skill path:
