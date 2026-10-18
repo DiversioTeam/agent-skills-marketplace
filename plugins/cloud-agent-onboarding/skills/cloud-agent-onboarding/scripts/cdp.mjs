@@ -55,8 +55,11 @@ async function connect() {
     const d = JSON.parse(m.data)
     if (d.id && pending.has(d.id)) { pending.get(d.id)(d); pending.delete(d.id) }
   }
-  const send = (method, params = {}) => new Promise((r) => {
-    const i = ++id; pending.set(i, r); ws.send(js({ id: i, method, params }))
+  // Chrome answers a refused command with {id, error}; reject so every caller exits nonzero.
+  const send = (method, params = {}) => new Promise((resolve, reject) => {
+    const i = ++id
+    pending.set(i, (d) => d.error ? reject(new Error(`${method} refused: ${d.error.message || js(d.error)}`)) : resolve(d))
+    ws.send(js({ id: i, method, params }))
   })
   const evaluate = async (expr) => {
     const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true })
@@ -140,13 +143,21 @@ try {
       await c.click(`[...document.querySelectorAll('button,a,[role=menuitem],[role=option],span,div')].filter(e=>e.offsetParent&&e.innerText?.trim()===${js(args[0])}).pop()`)
       break
     case 'send': {
-      const box = `${q('[data-testid=code-prompt-input]')}`
-      const before = await c.evaluate(`(${box}?.innerText||'').trim()`)
-      if (before) throw new Error('composer is not empty; refusing to append')
-      await c.click(`document.querySelector('[data-testid=code-prompt-input] [contenteditable], [data-testid=code-prompt-input] textarea, [data-testid=code-prompt-input]')`)
+      // The editable element itself: a textarea holds its draft in .value, a contenteditable in its text.
+      // In priority order (a comma list would return the first match in document order, i.e. the wrapper).
+      const editor = `['textarea', '[contenteditable=true]', '[contenteditable=""]', ''].map((s) => document.querySelector(('[data-testid=code-prompt-input] ' + s).trim())).find(Boolean)`
+      const draft = `(()=>{const e=${editor}; if(!e) return null; return ('value' in e && e.tagName==='TEXTAREA' ? e.value : e.innerText) || ''})()`
+      const before = await c.evaluate(draft)
+      if (before === null) throw new Error('composer not found')
+      if (before.trim()) throw new Error('composer is not empty; refusing to append')
+      const text = readFileSync(args[0], 'utf8').trim()
+      await c.click(editor)
       await sleep(300)
-      await c.send('Input.insertText', { text: readFileSync(args[0], 'utf8').trim() }); await sleep(800)
-      console.log(js((await c.evaluate(`${box}.innerText`)).slice(0, 120)))
+      await c.send('Input.insertText', { text }); await sleep(800)
+      const after = await c.evaluate(draft)
+      console.log(js((after || '').slice(0, 120)))
+      const norm = (s) => s.replace(/\s+/g, ' ').trim()
+      if (norm(after || '') !== norm(text)) throw new Error('the composer does not hold exactly the prompt; not sending')
       break
     }
     case 'enter': await c.key('Enter', 13); break

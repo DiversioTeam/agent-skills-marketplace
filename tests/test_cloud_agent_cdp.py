@@ -6,12 +6,19 @@ another session's browser on 9222), and with CDP_PORT it must contact exactly
 that port.
 """
 
+import base64
+import hashlib
 import http.server
 import json
 import os
 import shutil
+import socket
+import socketserver
+import struct
 import subprocess
+import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -73,6 +80,139 @@ class CdpPortTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("no tab", result.stdout)
         self.assertEqual(seen, ["/json/list"])
+
+
+class RefusingCdp(socketserver.ThreadingTCPServer):
+    """A fake Chrome: lists one claude.ai tab and answers every CDP command with an error envelope."""
+
+    allow_reuse_address = True
+    daemon_threads = True
+
+    def __init__(self):
+        super().__init__(("127.0.0.1", 0), RefusingCdpHandler)
+        self.methods = []
+
+
+class RefusingCdpHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        head = b""
+        while b"\r\n\r\n" not in head:
+            chunk = self.request.recv(4096)
+            if not chunk:
+                return
+            head += chunk
+        lines = head.decode().split("\r\n")
+        path = lines[0].split(" ")[1]
+        headers = {k.lower(): v for k, _, v in (line.partition(": ") for line in lines[1:] if line)}
+        port = self.server.server_address[1]
+        if path == "/json/list":
+            body = json.dumps([{"type": "page", "url": "https://claude.ai/code",
+                                "webSocketDebuggerUrl": f"ws://127.0.0.1:{port}/devtools/page/1"}]).encode()
+            self.request.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                                 + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body)
+            return
+        accept = base64.b64encode(hashlib.sha1(
+            (headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest())
+        self.request.sendall(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                             b"Sec-WebSocket-Accept: " + accept + b"\r\n\r\n")
+        while True:
+            message = self._read_frame()
+            if message is None:
+                return
+            request = json.loads(message)
+            self.server.methods.append(request["method"])
+            reply = json.dumps({"id": request["id"], "error": {"code": -32000, "message": "command refused"}})
+            self._send_frame(reply.encode())
+
+    def _recv(self, n):
+        data = b""
+        while len(data) < n:
+            chunk = self.request.recv(n - len(data))
+            if not chunk:
+                return None
+            data += chunk
+        return data
+
+    def _read_frame(self):
+        header = self._recv(2)
+        if header is None or header[0] & 0x0F == 0x8:
+            return None
+        length = header[1] & 0x7F
+        if length == 126:
+            length = struct.unpack(">H", self._recv(2))[0]
+        elif length == 127:
+            length = struct.unpack(">Q", self._recv(8))[0]
+        mask = self._recv(4)
+        payload = self._recv(length)
+        return bytes(b ^ mask[i % 4] for i, b in enumerate(payload)).decode()
+
+    def _send_frame(self, payload):
+        n = len(payload)
+        prefix = bytes([0x81, n]) if n < 126 else bytes([0x81, 126]) + struct.pack(">H", n)
+        self.request.sendall(prefix + payload)
+
+
+@unittest.skipUnless(shutil.which("node"), "node is required")
+class CdpProtocolErrorTests(unittest.TestCase):
+    def test_refused_input_command_exits_nonzero(self):
+        server = RefusingCdp()
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            result = run_cdp({"CDP_PORT": str(server.server_address[1]), "TAB": "claude.ai"}, "enter")
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("refused", result.stdout)
+        self.assertEqual(server.methods, ["Input.dispatchKeyEvent"])
+
+
+def find_chrome():
+    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
+        if shutil.which(name):
+            return shutil.which(name)
+    mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    return mac if os.path.exists(mac) else None
+
+
+def free_port():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+COMPOSER_PAGE = """<!doctype html><meta charset=utf-8><title>composer</title>
+<div data-testid="code-prompt-input"><textarea id=t>human draft</textarea></div>"""
+
+
+@unittest.skipUnless(shutil.which("node") and find_chrome(), "node and Chrome are required")
+class CdpComposerTests(unittest.TestCase):
+    def test_send_refuses_a_textarea_that_holds_a_draft(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            page = Path(tmp) / "composer.html"
+            page.write_text(COMPOSER_PAGE)
+            prompt = Path(tmp) / "prompt.txt"
+            prompt.write_text("probe prompt")
+            port = free_port()
+            chrome = subprocess.Popen(
+                [find_chrome(), "--headless=new", f"--remote-debugging-port={port}",
+                 f"--user-data-dir={tmp}/profile", "--no-first-run", "--no-sandbox", page.as_uri()],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                env = {"CDP_PORT": str(port), "TAB": "composer.html"}
+                deadline = time.time() + 20
+                while time.time() < deadline:
+                    if run_cdp(env, "tabs").returncode == 0:
+                        break
+                    time.sleep(0.5)
+                result = run_cdp(env, "send", str(prompt))
+                value = run_cdp(env, "eval", "document.getElementById('t').value").stdout.strip()
+            finally:
+                chrome.terminate()
+                chrome.wait(timeout=10)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("composer is not empty", result.stdout)
+        self.assertEqual(value, '"human draft"')
 
 
 if __name__ == "__main__":

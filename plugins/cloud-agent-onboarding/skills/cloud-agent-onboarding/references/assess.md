@@ -47,7 +47,7 @@ Search the repo for each and note the cloud fix.
 | --- | --- | --- |
 | How it is launched | MCP server registered in a desktop app's config by an installer | Commit `.mcp.json` at the repo root with a command that works from a fresh clone (`uv run --frozen …`, `npx --yes …`) |
 | Where credentials come from | `.env`, a password-manager CLI or SDK, `--auth-method` flags | Read env vars only; let a network secret supply the header |
-| Code that sets its own `Authorization` header | `Client(access_token=...)` | An "auth via proxy" flag that sends **no** header, so the proxy's header is used |
+| Code that sets its own `Authorization` header | `Client(access_token=...)` | Claude: an "auth via proxy" flag that sends **no** header, so the proxy's header is used. Codex (current flow): keep the normal header built from the placeholder variable, which the proxy substitutes. See [credentials](credentials.md#network-secret-or-environment-variable) |
 | The project's own LLM calls with an API key | A background "AI interpretation" job needing `ANTHROPIC_API_KEY` | Delete it: the session's agent is the AI. Return structured results and let it explain them |
 | Files read from the user's disk | A "drop zone" folder | Uploads, or Claude Projects' `/mnt/project-files` (Projects only) |
 | Files written for the user to open | `reports/*.html` | Publish as a private artifact and reply with the link |

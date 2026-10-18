@@ -25,12 +25,22 @@ Network secret facts that bit us:
   overwrote Wrangler's own short-lived upload JWT on `/client/v4/pages/assets/*`
   (HTTP 403, error 8000013). The fix was the path prefix `/client/v4/accounts/`.
   Test that tools with their own auth headers still work.
-- Some tools refuse to start without a token variable (Wrangler). Set a
-  placeholder variable (`CLOUDFLARE_API_TOKEN=set-by-network-secret`); the
-  proxy replaces the header.
-- Code that builds its own `Authorization` header must be able to send none
-  (an "auth via proxy" flag), or it crashes looking for a token or sends a
-  blank header that competes with the proxy's.
+- The two vendors deliver network secrets differently, and code has to
+  match:
+  - **Claude** adds the header itself. Code that builds its own
+    `Authorization` header must be able to send none (an "auth via proxy"
+    flag), or it crashes looking for a token or sends a blank header that
+    competes with the proxy's. Tools that refuse to start without a token
+    variable (Wrangler) get a placeholder variable
+    (`CLOUDFLARE_API_TOKEN=set-by-network-secret`); the proxy replaces the
+    header.
+  - **Codex (current flow)** gives programs a placeholder value that the
+    proxy substitutes on the way out. Code must **send** that placeholder
+    through its normal authentication path (read the variable, build the
+    header as usual). Removing the header removes the value to substitute,
+    and the request goes out unauthenticated.
+  - Supporting both: keep the normal path that reads the token variable, and
+    skip the header only when the Claude-specific flag is set.
 - Custom headers work: change the default `Authorization` row's header name
   and clear the prefix (for example `CF-Access-Client-Id`), then **Add header**
   for a second one (`CF-Access-Client-Secret`).
