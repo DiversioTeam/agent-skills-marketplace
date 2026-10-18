@@ -70,7 +70,11 @@ async function connect() {
 }
 
 const q = (s) => `document.querySelector(${js(s)})`
-const envRow = (name) => `[...document.querySelectorAll('[role=menuitemradio]')].find(e=>e.textContent.includes(${js(name + ', environment settings')}))`
+// Exact match: the last line of the row's label before ", environment settings" must equal the name,
+// so "Product" never selects "Other Product".
+const envRow = (name) => `[...document.querySelectorAll('[role=menuitemradio]')].find(e=>{const t=e.innerText||e.textContent||'';
+  const i=t.indexOf(', environment settings'); if(i<0) return false;
+  return t.slice(0,i).split('\\n').pop().trim()===${js(name)}})`
 
 async function openEnvMenu(c, name) {
   if (!(await c.evaluate(`!!${q('[data-testid="env-picker-more"]')}`))) {
@@ -162,7 +166,9 @@ try {
       await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1 })
       await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1 })
       await sleep(1500)
-      console.log(js(await c.evaluate(`document.querySelector('[data-testid=environment-bar-row]')?.innerText`)))
+      const row = await c.evaluate(`document.querySelector('[data-testid=environment-bar-row]')?.innerText||''`)
+      console.log(js(row))
+      if (!row.split(/[\n·|]/).map((s) => s.trim()).includes(args[0])) throw new Error(`selected environment is not ${js(args[0])}`)
       break
     }
     case 'mode': {
@@ -183,7 +189,7 @@ try {
       await openEnvSettings(c, args[0])
       const r = await c.evaluate(setAndSave(taWith(args[1]), js(content)))
       console.log(args[0], r, `local sha256:${sha(content)}`)
-      await sleep(1500); if (r !== 'saved') await c.key('Escape', 27)
+      await sleep(1500); if (r !== 'saved') { await c.key('Escape', 27); throw new Error(`not saved: ${r}`) }
       break
     }
     case 'fill-env-line': {
@@ -198,7 +204,7 @@ try {
         lines[i]=${js(name + '=' + value)}; return lines.join('\\n')})()`
       const r = await c.evaluate(setAndSave(findTa, newValue))
       console.log(envName, r)
-      await sleep(1500); if (r !== 'saved') await c.key('Escape', 27)
+      await sleep(1500); if (r !== 'saved') { await c.key('Escape', 27); throw new Error(`not saved: ${r}`) }
       break
     }
     default:

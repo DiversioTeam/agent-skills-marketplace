@@ -27,16 +27,27 @@ cdp() { node "$SKILL_DIR/scripts/cdp.mjs" "$@"; }   # a function: zsh does not w
 export CDP_PORT=9333            # a free port; another session may own 9222
 export TAB=claude.ai/code       # cdp.mjs acts on the first tab whose URL contains this
 SCRATCH=${SCRATCH:-$(mktemp -d)}; mkdir -p "$SCRATCH"
-curl -s "http://127.0.0.1:$CDP_PORT/json/version" && echo "port $CDP_PORT is taken; pick another" \
-  || open -na "Google Chrome" --args --remote-debugging-port="$CDP_PORT" \
-       --user-data-dir="$SCRATCH/chrome-cdp-profile" --no-first-run --no-default-browser-check \
-       "https://claude.ai/code"
-until curl -s "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null; do sleep 1; done
-# bring it forward so the user can sign in
-osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $(pgrep -f "remote-debugging-port=$CDP_PORT" | head -1)) to true"
+# Launch our own Chrome, or stop: never reuse a browser already on the port.
+cdp_browser() {
+  if curl -s "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null; then
+    echo "port $CDP_PORT is taken by another browser; set another CDP_PORT and run cdp_browser again"
+    unset CDP_PORT; return 1
+  fi
+  open -na "Google Chrome" --args --remote-debugging-port="$CDP_PORT" \
+    --user-data-dir="$SCRATCH/chrome-cdp-profile" --no-first-run --no-default-browser-check \
+    "https://claude.ai/code"
+  until curl -s "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null; do sleep 1; done
+  # bring it forward so the user can sign in
+  osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $(pgrep -f "remote-debugging-port=$CDP_PORT" | head -1)) to true"
+}
+cdp_browser
 ```
 
-Every `cdp <action>` below assumes this setup.
+Every `cdp <action>` below assumes `cdp_browser` succeeded. On a taken port it
+returns 1 and unsets `CDP_PORT`, so later `cdp` calls fall back to the default
+port and fail instead of driving someone else's browser; export a new port and
+run `cdp_browser` again. Changing the setting of a browser you did not
+launch is never acceptable.
 
 Recent Chrome versions refuse remote debugging on the default profile, so a
 separate `--user-data-dir` is required anyway. A scratch profile also leaves

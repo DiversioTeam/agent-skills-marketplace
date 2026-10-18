@@ -2,12 +2,16 @@
 
 ## Network secret or environment variable?
 
-| | Network secret (Claude) | Environment variable (Claude or Codex) | Codex secret |
+| | Network secret (Claude; Codex current flow) | Environment variable (Claude or Codex) | Codex Legacy secret |
 | --- | --- | --- | --- |
-| How it works | The egress proxy adds a header to requests matching a host and, optionally, a path prefix | A plain `NAME=value` in the VM | Available to setup scripts only (check [platforms](platforms.md)) |
+| How it works | The egress proxy adds or substitutes the value on requests to the allowed hosts. Claude: a header by host (and, in the form we used, a path prefix). Codex current: programs see a placeholder that the proxy replaces for allowed HTTPS:443 destinations, during setup **and** tasks | A plain `NAME=value` in the VM | Available to setup scripts only, removed before the agent phase |
 | Can the agent read it? | No. The value never enters the VM | **Yes**, and so can every user of the environment | Not during the agent phase |
-| Fits | HTTP APIs with a static header: package registries, REST APIs, Cloudflare API, Access service tokens | Tools that log in and keep state in the VM: CLI logins, SSH keys, token exchanges | Fetching private dependencies during setup |
+| Fits | HTTP APIs with a static credential: package registries, REST APIs, Cloudflare API, Access service tokens | Tools that log in and keep state in the VM: CLI logins, SSH keys, token exchanges | Fetching private dependencies during setup on Legacy environments |
 | Examples | `npm.pkg.github.com`, `api.cloudflare.com` (path `/client/v4/accounts/`), Access-protected preview hosts, a SaaS API host | A sandbox CLI login token | Not used |
+
+Check which Codex flow the workspace uses ([platforms](platforms.md)): on the
+current flow, a task-time private API takes a network secret, not a raw
+environment variable.
 
 **Prefer a network secret whenever the tool works with a header.** Use a
 variable only when the login has to happen inside the VM, and write the

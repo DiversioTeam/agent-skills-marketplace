@@ -39,7 +39,7 @@ request script ──► empty commit with trailers ──► push
    Local-ci-run: <run id> success
    Verified-tree: <tree sha>
    │
-   ├─ change any editor may publish ─────► CI workflow: tree matches? post the status, merge, deploy
+   ├─ change any editor may publish ─────► CI workflow: tree matches? CI re-runs the checks; pass → status, merge, deploy
    └─ change that needs an approver ─────► session sends an /approve/ link
                                            approver signs in, clicks Approve (posts a status
                                            on that exact commit) ──► CI workflow ships
@@ -81,8 +81,18 @@ and the repo.
 ### The workflow (CI, not the session)
 
 On a push whose head commit carries the trailers: check the recorded tree
-matches the branch, post the check status itself, run the gate check, wait
-for the approval status when needed, merge, deploy. Give it its own token to
+matches the branch, **run the checks itself on that exact tree**, and post the
+check status only if they pass; then run the gate check, wait for the approval
+status when needed, merge, deploy.
+
+The session's `Local-ci-run` trailer is a hint for debugging, not proof: the
+session writes both the run ID and the tree hash, so it could record a real
+tree with an invented passing run. Tree equality proves which files ship, not
+that they passed. Either trusted CI runs the same check command on that tree,
+or the evidence must be independently authenticated and bound to it (for
+example a signed attestation from a runner the session cannot impersonate).
+The checks have to work on a clean CI runner for this, which is one more
+reason to keep them to one command. Give it its own token to
 fetch main (the first real publish failed without one) and a manual retry
 input.
 
