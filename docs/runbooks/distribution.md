@@ -137,7 +137,7 @@ not the Claude Code marketplace.
 ### Git-based install (recommended)
 
 The root `package.json` at the top of this repo declares every sub-package so pi
-can discover all six from a single clone. One command replaces six:
+can discover all seven from a single clone. One command replaces seven:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -168,7 +168,7 @@ Pinned refs are skipped by `pi update --extensions`.
 `npm install` if a `package.json` exists, and then reads the `pi` manifest to
 discover extensions, skills, prompts, and themes. The root manifest points into
 the `pi-packages/` subdirectories so pi finds `ci-status`, `dev-workflow`,
-`image-router`, `oh-my-pi`, `pi-timestamps`, and `skills-bridge` without any
+`image-router`, `oh-my-pi`, `pi-monitor`, `pi-timestamps`, and `skills-bridge` without any
 extra configuration.
 
 **Migrating from local-path installs.** If you previously installed packages
@@ -185,6 +185,7 @@ pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
 pi install "$PWD/pi-packages/image-router"
 pi install "$PWD/pi-packages/oh-my-pi"
+pi install "$PWD/pi-packages/pi-monitor"
 pi install "$PWD/pi-packages/pi-timestamps"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
@@ -196,6 +197,7 @@ pi install "$PWD/agent-skills-marketplace/pi-packages/ci-status"
 pi install "$PWD/agent-skills-marketplace/pi-packages/dev-workflow"
 pi install "$PWD/agent-skills-marketplace/pi-packages/image-router"
 pi install "$PWD/agent-skills-marketplace/pi-packages/oh-my-pi"
+pi install "$PWD/agent-skills-marketplace/pi-packages/pi-monitor"
 pi install "$PWD/agent-skills-marketplace/pi-packages/pi-timestamps"
 pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
 ```
@@ -214,6 +216,7 @@ pi --no-extensions -e ./pi-packages/ci-status
 pi --no-extensions -e ./pi-packages/dev-workflow
 pi --no-extensions -e ./pi-packages/image-router
 pi --no-extensions -e ./pi-packages/oh-my-pi
+pi --no-extensions -e ./pi-packages/pi-monitor
 pi --no-extensions -e ./pi-packages/pi-timestamps
 pi --no-extensions -e ./pi-packages/skills-bridge
 ```
@@ -226,6 +229,7 @@ pi install -l ./pi-packages/ci-status
 pi install -l ./pi-packages/dev-workflow
 pi install -l ./pi-packages/image-router
 pi install -l ./pi-packages/oh-my-pi
+pi install -l ./pi-packages/pi-monitor
 pi install -l ./pi-packages/pi-timestamps
 pi install -l ./pi-packages/skills-bridge
 ```
@@ -262,6 +266,9 @@ dev-workflow -> workflow prompts, remote CI checks, local-ci-aware
 
 oh-my-pi     -> explicit cmux notifications, split-pane commands,
                 and workspace-tab commands
+
+pi-monitor   -> approved session-owned scripts, bounded stdout notifications,
+                idle follow-ups, list/stop tools, and process-group cleanup
 
 pi-timestamps -> subtle per-turn transcript timing rows for exact timestamps,
                  timezone labels, and a live newest-turn status line
@@ -338,6 +345,15 @@ the desktop app or authorize public uploads.
 
 The `oh-my-pi` package provides explicit `/omp-split-*` and
 `/omp-workspace*` cmux commands plus native cmux notifications.
+
+The `pi-monitor` package provides `monitor`, `monitor_list`, `monitor_stop`, and
+`/monitors [stop <id|all>]`. Every start needs interactive/RPC approval unless
+the operator explicitly passes `--monitor-allow-commands` for that invocation.
+Commands are unsandboxed and require Pi 1.1.0+ for compaction-safe idle checks.
+Nothing starts from repository configuration. Session replacement, reload, and
+compaction stop watches; re-arm after compaction if needed. Windows is unsupported. See
+`pi-packages/pi-monitor/README.md` for script buffering, limits, cleanup caveats,
+and reproducible real-Pi and optional live-model checks.
 
 The `pi-timestamps` package provides `/timestamps`, subtle transcript timing
 rows, timezone-aware absolute timestamps, and a playful live status line for

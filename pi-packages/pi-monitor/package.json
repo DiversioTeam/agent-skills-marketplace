@@ -1,0 +1,18 @@
+{
+  "name": "pi-monitor",
+  "version": "0.1.0",
+  "description": "Approved, session-owned background scripts with bounded stdout events delivered as Pi follow-ups.",
+  "license": "MIT",
+  "keywords": ["pi-package", "monitoring", "background", "events"],
+  "files": ["extensions/", "lib/", "tests/", "README.md"],
+  "pi": { "extensions": ["./extensions/pi-monitor/index.ts"] },
+  "scripts": {
+    "test": "node --test tests/monitor.test.mjs",
+    "test:pi": "node --test tests/pi-rpc.test.mjs"
+  },
+  "engines": { "node": ">=24" },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=1.1.0",
+    "typebox": "*"
+  }
+}

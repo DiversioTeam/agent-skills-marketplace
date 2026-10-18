@@ -335,6 +335,12 @@
       "version": "v0.2.0"
     },
     {
+      "name": "pi-monitor",
+      "title": "Pi Monitor",
+      "description": "Approved session-owned background scripts, bounded stdout events, idle model follow-ups, list/stop controls, and process-group cleanup. No model polling loop.",
+      "version": "v0.1.0"
+    },
+    {
       "name": "pi-timestamps",
       "title": "Pi Timestamps",
       "description": "Subtle per-turn transcript timing rows for exact timestamps, reply-start timing, timezone-aware absolute times, and live relative-age labels.",
