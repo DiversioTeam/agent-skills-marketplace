@@ -50,6 +50,14 @@ async function waitFor(predicate, label) {
   }
   throw new Error(`Timed out waiting for ${label}: ${stderr}`);
 }
+// One monitor-event message carries every event queued since the last delivery.
+const findEvent = predicate => {
+  for (const record of records) {
+    if (record.type !== 'message_end' || record.message?.customType !== 'monitor-event') continue;
+    const event = record.message.details.events.find(predicate);
+    if (event) return { record, event };
+  }
+};
 let summary, failure;
 try {
   send({ id: 'state', type: 'get_state' });
@@ -59,15 +67,13 @@ try {
   const started = await waitFor(() => records.find(record => record.type === 'tool_execution_end' && record.toolName === 'monitor'), 'monitor tool');
   assert.equal(started.isError, false, JSON.stringify(started));
   assert.equal(started.result.details.status, 'running');
-  const output = await waitFor(() => records.find(record => record.type === 'message_end'
-    && record.message?.customType === 'monitor-event' && record.message.details.kind === 'output'), 'runtime nonce event');
+  const { record: output, event: outputEvent } = await waitFor(() => findEvent(event => event.kind === 'output'), 'runtime nonce event');
   const nonce = await readFile(noncePath, 'utf8');
-  assert.equal(output.message.details.text, nonce);
+  assert.equal(outputEvent.text, nonce);
   assert.match(nonce, /^PI-MONITOR-LIVE-[0-9a-f-]{36}$/);
   await waitFor(() => records.some(record => record.type === 'message_end' && record.message?.role === 'assistant'
     && JSON.stringify(record.message.content).includes(nonce)), 'real model acknowledgement of nonce');
-  await waitFor(() => records.some(record => record.type === 'message_end' && record.message?.customType === 'monitor-event'
-    && record.message.details.kind === 'exited' && record.message.details.exitCode === 0), 'successful terminal event');
+  await waitFor(() => findEvent(event => event.kind === 'exited' && event.exitCode === 0), 'successful terminal event');
   const calls = records.filter(record => record.type === 'tool_execution_start');
   assert.deepEqual(calls.map(record => record.toolName), ['monitor'], 'no polling or extra tools');
   assert.ok(started.proofReceivedAt < output.proofReceivedAt, 'tool returned before the output arrived');

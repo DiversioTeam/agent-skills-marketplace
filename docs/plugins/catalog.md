@@ -144,7 +144,7 @@ when command files change.
     `pi --no-extensions -e ./pi-packages/pi-timestamps`
 - `pi-monitor` (pi package)
   - Purpose: approved, session-owned shell scripts whose bounded stdout events
-    trigger Pi follow-ups when idle, without model polling.
+    reach Pi at its next tool boundary or as an idle follow-up, without model polling.
   - Tools: `monitor`, `monitor_list`, `monitor_stop`.
   - Command: `/monitors`, `/monitors stop <id|all>`.
   - Approval: individual interactive/RPC confirmation, or an explicit

@@ -268,7 +268,7 @@ oh-my-pi     -> explicit cmux notifications, split-pane commands,
                 and workspace-tab commands
 
 pi-monitor   -> approved session-owned scripts, bounded stdout notifications,
-                idle follow-ups, list/stop tools, and process-group cleanup
+                mid-run or idle delivery, list/stop tools, process-group cleanup
 
 pi-timestamps -> subtle per-turn transcript timing rows for exact timestamps,
                  timezone labels, and a live newest-turn status line

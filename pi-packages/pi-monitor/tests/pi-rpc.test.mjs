@@ -18,7 +18,8 @@ const supportedHost = majorVersion > 1 || (majorVersion === 1 && minorVersion >=
 function testSupported(name, options, callback) { return test(name, { ...options, skip: !supportedHost }, callback); }
 const quote = text => `'${text.replaceAll("'", "'\\''")}'`;
 
-async function buildFixture(context, name, { command, allow = true, confirm = false, slowReply = false, timeout_ms = 5000, treeHelper = false, delayedEndHelper = false, slowCompaction = false }) {
+// `script(payload, index)` replaces the default replies: { delay, text } or { delay, calls: [{ name, arguments }] }.
+async function buildFixture(context, name, { command, allow = true, confirm = false, slowReply = false, timeout_ms = 5000, treeHelper = false, delayedEndHelper = false, slowCompaction = false, tools = 'monitor,monitor_list,monitor_stop', script }) {
   const directory = await mkdtemp(join(tmpdir(), 'pi-monitor-rpc-'));
   const agentDirectory = join(directory, 'agent');
   await mkdir(agentDirectory);
@@ -37,7 +38,18 @@ async function buildFixture(context, name, { command, allow = true, confirm = fa
       id: `reply-${requests.length}`, object: 'chat.completion.chunk', created: 1, model: 'monitor-test',
       choices: [{ index: 0, delta, finish_reason }],
     })}\n\n`);
-    if (slowCompaction && requests.length === 3) {
+    if (script) {
+      const reply = script(payload, requests.length);
+      if (reply.delay) await delay(reply.delay);
+      if (reply.calls) {
+        send({ role: 'assistant', tool_calls: reply.calls.map((call, index) => ({ index, id: `call-${requests.length}-${index}`,
+          type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments) } })) });
+        send({}, 'tool_calls');
+      } else {
+        send({ role: 'assistant', content: reply.text });
+        send({}, 'stop');
+      }
+    } else if (slowCompaction && requests.length === 3) {
       send({ role: 'assistant', content: '## Goal\nVerify monitor cleanup during compaction.\n## Progress\nThe monitor was stopped before compaction.' });
       await delay(750);
       send({}, 'stop');
@@ -77,7 +89,7 @@ async function buildFixture(context, name, { command, allow = true, confirm = fa
   const child = spawn(binary, ['--mode', 'rpc', '--no-session', '--no-context-files', '--no-extensions',
     '-e', packageDirectory, ...(treeHelper ? ['-e', helperPath] : []),
     ...(delayedEndHelper ? ['-e', delayedEndPath] : []), '--no-prompt-templates', '--no-skills', '--provider', 'monitor-test', '--model', 'monitor-test',
-    '--tools', 'monitor,monitor_list,monitor_stop', ...(allow ? ['--monitor-allow-commands'] : [])], {
+    '--tools', tools, ...(allow ? ['--monitor-allow-commands'] : [])], {
     cwd: directory, env: { ...process.env, PI_CODING_AGENT_DIR: agentDirectory, PI_OFFLINE: '1', PI_TELEMETRY: '0' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -142,13 +154,26 @@ async function buildFixture(context, name, { command, allow = true, confirm = fa
 function getToolResult(fixture) {
   return fixture.records.find(record => record.type === 'tool_execution_end' && record.toolName === 'monitor');
 }
+function getMonitorMessages(fixture) {
+  return fixture.records.filter(record => record.type === 'message_end' && record.message?.customType === 'monitor-event');
+}
 function getMonitorEvents(fixture) {
-  return fixture.records.filter(record => record.type === 'message_end' && record.message?.customType === 'monitor-event').map(record => record.message.details);
+  return getMonitorMessages(fixture).flatMap(({ message: { details } }) => Array.isArray(details.events) ? details.events : [details]);
+}
+function getRequestHasEvent(request, text = '') {
+  return request.messages.some(message => {
+    const content = JSON.stringify(message.content);
+    return content.includes('Background monitor event') && content.includes(text);
+  });
+}
+function getMonitorId(payload) {
+  const result = payload.messages.find(message => message.role === 'tool' && JSON.stringify(message.content).includes('\\"status\\":\\"running\\"'));
+  return JSON.parse(typeof result.content === 'string' ? result.content : result.content[0].text).id;
 }
 
 testSupported('real Pi loads the package, runs its tool, queues events while busy, then sends them to the provider', { timeout: 30000 }, async context => {
   const fixture = await buildFixture(context, 'stream-proof', {
-    command: 'sleep 0.4; printf "NONCE-stream-59142\\n"; sleep 1.4; printf "SECOND-stream-59142\\n"', slowReply: true,
+    command: 'sleep 0.8; printf "NONCE-stream-59142\\n"; sleep 1.4; printf "SECOND-stream-59142\\n"', slowReply: true,
   });
   const discovery = await fixture.sendCommand('get_commands');
   assert.ok(discovery.data.commands.some(command => command.name === 'monitors'));
@@ -167,7 +192,7 @@ testSupported('real Pi loads the package, runs its tool, queues events while bus
     && JSON.stringify(record.message.content).includes('WORKING-stream-proof'));
   const outputIndex = fixture.records.findIndex(record => record.type === 'message_end' && record.message?.customType === 'monitor-event');
   assert.ok(outputIndex > workingEnd, 'follow-up delivered after the busy response finished');
-  assert.ok(fixture.records[outputIndex].message.details.observedAt < fixture.records[workingEnd].proofReceivedAt,
+  assert.ok(fixture.records[outputIndex].message.details.events[0].observedAt < fixture.records[workingEnd].proofReceivedAt,
     'event observed while the busy response was still streaming');
   assert.equal(fixture.records.filter(record => record.type === 'tool_execution_start').length, 1, 'no tool polling');
   assert.ok(getMonitorEvents(fixture).every(event => event.monitorId === started.result.details.id));
@@ -243,7 +268,7 @@ testSupported('aborting an unanswered RPC approval returns promptly and starts n
 
 testSupported('real tree navigation discards buffered old-branch events', { timeout: 30000 }, async context => {
   const fixture = await buildFixture(context, 'tree-proof', {
-    command: 'sleep 0.2; printf "OLD-BRANCH-NONCE\\\\n"; sleep 60', slowReply: true, treeHelper: true,
+    command: 'sleep 0.8; printf "OLD-BRANCH-NONCE\\\\n"; sleep 60', slowReply: true, treeHelper: true,
   });
   await fixture.sendCommand('prompt', { message: 'Start a monitor, then change the tree branch.' });
   const result = await fixture.waitFor(() => getToolResult(fixture), 'tree monitor start');
@@ -296,4 +321,97 @@ testSupported('real Pi user stop and orderly shutdown remove running process gro
     } else await fixture.shutdown();
     assert.throws(() => process.kill(result.result.details.pid, 0), { code: 'ESRCH' });
   }
+});
+
+// Regression: session 01a14d94 slept in Bash while events waited for the whole run to end.
+testSupported('a busy model receives events at its next tool boundary, inside the same run', { timeout: 30000 }, async context => {
+  let monitorId;
+  const fixture = await buildFixture(context, 'steer-proof', {
+    command: 'sleep 0.3; printf "MID-RUN-NONCE\\n"; sleep 60', tools: 'monitor,monitor_list,monitor_stop,bash',
+    script: (payload, index) => {
+      if (index === 1) return { calls: [{ name: 'monitor', arguments: { command: 'sleep 0.3; printf "MID-RUN-NONCE\\n"; sleep 60', description: 'steer-proof', timeout_ms: 30000 } }] };
+      monitorId ??= getMonitorId(payload);
+      if (JSON.stringify(payload.messages).includes('\\"status\\":\\"stopped\\"')) return { text: 'DONE' };
+      if (getRequestHasEvent(payload, 'MID-RUN-NONCE')) return { calls: [{ name: 'monitor_stop', arguments: { monitor_id: monitorId } }] };
+      if (index < 6) return { calls: [{ name: 'bash', arguments: { command: 'sleep 1' } }] };
+      return { text: 'DONE' };
+    },
+  });
+  await fixture.sendCommand('prompt', { message: 'Start a watch, then keep sleeping in Bash.' });
+  await fixture.waitFor(() => fixture.records.some(record => record.type === 'agent_end'), 'first run end');
+  const firstEnd = fixture.records.findIndex(record => record.type === 'agent_end');
+  const delivered = fixture.records.findIndex(record => record.type === 'message_end' && record.message?.customType === 'monitor-event');
+  assert.ok(delivered !== -1 && delivered < firstEnd, 'event entered the context before the run ended');
+  const receiving = fixture.requests.findIndex(request => getRequestHasEvent(request, 'MID-RUN-NONCE'));
+  assert.equal(receiving, 2, 'the provider call right after the first Bash sleep carried the event');
+  assert.equal(fixture.records.filter(record => record.type === 'tool_execution_start' && record.toolName === 'bash').length, 1);
+  assert.equal(fixture.records.filter(record => record.type === 'agent_start').length, 1, 'no extra follow-up run');
+});
+
+testSupported('queued events become one message and one follow-up turn', { timeout: 30000 }, async context => {
+  const command = 'sleep 0.8; for n in 1 2 3; do printf "LINE-$n\\n"; sleep 0.3; done';
+  const fixture = await buildFixture(context, 'batch-proof', {
+    command,
+    script: (payload, index) => {
+      if (index === 1) return { calls: [{ name: 'monitor', arguments: { command, description: 'batch-proof', timeout_ms: 30000 } }] };
+      if (index === 2) return { delay: 2500, text: 'WORKING' };
+      return { text: 'OBSERVED' };
+    },
+  });
+  await fixture.sendCommand('prompt', { message: 'Start the watch.' });
+  await fixture.waitFor(() => getMonitorEvents(fixture).some(event => event.kind === 'exited'), 'terminal event');
+  await fixture.waitFor(() => fixture.records.filter(record => record.type === 'agent_end').length >= 2, 'follow-up run end');
+  await delay(500);
+  assert.deepEqual(getMonitorEvents(fixture).map(event => event.kind === 'output' ? event.text : event.kind), ['LINE-1', 'LINE-2', 'LINE-3', 'exited']);
+  assert.equal(getMonitorMessages(fixture).length, 1, 'one message for all queued events');
+  assert.equal(fixture.records.filter(record => record.type === 'agent_start').length, 2, 'one follow-up run, not four');
+});
+
+testSupported('monitor_stop discards queued output and sends no stale stop notice', { timeout: 30000 }, async context => {
+  const fixture = await buildFixture(context, 'stale-stop-proof', {
+    command: 'sleep 0.8; printf "BEFORE-STOP\\n"; sleep 60',
+    script: (payload, index) => {
+      if (index === 1) return { calls: [{ name: 'monitor', arguments: { command: 'sleep 0.8; printf "BEFORE-STOP\\n"; sleep 60', description: 'stale-stop-proof', timeout_ms: 30000 } }] };
+      if (index === 2) return { delay: 1500, calls: [{ name: 'monitor_stop', arguments: { monitor_id: getMonitorId(payload) } }] };
+      return { text: 'STOPPED' };
+    },
+  });
+  await fixture.sendCommand('prompt', { message: 'Start a watch, then stop it.' });
+  const stopped = await fixture.waitFor(() => fixture.records.find(record => record.type === 'tool_execution_end' && record.toolName === 'monitor_stop'), 'stop result');
+  assert.equal(stopped.result.details.status, 'stopped');
+  await fixture.waitFor(() => fixture.records.some(record => record.type === 'agent_end'), 'run end');
+  await delay(1000);
+  assert.deepEqual(getMonitorEvents(fixture), [], 'no stale output or self-caused stop notice');
+  assert.equal(fixture.requests.some(request => getRequestHasEvent(request)), false);
+  assert.equal(fixture.records.filter(record => record.type === 'agent_start').length, 1);
+});
+
+testSupported('a command that fails at startup returns an error with stderr, not status running', { timeout: 30000 }, async context => {
+  const fixture = await buildFixture(context, 'early-failure-proof', { command: 'printf "EARLY-BOOM\\n" >&2; exit 2' });
+  await fixture.sendCommand('prompt', { message: 'Start a broken watch.' });
+  const result = await fixture.waitFor(() => getToolResult(fixture), 'early failure result');
+  assert.equal(result.isError, true, JSON.stringify(result));
+  assert.match(JSON.stringify(result.result), /exit code 2/);
+  assert.match(JSON.stringify(result.result), /EARLY-BOOM/);
+  await fixture.waitFor(() => fixture.records.some(record => record.type === 'agent_end'), 'run end');
+  await delay(500);
+  assert.deepEqual(getMonitorEvents(fixture), [], 'the failure is not repeated later as an event');
+});
+
+testSupported('a command carrying the launch flag is rejected before any approval prompt', { timeout: 30000 }, async context => {
+  const fixture = await buildFixture(context, 'flag-proof', { command: '--monitor-allow-commands bash /tmp/monitor.sh', allow: false, confirm: true });
+  await fixture.sendCommand('prompt', { message: 'Try to skip approval.' });
+  const result = await fixture.waitFor(() => getToolResult(fixture), 'flag rejection');
+  assert.equal(result.isError, true);
+  assert.match(JSON.stringify(result.result), /Pi launch flag/);
+  assert.equal(fixture.records.some(record => record.type === 'extension_ui_request' && record.method === 'confirm'), false);
+});
+
+testSupported('an unanswered approval reports a timeout, not a denial', { timeout: 90000 }, async context => {
+  const fixture = await buildFixture(context, 'approval-timeout-proof', { command: 'printf forbidden', allow: false, confirm: null });
+  await fixture.sendCommand('prompt', { message: 'Ask for approval and wait.' });
+  const result = await fixture.waitFor(() => getToolResult(fixture), 'approval timeout', 75000);
+  assert.equal(result.isError, true);
+  assert.match(JSON.stringify(result.result), /No approval answer within 60 s/);
+  assert.doesNotMatch(JSON.stringify(result.result), /not approved/);
 });
