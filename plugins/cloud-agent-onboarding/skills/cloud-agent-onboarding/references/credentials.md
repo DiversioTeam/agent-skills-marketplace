@@ -123,15 +123,38 @@ value.
 
 ## Prove the credential in isolation
 
-Use a throwaway `HOME` so your own CLI login is untouched and nothing is left:
+Use a throwaway `HOME` so your own CLI login is untouched and nothing is left,
+and give the CLI the token **without putting it in its arguments** (argv is
+visible to other processes through `ps` and diagnostics; filtering the output
+does not help). Check the CLI's help for the first option it supports, in this
+order:
+
+1. **stdin**: `op read "op://<vault>/<item>/credential" | HOME=$H <cli> login <its stdin flag>`
+   (`gh auth login --with-token`, `docker login --password-stdin` and others
+   work this way).
+2. **An environment variable the CLI reads**:
+   `HOME=$H <CLI>_TOKEN="$(op read …)" <cli> whoami`, or
+   `op run --env-file=<file with an op:// reference> -- <cli> …`, which keeps
+   the value out of your shell entirely.
+3. **A private file or config** the CLI reads: write it mode 600 inside the
+   throwaway `HOME` from the vault (`umask 077; op read … > "$H/<path>"`) and
+   delete it with the `HOME`.
 
 ```bash
 H=$(mktemp -d)   # throwaway HOME
-TOK=$(op item get "<title>" --vault <Vault> --fields credential --reveal | tr -d '\r\n')
-HOME=$H <cli> login -t "$TOK" 2>&1 | sed -E 's/[A-Za-z0-9+\/=._-]{30,}/<redacted>/g' | tail -3
+op read "op://<vault>/<item>/credential" | HOME=$H <cli> login <its stdin flag> 2>&1 \
+  | sed -E 's/[A-Za-z0-9+\/=._-]{30,}/<redacted>/g' | tail -3
 HOME=$H <cli> whoami
 HOME=$H <cli> logout; rm -rf "$H"
 ```
+
+**If the CLI only takes the token as an argument** (Crafting's `cs login -t`
+did, as of 2026-10-17), don't run the proof on your laptop. Run it in a
+throwaway cloud probe session instead: there the token is already an
+environment variable every user of the environment can read, so passing it as
+an argument inside that VM adds no new exposure, and nothing touches your
+machine. Record the limitation in the change record, and ask the vendor for a
+stdin or environment-variable option.
 
 This is where you learn what the login really does. `cs login -t` swapped the
 token for an 8-day session **and registered an SSH key** on the account,

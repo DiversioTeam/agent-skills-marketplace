@@ -44,9 +44,10 @@ cdp_browser
 ```
 
 Every `cdp <action>` below assumes `cdp_browser` succeeded. On a taken port it
-returns 1 and unsets `CDP_PORT`, so later `cdp` calls fall back to the default
-port and fail instead of driving someone else's browser; export a new port and
-run `cdp_browser` again. Changing the setting of a browser you did not
+returns 1 and unsets `CDP_PORT`, and `cdp.mjs` refuses to run without
+`CDP_PORT` (it has no default port), so later `cdp` calls fail before
+connecting to anything instead of driving someone else's browser. Export a
+new port and run `cdp_browser` again. Changing the setting of a browser you did not
 launch is never acceptable.
 
 Recent Chrome versions refuse remote debugging on the default profile, so a

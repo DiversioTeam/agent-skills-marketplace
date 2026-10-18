@@ -4,7 +4,8 @@
 // Playwright's connectOverCDP hung on some Chrome versions, so this avoids it.
 //
 //   CDP_PORT=9333 TAB=claude.ai/code node cdp.mjs <action> [args]
-//   CDP_PORT: the Chrome debug port (default 9222). TAB: part of the tab URL to act on (default claude.ai).
+//   CDP_PORT: the debug port of the Chrome *you* launched. Required, with no default, so a failed or skipped
+//   setup can never fall through to another session's browser on 9222. TAB: part of the tab URL (default claude.ai).
 //
 //   tabs                          list page tabs
 //   goto <url>                    navigate the matched tab
@@ -28,7 +29,11 @@
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 
-const PORT = process.env.CDP_PORT || '9222'
+const PORT = process.env.CDP_PORT
+if (!/^\d+$/.test(PORT || '')) {
+  console.log('STEP ERROR: set CDP_PORT to the port of the Chrome you launched (no default, so a failed setup never reaches another browser)')
+  process.exit(1)
+}
 const MATCH = process.env.TAB || 'claude.ai'
 const [action, ...args] = process.argv.slice(2)
 // Stored fields lose their final newline, so hash without trailing newlines on both sides.
@@ -106,8 +111,9 @@ const taWith = (marker) => `[...d.querySelectorAll('textarea')].find(t=>t.value.
 
 async function readStdin() { let s = ''; for await (const ch of process.stdin) s += ch; return s.trim() }
 
-const c = await connect()
+let c
 try {
+  c = await connect()
   switch (action) {
     case 'tabs':
       for (const p of c.pages) console.log(p.url, '|', p.title)
@@ -213,5 +219,5 @@ try {
 } catch (e) {
   console.log('STEP ERROR:', String(e.message || e).split('\n')[0]); process.exitCode = 1
 } finally {
-  c.close?.()
+  c?.close?.()
 }
