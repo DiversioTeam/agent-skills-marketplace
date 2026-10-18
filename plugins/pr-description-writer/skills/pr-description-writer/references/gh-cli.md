@@ -41,7 +41,8 @@ git symbolic-ref --short refs/remotes/origin/HEAD
 ```
 
 The second command is a local cached fallback, not proof the remote default is
-current. Fetch only the confirmed base/head refs needed for accurate comparison.
+current. To tell whether a PR is stacked and which PR is the top, see
+[local-setup.md](local-setup.md#detecting-a-stack). Fetch only the confirmed base/head refs needed for accurate comparison.
 With `BASE_REF` set to a verified ref such as `origin/dev`:
 
 ```bash

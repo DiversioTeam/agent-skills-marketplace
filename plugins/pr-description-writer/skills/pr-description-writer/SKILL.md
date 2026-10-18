@@ -77,11 +77,35 @@ where it helps review; omit empty template sections and redundant file lists.
 6. **Related work:** issue linkage and companion PRs, with dependency order
    when one repository consumes another's unpublished change.
 
+An optional local setup section, when included, goes after Verification and is
+collapsed (see below).
+
 For a small PR, summary plus verification and any real risks are enough. For
 large or cross-repo work, use the full structure. Preserve useful existing
 rationale, reviewer notes, and checklist evidence instead of replacing them
 with generic prose. Do not erase unresolved questions by describing them as
 settled decisions.
+
+## Optional Local Setup Section
+
+A collapsed end-to-end runbook for PRs a reviewer cannot see with a plain
+checkout and start (data to seed, secrets, branches in other repos, external
+files or services, a specific user or role). Read
+[references/local-setup.md](references/local-setup.md) before offering,
+writing, moving, or updating one.
+
+- Write it only when the author asks (`--setup` or plain language such as
+  "add e2e setup").
+- Otherwise, if the PR needs more than checkout and start and the feature looks
+  usable end to end, ask once with the concrete reasons. Never add it without a
+  yes; never offer it just because a PR is currently the top of a stack.
+- It belongs on a single PR or the top PR of a stack (one PR across repos);
+  other PRs get a one-line link. Warn and ask when the requested PR has PRs
+  stacked on it.
+- When the PR's parent already holds the section, offer to move it up. Change
+  the parent only with a yes and a separate, explicit `--update` of that PR.
+- When updating a PR that has the section, re-check every step against the
+  current diff and remove steps that are no longer needed.
 
 ## Visual And Evidence Checks
 
@@ -91,6 +115,8 @@ settled decisions.
 - Image links work for the intended repo/audience; no local paths, bearer
   tokens, confidential screenshots, or unapproved public uploads.
 - Test results distinguish executed checks from instructions for reviewers.
+- Local setup commands exist in the repo, contain no secrets, and no step is
+  claimed as run without having been run.
 - Existing PR base and draft state are preserved unless a change was requested.
 - Description covers the complete reviewed diff, not unrelated local work.
 

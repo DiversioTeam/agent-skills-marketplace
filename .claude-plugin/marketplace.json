@@ -105,7 +105,7 @@
     {
       "name": "pr-description-writer",
       "description": "Reviewer-friendly PR descriptions with evidence-backed scope, preferred tldraw offline visuals, editable assets, and repo-local workflow context.",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "author": {
         "name": "Diversio Devs"
       },
