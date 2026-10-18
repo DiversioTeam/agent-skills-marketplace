@@ -60,7 +60,7 @@ How to make it:
 1. **Run a fresh session as the persona**, with synthetic users and demo
    data, doing the real flow (ask, see, change, "save it", tidy up). Every
    screenshot comes from that run or an earlier test session.
-2. **Capture** with the browser helpers (`cdp.mjs shot`, transcript text),
+2. **Capture** with the browser helpers (`cdp shot <file>`, `cdp text`),
    crop and resize with a small script.
 3. **Check every image** for real data, other projects' names and avatars.
    Crop out the claude.ai sidebar (it lists every session on a shared

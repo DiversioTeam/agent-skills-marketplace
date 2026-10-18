@@ -6,8 +6,10 @@ forbids changes unless the test is about changes, and every run is compared
 against a known answer.
 
 Prompt texts are in [templates](templates.md#test-prompts). Write each to a
-file and send it with `cdp.mjs send <file> && cdp.mjs enter`, then
-`cdp.mjs idle 20`, then `cdp.mjs text` and `cdp.mjs shot`.
+file and, with the `cdp` setup from
+[browser automation](browser-automation.md#pick-a-browser-driver), send it with
+`cdp send <file> && cdp enter`, then `cdp idle 20`, then `cdp text` and
+`cdp shot "$SCRATCH/<run>.png"`.
 
 **Fresh session after every change.** Environment, secret, setup-script and
 `.claude/settings.json` changes only reach new sessions; an old session keeps

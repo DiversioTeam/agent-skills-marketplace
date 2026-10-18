@@ -4,17 +4,18 @@
 // Playwright's connectOverCDP hung on some Chrome versions, so this avoids it.
 //
 //   CDP_PORT=9333 TAB=claude.ai/code node cdp.mjs <action> [args]
+//   CDP_PORT: the Chrome debug port (default 9222). TAB: part of the tab URL to act on (default claude.ai).
 //
 //   tabs                          list page tabs
 //   goto <url>                    navigate the matched tab
 //   text [maxChars]               main column text (tail), or body text
-//   shot <out.png>                screenshot the viewport
+//   shot [out.png]                screenshot the viewport (default cdp-shot-<time>.png in the current directory)
 //   eval <js>                     evaluate an expression, print the JSON result
 //   click-text <text>             click the smallest visible element whose text matches exactly
 //   send <file>                   insert a prompt from a file into the claude.ai composer (no Enter)
 //   enter                         press Enter
 //   escape                        press Escape
-//   idle [minutes]                wait until the session stops working or needs input
+//   idle [minutes]                wait until the TAB session stops working or needs input (default 15)
 //   pick-env <Name>               select a claude.ai environment by name
 //   mode <Auto|Accept edits|Plan> switch the session's permission mode
 //   field-hash <Env> <marker>     open <Env>'s settings; print sha256 prefix + length of the textarea containing <marker>
@@ -118,7 +119,8 @@ try {
     }
     case 'shot': {
       const r = await c.send('Page.captureScreenshot', { format: 'png' })
-      writeFileSync(args[0], Buffer.from(r.result.data, 'base64')); console.log(args[0])
+      const out = args[0] || `cdp-shot-${new Date().toISOString().replace(/[:.]/g, '-')}.png`
+      writeFileSync(out, Buffer.from(r.result.data, 'base64')); console.log(out)
       break
     }
     case 'eval':
@@ -140,7 +142,9 @@ try {
     case 'enter': await c.key('Enter', 13); break
     case 'escape': await c.key('Escape', 27); break
     case 'idle': {
-      const end = Date.now() + Number(args[0] || 15) * 60000
+      const minutes = Number(args[0] || 15)
+      if (!(minutes > 0)) throw new Error('idle takes minutes only; choose the tab with TAB=<part of its URL>')
+      const end = Date.now() + minutes * 60000
       let s
       while (Date.now() < end) {
         s = await c.evaluate(`(()=>{const t=document.querySelector('[data-testid=epitaxy-virtual-transcript]')?.innerText||'';

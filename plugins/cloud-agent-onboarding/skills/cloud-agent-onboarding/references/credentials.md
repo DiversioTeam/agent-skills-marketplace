@@ -122,7 +122,7 @@ value.
 Use a throwaway `HOME` so your own CLI login is untouched and nothing is left:
 
 ```bash
-H=$SCRATCH/cli-home; rm -rf "$H"; mkdir -p "$H"
+H=$(mktemp -d)   # throwaway HOME
 TOK=$(op item get "<title>" --vault <Vault> --fields credential --reveal | tr -d '\r\n')
 HOME=$H <cli> login -t "$TOK" 2>&1 | sed -E 's/[A-Za-z0-9+\/=._-]{30,}/<redacted>/g' | tail -3
 HOME=$H <cli> whoami

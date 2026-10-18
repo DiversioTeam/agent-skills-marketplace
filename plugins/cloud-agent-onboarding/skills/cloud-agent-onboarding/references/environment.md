@@ -115,8 +115,9 @@ Full skeleton in [templates](templates.md#setup-script).
 
 1. Edit the file in the repo (the repo copy is the source of truth).
 2. Replace the environment's script from the file
-   (`cdp.mjs fill-field <Env> "<marker line>" setup.sh`).
-3. Read it back (`cdp.mjs field-hash <Env> "<marker line>"`) and compare with
+   (`cdp fill-field <Env> "<marker line>" setup.sh`, set up as in
+   [browser automation](browser-automation.md#pick-a-browser-driver)).
+3. Read it back (`cdp field-hash <Env> "<marker line>"`) and compare with
    `printf '%s' "$(cat setup.sh)" | shasum -a 256` (the stored text loses its
    final newline).
 4. Only **new** sessions pick it up (old sessions keep the old environment

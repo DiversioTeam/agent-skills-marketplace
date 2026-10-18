@@ -18,15 +18,25 @@ Use whichever is available and already trusted on the machine:
 2. **A separate Chrome with a debug port** (when the MCP is unavailable or
    computer use is blocked). Use [`scripts/cdp.mjs`](../scripts/cdp.mjs).
 
+Set up once per shell. `cdp.mjs` reads `CDP_PORT` and `TAB`, so export them
+and launch Chrome on the same port:
+
 ```bash
-PORT=9333   # pick a free port; another session may own 9222
-open -na "Google Chrome" --args --remote-debugging-port=$PORT \
-  --user-data-dir="$SCRATCH/chrome-cdp-profile" --no-first-run --no-default-browser-check \
-  "https://claude.ai/code"
-curl -s http://127.0.0.1:$PORT/json/version   # poll until it answers
+SKILL_DIR=<this skill's directory, the one holding SKILL.md>
+cdp() { node "$SKILL_DIR/scripts/cdp.mjs" "$@"; }   # a function: zsh does not word-split a command in a variable
+export CDP_PORT=9333            # a free port; another session may own 9222
+export TAB=claude.ai/code       # cdp.mjs acts on the first tab whose URL contains this
+SCRATCH=${SCRATCH:-$(mktemp -d)}; mkdir -p "$SCRATCH"
+curl -s "http://127.0.0.1:$CDP_PORT/json/version" && echo "port $CDP_PORT is taken; pick another" \
+  || open -na "Google Chrome" --args --remote-debugging-port="$CDP_PORT" \
+       --user-data-dir="$SCRATCH/chrome-cdp-profile" --no-first-run --no-default-browser-check \
+       "https://claude.ai/code"
+until curl -s "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null; do sleep 1; done
 # bring it forward so the user can sign in
-osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $(pgrep -f "remote-debugging-port=$PORT" | head -1)) to true"
+osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $(pgrep -f "remote-debugging-port=$CDP_PORT" | head -1)) to true"
 ```
+
+Every `cdp <action>` below assumes this setup.
 
 Recent Chrome versions refuse remote debugging on the default profile, so a
 separate `--user-data-dir` is required anyway. A scratch profile also leaves
@@ -67,11 +77,11 @@ the user's own cookies and passwords alone.
   event**; a plain `.value =` is ignored:
   `Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(ta, v); ta.dispatchEvent(new Event('input',{bubbles:true}))`.
 - **Read every save back**: reopen the dialog and hash the field
-  (`cdp.mjs field-hash`). The stored setup script loses its final newline, so
+  (`cdp field-hash`). The stored setup script loses its final newline, so
   hash the local file without one: `printf '%s' "$(cat setup.sh)" | shasum -a 256`.
 - **Press Escape on any failure** so a half-edited dialog is not saved by a
   later click.
-- **Secrets go in through stdin** (`cdp.mjs fill-env-line`), never argv; the
+- **Secrets go in through stdin** (`cdp fill-env-line`), never argv; the
   script prints only length and hash prefix and writes only into an empty
   line.
 - Write long prompts to a file and insert them with `Input.insertText` (or
@@ -86,7 +96,7 @@ the user's own cookies and passwords alone.
 ## claude.ai/code landmarks (October 2026; they drift)
 
 Re-discover with
-`node cdp.mjs eval '[...document.querySelectorAll("[data-testid]")].map(e=>e.dataset.testid)'`.
+`cdp eval '[...document.querySelectorAll("[data-testid]")].map(e=>e.dataset.testid)'`.
 
 | What | Selector or text seen |
 | --- | --- |
@@ -116,7 +126,8 @@ text's hash is unchanged for several polls, or stop when the session has been id
 and no "Running…" / "Publishing…" line shows, or when it needs input. Run the
 watcher in the background (or under a monitor tool that prints a digest
 when the transcript hash changes), then read the transcript text and
-screenshot. `cdp.mjs idle <match> <minutes>` does the waiting.
+screenshot. `TAB=<session id> cdp idle <minutes>` does the waiting (the tab is
+chosen by `TAB`, not an argument).
 
 ## Other UIs met on the way
 
