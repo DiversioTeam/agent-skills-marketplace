@@ -77,6 +77,7 @@ class CdpPortTests(unittest.TestCase):
             result = run_cdp({"CDP_PORT": str(port), "TAB": "claude.ai"}, "text")
         finally:
             server.shutdown()
+            server.server_close()
         # No tabs on the stub browser: the helper reports it and fails, after asking only this port.
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("no tab", result.stdout)
@@ -244,11 +245,15 @@ class CdpComposerTests(unittest.TestCase):
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         try:
             env = {"CDP_PORT": str(port), "TAB": "composer.html"}
-            deadline = time.time() + 20
+            # Wait until the page itself has loaded, not just until the tab exists.
+            deadline = time.time() + 30
             while time.time() < deadline:
-                if run_cdp(env, "tabs").returncode == 0:
+                probe = run_cdp(env, "eval", "!!document.getElementById('t')")
+                if probe.returncode == 0 and probe.stdout.strip() == "true":
                     break
                 time.sleep(0.5)
+            else:
+                self.fail("the composer page never loaded in Chrome")
             result = run_cdp(env, "send", str(prompt))
             value = run_cdp(env, "eval", "document.getElementById('t').value").stdout.strip()
         finally:
