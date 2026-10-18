@@ -44,6 +44,7 @@ claude plugin uninstall visual-explainer@visual-explainer-marketplace
 ```bash
 PLUGINS=(
   crafting-sandboxes
+  cloud-agent-onboarding
   monolith-review-orchestrator
   monty-code-review
   backend-atomic-commit
@@ -86,6 +87,7 @@ Then uninstall the user-scoped copies:
 ```bash
 PLUGINS=(
   crafting-sandboxes
+  cloud-agent-onboarding
   monolith-review-orchestrator
   monty-code-review
   backend-atomic-commit
@@ -373,6 +375,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
   --ref main \
   --path \
     plugins/crafting-sandboxes/skills/crafting-sandboxes \
+    plugins/cloud-agent-onboarding/skills/cloud-agent-onboarding \
     plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
     plugins/monty-code-review/skills/monty-code-review \
     plugins/backend-atomic-commit/skills/backend-atomic-commit \
@@ -427,6 +430,7 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 SKILLS=(
   crafting-sandboxes
+  cloud-agent-onboarding
   monolith-review-orchestrator
   monty-code-review
   backend-atomic-commit

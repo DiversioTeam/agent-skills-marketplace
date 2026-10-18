@@ -1,0 +1,8 @@
+{
+  "name": "cloud-agent-onboarding",
+  "version": "0.1.0",
+  "description": "Make a repository work in hosted cloud coding agents (Claude Code on the web, Codex cloud): environments, secrets, repo instructions, cloud tests, and people guides.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}
