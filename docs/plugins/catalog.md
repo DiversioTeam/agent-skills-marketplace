@@ -142,6 +142,22 @@ when command files change.
     `PI_TIMESTAMPS_TOGGLE_SHORTCUT`, `PI_TIMESTAMPS_LIVE_RELATIVE`
   - One-off local test from repo root:
     `pi --no-extensions -e ./pi-packages/pi-timestamps`
+- `pi-monitor` (pi package)
+  - Purpose: approved, session-owned shell scripts whose bounded stdout events
+    trigger Pi follow-ups when idle, without model polling.
+  - Tools: `monitor`, `monitor_list`, `monitor_stop`.
+  - Command: `/monitors`, `/monitors stop <id|all>`.
+  - Approval: individual interactive/RPC confirmation, or an explicit
+    `--monitor-allow-commands` launch flag. Unsandboxed; no automatic startup.
+  - Pi install from repo checkout: `pi install "$PWD/pi-packages/pi-monitor"`.
+  - Package path: `pi-packages/pi-monitor`.
+  - Smoke test: `pi --no-extensions -e ./pi-packages/pi-monitor`.
+  - Checks: `npm --prefix pi-packages/pi-monitor test` and
+    `npm --prefix pi-packages/pi-monitor run test:pi` (requires Pi on PATH).
+  - Compatibility: macOS/Linux, Node 24+, Pi 1.1.0 or newer. Older hosts fail
+    closed at monitor startup because their idle check is unsafe during compaction.
+  - Bounds, cleanup limitations, and live-model evidence:
+    `pi-packages/pi-monitor/README.md` and `tests/VERIFICATION.md` inside that package.
 - `skills-bridge` (pi package)
   - Purpose: selects marketplace roots through environment/config overrides
     or cwd ancestor discovery, then supplies `plugins/*/skills/` directories

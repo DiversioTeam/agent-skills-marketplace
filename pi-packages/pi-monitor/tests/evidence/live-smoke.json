@@ -1,0 +1,106 @@
+{
+  "recordType": "observed live run, not a test fixture or signed attestation",
+  "observedAt": "2026-10-18T05:49:04.400000+00:00",
+  "hostPiVersion": "1.1.0",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-sol",
+  "result": "PASS",
+  "sourceSha256": {
+    "lib/monitor.mjs": "4a3d208b70b3c715014fc66a09570a91513529574df2e10ae3cfdfccd780f033",
+    "extensions/pi-monitor/index.ts": "3db5ada0dd74d432263ea6c715cb042105fc13f45d5da811cffcc59323ee2bf0"
+  },
+  "fullLocalTranscriptSha256": "6ea697adea10cfbf96d7a61cc547fb423088d67a2ce575ae2669178ad04d6a4f",
+  "redactions": "Local executable and temporary producer paths replaced in the tool-call command; redundant protocol, system prompts, and provider metadata omitted.",
+  "summary": {
+    "result": "PASS",
+    "nonce": "PI-MONITOR-LIVE-b4defbf8-c9c5-4629-87e4-429075da5a21",
+    "monitorId": "159acbcc-5fdb-4352-b44e-cf27fd1e6fef",
+    "toolCalls": 1,
+    "toolReturnedAt": 1792302544400,
+    "outputDeliveredAt": 1792302545941
+  },
+  "trace": [
+    {
+      "receivedAt": 1792302544398,
+      "type": "assistant",
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "monitor",
+          "arguments": {
+            "command": "<node executable> <temporary producer.mjs>",
+            "description": "live runtime nonce proof",
+            "timeout_ms": 10000
+          }
+        }
+      ]
+    },
+    {
+      "receivedAt": 1792302544400,
+      "type": "tool_result",
+      "toolName": "monitor",
+      "isError": false,
+      "details": {
+        "id": "159acbcc-5fdb-4352-b44e-cf27fd1e6fef",
+        "description": "live runtime nonce proof",
+        "status": "running",
+        "startedAt": "2026-10-18T05:49:04.399Z",
+        "pid": 7192,
+        "events": 0,
+        "stderr": "",
+        "timeout_ms": 10000,
+        "instruction": "Events arrive automatically. Keep working; do not poll or sleep. Use monitor_stop to cancel."
+      }
+    },
+    {
+      "receivedAt": 1792302545850,
+      "type": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "ARMED"
+        }
+      ]
+    },
+    {
+      "receivedAt": 1792302545941,
+      "type": "monitor-event",
+      "details": {
+        "monitorId": "159acbcc-5fdb-4352-b44e-cf27fd1e6fef",
+        "description": "live runtime nonce proof",
+        "kind": "output",
+        "text": "PI-MONITOR-LIVE-b4defbf8-c9c5-4629-87e4-429075da5a21",
+        "suppressed": 0,
+        "observedAt": 1792302545435,
+        "queueSuppressed": 0
+      }
+    },
+    {
+      "receivedAt": 1792302547563,
+      "type": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "RECEIVED PI-MONITOR-LIVE-b4defbf8-c9c5-4629-87e4-429075da5a21"
+        }
+      ]
+    },
+    {
+      "receivedAt": 1792302547565,
+      "type": "monitor-event",
+      "details": {
+        "monitorId": "159acbcc-5fdb-4352-b44e-cf27fd1e6fef",
+        "description": "live runtime nonce proof",
+        "kind": "exited",
+        "text": "Monitor exited; exit code 0, signal none.",
+        "exitCode": 0,
+        "signal": null,
+        "events": 1,
+        "suppressed": 0,
+        "stderr": "",
+        "observedAt": 1792302545435,
+        "queueSuppressed": 0
+      }
+    }
+  ]
+}

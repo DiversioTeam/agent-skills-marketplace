@@ -13,6 +13,8 @@ jq -e . plugins/<plugin>/.claude-plugin/plugin.json >/dev/null
 jq -e . pi-packages/<package>/package.json >/dev/null
 pnpm --config.verify-deps-before-run=false --dir pi-packages/image-router test  # Node 24; no dependencies
 pnpm --config.verify-deps-before-run=false --dir pi-packages/ci-status test  # Node 24; mocked GitHub/CircleCI
+npm --prefix pi-packages/pi-monitor test  # Node 24; real local child processes
+PI_TEST_BINARY="$(command -v pi)" npm --prefix pi-packages/pi-monitor run test:pi  # Real Pi RPC + loopback test server; no credentials
 PI_TEST_BINARY="$(command -v pi)" pnpm --config.verify-deps-before-run=false --dir pi-packages/skills-bridge test  # Node 24 + Pi; offline discovery
 (cd pi-packages/<package> && npm pack --dry-run --json >/tmp/<package>-pack.json)
 printf '{"id":"cmds","type":"get_commands"}\n' | PI_OFFLINE=1 pi --mode rpc --no-session --no-context-files --no-extensions -e ./pi-packages/<package> --no-prompt-templates --no-skills
@@ -77,6 +79,14 @@ skills target:
     connection-time public-address checks (including DNS rebinding), and
     local-ci commit-status/native-log compatibility. Local fixture inspection
     is read-only: it neither executes validation nor publishes statuses.
+  - Runs pi-monitor line buffering, rate-limit, exit/error, timeout, Unicode,
+    and process-group cleanup tests. Verifies startup rejection on the legacy
+    Pi 0.70.6 host, then installs a separate Pi 1.1.0 host for actual monitor tool
+    execution and provider receipt through isolated RPC sessions and a
+    deterministic loopback server. Covers approval denial, aborted approval,
+    delayed idle handlers, slow compaction, and tree/session cleanup. These
+    checks make no authenticated model calls; the package's opt-in live-model
+    smoke test is separate and never runs in CI.
   - After installing the pinned Pi CLI, runs skills-bridge root-selection,
     filtering, skill-boundary, reload, and real marketplace inventory tests.
     The explicit binary path prevents dependency CLIs from shadowing the pin.

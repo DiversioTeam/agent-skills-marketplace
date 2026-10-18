@@ -167,6 +167,9 @@ jobs:
       - name: Test CI job identity and console output
         run: pnpm --config.verify-deps-before-run=false --dir pi-packages/ci-status test
 
+      - name: Test monitor buffering and process cleanup
+        run: npm --prefix pi-packages/pi-monitor test
+
       - name: Install root package dependencies for Pi package discovery
         shell: bash
         env:
@@ -186,6 +189,15 @@ jobs:
       - name: Test bridge root selection and native skill discovery
         # Capture the pinned CLI before pnpm adds dependency binaries to PATH.
         run: PI_TEST_BINARY="$(command -v pi)" pnpm --config.verify-deps-before-run=false --dir pi-packages/skills-bridge test
+
+      - name: Verify monitor rejects the unsupported legacy Pi host
+        run: PI_TEST_BINARY="$(command -v pi)" npm --prefix pi-packages/pi-monitor run test:pi
+
+      - name: Install compaction-safe Pi host for monitor tests
+        run: npm install --prefix "$RUNNER_TEMP/pi-monitor-host" --package-lock=false --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.1.0
+
+      - name: Test monitor approval and event delivery in real Pi sessions
+        run: PI_TEST_BINARY="$RUNNER_TEMP/pi-monitor-host/node_modules/.bin/pi" npm --prefix pi-packages/pi-monitor run test:pi
 
       - name: Validate Pi package command discovery and npm packs
         shell: bash

@@ -10,6 +10,7 @@ Pi-native packages that extend pi with tools, commands, skills, and UI widgets.
 | [`dev-workflow`](./dev-workflow) | 16 core workflow prompts including `/workflow:crafting` (`/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`), CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and seeded cmux split launching for subagent-style prompts |
 | [`image-router`](./image-router) | Routes images to an explicitly approved secondary vision destination; RPC/extension/tool routing requires saved `auto` consent. Missing consent or destinations fail closed, with no provider/model fallback. Configure per-model routing via `/image-router`. |
 | [`oh-my-pi`](./oh-my-pi) | Pi-native cmux integration with notifications, readable split commands, and workspace tabs |
+| [`pi-monitor`](./pi-monitor) | Approved, session-owned background scripts with bounded stdout events, idle follow-ups, list/stop tools, and process-group cleanup |
 | [`pi-timestamps`](./pi-timestamps) | Adds subtle per-turn transcript timing rows for exact timestamps and reply-start timing, plus a playful live status line for the newest turn |
 | [`skills-bridge`](./skills-bridge) | Selects marketplace roots through environment/config overrides or checkout discovery, then lets Pi load `plugins/*/skills/` using native filtering |
 
@@ -25,7 +26,7 @@ pi install git:github.com/DiversioTeam/agent-skills-marketplace
 published on the public npm registry — no auth or `.npmrc` setup needed.
 
 The root `package.json` at the top of this repo tells pi where to find every
-package, so one clone discovers all six. Run `/reload` after installing.
+package, so one clone discovers all seven. Run `/reload` after installing.
 
 To pull the latest updates later:
 
@@ -52,6 +53,7 @@ pi install "$PWD/pi-packages/ci-status"
 pi install "$PWD/pi-packages/dev-workflow"
 pi install "$PWD/pi-packages/image-router"
 pi install "$PWD/pi-packages/oh-my-pi"
+pi install "$PWD/pi-packages/pi-monitor"
 pi install "$PWD/pi-packages/pi-timestamps"
 pi install "$PWD/pi-packages/skills-bridge"
 ```
@@ -94,6 +96,12 @@ pi-packages/
 │   ├── package.json
 │   ├── README.md
 │   └── extensions/
+├── pi-monitor/
+│   ├── package.json
+│   ├── README.md
+│   ├── extensions/
+│   ├── lib/
+│   └── tests/
 ├── pi-timestamps/
 │   ├── package.json
 │   ├── README.md
