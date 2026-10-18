@@ -1,0 +1,245 @@
+{
+  "recordType": "observed live runs, not a test fixture or signed attestation",
+  "scenario": "tests/live-busy-smoke.mjs: model sleeps in Bash while a watch is pending (replays session 01a14d94)",
+  "hostPiVersion": "1.3.0",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-sol",
+  "prompt": "identical in both runs",
+  "redactions": "Local executable and temporary producer paths replaced; system prompts, streaming updates, and provider metadata omitted.",
+  "fixed": {
+    "packageVersion": "0.1.1",
+    "sourceSha256": {
+      "lib/monitor.mjs": "17faeb0e3706eb6e8a75f4e017813c36bdf87b77f4d807d425e4a5d94aa33164",
+      "extensions/pi-monitor/index.ts": "15db430a82712058e677cf2063bfae48c6b64e42501996fb06df08709f39007f"
+    },
+    "result": "PASS",
+    "summary": {
+      "result": "PASS",
+      "model": "openai-codex/gpt-5.6-sol",
+      "nonce": "PI-MONITOR-BUSY-9dda8c10-8115-4009-8645-57bd6ca2dfa2",
+      "monitorId": "d1d081f5-076e-431f-987c-17b284a8411b",
+      "toolCalls": [
+        "monitor",
+        "bash",
+        "monitor_stop"
+      ],
+      "bashCalls": 1,
+      "nonceEmittedAt": 1792322875019,
+      "eventDeliveredAt": 1792322877747,
+      "deliveryLatencyMs": 2728,
+      "firstRunEndedAt": 1792322880492,
+      "agentRuns": 1,
+      "monitorMessages": 1
+    },
+    "fullLocalTranscriptSha256": "4f5dee3fb6b7b97a2ddeac31113f4f7b167dd89d4b5ee72dbd16c41cacc7f5b7",
+    "trace": [
+      {
+        "receivedAt": 1792322868450,
+        "type": "agent_start"
+      },
+      {
+        "receivedAt": 1792322872479,
+        "type": "tool_call",
+        "tool": "monitor",
+        "arguments": {
+          "command": "<node executable> <temporary producer.mjs>",
+          "description": "busy runtime nonce proof",
+          "timeout_ms": 60000
+        }
+      },
+      {
+        "receivedAt": 1792322872985,
+        "type": "tool_result",
+        "tool": "monitor",
+        "isError": false,
+        "status": "running"
+      },
+      {
+        "receivedAt": 1792322874730,
+        "type": "tool_call",
+        "tool": "bash",
+        "arguments": {
+          "command": "sleep 3",
+          "timeout": 10
+        }
+      },
+      {
+        "receivedAt": 1792322877746,
+        "type": "tool_result",
+        "tool": "bash",
+        "isError": false
+      },
+      {
+        "receivedAt": 1792322877747,
+        "type": "monitor_event_message",
+        "events": [
+          {
+            "monitorId": "d1d081f5-076e-431f-987c-17b284a8411b",
+            "description": "busy runtime nonce proof",
+            "kind": "output",
+            "text": "PI-MONITOR-BUSY-9dda8c10-8115-4009-8645-57bd6ca2dfa2",
+            "suppressed": 0,
+            "observedAt": 1792322875225
+          }
+        ]
+      },
+      {
+        "receivedAt": 1792322879119,
+        "type": "tool_call",
+        "tool": "monitor_stop",
+        "arguments": {
+          "monitor_id": "d1d081f5-076e-431f-987c-17b284a8411b"
+        }
+      },
+      {
+        "receivedAt": 1792322879126,
+        "type": "tool_result",
+        "tool": "monitor_stop",
+        "isError": false,
+        "status": "stopped"
+      },
+      {
+        "receivedAt": 1792322880492,
+        "type": "assistant_text",
+        "text": "RECEIVED PI-MONITOR-BUSY-9dda8c10-8115-4009-8645-57bd6ca2dfa2"
+      },
+      {
+        "receivedAt": 1792322880492,
+        "type": "agent_end"
+      }
+    ]
+  },
+  "shipped": {
+    "packageVersion": "0.1.0",
+    "gitCommit": "3646d73",
+    "sourceSha256": {
+      "lib/monitor.mjs": "4a3d208b70b3c715014fc66a09570a91513529574df2e10ae3cfdfccd780f033",
+      "extensions/pi-monitor/index.ts": "3db5ada0dd74d432263ea6c715cb042105fc13f45d5da811cffcc59323ee2bf0"
+    },
+    "result": "FAIL",
+    "failure": "AssertionError [ERR_ASSERTION]: nonce event entered the context before the working run ended",
+    "fullLocalTranscriptSha256": "7e6a21f71ff1a5836f949d1624ae60e2d2560b2031cc6153c4770172870157f2",
+    "trace": [
+      {
+        "receivedAt": 1792322061121,
+        "type": "agent_start"
+      },
+      {
+        "receivedAt": 1792322063053,
+        "type": "tool_call",
+        "tool": "monitor",
+        "arguments": {
+          "command": "<node executable> <temporary producer.mjs>",
+          "description": "busy runtime nonce proof",
+          "timeout_ms": 60000
+        }
+      },
+      {
+        "receivedAt": 1792322063056,
+        "type": "tool_result",
+        "tool": "monitor",
+        "isError": false,
+        "status": "running"
+      },
+      {
+        "receivedAt": 1792322064035,
+        "type": "tool_call",
+        "tool": "bash",
+        "arguments": {
+          "command": "sleep 3",
+          "timeout": 10
+        }
+      },
+      {
+        "receivedAt": 1792322067051,
+        "type": "tool_result",
+        "tool": "bash",
+        "isError": false
+      },
+      {
+        "receivedAt": 1792322068057,
+        "type": "tool_call",
+        "tool": "bash",
+        "arguments": {
+          "command": "sleep 3",
+          "timeout": 10
+        }
+      },
+      {
+        "receivedAt": 1792322071069,
+        "type": "tool_result",
+        "tool": "bash",
+        "isError": false
+      },
+      {
+        "receivedAt": 1792322072116,
+        "type": "tool_call",
+        "tool": "bash",
+        "arguments": {
+          "command": "sleep 3",
+          "timeout": 10
+        }
+      },
+      {
+        "receivedAt": 1792322075126,
+        "type": "tool_result",
+        "tool": "bash",
+        "isError": false
+      },
+      {
+        "receivedAt": 1792322076086,
+        "type": "tool_call",
+        "tool": "bash",
+        "arguments": {
+          "command": "sleep 3",
+          "timeout": 10
+        }
+      },
+      {
+        "receivedAt": 1792322079100,
+        "type": "tool_result",
+        "tool": "bash",
+        "isError": false
+      },
+      {
+        "receivedAt": 1792322080108,
+        "type": "tool_call",
+        "tool": "bash",
+        "arguments": {
+          "command": "sleep 3",
+          "timeout": 10
+        }
+      },
+      {
+        "receivedAt": 1792322083114,
+        "type": "tool_result",
+        "tool": "bash",
+        "isError": false
+      },
+      {
+        "receivedAt": 1792322085144,
+        "type": "tool_call",
+        "tool": "bash",
+        "arguments": {
+          "command": "sleep 3",
+          "timeout": 10
+        }
+      },
+      {
+        "receivedAt": 1792322088157,
+        "type": "tool_result",
+        "tool": "bash",
+        "isError": false
+      },
+      {
+        "receivedAt": 1792322089320,
+        "type": "assistant_text",
+        "text": "RECEIVED nonce unavailable (no background event arrived)."
+      },
+      {
+        "receivedAt": 1792322089320,
+        "type": "agent_end"
+      }
+    ]
+  }
+}

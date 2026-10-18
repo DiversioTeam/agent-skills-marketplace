@@ -337,8 +337,8 @@
     {
       "name": "pi-monitor",
       "title": "Pi Monitor",
-      "description": "Approved session-owned background scripts, bounded stdout events, idle model follow-ups, list/stop controls, and process-group cleanup. No model polling loop.",
-      "version": "v0.1.0"
+      "description": "Approved session-owned background scripts, bounded stdout events delivered mid-run or when idle, list/stop controls, and process-group cleanup. No model polling loop.",
+      "version": "v0.1.1"
     },
     {
       "name": "pi-timestamps",

@@ -32,6 +32,13 @@ test('validates command, description, platform, and finite timeout bounds', () =
   ]) assert.throws(() => validateMonitorInput({ command: 'true', description: 'test', ...input }));
 });
 
+test('rejects the Pi launch flag inside a command instead of running it', () => {
+  for (const command of ['--monitor-allow-commands bash /tmp/watch.sh', 'cd /tmp && pi --monitor-allow-commands']) {
+    assert.throws(() => validateMonitorInput({ command, description: 'test' }), /Pi launch flag/);
+  }
+  assert.equal(validateMonitorInput({ command: 'grep -- --monitor-allowed log', description: 'test' }).command, 'grep -- --monitor-allowed log');
+});
+
 test('line buffer batches, trims blank lines, clips long lines, and flushes a partial last line', () => {
   const batches = [];
   const buffer = buildLineBuffer(text => batches.push(text));

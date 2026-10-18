@@ -1,7 +1,7 @@
 {
   "name": "pi-monitor",
-  "version": "0.1.0",
-  "description": "Approved, session-owned background scripts with bounded stdout events delivered as Pi follow-ups.",
+  "version": "0.1.1",
+  "description": "Approved, session-owned background scripts with bounded stdout events delivered to Pi while it works or idles.",
   "license": "MIT",
   "keywords": ["pi-package", "monitoring", "background", "events"],
   "files": ["extensions/", "lib/", "tests/", "README.md"],

@@ -84,7 +84,9 @@ skills target:
     Pi 0.70.6 host, then installs a separate Pi 1.1.0 host for actual monitor tool
     execution and provider receipt through isolated RPC sessions and a
     deterministic loopback server. Covers approval denial, aborted approval,
-    delayed idle handlers, slow compaction, and tree/session cleanup. These
+    approval timeout (one 60-second wait), launch-flag rejection, startup
+    failure, mid-run delivery at a tool boundary, batching, stale-event removal
+    on stop, delayed idle handlers, slow compaction, and tree/session cleanup. These
     checks make no authenticated model calls; the package's opt-in live-model
     smoke test is separate and never runs in CI.
   - After installing the pinned Pi CLI, runs skills-bridge root-selection,

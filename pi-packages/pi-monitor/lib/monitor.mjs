@@ -6,12 +6,17 @@ export const limits = Object.freeze({
   pendingCharacters: 1048576, stderrCharacters: 2000,
   burst: 10, refillMilliseconds: 2000, floodMilliseconds: 30000,
   maximumEvents: 100, defaultTimeoutMilliseconds: 300000, maximumTimeoutMilliseconds: 1800000,
+  startupMilliseconds: 500, approvalMilliseconds: 60000,
 });
 
 export function validateMonitorInput({ command, description, timeout_ms = limits.defaultTimeoutMilliseconds }) {
   if (process.platform === 'win32') throw new Error('pi-monitor requires macOS or Linux; Windows process-tree cleanup is not supported.');
   if (typeof command !== 'string' || !command.trim() || command.length > 16384 || /[\x00-\x08\x0b-\x1f\x7f-\x9f]/u.test(command)) {
     throw new Error('command must be nonempty, at most 16384 characters, with no hidden control characters.');
+  }
+  // A model once prefixed this flag to a command, hoping to skip approval; bash then failed on it.
+  if (/(^|\s)--monitor-allow-commands(\s|=|$)/u.test(command)) {
+    throw new Error('--monitor-allow-commands is a Pi launch flag, not part of a monitor command, and a tool call cannot grant it. Ask the user to approve the command, or to relaunch Pi with the flag.');
   }
   if (typeof description !== 'string' || !description.trim() || description.length > 200 || /[\x00-\x1f\x7f-\x9f]/u.test(description)) {
     throw new Error('description must be nonempty, at most 200 characters, with no control characters.');

@@ -50,9 +50,19 @@ The model can call:
 ```
 
 This is a `monitor` tool call. Approve the exact command, working directory, and
-timeout in Pi's confirmation dialog. The tool returns a monitor ID immediately.
-Output and terminal notices arrive automatically as custom `monitor-event`
-messages and trigger model follow-up when Pi is idle. They are not human replies.
+timeout in Pi's confirmation dialog. The tool returns a monitor ID after a
+0.5-second startup check: a command that fails within that window (bad syntax, a
+missing file) returns an error with its exit code and stderr instead of
+`running`. Output and terminal notices arrive automatically as one custom
+`monitor-event` message holding every queued event (`details.events`):
+
+- **While the model is working**, right after its current tool calls finish,
+  before its next model call. A model that keeps running tools still sees the
+  event within the same run.
+- **When Pi is idle**, as a follow-up that starts a new turn.
+
+Events are not human replies. A long foreground tool call (for example a
+ten-minute Bash loop) still delays delivery until it returns.
 
 | Surface | Purpose |
 | --- | --- |
@@ -63,8 +73,11 @@ messages and trigger model follow-up when Pi is idle. They are not human replies
 | `/monitors stop <id>` | Stop one monitor |
 | `/monitors stop all` | Stop this session's monitors |
 
-Stop commands themselves do not call the model, but their terminal event can
-trigger a follow-up. Only the most recent 20 tasks are retained for listing.
+Stopping a monitor discards its queued, undelivered events. `monitor_stop`
+returns the final state and sends no terminal event, since the model asked for
+the stop. `/monitors stop` comes from the user, so the model still receives the
+terminal event. Only the most recent 20 tasks are retained for listing, and
+listed commands are shortened to 120 characters.
 The tool ID is extension-owned, not a Pi core background-task ID; use the tools
 above, not another package's task-stop operation.
 
@@ -86,7 +99,11 @@ The flag grants this invocation's model permission to start any monitor command
 without individual confirmation. Use only for a trusted task, script, and model;
 it is not saved. Noninteractive runs without approval fail closed. RPC clients
 can instead approve individual `extension_ui_request` confirmations. Cancelling
-a pending tool also cancels its approval dialog; it cannot start later.
+a pending tool also cancels its approval dialog; it cannot start later. An
+unanswered dialog expires after 60 seconds with a distinct "no approval answer"
+error, so the model can tell the user is away rather than that they declined. A
+command containing `--monitor-allow-commands` is rejected before any dialog:
+the flag is only for launching Pi, and a tool call cannot grant it.
 
 Output is labeled untrusted external data. A monitor event does not authorize
 new actions. Avoid emitting secrets: output goes to the model and session
@@ -121,12 +138,14 @@ transcript just like other tool output.
 - A token bucket allows ten batches initially, then one every two seconds.
   Excess batches are suppressed and counted; sustained flooding can stop the
   source after approximately 30 seconds. Each task stops after 100 output events.
-- While Pi is busy, an extension-owned queue retains at most 40 events. Overflow
+- Until delivery, an extension-owned queue retains at most 40 events. Overflow
   drops an old output event first (otherwise the oldest event) and reports
   `queueSuppressed` on the next delivery. This queue, unlike native follow-ups,
-  can be discarded on branch navigation without clearing human messages. A
-  cancellable 100 ms idle check also covers delayed lifecycle handlers; it does
-  not call the model.
+  can be discarded on branch navigation without clearing human messages. Busy
+  delivery steers from `turn_end`, which Pi drains before the next model call,
+  so a delivered event never waits in Pi's own queue across an abort or a branch
+  change. A cancellable 100 ms idle check also covers delayed lifecycle
+  handlers; it does not call the model.
 - Exit events report exit code, signal, output-event count, suppressed count,
   and stderr tail. Failure and timeout are not reported as success.
 - Stop/timeout sends SIGTERM to the process group, then SIGKILL after one second
@@ -158,8 +177,10 @@ PI_TEST_BINARY="$(command -v pi)" npm run test:pi
 
 `test:pi` launches real isolated Pi CLI processes and a loopback deterministic
 OpenAI-compatible server. It checks actual tool execution, approval deny/allow,
-busy/idle delivery, provider receipt, timeout, stop, shutdown, tree navigation,
-aborted approval, and slow compaction cleanup. It does **not** claim an LLM was involved. No credentials
+busy/idle delivery, mid-run delivery at a tool boundary, batching, stale-event
+removal on stop, startup failure, approval timeout, launch-flag rejection,
+provider receipt, timeout, stop, shutdown, tree navigation, aborted approval,
+and slow compaction cleanup. It does **not** claim an LLM was involved. No credentials
 or external model requests are needed. Set `PI_MONITOR_PROOF_DIR=/tmp/monitor-proof`
 to retain RPC records and server requests (test data only).
 
@@ -176,6 +197,11 @@ A child generates a random nonce **at runtime**, unknown to the model's prompt.
 The test asserts one monitor call, immediate return, an actual matching stdout
 event, the model's acknowledgement of that nonce, and successful exit. The
 saved transcript is local; review it before sharing.
+
+`tests/live-busy-smoke.mjs` (same opt-in variables) replays the busy case: the
+model keeps sleeping in Bash while the watch is pending. It asserts that the
+runtime nonce reaches the model within the same run, the model stops sleeping
+and stops the watch, and no stale event or follow-up run comes afterwards.
 
 See [recorded verification](tests/VERIFICATION.md) for observed results and
 explicit evidence limits. WebSocket sources, persistent watches, and automatic
