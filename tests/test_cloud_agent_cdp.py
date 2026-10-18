@@ -12,6 +12,7 @@ import http.server
 import json
 import os
 import shutil
+import signal
 import socket
 import socketserver
 import struct
@@ -185,31 +186,73 @@ COMPOSER_PAGE = """<!doctype html><meta charset=utf-8><title>composer</title>
 <div data-testid="code-prompt-input"><textarea id=t>human draft</textarea></div>"""
 
 
-@unittest.skipUnless(shutil.which("node") and find_chrome(), "node and Chrome are required")
+def stop_browser(chrome, profile):
+    """Stop every process of the test-owned Chrome, then wait until none still uses the profile."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(chrome.pid, sig)  # Chrome was started in its own process group
+        except (ProcessLookupError, PermissionError):
+            break  # the group is gone (macOS reports EPERM once the leader has exited)
+        try:
+            chrome.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            continue
+    try:
+        chrome.wait(timeout=5)  # reap the leader even when the group was already gone
+    except subprocess.TimeoutExpired:
+        chrome.kill()
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        users = subprocess.run(["pgrep", "-f", str(profile)], capture_output=True, text=True).stdout.split()
+        if not users:
+            return
+        for pid in users:
+            try:
+                os.kill(int(pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, ValueError):
+                pass
+        time.sleep(0.2)
+
+
+def remove_tree(path):
+    """Remove a directory, retrying while late writers finish; bounded so a test never hangs."""
+    for _ in range(25):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except OSError:
+            time.sleep(0.2)
+    shutil.rmtree(path, ignore_errors=True)
+
+
+@unittest.skipUnless(shutil.which("node") and shutil.which("pgrep") and find_chrome(), "node, pgrep and Chrome are required")
 class CdpComposerTests(unittest.TestCase):
     def test_send_refuses_a_textarea_that_holds_a_draft(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            page = Path(tmp) / "composer.html"
-            page.write_text(COMPOSER_PAGE)
-            prompt = Path(tmp) / "prompt.txt"
-            prompt.write_text("probe prompt")
-            port = free_port()
-            chrome = subprocess.Popen(
-                [find_chrome(), "--headless=new", f"--remote-debugging-port={port}",
-                 f"--user-data-dir={tmp}/profile", "--no-first-run", "--no-sandbox", page.as_uri()],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            try:
-                env = {"CDP_PORT": str(port), "TAB": "composer.html"}
-                deadline = time.time() + 20
-                while time.time() < deadline:
-                    if run_cdp(env, "tabs").returncode == 0:
-                        break
-                    time.sleep(0.5)
-                result = run_cdp(env, "send", str(prompt))
-                value = run_cdp(env, "eval", "document.getElementById('t').value").stdout.strip()
-            finally:
-                chrome.terminate()
-                chrome.wait(timeout=10)
+        tmp = Path(tempfile.mkdtemp(prefix="cdp-composer-"))
+        self.addCleanup(remove_tree, tmp)
+        page = tmp / "composer.html"
+        page.write_text(COMPOSER_PAGE)
+        prompt = tmp / "prompt.txt"
+        prompt.write_text("probe prompt")
+        profile = tmp / "profile"
+        port = free_port()
+        chrome = subprocess.Popen(
+            [find_chrome(), "--headless=new", f"--remote-debugging-port={port}",
+             f"--user-data-dir={profile}", "--no-first-run", "--no-sandbox", page.as_uri()],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        try:
+            env = {"CDP_PORT": str(port), "TAB": "composer.html"}
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                if run_cdp(env, "tabs").returncode == 0:
+                    break
+                time.sleep(0.5)
+            result = run_cdp(env, "send", str(prompt))
+            value = run_cdp(env, "eval", "document.getElementById('t').value").stdout.strip()
+        finally:
+            stop_browser(chrome, profile)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("composer is not empty", result.stdout)
         self.assertEqual(value, '"human draft"')

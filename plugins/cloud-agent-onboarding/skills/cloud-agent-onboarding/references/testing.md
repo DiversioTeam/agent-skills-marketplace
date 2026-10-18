@@ -42,9 +42,14 @@ screenshots worked only with the preinstalled Chromium at
 
 ### 2. Secret control
 
-For each secret, the same request in the **project environment** and in the
-**default environment**: 200 versus 401 proves the secret works and nothing
-else grants access. Report status codes only, never headers.
+For each secret, the same request in the **project environment** and in a
+**control environment without the secret** (Claude's default environment, or a
+Codex environment without it): 200 versus 401 proves the secret works and
+nothing else grants access. On Claude the request sends no credential (the
+proxy adds it); on current Codex it sends the secret's placeholder variable in
+the normal header (the proxy substitutes it), see
+[templates](templates.md#secret-check-project-environment-then-a-control-without-the-secret).
+Report status codes only, never headers.
 
 ### 3. Engineer probe
 

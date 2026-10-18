@@ -147,13 +147,29 @@ Environment check only: do not change, commit, or push anything.
 Report each result in one line.
 ```
 
-### Secret check (project environment, then default)
+### Secret check (project environment, then a control without the secret)
+
+Claude (the proxy adds the header, so send none):
 
 ```
 Network check only: do not change, commit, or push anything.
 Run: curl -s -o /dev/null -w '%{http_code}\n' <a URL that needs the secret>
 Report the status code only. Do not print any headers or tokens.
 ```
+
+Codex, current flow (the program sends the placeholder; the proxy substitutes
+the real value):
+
+```
+Network check only: do not change, commit, or push anything.
+Run: curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $<SECRET_VAR>" <a URL that needs the secret>
+Report the status code only, and whether <SECRET_VAR> is set (yes/no). Do not print its value, any headers or tokens.
+```
+
+Expect 200 in the project environment and 401 in the control: for Claude the
+default environment; for Codex an environment without that secret, where the
+variable is unset and the same command sends an empty credential. Use the
+header name and prefix the API expects.
 
 ### Engineer probe
 
