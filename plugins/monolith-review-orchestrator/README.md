@@ -370,8 +370,10 @@ There is also a presentation-style explainer at:
 - When posting is enabled, the worker revalidates the live PR and publishes the
   top-level review plus any validated inline comments atomically through local
   `gh` / `gh api`.
-- This plugin is still intentionally narrow on multi-PR publish automation and
-  replies to existing review threads.
+- This plugin is still intentionally narrow on multi-PR publish automation.
+  Thread replies follow `references/conversation-protocol.md` and are published
+  by the Temporal auto-reviewer; manual posts answer the discussion in the
+  review body.
 
 ## Why These Pieces Exist
 

@@ -258,8 +258,10 @@ Phase 2a posting contract:
 - The worker validates inline anchors against the current diff.
 - The worker publishes one atomic review through local `gh` / `gh api`, or
   publishes nothing if the stale-input or anchor checks fail.
-- Replies to existing review threads and partial inline publication are still
-  out of scope.
+- The Temporal auto-reviewer also publishes `thread_replies` after the review,
+  following the [conversation protocol](conversation-protocol.md), and resolves
+  only its own threads. Manual `post` runs and partial inline publication still
+  do not post thread replies; answer the discussion in the review body.
 
 Drafting rules for `post` mode:
 
@@ -275,6 +277,9 @@ Drafting rules for `post` mode:
 - explain when a resolved comment shaped the current assessment or fix
 - top-level review should teach, not just label, by explaining the issue, why
   it matters, and the concrete next step
+- open with what is good about the change, keep the conversation protocol's
+  voice, and pair each finding with a suggested direction offered as something
+  to explore
 - inline comments should anchor one root-cause cluster each and include risk and
   actionable guidance
 - approve only when there are no legitimate blocking issues remaining
@@ -284,14 +289,12 @@ Drafting rules for `post` mode:
   steps the auto-reviewer worker enforces, so the author is not left waiting.
   Leave them out of a `COMMENT` with nothing to act on: there is no fix to
   push, and asking for a re-review would only repeat the same run.
-  1. push the fix and reply on each thread with the commit (or why the point
-     does not apply);
-  2. click **Resolve conversation** on every thread, including threads from
-     other reviewers: the worker skips a PR while any thread is unresolved;
-  3. re-request a review from the auto-reviewer, using the re-request icon
-     next to its name under Reviewers, unless a request is already pending:
-     its own submitted review clears the request, and a new run starts only
-     from a pending request.
+  1. push the fix;
+  2. reply in each of the reviewer's threads with the commit (or why the point
+     does not apply).
+  Replying is enough: the worker reads replies, answers them, and resumes on
+  its own. Authors do not need to resolve threads or re-request a review, and
+  other people's threads never hold the auto-review.
 
 For linked PRs, keep the reviews coordinated:
 

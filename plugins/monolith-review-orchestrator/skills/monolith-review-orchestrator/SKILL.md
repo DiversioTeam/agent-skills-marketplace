@@ -21,12 +21,15 @@ Supported v1 scope:
 - worker-owned final review publishing: Codex drafts, the worker revalidates,
   and the worker publishes one top-level review plus zero or more inline
   comments atomically when the anchors validate cleanly
+- taking part in the PR conversation: verify every earlier finding and every
+  point people raised, then answer it (thread replies are published by the
+  Temporal auto-reviewer)
 
 Explicitly out of scope for v1:
 
 - whole-stack multi-PR batch posting; review each stack layer separately
 - generic unresolved-thread automation without a dedicated helper
-- replies to existing review threads or partial inline publication
+- posting thread replies from a manual session, or partial inline publication
 - repo-agnostic marketplace-style usage outside the Diversio monolith
 - broad submodule branch normalization during review prep
 - claiming reliable "final status" from comment lists alone
@@ -83,6 +86,10 @@ For the simple "what is each helper for?" explanation, load:
 For the deep-understanding, comment-history, and author-guidance protocol, load:
 - `references/review-context-protocol.md`
 
+For how to answer earlier findings and other people's comments, and for the
+reviewer's voice, load:
+- `references/conversation-protocol.md`
+
 ## Modes
 Choose one mode early and state it explicitly to the user:
 
@@ -116,6 +123,12 @@ Before you synthesize status, findings, or posting copy:
 - treat resolved threads as context, not noise, and separate thread state from
   legitimacy
 - validate what prior reviewers and the author claimed against the current code
+- answer that discussion as the
+  [conversation protocol](references/conversation-protocol.md) describes: confirm
+  fixes, withdraw what the pushback disproved, and answer the exact argument
+  when a finding still applies
+- write in its voice: cheerful, teaching, and pairing findings with suggested
+  directions rather than claiming one right answer
 
 ## Review Quality And Simplicity
 
@@ -272,6 +285,9 @@ The reassessment summary must distinguish:
 - Never ignore resolved review threads when they explain current code or prior fixes.
 - Never drop a prior open finding from memory unless you mark it resolved or moot.
 - Never post vague review comments that fail to explain risk and the next step.
+- Never raise a resolved or withdrawn finding again as new, and never repeat a
+  disputed finding without answering the argument against it.
+- Never resolve a review thread someone else opened.
 - Never let one PR's finding or inline target overwrite another PR's context in a
   linked cross-repo batch.
 - Never use `uv run scripts/update_submodules.py` as a default review refresh.
