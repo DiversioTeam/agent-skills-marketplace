@@ -17,6 +17,15 @@
       "keywords": ["crafting", "sandboxes", "cs", "branches", "design-system", "snapshots", "diversio"]
     },
     {
+      "name": "cloud-agent-onboarding",
+      "description": "Make a repository work in hosted cloud coding agents (Claude Code on the web, Codex cloud): environments, secrets, repo instructions, cloud tests, and people guides.",
+      "version": "0.1.0",
+      "author": { "name": "Diversio Devs" },
+      "source": "./plugins/cloud-agent-onboarding",
+      "category": "process",
+      "keywords": ["cloud", "claude-code-web", "codex-cloud", "environments", "network-secrets", "setup-script", "onboarding", "diversio"]
+    },
+    {
       "name": "code-review-digest-writer",
       "description": "Generates weekly code review digest docs from PR review comments for any GitHub repo.",
       "version": "0.1.3",

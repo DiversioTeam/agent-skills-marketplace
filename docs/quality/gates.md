@@ -65,6 +65,12 @@ skills target:
     late source commits, moving target heads, legacy patch ambiguity, and
     missing/invalid history. The release helper is read-only; fixture tags and
     commits exist only in temporary repositories.
+  - Runs the cloud-agent-onboarding browser-helper tests
+    (`tests/test_cloud_agent_cdp.py`, Node required): with no `CDP_PORT` the
+    helper exits before any network call and with one it contacts only that
+    port; a CDP error envelope makes a command exit nonzero (fake WebSocket
+    server); `send` refuses a composer textarea that already holds a draft
+    (headless Chrome, skipped when none is installed).
   - Runs image-router consent and ci-status job/log regression tests on Node 24
     before package discovery. The latter covers exact/ambiguous job identity,
     checkout changes, closed PRs, CircleCI output/auth/error boundaries,

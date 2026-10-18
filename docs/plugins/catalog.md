@@ -164,7 +164,8 @@ when command files change.
     `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
-    `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes` (22 total).
+    `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes`,
+    `cloud-agent-onboarding` (23 total).
   - Context: Pi includes skill names, descriptions, and file locations at
     startup; full SKILL.md instructions load on demand.
 - `monolith-review-orchestrator`
@@ -321,6 +322,17 @@ when command files change.
   - Slash command: `/crafting-sandboxes:sandbox`
   - Pi workflow command: `/workflow:crafting` (loads this skill; standalone
     `dev-workflow` users must also load it or enable `skills-bridge`).
+- `cloud-agent-onboarding`
+  - Purpose: make a repository work in hosted cloud coding agents (Claude Code
+    on the web, Codex cloud): assessment, credentials and network secrets,
+    environment setup scripts, SessionStart hooks and user-level fallbacks,
+    repo skills, outputs people can open, gated publishing from sessions,
+    cloud test ladder, people guides and change records. Source-dated platform
+    facts, our default providers with alternatives for each, four anonymised
+    case studies, and a raw-CDP browser helper for vendor UIs.
+  - Claude install: `claude plugin install cloud-agent-onboarding@diversiotech`
+  - Skill path: `plugins/cloud-agent-onboarding/skills/cloud-agent-onboarding`
+  - Slash command: `/cloud-agent-onboarding:onboard`
 
 - `clickup-ticket`
   - Purpose: legacy ClickUp ticket management during the GitHub migration.
