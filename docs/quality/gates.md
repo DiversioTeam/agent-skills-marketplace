@@ -27,6 +27,18 @@ The full Python suite also requires `uv`: existing review-helper fixtures launch
 PEP 723 scripts with their declared Python/Click dependencies. CI installs uv
 before running the suite. The release-scope tests alone use only Python and Git.
 
+## Browser Walkthrough Helpers
+
+`python3 -m unittest discover -s tests -p test_browser_walkthrough.py -v`
+checks URL/pacing rules and encoder failure/overwrite behavior. Real encode tests
+require FFmpeg/ffprobe and skip explicitly when absent. For the browser helpers,
+run `node tests/browser-walkthrough.cjs` with Playwright available (set `NODE_PATH`
+to an existing scratch project's `node_modules` if needed) and its Chromium
+installed. This uses synthetic local content and checks caption/highlight cleanup,
+clean screenshots, zoom reset, invalid inputs, and refusal of local/external HTTP
+redirects and external navigation before contacting the destination. Neither test replaces visual
+review of a finished product video.
+
 ## Active Type Gate
 
 This repo does not ship Python application code, so there is no local runtime

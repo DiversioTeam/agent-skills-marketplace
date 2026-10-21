@@ -181,7 +181,7 @@ when command files change.
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
     `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes`,
-    `cloud-agent-onboarding` (23 total).
+    `cloud-agent-onboarding`, `browser-walkthrough-recording` (24 total).
   - Context: Pi includes skill names, descriptions, and file locations at
     startup; full SKILL.md instructions load on demand.
 - `monolith-review-orchestrator`
@@ -278,6 +278,15 @@ when command files change.
     `/terraform:check-pr`
 
 ## Documentation And Planning
+
+- `browser-walkthrough-recording`
+  - Purpose: real browser walkthroughs with readable captions, highlights,
+    close-ups, clean screenshots, transcripts, and compact H.264 MP4s.
+    Requires safe demo data and full visual review; publishing is opt-in.
+  - Claude install: `claude plugin install browser-walkthrough-recording@diversiotech`
+  - Skill path: `plugins/browser-walkthrough-recording/skills/browser-walkthrough-recording`
+  - Slash command: `/browser-walkthrough-recording:record`
+  - Helpers: adaptable Playwright capture template and source-preserving MP4 encoder.
 
 - `bruno-api`
   - Purpose: generate API docs from Bruno collections by tracing Django

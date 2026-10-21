@@ -43,6 +43,7 @@ claude plugin uninstall visual-explainer@visual-explainer-marketplace
 
 ```bash
 PLUGINS=(
+  browser-walkthrough-recording
   crafting-sandboxes
   cloud-agent-onboarding
   monolith-review-orchestrator
@@ -86,6 +87,7 @@ Then uninstall the user-scoped copies:
 
 ```bash
 PLUGINS=(
+  browser-walkthrough-recording
   crafting-sandboxes
   cloud-agent-onboarding
   monolith-review-orchestrator
@@ -390,6 +392,7 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
   --repo DiversioTeam/agent-skills-marketplace \
   --ref main \
   --path \
+    plugins/browser-walkthrough-recording/skills/browser-walkthrough-recording \
     plugins/crafting-sandboxes/skills/crafting-sandboxes \
     plugins/cloud-agent-onboarding/skills/cloud-agent-onboarding \
     plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
@@ -445,6 +448,7 @@ rm -rf "$CODEX_HOME/skills/visual-explainer"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 SKILLS=(
+  browser-walkthrough-recording
   crafting-sandboxes
   cloud-agent-onboarding
   monolith-review-orchestrator
