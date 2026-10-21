@@ -163,7 +163,7 @@
       "category": "Documentation",
       "title": "Browser Walkthrough Recording",
       "description": "Record real browser flows with captions, highlights, close-ups, clean screenshots, and compact MP4s.",
-      "version": "v0.1.0",
+      "version": "v0.1.1",
       "skills": [
         {
           "name": "browser-walkthrough-recording",

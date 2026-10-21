@@ -11,8 +11,8 @@ quality="${CRF:-23}"
 [[ -f "$input" && "$input" == *.webm ]] || { echo 'Input must be an existing .webm file' >&2; exit 2; }
 [[ "$output" == *.mp4 && ! -e "$output" && ! -L "$output" ]] || { echo 'Output must be a new .mp4 path' >&2; exit 2; }
 [[ "$quality" =~ ^[0-9]+$ && "$quality" -ge 18 && "$quality" -le 28 ]] || { echo 'CRF must be an integer from 18 to 28' >&2; exit 2; }
-command -v ffmpeg >/dev/null
-command -v ffprobe >/dev/null
+command -v ffmpeg >/dev/null || { echo 'Missing ffmpeg: install FFmpeg with libx264 and add it to PATH.' >&2; exit 2; }
+command -v ffprobe >/dev/null || { echo 'Missing ffprobe: install the FFmpeg tools and add ffprobe to PATH.' >&2; exit 2; }
 # Encode beside the destination; failed conversions never leave a deliverable.
 temporary_directory="$(mktemp -d "$(dirname "$output")/.walkthrough-encode.XXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT
