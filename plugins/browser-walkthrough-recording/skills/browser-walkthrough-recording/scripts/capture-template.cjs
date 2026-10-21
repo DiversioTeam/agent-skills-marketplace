@@ -14,6 +14,30 @@ function validate_local_url(address) {
   return url.href;
 }
 
+async function add_local_request_guard(context) {
+  const failures = [];
+  await context.route('**/*', async (route) => {
+    try {
+      validate_local_url(route.request().url());
+      // Do not let the HTTP client follow redirects before checking the destination.
+      const response = await route.fetch({ maxRedirects: 0 });
+      try {
+        if (response.status() >= 300 && response.status() < 400
+            && response.headers().location) {
+          throw new Error('Redirect refused: use the verified final local URL directly.');
+        }
+        await route.fulfill({ response });
+      } finally {
+        await response.dispose();
+      }
+    } catch (error) {
+      failures.push(error.message);
+      await route.abort('blockedbyclient');
+    }
+  });
+  return failures;
+}
+
 function get_caption_duration(text) {
   return Math.max(2500, text.trim().split(/\s+/).length * 350);
 }
@@ -99,15 +123,20 @@ async function build_example_recording(output_directory, address) {
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({
-      viewport, recordVideo: { dir: path.join(output_directory, 'raw'), size: viewport },
+      viewport, serviceWorkers: 'block',
+      recordVideo: { dir: path.join(output_directory, 'raw'), size: viewport },
     });
     try {
+      const blocked_requests = await add_local_request_guard(context);
       const page = await context.newPage();
-      await page.goto(local_address);
+      await page.goto(local_address).catch((error) => {
+        throw new Error(blocked_requests.at(-1) || error.message);
+      });
       await page.locator('body').waitFor();
       // Replace these steps with app-specific ready states, actions, and outcomes.
       await add_caption(page, '1 · Start from the prepared demo screen');
       await build_screenshot(page, path.join(output_directory, 'shots', '01-start.png'));
+      if (blocked_requests.length) throw new Error(blocked_requests.join('\n'));
       const video = page.video();
       await context.close();
       const video_path = await video.path();
@@ -122,7 +151,7 @@ async function build_example_recording(output_directory, address) {
 }
 
 module.exports = {
-  validate_local_url, get_caption_duration, add_caption, add_highlight,
+  validate_local_url, add_local_request_guard, get_caption_duration, add_caption, add_highlight,
   remove_highlight, add_zoom, remove_zoom, build_screenshot, build_example_recording,
 };
 

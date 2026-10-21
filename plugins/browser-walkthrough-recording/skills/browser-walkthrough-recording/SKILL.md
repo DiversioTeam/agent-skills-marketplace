@@ -95,10 +95,18 @@ APP_URL='http://localhost:8000' node capture.cjs "$SCRATCH/run-01"
 
 Keep the resulting lockfile with the reusable script. Reuse an existing browser
 installation rather than downloading another version when compatible. The
-example accepts loopback/`.localhost` URLs only. For an approved private dev
-host, explicitly adapt that check after verifying environment and data ownership;
-a local URL alone is not proof of safe data. Check redirects and linked origins
-in the dry run as well.
+example accepts loopback/`.localhost` HTTP URLs only, disables service workers,
+and guards HTTP requests before loading responses. It refuses **all redirects**,
+including local ones: use the verified final URL directly, and adapt flows that
+need redirects only after checking their destinations. Remote fonts/assets are
+also blocked. A blocked request fails the run rather than silently delivering an
+incomplete recording. Preserve this guard on every recorded context.
+
+For an approved private dev host, explicitly adapt the allowlist after verifying
+environment and data ownership. This HTTP guard is not a network sandbox (for
+example, WebSocket traffic needs separate controls). A local URL alone is not
+proof of safe data. Check redirects, linked origins, and data connections in the
+unrecorded dry run as well.
 
 Wait for real states (`locator.waitFor`, `waitForURL`, chart-ready indicators),
 not `networkidle` on polling dashboards. Use fixed waits only for presentation
