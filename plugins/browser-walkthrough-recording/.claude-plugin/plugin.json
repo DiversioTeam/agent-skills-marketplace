@@ -1,0 +1,6 @@
+{
+  "name": "browser-walkthrough-recording",
+  "version": "0.1.0",
+  "description": "Record readable browser walkthroughs with captions, highlights, close-ups, clean screenshots, and compact MP4 output.",
+  "author": { "name": "Diversio Devs" }
+}

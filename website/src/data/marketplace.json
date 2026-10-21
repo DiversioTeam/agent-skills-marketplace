@@ -159,6 +159,20 @@
       "commands": ["generate", "canonicalize"]
     },
     {
+      "name": "browser-walkthrough-recording",
+      "category": "Documentation",
+      "title": "Browser Walkthrough Recording",
+      "description": "Record real browser flows with captions, highlights, close-ups, clean screenshots, and compact MP4s.",
+      "version": "v0.1.0",
+      "skills": [
+        {
+          "name": "browser-walkthrough-recording",
+          "description": "Record and review a captioned feature walkthrough for a PR or how-to guide."
+        }
+      ],
+      "commands": ["record"]
+    },
+    {
       "name": "visual-explainer",
       "category": "Documentation",
       "title": "Visual Explainer",

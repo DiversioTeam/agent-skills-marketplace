@@ -8,6 +8,15 @@
   },
   "plugins": [
     {
+      "name": "browser-walkthrough-recording",
+      "description": "Record readable browser walkthroughs with captions, highlights, close-ups, clean screenshots, and compact MP4 output.",
+      "version": "0.1.0",
+      "author": { "name": "Diversio Devs" },
+      "source": "./plugins/browser-walkthrough-recording",
+      "category": "documentation",
+      "keywords": ["browser", "playwright", "video", "walkthrough", "captions", "screenshots"]
+    },
+    {
       "name": "crafting-sandboxes",
       "description": "Create, inspect, and update Diversio Crafting sandboxes with branch overrides, DS build consumption, snapshot safety, and readiness evidence.",
       "version": "0.1.1",
