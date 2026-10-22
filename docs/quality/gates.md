@@ -109,10 +109,6 @@ skills target:
   - Triggered by changes under `website/**` or the website workflow file.
   - Runs a clean website dependency install and `cd website && npm run build`.
   - This is the build gate for the Astro site that now targets `engineering.diversio.com`.
-- `Notify Marketplace Updates`
-  - Triggered by pushes to `main` that touch `plugins/**` or `pi-packages/**`.
-  - Diffs the full pushed range, groups changes by marketplace item, and posts
-    one Slack message with separate `Plugin items` and `Pi items` sections.
 - `Trigger Engineering Website Deploy`
   - On source-content changes merged to `main`, dispatches the exact merged
     SHA to `DiversioTeam/engineering-website`, which owns deployment.

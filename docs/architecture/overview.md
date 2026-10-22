@@ -28,9 +28,6 @@
 - `.github/workflows/validate-marketplace.yml`
   - Structure and consistency checks for marketplace metadata and changed
     skills.
-- `.github/workflows/notify-plugin-updates.yml`
-  - Post-merge notification flow for plugin and pi-package changes pushed to
-    `main`, rendered in separate Plugin items and Pi items Slack sections.
 - `.github/workflows/validate-website.yml`
   - Website build check for changes under `website/**`.
 
@@ -79,11 +76,11 @@
      directory/manifest consistency, version sync, presence of skills, and the
      `SKILL.md` size budget.
    - `Validate Website` runs a clean website install plus `npm run build`.
-6. Post-merge notification
-   - Pushes to `main` that touch `plugins/**` or `pi-packages/**` trigger Slack
-     update messages.
-   - Plugin changes render under a dedicated `Plugin items` section.
-   - Pi package changes render under a dedicated `Pi items` section.
+6. Post-merge announcement
+   - Nothing posts per push. Courage includes merged plugin and Pi package
+     changes in its daily tooling digest in `#ask-tech-team`, with what
+     engineers need to do (for example reinstall a plugin or run
+     `pi update --extensions`).
 
 ## Useful References
 
