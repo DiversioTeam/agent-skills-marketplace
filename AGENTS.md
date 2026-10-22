@@ -106,9 +106,6 @@ git diff -- AGENTS.md CLAUDE.md README.md CONTRIBUTING.md docs .claude-plugin pl
 - `pi-packages/<package>/` - pi-native packages with extensions, skills, and package READMEs
 - `scripts/validate-skills.sh` - local and CI `SKILL.md` size budget check
 - `.github/workflows/validate-marketplace.yml` - JSON, version, and structure CI
-- `.github/workflows/notify-plugin-updates.yml` - Slack notification on plugin
-  and pi-package changes pushed to `main`, with separate Plugin items and Pi
-  items sections
 
 ## Docs Index
 
