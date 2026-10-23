@@ -434,6 +434,35 @@ def cmd_install_shim(args: argparse.Namespace) -> int:
     on_path = str(target.parent) in os.environ.get("PATH", "").split(os.pathsep)
     if not on_path and not args.quiet:
         print(f"Add {target.parent} to PATH so local-ci can run `agent-session check`.")
+def cmd_render_export(args: argparse.Namespace) -> int:
+    """Render Pi-format session exports (Courage's conversations) for a repo, branch, and HEAD, without discovery.
+
+    Prints {"names": [...], "files": [...]} as JSON. The caller uploads the pages; Courage redacts them again first.
+    """
+    context = RepoContext(root=Path("."), branch=args.branch, repo_slug=args.repo_slug, pr=args.pr, head=args.head,
+                          base=args.base or "", commits=args.commit or [])
+    units = [pi_sessions.parse_session(Path(file), context, harness=args.harness, title=f"{args.harness} conversation {index + 1}"
+                                       if len(args.file) > 1 else f"{args.harness} conversation") for index, file in enumerate(args.file)]
+    units = [unit for unit in units if unit.turns]
+    if not units:
+        print(json.dumps({"names": [], "files": []}))
+        return 1
+    now = datetime.now(timezone.utc)
+    expires = (now + timedelta(days=args.retention_days)).strftime("%Y-%m-%d")
+    generated = now.strftime("%Y-%m-%d %H:%M UTC")
+    pages, _ = build_pages(context, units, Redactor(), expires, generated)
+    names = publisher.build_names(context.repo_name, context.branch, len(pages), context.head, now)
+    pages, _ = build_pages(context, units, Redactor(), expires, generated, names)
+    out = Path(args.out).expanduser()
+    out.mkdir(parents=True, exist_ok=True)
+    files = []
+    for name, html_text in zip(names, pages):
+        (out / name).write_text(html_text, encoding="utf-8")
+        files.append(str(out / name))
+    print(json.dumps({"names": names, "files": files}))
+    return 0
+
+
 def cmd_install_codex_hook(args: argparse.Namespace) -> int:
     """Add the PR guard to Codex's hooks.json (Codex asks the developer to trust it on next start). Idempotent."""
     home = Path(args.codex_home or os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
@@ -543,6 +572,20 @@ def parser() -> argparse.ArgumentParser:
     body_check = commands.add_parser("check-body", help="Exit 1 unless the body has a session link or a declaration.")
     body_check.add_argument("body_file")
     body_check.set_defaults(run=cmd_check_body)
+
+    export = commands.add_parser("render-export", help="Render Pi-format conversation exports (Courage) for a repo, branch, and HEAD.")
+    export.add_argument("--file", action="append", required=True)
+    export.add_argument("--harness", default="Courage")
+    export.add_argument("--repo-slug", required=True)
+    export.add_argument("--branch", required=True)
+    export.add_argument("--head", required=True)
+    export.add_argument("--base")
+    export.add_argument("--commit", action="append")
+    export.add_argument("--pr", type=int)
+    export.add_argument("--out", required=True)
+    export.add_argument("--retention-days", type=int, default=DEFAULT_RETENTION_DAYS)
+    export.set_defaults(run=cmd_render_export)
+
     codex_hook = commands.add_parser("install-codex-hook", help="Add the PR guard to Codex's hooks.json.")
     codex_hook.add_argument("--codex-home", help="Codex's home (default: $CODEX_HOME or ~/.codex).")
     codex_hook.add_argument("--bin-dir", default="~/.local/bin", help="Where the agent-session command goes.")

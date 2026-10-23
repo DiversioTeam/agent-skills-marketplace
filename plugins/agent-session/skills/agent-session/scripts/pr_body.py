@@ -24,8 +24,21 @@ def section(links: list[tuple[str, str]], note: str = "") -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def upsert(body: str, new_section: str) -> str:
-    """Replace an existing Agent sessions section, or append one at the end."""
-    if _SECTION.search(body):
-        return _SECTION.sub(lambda _match: new_section + "\n", body, count=1).rstrip() + "\n"
-    return f"{body.rstrip()}\n\n{new_section}" if body.strip() else new_section
+# Each source owns its own lines: Courage's publish keeps the developer's link and the developer's `share` keeps Courage's.
+COURAGE_LABEL = "Courage conversation transcript"
+_LINK_LINE = re.compile(r"^- \[(?P<label>[^\]]+)\]\(https://internal-share\.diversio\.com/session-[^)]+\)\s*$", re.MULTILINE)
+
+
+def upsert(body: str, new_section: str, keep_labels: tuple[str, ...] = (COURAGE_LABEL,)) -> str:
+    """Replace an existing Agent sessions section, or append one at the end. Link lines from other sources (labels
+    starting with one of `keep_labels`) in the old section are carried into the new one."""
+    match = _SECTION.search(body)
+    if not match:
+        return f"{body.rstrip()}\n\n{new_section}" if body.strip() else new_section
+    kept = [line.group(0) for line in _LINK_LINE.finditer(match.group(0)) if line.group("label").startswith(keep_labels)
+            and line.group(0) not in new_section]
+    if kept:
+        lines = new_section.splitlines()
+        position = max((index for index, line in enumerate(lines) if line.startswith("- ")), default=1) + 1
+        new_section = "\n".join([*lines[:position], *kept, *lines[position:]]) + "\n"
+    return _SECTION.sub(lambda _match: new_section + "\n", body, count=1).rstrip() + "\n"
