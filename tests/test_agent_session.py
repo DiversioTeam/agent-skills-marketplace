@@ -560,6 +560,41 @@ class LittlePersonFindingsTests(unittest.TestCase):
             self.assertEqual(redaction.withheld_reason("Bash", {"command": command}), "credential file", command)
         for command in ("git status", "pytest tests/test_secret_rotation.py -q", "cat README.md"):
             self.assertIsNone(redaction.withheld_reason("Bash", {"command": command}), command)
+class PiSlicingTests(unittest.TestCase):
+    def test_pi_lead_keeps_only_the_subagent_for_this_branch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "--elsewhere--"
+            artifacts = folder / "subagent-artifacts"
+            artifacts.mkdir(parents=True)
+            message = lambda entry_id, parent, role, content, **extra: {"type": "message", "id": entry_id, "parentId": parent,
+                                                                       "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
+            entries = [
+                {"type": "session", "version": 3, "id": "lead-1", "timestamp": "2026-10-23T10:00:00Z", "cwd": "/elsewhere"},
+                message("e1", None, "user", "Do the transcripts work and the unrelated cleanup"),
+                message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"agent": "delegate", "task": "transcripts"}}]),
+                message("e3", "e2", "toolResult", [{"type": "text", "text": "run run-good finished"}], toolCallId="c1", toolName="subagent"),
+                message("e4", "e3", "assistant", [{"type": "toolCall", "id": "c2", "name": "subagent", "arguments": {"agent": "delegate", "task": "cleanup secret-cleanup"}}]),
+                message("e5", "e4", "toolResult", [{"type": "text", "text": "run run-other finished"}], toolCallId="c2", toolName="subagent"),
+                message("e6", "e5", "user", "Unrelated question about lunch"),
+            ]
+            lead = folder / "2026-10-23T10-00-00-000Z_lead-1.jsonl"
+            lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n", encoding="utf-8")
+            for run_id, text in (("run-good", "Working on feature/demo-transcripts"), ("run-other", "Cleaning up secret-cleanup")):
+                transcript = artifacts / f"{run_id}_delegate_transcript.jsonl"
+                transcript.write_text(json.dumps({"recordType": "message", "timestamp": "2026-10-23T10:01:00Z",
+                                                  "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n")
+                (artifacts / f"{run_id}_delegate_meta.json").write_text(json.dumps({"runId": run_id, "parentSessionId": "lead-1", "agent": "delegate",
+                                                                                    "transcriptPath": str(transcript)}))
+            self.assertEqual(pi_sessions.find_sessions(demo_context(), Path(directory)), [lead])
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([turn.text for turn in unit.turns], ["Do the transcripts work and the unrelated cleanup"])
+        calls = [item.tool for turn in unit.turns for item in turn.items if item.tool]
+        self.assertEqual([call.links_to for call in calls], ["run-good"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Working on feature/demo-transcripts", pages[0])
+        self.assertNotIn("secret-cleanup", pages[0])
+        self.assertNotIn("lunch", pages[0])
 
 
 class PrBodyAndHookTests(unittest.TestCase):

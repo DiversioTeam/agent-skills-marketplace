@@ -72,11 +72,12 @@ def _active_path(entries: list[dict]) -> tuple[list[dict], int]:
     return path, len(tree) - len(path)
 
 
-def parse_session(path: Path, context: RepoContext) -> Unit:
-    entries = _entries(path)
+def parse_session(path: Path, context: RepoContext, entries: list[dict] | None = None, kind: str = "session", title: str = "") -> Unit:
+    """A Pi session file, or (with `entries`) a pi-subagents child transcript already converted to entries."""
+    entries = _entries(path) if entries is None else entries
     header = next((entry for entry in entries if entry.get("type") == "session"), {})
     session_id = str(header.get("id") or path.stem)
-    unit = Unit(id=path.stem, harness=HARNESS, kind="session", title=f"Pi session {session_id[:8]}", session_id=session_id,
+    unit = Unit(id=path.stem, harness=HARNESS, kind=kind, title=title or f"Pi session {session_id[:8]}", session_id=session_id,  # type: ignore[arg-type]
                 path=str(path), cwd=str(header.get("cwd", "")))
     active, abandoned = _active_path(entries)
     markers = context.evidence_pattern()
@@ -151,6 +152,46 @@ def parse_session(path: Path, context: RepoContext) -> Unit:
     return unit
 
 
+def _child_entries(transcript: Path) -> list[dict]:
+    """A pi-subagents transcript (recordType "message" lines with a pi-ai message) as Pi session entries."""
+    entries: list[dict] = []
+    for record in _entries(transcript):
+        message = record.get("message")
+        if record.get("recordType") != "message" or not isinstance(message, dict):
+            continue
+        entry_id = f"child-{len(entries)}"
+        entries.append({"type": "message", "id": entry_id, "parentId": entries[-1]["id"] if entries else None,
+                        "timestamp": str(record.get("timestamp", "")), "message": message})
+    return entries
+
+
+def load_session(path: Path, context: RepoContext) -> Unit:
+    """A Pi session with its pi-subagents children (subagent-artifacts/<run>_<agent>_meta.json naming this session as
+    the parent), nested at the call whose result names their run id, or listed after the session."""
+    unit = parse_session(path, context)
+    calls = [item.tool for turn in unit.turns for item in turn.items if item.tool]
+    for meta_path in sorted((path.parent / "subagent-artifacts").glob("*_meta.json")):
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(meta, dict) or str(meta.get("parentSessionId", "")) != unit.session_id:
+            continue
+        run_id = str(meta.get("runId", ""))
+        transcript = Path(str(meta.get("transcriptPath") or meta_path.with_name(meta_path.name.replace("_meta.json", "_transcript.jsonl"))))
+        if not run_id or not transcript.exists():
+            continue
+        child = parse_session(transcript, context, _child_entries(transcript), "subagent", f"Pi subagent: {meta.get('agent') or run_id[:8]}")
+        child.worker_key = run_id
+        spawn = next((call for call in calls if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
+        if spawn:
+            spawn.links_to = run_id
+            spawn.subagent = child
+        else:
+            unit.teammates.append(child)
+    return unit
+
+
 def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
     """Session files modified since the branch started that ran in a worktree on the branch or mention it or the PR."""
     root = root or sessions_root()
@@ -172,4 +213,18 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
                     found.append(path)
         except (OSError, json.JSONDecodeError):
             continue
+    # A lead whose only tie to the branch is a pi-subagents child: the child's transcript names the work.
+    if pattern:
+        for meta_path in root.glob("*/subagent-artifacts/*_meta.json"):
+            transcript = meta_path.with_name(meta_path.name.replace("_meta.json", "_transcript.jsonl"))
+            try:
+                if transcript.stat().st_mtime < context.since:
+                    continue
+                parent = str(json.loads(meta_path.read_text(encoding="utf-8")).get("parentSessionId", ""))
+                with transcript.open(encoding="utf-8", errors="replace") as handle:
+                    matched = any(pattern.search(line) for line in handle)
+            except (OSError, json.JSONDecodeError, AttributeError):
+                continue
+            if matched and parent:
+                found.extend(path for path in meta_path.parent.parent.glob(f"*_{parent}.jsonl") if path not in found)
     return sorted(found, key=lambda candidate: candidate.stat().st_mtime)

@@ -44,3 +44,10 @@ test('registers a tool_call guard for bash only', async () => {
   const result = await handlers.tool_call({ toolName: 'bash', input: { command: "gh pr create --repo DiversioTeam/demo --body x" } }, { cwd: '/tmp' });
   assert.equal(result?.block, true);
 });
+
+test('installs the shim through the skill CLI', () => {
+  const calls = [];
+  extension.installShim('/m/plugins/agent-session/skills/agent-session/scripts/check_pr_hook.py', (command, args) => { calls.push([command, ...args]); return { status: 0 }; });
+  assert.deepEqual(calls, [['python3', '/m/plugins/agent-session/skills/agent-session/scripts/agent_session.py', 'install-shim', '--quiet']]);
+  extension.installShim(undefined, () => { throw new Error('should not run'); });
+});

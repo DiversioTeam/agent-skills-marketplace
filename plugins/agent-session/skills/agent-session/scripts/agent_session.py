@@ -88,11 +88,13 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
     for path in pi_paths:
         if path.stem in excluded or path.stem.split("_")[-1] in excluded:
             continue
-        unit = pi_sessions.parse_session(path, context)
-        # A Pi session that ran in a worktree on the branch is about the branch; others keep their matching turns.
-        on_branch = any(evidence.startswith("ran in a worktree") for evidence in unit.evidence)
-        _select_turns(unit, context, on_branch or unit.id in whole or unit.session_id in whole)
-        if unit.turns:
+        unit = pi_sessions.load_session(path, context)
+        # Pi records no branch per message: a session that ran in a worktree on the branch is the work, whole.
+        if any(evidence.startswith("ran in a worktree") for evidence in unit.evidence):
+            for turn in unit.turns:
+                turn.branch = context.branch
+        _select_turns(unit, context, unit.id in whole or unit.session_id in whole)
+        if unit.turns or unit.teammates:
             units.append(unit)
     return units
 

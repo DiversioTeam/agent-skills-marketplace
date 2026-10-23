@@ -35,8 +35,15 @@ export function decide(command: string, cwd: string, hook: string | undefined, r
   return undefined;
 }
 
+// Keep the `agent-session` command (local-ci's step) on PATH and pointing at this checkout's CLI.
+export function installShim(hook: string | undefined, run = spawnSync): void {
+  if (!hook) return;
+  run("python3", [join(dirname(hook), "agent_session.py"), "install-shim", "--quiet"], { encoding: "utf8", timeout: 15_000 });
+}
+
 export default function agentSession(pi: ExtensionAPI) {
   const hook = findHook();
+  installShim(hook);
   pi.on("tool_call", async (event, context) => {
     if (event.toolName !== "bash") return undefined;
     const command = (event.input as { command?: unknown } | undefined)?.command;
