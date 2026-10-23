@@ -16,7 +16,6 @@ import os
 import re
 from pathlib import Path
 
-from provenance import Provenance
 from redaction import is_credential_path, withheld_reason
 from repo_context import RepoContext, is_recent, parse_repo_slug
 from session_model import Item, Tokens, ToolCall, Turn, Unit
@@ -32,6 +31,13 @@ _CONTEXT_BLOCK = re.compile(r"^\s*<(?P<tag>" + "|".join(re.escape(tag) for tag i
 _NESTED_COMMAND = re.compile(r"""\b(?:cmd|command)\s*["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)""")
 _PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (\S+)", re.MULTILINE)
 _TERMINAL = re.compile(r"session ID:?\s*(\d+)", re.IGNORECASE)
+# A terminal session id however the call spells it: {"session_id": 1}, {session_id: 1}, "session_id" : "1".
+_TERMINAL_REF = re.compile(r"""session_id["']?\s*:\s*["']?(\d+)""")
+
+
+def _terminal_refs(arguments: dict) -> list[str]:
+    texts = [json.dumps(arguments, default=str), *(value for value in arguments.values() if isinstance(value, str))]
+    return [handle for text in texts for handle in _TERMINAL_REF.findall(text)]
 _CALLS = {"function_call", "custom_tool_call", "local_shell_call", "tool_search_call"}
 _OUTPUTS = {"function_call_output", "custom_tool_call_output", "local_shell_call_output", "tool_search_output"}
 
@@ -147,7 +153,7 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
     markers = context.evidence_pattern()
     pending: dict[str, ToolCall] = {}
     # A long-running exec_command leaves a terminal session that write_stdin polls; the polls inherit its withholding.
-    terminals = Provenance()
+    terminals: dict[str, str | None] = {}
     turn: Turn | None = None
     usage: dict = {}
     # Calls that started or messaged a subagent thread (SubAgentActivity items), by call id.
@@ -192,16 +198,16 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
                 current(timestamp).items.append(Item(kind="assistant", text=text, timestamp=timestamp))
             elif item_type in _CALLS:
                 call = _call(payload, timestamp)
-                call.withheld = call.withheld or terminals.inherited(call)
+                polled = [terminals[handle] for handle in _terminal_refs(call.input) if handle in terminals]
+                call.withheld = call.withheld or next((reason for reason in polled if reason), None)
                 pending[call.id] = call
                 current(timestamp).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
             elif item_type in _OUTPUTS:
                 call = pending.get(str(payload.get("call_id", "")))
                 if call:
                     call.output = _output(payload.get("output", payload.get("tools", "")))
-                    terminals.record([f'"session_id": {handle}' for handle in _TERMINAL.findall(call.output)]
-                                     + [f"session_id: {handle}" for handle in _TERMINAL.findall(call.output)]
-                                     + [f"session_id:{handle}" for handle in _TERMINAL.findall(call.output)], call.withheld)
+                    for handle in _TERMINAL.findall(call.output):
+                        terminals[handle] = call.withheld
         if markers and turn is not None and markers.search(json.dumps(record)):
             turn.evidence = True
     for call in pending.values():

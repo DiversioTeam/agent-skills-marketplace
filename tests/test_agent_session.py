@@ -806,11 +806,15 @@ class CodexReviewFindingsTests(unittest.TestCase):
                 _codex("response_item", {"type": "function_call_output", "call_id": "x2", "output": "staging-" + "secret-" + "line"}, 5),
                 _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "x3", "input": "await tools.write_stdin({session_id: 12345, chars: ''})"}, 6),
                 _codex("response_item", {"type": "custom_tool_call_output", "call_id": "x3", "output": "staging-" + "secret-" + "line2"}, 7),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "x4", "input": 'await tools.write_stdin({"session_id":12345,"chars":""})'}, 8),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "x4", "output": "staging-" + "secret-" + "line3"}, 9),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "x5", "input": "await tools.write_stdin({session_id : '12345', chars: ''})"}, 10),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "x5", "output": "staging-" + "secret-" + "line4"}, 11),
             ]
             path = day / "rollout-2026-10-23T11-00-00-t.jsonl"
             path.write_text("\n".join(json.dumps(record) for record in records) + "\n")
             unit = codex_sessions.load_session(path, demo_context(), Path(directory))
-        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 3)
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 5)
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn("staging-secret-line", pages[0])
 
