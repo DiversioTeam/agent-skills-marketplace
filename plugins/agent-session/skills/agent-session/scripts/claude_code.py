@@ -218,8 +218,8 @@ def _meta(path: Path) -> dict[str, object]:
 def load_session(main_path: Path, context: RepoContext) -> Unit:
     """A session's main thread with its subagents nested at their call sites and its teammates attached."""
     unit = parse_unit(main_path, "session", f"Session {main_path.stem[:8]}", context)
-    calls = {item.tool.id: item.tool for turn in unit.turns for item in turn.items if item.tool}
     subagent_dir = main_path.with_suffix("") / "subagents"
+    subagents: list[Unit] = []
     for path in sorted(subagent_dir.glob("agent-*.jsonl")) if subagent_dir.is_dir() else []:
         meta = _meta(path)
         tool_use_id = str(meta.get("toolUseId", ""))
@@ -232,18 +232,17 @@ def load_session(main_path: Path, context: RepoContext) -> Unit:
         title = f"Subagent: {meta.get('description') or meta.get('agentType') or path.stem}"
         subagent = parse_unit(path, "subagent", title, context, tool_use_id)
         subagent.worker_key = tool_use_id
-        if tool_use_id in calls:
-            calls[tool_use_id].subagent = subagent
+        subagents.append(subagent)
+    # Every Agent call in the session, its teammates and its subagents (a subagent's own Agent calls start nested
+    # subagents in the same folder), so each subagent attaches to its caller wherever that is.
+    calls = {item.tool.id: item.tool for owner in [unit, *unit.teammates, *subagents] for turn in owner.turns
+             for item in turn.items if item.tool}
+    for subagent in subagents:
+        caller = calls.get(subagent.parent_tool_use_id)
+        if caller is not None and caller.subagent is None:
+            caller.subagent = subagent
         else:
             unit.teammates.append(subagent)
-    # Nested subagents (a subagent's own Agent calls) live in the same folder; attach them to their caller.
-    nested = {sub.parent_tool_use_id: sub for sub in unit.teammates if sub.kind == "subagent"}
-    for owner in [unit, *unit.teammates]:
-        for turn in owner.turns:
-            for item in turn.items:
-                if item.tool and item.tool.id in nested and item.tool.subagent is None:
-                    item.tool.subagent = nested.pop(item.tool.id)
-    unit.teammates = [sub for sub in unit.teammates if sub.kind == "teammate" or sub.parent_tool_use_id in nested]
     return unit
 
 

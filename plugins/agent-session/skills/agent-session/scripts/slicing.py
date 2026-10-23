@@ -50,9 +50,13 @@ def slice_to_work(unit: Unit, context: RepoContext, whole: bool) -> None:
         if context.branch and turn.branch == context.branch:
             kept.append(turn)
             continue
+        # A turn that names the branch or PR itself is part of the work: it stays whole.
+        if turn.evidence:
+            kept.append(turn)
+            continue
         inbound = turn.kind == "teammate" and turn.sender in keys
         items = _related_items(turn, keys, pattern)
-        if items or inbound or turn.evidence:
+        if items or inbound:
             sliced = sliced or len(items) < len(turn.items)
             turn.items = items
             kept.append(turn)

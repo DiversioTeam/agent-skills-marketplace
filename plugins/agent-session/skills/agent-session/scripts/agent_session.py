@@ -203,14 +203,19 @@ def _labels(links: list[str]) -> list[str]:
     return ["Agent session transcript" if len(links) == 1 else f"Agent session transcript, part {index + 1}" for index in range(len(links))]
 
 
+class PrLookupError(RuntimeError):
+    """gh could not say whether the branch has an open PR."""
+
+
 def _find_pr(context: RepoContext) -> int | None:
-    """The open PR for this branch, through gh; None when there is none or gh cannot tell."""
+    """The open PR for this branch, or None when there is none. Raises PrLookupError when gh cannot tell, so nothing
+    is published or cleaned up on a guess."""
     if not context.repo_slug or not context.branch:
         return None
-    completed = subprocess.run(["gh", "pr", "view", context.branch, "-R", context.repo_slug, "--json", "number,state", "-q",
-                                'select(.state == "OPEN") | .number'], capture_output=True, text=True, check=False, timeout=60)
-    value = completed.stdout.strip()
-    return int(value) if completed.returncode == 0 and value.isdigit() else None
+    pr, error = check.open_pr(context.repo_slug, context.branch)
+    if error:
+        raise PrLookupError(error)
+    return pr[0] if pr else None
 
 
 def _update_pr_body(context: RepoContext, pr: int, new_section: str) -> bool:
@@ -234,8 +239,14 @@ def _update_pr_body(context: RepoContext, pr: int, new_section: str) -> bool:
 
 
 def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
-    """Upload a rendered preview, record it, link it in the PR, and delete the uploads it supersedes."""
-    previous = store.latest(context.repo_slug, context.branch)
+    """Upload a rendered preview, record it, link it in the PR, and delete the uploads it supersedes. Supersedes means
+    the last linked publish and any publishes since whose linking failed; a failed link deletes nothing."""
+    try:
+        pr = context.pr or _find_pr(context)
+    except PrLookupError as error:
+        print(f"Could not read this branch's PR ({error}); nothing was published. Fix gh auth, then run share again.")
+        return 1
+    stale = store.unlinked_since_last_link(context.repo_slug, context.branch)
     links = []
     try:
         for entry in manifest["files"]:
@@ -250,19 +261,21 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
     names = [entry["name"] for entry in manifest["files"]]
     manifest["links"] = links
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    pr = context.pr or _find_pr(context)
-    store.record({"repo": context.repo_slug, "branch": context.branch, "head": manifest["head"], "base": manifest["base"],
-                  "commits": manifest["commits"], "names": names, "links": links, "pr": pr, "choices": manifest.get("choices", {}),
-                  "published_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    entry = {"repo": context.repo_slug, "branch": context.branch, "head": manifest["head"], "base": manifest["base"],
+             "commits": manifest["commits"], "names": names, "links": links, "pr": pr, "choices": manifest.get("choices", {}),
+             "published_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     for link in links:
         print(f"Published: {link}")
     section = pr_body.section(list(zip(_labels(links), links)))
     if pr and not _update_pr_body(context, pr, section):
-        # The PR still links the previous page, so keep it; local-ci will report the new one as unlinked.
+        # The PR still links the previous page, so keep it; local-ci will report the new one as unlinked, and the next
+        # successful share deletes this upload along with the old one.
+        store.record({**entry, "linked": False})
         return 1
+    store.record({**entry, "linked": True})
     if not pr:
         print("\nNo open PR yet. Put this section in the PR body (or run share again after opening it):\n\n" + section)
-    for name in (previous or {}).get("names") or []:
+    for name in stale:
         if name not in names:
             try:
                 gone = publisher.delete(str(name))
@@ -289,7 +302,11 @@ def cmd_publish(args: argparse.Namespace) -> int:
 def cmd_share(args: argparse.Namespace) -> int:
     """Render, publish, and link in one step. The first publish on a branch waits for the developer's yes."""
     context = _context(args)
-    context.pr = context.pr or _find_pr(context)
+    try:
+        context.pr = context.pr or _find_pr(context)
+    except PrLookupError as error:
+        print(f"Could not read this branch's PR ({error}); nothing was published. Fix gh auth, then run share again.")
+        return 1
     rendered = _render(args, context)
     if not rendered:
         return 1
@@ -309,7 +326,11 @@ def cmd_declare_none(args: argparse.Namespace) -> int:
     if len(reason) < 3:
         print("Give a reason, for example: declare-none 'hand-edited a config value'.")
         return 1
-    pr = context.pr or _find_pr(context)
+    try:
+        pr = context.pr or _find_pr(context)
+    except PrLookupError as error:
+        print(f"Could not read this branch's PR ({error}). Fix gh auth, then run declare-none again.")
+        return 1
     store.record({"repo": context.repo_slug, "branch": context.branch, "head": context.head, "none": reason, "pr": pr,
                   "published_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     section = f"{pr_body.SECTION_HEADING}\n\nNo agent session: {reason}\n"

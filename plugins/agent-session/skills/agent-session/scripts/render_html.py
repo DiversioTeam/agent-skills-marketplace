@@ -19,6 +19,8 @@ from repo_context import RepoContext
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 MAX_PART_BYTES = 20 * 1024 * 1024
+# Room in each part for the page around the sections: style, header, table of contents.
+PAGE_OVERHEAD_BYTES = 64 * 1024
 LIMITS = {"prompt": 20_000, "assistant": 20_000, "input": 3_000, "output": 4_000, "read": 2_000}
 GENERATOR = "agent-session/1"
 
@@ -307,20 +309,37 @@ details.subagent{margin:6px 0 10px 12px;border-left:3px solid var(--line);paddin
 """
 
 
+def _split_turn(turn: Turn, measure: Page, budget: int) -> list[Turn]:
+    """A turn too large for one part, as consecutive copies holding slices of its items (the prompt stays on the first)."""
+    pieces: list[list[Item]] = [[]]
+    size = len(measure.turn(replace(turn, items=[]), 0, True).encode())
+    for item in turn.items:
+        length = len(measure.item(item, 0).encode())
+        if pieces[-1] and size + length > budget:
+            pieces.append([])
+            size = 0
+        pieces[-1].append(item)
+        size += length
+    return [replace(turn, items=items, text=turn.text if index == 0 else "", kind=turn.kind if index == 0 else "agent",
+                    sender=turn.sender if index == 0 else f"turn {turn.number}, continued") for index, items in enumerate(pieces)]
+
+
 def _split(unit: Unit, page: Page) -> list[Unit]:
-    """One unit, or consecutive slices of its turns that each fit in a part. A single huge turn still stands alone."""
+    """One unit, or consecutive slices of its turns (a single huge turn split by its items) that each fit in a part."""
     measure = Page(context=page.context, redactor=Redactor(known_secrets=page.redactor.known_secrets), expires="", generated="")
-    if len(measure.unit(unit).encode()) <= MAX_PART_BYTES:
+    budget = MAX_PART_BYTES - PAGE_OVERHEAD_BYTES
+    if len(measure.unit(unit).encode()) <= budget:
         return [unit]
     slices: list[list[Turn]] = [[]]
     size = 0
-    for turn in unit.turns:
-        length = len(measure.turn(turn, 0, True).encode())
-        if slices[-1] and size + length > MAX_PART_BYTES:
-            slices.append([])
-            size = 0
-        slices[-1].append(turn)
-        size += length
+    for whole in unit.turns:
+        for turn in ([whole] if len(measure.turn(whole, 0, True).encode()) <= budget else _split_turn(whole, measure, budget)):
+            length = len(measure.turn(turn, 0, True).encode())
+            if slices[-1] and size + length > budget:
+                slices.append([])
+                size = 0
+            slices[-1].append(turn)
+            size += length
     return [replace(unit, id=f"{unit.id}-{index + 1}", turns=turns, title=f"{unit.title} ({index + 1} of {len(slices)})",
                     omitted_turns=unit.omitted_turns if index == 0 else 0) for index, turns in enumerate(slices)]
 
@@ -344,7 +363,7 @@ def build_pages(context: RepoContext, units: list[Unit], redactor: Redactor, exp
     size = 0
     for unit, section in sections:
         length = len(section.encode())
-        if parts[-1] and size + length > MAX_PART_BYTES:
+        if parts[-1] and size + length > MAX_PART_BYTES - PAGE_OVERHEAD_BYTES:
             parts.append([])
             size = 0
         parts[-1].append((unit, section))

@@ -214,7 +214,7 @@ _CREDENTIAL_FILES = {
 
 
 # `secrets-prod.json`, `credentials.local`: data files named for credentials, but not source code about them.
-_CREDENTIAL_PREFIXES = ("secrets", "credentials", ".secrets", "service-account", "service_account")
+_CREDENTIAL_PREFIXES = ("secrets", "credentials", ".secrets", "service-account", "service_account", "cookies")
 _SOURCE_SUFFIXES = (".py", ".pyi", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".rb", ".go", ".rs", ".java", ".kt", ".md", ".html", ".css")
 
 
@@ -267,7 +267,8 @@ def _path_tokens(command: str) -> list[str]:
     for word in words:
         for part in re.split(r"[;&|<>()=,\s]+", word):
             part = part.strip("'\"`")
-            if "/" in part or part.startswith(".") or "." in part:
+            # Bare operands count too: `cat secrets` reads a credential file as surely as `cat ./secrets`.
+            if part and not part.startswith("-"):
                 tokens.append(part)
     return tokens
 

@@ -207,14 +207,16 @@ class ClaudeCodeTests(unittest.TestCase):
         render_html.MAX_PART_BYTES = 1
         try:
             # One session of three turns plus its teammate: each turn and the teammate land in their own part.
-            names = publish.build_names("demo", "feature/demo-transcripts", 4, HEAD)
+            count = len(render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")[0])
+            unit = claude_code.load_session(self.main, demo_context())
+            names = publish.build_names("demo", "feature/demo-transcripts", count, HEAD)
             pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now", names)
         finally:
             render_html.MAX_PART_BYTES = original
-        self.assertEqual(len(pages), 4)
-        self.assertIn(f'href="{names[3]}"', pages[0])
-        self.assertIn("Session 11111111 (1 of 3)", pages[0])
-        self.assertIn("Teammate: renderer", pages[3])
+        self.assertGreaterEqual(len(pages), 4)
+        self.assertIn(f'href="{names[-1]}"', pages[0])
+        self.assertIn("Session 11111111 (1 of", pages[0])
+        self.assertIn("Teammate: renderer", pages[-1])
 
     def test_titles_and_senders_are_redacted(self):
         unit = claude_code.load_session(self.main, demo_context())
@@ -425,6 +427,77 @@ class CheckTests(unittest.TestCase):
             self.assertIn("share", completed.stdout)
 
 
+class LittlePersonFindingsTests(unittest.TestCase):
+    """Regressions for little-person's #116 findings."""
+
+    def write(self, directory, name, records):
+        path = Path(directory) / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+        return path
+
+    def test_a_turn_that_names_the_pr_keeps_its_ordinary_work(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = self.write(directory, "-p/33333333-0000-0000-0000-000000000000.jsonl", [
+                _record("user", "Please review https://github.com/DiversioTeam/demo/pull/7", "2026-10-23T10:00:00Z", branch="main", origin={"kind": "human"}),
+                _record("assistant", [{"type": "text", "text": "Looking at the diff."}], "2026-10-23T10:00:01Z", branch="main"),
+                _record("assistant", [{"type": "tool_use", "id": "d1", "name": "Bash", "input": {"command": "git diff"}}], "2026-10-23T10:00:02Z", branch="main"),
+                _record("user", [{"type": "tool_result", "tool_use_id": "d1", "content": "diff --git a/app.py"}], "2026-10-23T10:00:03Z", branch="main"),
+            ])
+            unit = claude_code.load_session(main, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([item.kind for item in unit.turns[0].items], ["assistant", "tool"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("diff --git a/app.py", pages[0])
+
+    def test_nested_subagents_attach_through_their_parent_subagent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = self.write(directory, "-p/44444444-0000-0000-0000-000000000000.jsonl", [
+                _record("user", "Work on it", "2026-10-23T10:00:00Z", origin={"kind": "human"}),
+                _record("assistant", [{"type": "tool_use", "id": "p1", "name": "Agent", "input": {"description": "parent", "prompt": "go"}}], "2026-10-23T10:00:01Z"),
+            ])
+            folder = Path(directory) / "-p" / "44444444-0000-0000-0000-000000000000" / "subagents"
+            self.write(folder, "agent-parent.jsonl", [
+                _record("user", "go", "2026-10-23T10:00:02Z"),
+                _record("assistant", [{"type": "tool_use", "id": "c1", "name": "Agent", "input": {"description": "child", "prompt": "dig"}}], "2026-10-23T10:00:03Z"),
+            ])
+            (folder / "agent-parent.meta.json").write_text(json.dumps({"toolUseId": "p1", "description": "parent"}))
+            self.write(folder, "agent-child.jsonl", [
+                _record("user", "dig", "2026-10-23T10:00:04Z", branch="main"),
+                _record("assistant", [{"type": "text", "text": "Grandchild finding"}], "2026-10-23T10:00:05Z", branch="main"),
+            ])
+            (folder / "agent-child.meta.json").write_text(json.dumps({"toolUseId": "c1", "description": "child"}))
+            unit = claude_code.load_session(main, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual(unit.teammates, [])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Subagent: child", pages[0])
+        self.assertIn("Grandchild finding", pages[0])
+
+    def test_one_huge_turn_splits_into_parts_that_fit(self):
+        records = [_record("user", "Run everything", "2026-10-23T10:00:00Z", origin={"kind": "human"})]
+        for index in range(400):
+            records.append(_record("assistant", [{"type": "tool_use", "id": f"t{index}", "name": "Bash", "input": {"command": f"echo {index}"}}], "2026-10-23T10:00:01Z"))
+            records.append(_record("user", [{"type": "tool_result", "tool_use_id": f"t{index}", "content": "x" * 3000}], "2026-10-23T10:00:02Z"))
+        with tempfile.TemporaryDirectory() as directory:
+            unit = claude_code.load_session(self.write(directory, "-p/55555555-0000-0000-0000-000000000000.jsonl", records), demo_context())
+        original = render_html.MAX_PART_BYTES
+        render_html.MAX_PART_BYTES = 400_000
+        try:
+            pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        finally:
+            render_html.MAX_PART_BYTES = original
+        self.assertGreater(len(pages), 2)
+        self.assertTrue(all(len(page.encode()) <= 400_000 for page in pages), [len(page.encode()) for page in pages])
+        self.assertIn("continued", pages[1])
+
+    def test_bare_credential_operands_are_withheld(self):
+        for command in ("cat secrets", "cat secrets-prod", "less service-account", "cat cookies", "head credentials"):
+            self.assertEqual(redaction.withheld_reason("Bash", {"command": command}), "credential file", command)
+        for command in ("git status", "pytest tests/test_secret_rotation.py -q", "cat README.md"):
+            self.assertIsNone(redaction.withheld_reason("Bash", {"command": command}), command)
+
+
 class PrBodyAndHookTests(unittest.TestCase):
     LINK = "https://internal-share.diversio.com/session-demo-feature-demo-20261023-a1b2c3.html"
 
@@ -552,6 +625,31 @@ class ShareTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(agent_session.main(["share", *self.args, "--reset-choices"]), 0)
         self.assertIn("Add the transcript feature", (Path(self.directory.name) / "out" / self.uploads[-1]).read_text(encoding="utf-8"))
+
+    def test_a_failed_pr_lookup_publishes_and_deletes_nothing(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes"]), 0)
+        uploads = list(self.uploads)
+        with self.mock.patch.object(agent_session, "_find_pr", side_effect=agent_session.PrLookupError("gh could not read the PR")), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(agent_session.main(["share", *self.args]), 1)
+        self.assertIn("nothing was published", out.getvalue())
+        self.assertEqual(self.uploads, uploads)
+        self.assertEqual(self.deleted, [])
+
+    def test_a_failed_link_keeps_cleanup_history_until_a_retry_links(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            agent_session.main(["share", *self.args, "--yes"])
+        first = self.uploads[-1]
+        with self.mock.patch.object(agent_session, "_update_pr_body", return_value=False), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 1)
+        second = self.uploads[-1]
+        self.assertEqual(self.deleted, [])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        self.assertEqual(sorted(self.deleted), sorted([first, second]))
 
     def test_declare_none_records_and_links(self):
         import contextlib, io
