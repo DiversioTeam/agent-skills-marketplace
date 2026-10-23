@@ -18,6 +18,7 @@ from pathlib import Path
 
 from redaction import is_credential_path, withheld_reason
 from repo_context import RepoContext, is_recent, parse_repo_slug
+from slicing import DELEGATED
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Codex"
@@ -297,5 +298,5 @@ def load_session(path: Path, context: RepoContext, root: Path | None = None) -> 
 
     for child, _owner in attached:
         if not child.evidence and works(child):
-            child.evidence.append("its subagent worked on the branch")
+            child.evidence.append(DELEGATED)
     return unit

@@ -447,10 +447,16 @@ def cmd_install_codex_hook(args: argparse.Namespace) -> int:
         return 1
     hooks = config.setdefault("hooks", {})
     entries = hooks.setdefault("PreToolUse", [])
+    cmd_install_shim(argparse.Namespace(bin_dir=args.bin_dir, quiet=True))
     if any(hook_entry.get("command") == command for entry in entries for hook_entry in entry.get("hooks", [])):
         print(f"The agent-session PR guard is already in {path}.")
         return 0
     entries.append({"hooks": [{"type": "command", "command": command, "timeout": 15}]})
+    # The `agent-session` command (local-ci's step) is installed now and refreshed at every session start.
+    shim = f"python3 {shlex.quote(str(Path(__file__).resolve()))} install-shim --quiet"
+    starts = hooks.setdefault("SessionStart", [])
+    if not any(hook_entry.get("command") == shim for entry in starts for hook_entry in entry.get("hooks", [])):
+        starts.append({"hooks": [{"type": "command", "command": shim, "timeout": 15}]})
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     print(f"Added the agent-session PR guard to {path}. Codex asks you to trust it the next time it starts.")
@@ -539,6 +545,7 @@ def parser() -> argparse.ArgumentParser:
     body_check.set_defaults(run=cmd_check_body)
     codex_hook = commands.add_parser("install-codex-hook", help="Add the PR guard to Codex's hooks.json.")
     codex_hook.add_argument("--codex-home", help="Codex's home (default: $CODEX_HOME or ~/.codex).")
+    codex_hook.add_argument("--bin-dir", default="~/.local/bin", help="Where the agent-session command goes.")
     codex_hook.set_defaults(run=cmd_install_codex_hook)
 
     return root

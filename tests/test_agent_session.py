@@ -674,9 +674,11 @@ class CodexTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "hooks.json").write_text(json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "x"}]}]}}))
             with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory]), 0)
-                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory]), 0)
+                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory, "--bin-dir", f"{directory}/bin"]), 0)
+                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory, "--bin-dir", f"{directory}/bin"]), 0)
             config = json.loads(Path(directory, "hooks.json").read_text())
+            self.assertTrue(os.access(Path(directory, "bin", "agent-session"), os.X_OK), "a fresh install gets the command")
+            self.assertEqual(len(config["hooks"]["SessionStart"]), 1)
         self.assertEqual(len(config["hooks"]["PreToolUse"]), 1)
         self.assertIn("check_pr_hook.py", config["hooks"]["PreToolUse"][0]["hooks"][0]["command"])
         self.assertIn("Stop", config["hooks"])
@@ -858,7 +860,12 @@ class CodexReviewFindingsTests(unittest.TestCase):
                            _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "k1", "arguments": "{}"}, 2),
                            _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "k1", "agent_thread_id": "child"}}, 3)])
             write("child", [_codex("session_meta", {"id": "child", "parent_thread_id": "main", "cwd": "/w", "git": git("main")}, 0),
-                            _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Delegating further"}]}, 1)])
+                            _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Delegating further"}]}, 1),
+                            _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "g1", "arguments": "{}"}, 2),
+                            _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "g1", "agent_thread_id": "grandchild"}}, 3),
+                            _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Unrelated child prompt secret-child-work"}]}, 4),
+                            _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "u1", "arguments": json.dumps({"cmd": "ls"})}, 5),
+                            _codex("response_item", {"type": "function_call_output", "call_id": "u1", "output": "secret-child-output"}, 6)])
             write("grandchild", [_codex("session_meta", {"id": "grandchild", "parent_thread_id": "child", "cwd": "/w", "git": git("feature/demo-transcripts")}, 0),
                                  _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Grandchild did the work"}]}, 1)])
             main = day / "rollout-2026-10-23T11-04-00-main.jsonl"
@@ -869,6 +876,8 @@ class CodexReviewFindingsTests(unittest.TestCase):
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertIn("Grandchild did the work", pages[0])
         self.assertIn("Delegate it", pages[0])
+        self.assertNotIn("secret-child-work", pages[0])
+        self.assertNotIn("secret-child-output", pages[0])
 
     def test_hook_keeps_argv_boundaries(self):
         import subprocess
