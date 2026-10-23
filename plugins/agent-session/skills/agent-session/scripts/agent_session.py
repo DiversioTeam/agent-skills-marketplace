@@ -118,8 +118,8 @@ def _apply_turn_choices(units: list[Unit], drop: set[int], include_output: set[i
             key = turn_key(unit, turn)
             include = turn.number in include_output or key in include_keys
             for item in turn.items:
-                if item.tool and item.tool.subagent:
-                    stack.append(item.tool.subagent)
+                if item.tool:
+                    stack.extend(item.tool.subagents)
                 if item.tool and include and item.tool.withheld == "prod or staging data access":
                     item.tool.withheld = None
             if include:

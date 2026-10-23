@@ -597,6 +597,75 @@ class PiSlicingTests(unittest.TestCase):
         self.assertNotIn("lunch", pages[0])
 
 
+class PiChildFindingsTests(unittest.TestCase):
+    """Regressions for little-person's #117 findings on pi-subagents children."""
+
+    def store(self, directory, lead_cwd, children):
+        folder = Path(directory) / "--lead--"
+        artifacts = folder / "subagent-artifacts"
+        artifacts.mkdir(parents=True)
+        message = lambda entry_id, parent, role, content, **extra: {"type": "message", "id": entry_id, "parentId": parent,
+                                                                   "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
+        entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": lead_cwd},
+                   message("e1", None, "user", "Run the workers"),
+                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": ["a", "b"]}}]),
+                   message("e3", "e2", "toolResult", [{"type": "text", "text": "run run-par finished; run run-unrelated finished"}], toolCallId="c1", toolName="subagent")]
+        lead = folder / "2026-10-23T10-00-00-000Z_lead-2.jsonl"
+        lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
+        for name, run_id, cwd, messages in children:
+            transcript = artifacts / f"{name}_transcript.jsonl"
+            transcript.write_text("\n".join(json.dumps({"recordType": "message", "cwd": cwd, "timestamp": "2026-10-23T10:01:00Z", "message": item})
+                                            for item in messages) + "\n")
+            (artifacts / f"{name}_meta.json").write_text(json.dumps({"runId": run_id, "parentSessionId": "lead-2", "agent": name.split("_")[1],
+                                                                     "transcriptPath": str(transcript)}))
+        return lead
+
+    def test_child_overflow_reads_inherit_withholding_without_details(self):
+        sentinel = "private-" + "overflow-" + "child"
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Check prod for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}]},
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "bash", "content": [{"type": "text", "text": "row 1\n[Output truncated. Full output: /tmp/pi-bash-private.log]"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k2", "name": "read", "arguments": {"path": "/tmp/pi-bash-private.log"}},
+                                              {"type": "toolCall", "id": "k3", "name": "bash", "arguments": {"command": "tail /tmp/pi-bash-private.log"}}]},
+            {"role": "toolResult", "toolCallId": "k2", "toolName": "read", "content": [{"type": "text", "text": sentinel}]},
+            {"role": "toolResult", "toolCallId": "k3", "toolName": "bash", "content": [{"type": "text", "text": sentinel + "-2"}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(sentinel, pages[0])
+
+    def test_parallel_children_of_one_call_all_render_and_unrelated_ones_are_filtered(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("First half of feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("Second half of feature/demo-transcripts")),
+                ("run-unrelated_cleaner", "run-unrelated", "/elsewhere", say("secret-unrelated cleanup")),
+            ])
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("First half", pages[0])
+        self.assertIn("Second half", pages[0])
+        self.assertNotIn("secret-unrelated", pages[0])
+
+    def test_a_child_running_in_the_worktree_finds_its_lead(self):
+        say = [{"role": "assistant", "content": [{"type": "text", "text": "Did the work"}]}]
+        for child_cwd, expected in (("/work/demo/backend", True), ("/work/demo-other", False)):
+            with tempfile.TemporaryDirectory() as directory:
+                lead = self.store(directory, "/elsewhere", [("run-par_worker", "run-par", child_cwd, say)])
+                context = demo_context()
+                context.worktree_branches = {"/work/demo": "feature/demo-transcripts"}
+                self.assertEqual(pi_sessions.find_sessions(context, Path(directory)), [lead] if expected else [], child_cwd)
+                unit = pi_sessions.load_session(lead, context)
+                child = unit.turns[0].items[0].tool.subagent
+                self.assertEqual(child.cwd, child_cwd)
+                self.assertEqual(bool(child.evidence), expected)
+
+
 class PrBodyAndHookTests(unittest.TestCase):
     LINK = "https://internal-share.diversio.com/session-demo-feature-demo-20261023-a1b2c3.html"
 

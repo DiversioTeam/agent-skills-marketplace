@@ -146,7 +146,7 @@ class Page:
         flags = " error" if call.is_error else ""
         badge = "<span class=\"badge err\">error</span>" if call.is_error else ""
         badge += "<span class=\"badge held\">withheld</span>" if css == "withheld" else ""
-        subagent = self.unit(call.subagent, depth + 1) if call.subagent else ""
+        subagent = "".join(self.unit(child, depth + 1) for child in call.subagents)
         summary = html.escape(self._summary(call))
         return (f"<details class=\"tool{flags}\"><summary><span class=\"tname\">{html.escape(call.name)}</span>"
                 f"<span class=\"targ\">{summary}</span>{badge}<span class=\"ts\">{_short_time(call.timestamp)}</span></summary>"
@@ -251,8 +251,8 @@ def _walk(unit: Unit):
     yield unit
     for turn in unit.turns:
         for item in turn.items:
-            if item.tool and item.tool.subagent:
-                yield from _walk(item.tool.subagent)
+            for child in item.tool.subagents if item.tool else []:
+                yield from _walk(child)
     for teammate in unit.teammates:
         yield from _walk(teammate)
 
@@ -267,8 +267,8 @@ def number_turns(units: list[Unit]) -> None:
             number += 1
             turn.number = number
             for item in turn.items:
-                if item.tool and item.tool.subagent:
-                    visit(item.tool.subagent)
+                for child in item.tool.subagents if item.tool else []:
+                    visit(child)
         for teammate in unit.teammates:
             visit(teammate)
 

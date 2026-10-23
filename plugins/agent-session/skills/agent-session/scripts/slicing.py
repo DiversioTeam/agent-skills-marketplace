@@ -14,7 +14,7 @@ from session_model import Item, Turn, Unit
 
 
 def nested_subagents(unit: Unit) -> list[Unit]:
-    return [item.tool.subagent for turn in unit.turns for item in turn.items if item.tool and item.tool.subagent]
+    return [subagent for turn in unit.turns for item in turn.items if item.tool for subagent in item.tool.subagents]
 
 
 def _related_items(turn: Turn, keys: set[str], pattern) -> list[Item]:
@@ -30,7 +30,11 @@ def _related_items(turn: Turn, keys: set[str], pattern) -> list[Item]:
             else:
                 pending_text.append(item)
             continue
-        if item.tool and item.tool.links_to and item.tool.links_to in keys:
+        tool = item.tool
+        if tool and ((tool.links_to and tool.links_to in keys) or any(child.worker_key in keys for child in tool.subagents)):
+            # One call can start several children (parallel runs); only the ones doing this work stay.
+            children = [child for child in tool.subagents if child.worker_key in keys or not child.worker_key]
+            tool.subagent, tool.more_subagents = (children[0] if children else None), children[1:]
             kept.extend(pending_text)
             kept.append(item)
         pending_text = []

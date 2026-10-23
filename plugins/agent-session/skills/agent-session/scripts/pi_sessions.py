@@ -21,6 +21,7 @@ from repo_context import RepoContext
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Pi"
+_OVERFLOW_NOTICE = re.compile(r"Full output:?\s*(/\S+?)[\].,;)]*(?:\s|$)")
 _SKILL = re.compile(r"^<skill name=\"(?P<name>[^\"]+)\"[\s\S]*?</skill>\s*", re.MULTILINE)
 
 
@@ -139,7 +140,8 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
                     call.output = _text(message.get("content"))
                     call.is_error = bool(message.get("isError"))
                     details = message.get("details") if isinstance(message.get("details"), dict) else {}
-                    overflow.record([str(details.get("fullOutputPath") or "")], call.withheld)
+                    # Child artifacts drop `details`; the "Full output: <path>" notice in the text names the same file.
+                    overflow.record([str(details.get("fullOutputPath") or ""), *_OVERFLOW_NOTICE.findall(call.output)], call.withheld)
         if markers and turn is not None and markers.search(json.dumps(entry)):
             turn.evidence = True
     if abandoned:
@@ -153,14 +155,17 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
 
 
 def _child_entries(transcript: Path) -> list[dict]:
-    """A pi-subagents transcript (recordType "message" lines with a pi-ai message) as Pi session entries."""
-    entries: list[dict] = []
-    for record in _entries(transcript):
+    """A pi-subagents transcript (recordType "message" lines with a pi-ai message) as Pi session entries, with a session
+    header carrying the child's working directory (each record has `cwd`)."""
+    records = _entries(transcript)
+    cwd = next((str(record["cwd"]) for record in records if record.get("cwd")), "")
+    entries: list[dict] = [{"type": "session", "id": transcript.stem, "cwd": cwd}]
+    for record in records:
         message = record.get("message")
         if record.get("recordType") != "message" or not isinstance(message, dict):
             continue
         entry_id = f"child-{len(entries)}"
-        entries.append({"type": "message", "id": entry_id, "parentId": entries[-1]["id"] if entries else None,
+        entries.append({"type": "message", "id": entry_id, "parentId": entries[-1]["id"] if len(entries) > 1 else None,
                         "timestamp": str(record.get("timestamp", "")), "message": message})
     return entries
 
@@ -181,12 +186,17 @@ def load_session(path: Path, context: RepoContext) -> Unit:
         transcript = Path(str(meta.get("transcriptPath") or meta_path.with_name(meta_path.name.replace("_meta.json", "_transcript.jsonl"))))
         if not run_id or not transcript.exists():
             continue
-        child = parse_session(transcript, context, _child_entries(transcript), "subagent", f"Pi subagent: {meta.get('agent') or run_id[:8]}")
+        label = f"{meta.get('agent') or run_id[:8]}" + (f" #{meta['index']}" if meta.get("index") is not None else "")
+        child = parse_session(transcript, context, _child_entries(transcript), "subagent", f"Pi subagent: {label}")
+        child.id = meta_path.name.removesuffix("_meta.json")
         child.worker_key = run_id
         spawn = next((call for call in calls if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
         if spawn:
             spawn.links_to = run_id
-            spawn.subagent = child
+            if spawn.subagent is None:
+                spawn.subagent = child
+            else:
+                spawn.more_subagents.append(child)
         else:
             unit.teammates.append(child)
     return unit
@@ -213,18 +223,20 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
                     found.append(path)
         except (OSError, json.JSONDecodeError):
             continue
-    # A lead whose only tie to the branch is a pi-subagents child: the child's transcript names the work.
-    if pattern:
-        for meta_path in root.glob("*/subagent-artifacts/*_meta.json"):
-            transcript = meta_path.with_name(meta_path.name.replace("_meta.json", "_transcript.jsonl"))
-            try:
-                if transcript.stat().st_mtime < context.since:
-                    continue
-                parent = str(json.loads(meta_path.read_text(encoding="utf-8")).get("parentSessionId", ""))
-                with transcript.open(encoding="utf-8", errors="replace") as handle:
-                    matched = any(pattern.search(line) for line in handle)
-            except (OSError, json.JSONDecodeError, AttributeError):
+    # A lead whose only tie to the branch is a pi-subagents child: the child ran in a worktree on the branch, or its
+    # transcript names the work.
+    for meta_path in root.glob("*/subagent-artifacts/*_meta.json"):
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            transcript = Path(str(meta.get("transcriptPath") or meta_path.with_name(meta_path.name.replace("_meta.json", "_transcript.jsonl"))))
+            if transcript.stat().st_mtime < context.since:
                 continue
-            if matched and parent:
-                found.extend(path for path in meta_path.parent.parent.glob(f"*_{parent}.jsonl") if path not in found)
+            parent = str(meta.get("parentSessionId", ""))
+            child_entries = _child_entries(transcript)
+        except (OSError, json.JSONDecodeError, AttributeError):
+            continue
+        matched = context.in_worktree_on_branch(str(child_entries[0].get("cwd") or "")) or bool(
+            pattern and any(pattern.search(json.dumps(entry)) for entry in child_entries))
+        if matched and parent:
+            found.extend(path for path in meta_path.parent.parent.glob(f"*_{parent}.jsonl") if path not in found)
     return sorted(found, key=lambda candidate: candidate.stat().st_mtime)

@@ -18,8 +18,13 @@ class ToolCall:
     is_error: bool = False
     # Why the output (and file contents in the input) are not published, if they are not.
     withheld: str | None = None
-    # A subagent this call started, rendered nested at the call site.
+    # A subagent this call started, rendered nested at the call site, and any more it started in parallel.
     subagent: Unit | None = None
+    more_subagents: list[Unit] = field(default_factory=list)
+
+    @property
+    def subagents(self) -> list[Unit]:
+        return [*([self.subagent] if self.subagent else []), *self.more_subagents]
     # The worker (subagent, teammate, child thread) this call spawned or messaged, by its worker_key.
     links_to: str = ""
 
