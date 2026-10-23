@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS))
 agent_session = importlib.import_module("agent_session")
 claude_code = importlib.import_module("claude_code")
 check_pr_hook = importlib.import_module("check_pr_hook")
+codex_sessions = importlib.import_module("codex_sessions")
 pi_sessions = importlib.import_module("pi_sessions")
 pr_body = importlib.import_module("pr_body")
 publish = importlib.import_module("publish")
@@ -595,6 +596,82 @@ class PiSlicingTests(unittest.TestCase):
         self.assertIn("Working on feature/demo-transcripts", pages[0])
         self.assertNotIn("secret-cleanup", pages[0])
         self.assertNotIn("lunch", pages[0])
+def _codex(record_type, payload, ordinal, timestamp="2026-10-23T11:00:00Z"):
+    return {"timestamp": timestamp, "ordinal": ordinal, "type": record_type, "payload": payload}
+
+
+def build_codex_store(root: Path) -> Path:
+    day = root / "2026" / "10" / "23"
+    day.mkdir(parents=True)
+    git = {"branch": "feature/demo-transcripts", "commit_hash": HEAD, "repository_url": "git@github.com:DiversioTeam/demo.git"}
+    main = [
+        _codex("session_meta", {"id": "thread-main", "cwd": "/work/demo", "git": git, "source": "cli"}, 0),
+        _codex("turn_context", {"model": "gpt-5.6-sol"}, 1),
+        _codex("response_item", {"type": "message", "role": "developer", "content": [{"type": "input_text", "text": "system rules"}]}, 2),
+        _codex("response_item", {"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": "<environment_context>\n<cwd>/work/demo</cwd>\n</environment_context>"},
+            {"type": "input_text", "text": "Fix the flaky test"}]}, 3),
+        _codex("response_item", {"type": "reasoning", "encrypted_content": "gAAAA-private"}, 4),
+        _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "c1",
+                                 "arguments": json.dumps({"cmd": "psql -h db.staging.internal -c 'select * from users'"})}, 5),
+        _codex("response_item", {"type": "function_call_output", "call_id": "c1", "output": f"row {CUSTOMER_EMAIL}"}, 6),
+        _codex("response_item", {"type": "custom_tool_call", "name": "apply_patch", "call_id": "c2", "input": "*** Begin Patch\n*** Update File: /work/demo/.env\n+TOKEN=x\n*** End Patch"}, 7),
+        _codex("response_item", {"type": "custom_tool_call_output", "call_id": "c2", "output": json.dumps({"output": "Success."})}, 8),
+        _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "c3", "arguments": json.dumps({"cmd": "pytest -q"})}, 9),
+        _codex("response_item", {"type": "function_call_output", "call_id": "c3", "output": json.dumps({"output": "3 passed"})}, 10),
+        _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": f"Fixed. Token was {GITHUB_TOKEN}"}]}, 11),
+        _codex("event_msg", {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 50}}}, 12),
+    ]
+    sub = [
+        _codex("session_meta", {"id": "thread-sub", "parent_thread_id": "thread-main", "agent_nickname": "Curie", "agent_role": "explorer",
+                                "subagent_history_start_ordinal": 2, "cwd": "/work/demo", "git": git}, 0),
+        _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "copied parent history"}]}, 1),
+        _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Find the flaky test"}]}, 2),
+        _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "It is test_retry."}]}, 3),
+    ]
+    other = [_codex("session_meta", {"id": "thread-other", "cwd": "/elsewhere", "git": {**git, "branch": "main"}}, 0)]
+    for name, records in (("rollout-2026-10-23T11-00-00-thread-main", main), ("rollout-2026-10-23T11-05-00-thread-sub", sub),
+                          ("rollout-2026-10-23T11-06-00-thread-other", other)):
+        (day / f"{name}.jsonl").write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+    return day / "rollout-2026-10-23T11-00-00-thread-main.jsonl"
+
+
+class CodexTests(unittest.TestCase):
+    def test_codex_rollouts_by_git_branch_with_subagents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = build_codex_store(Path(directory))
+            self.assertEqual(codex_sessions.find_sessions(demo_context(), Path(directory)), [main])
+            unit = codex_sessions.load_session(main, demo_context(), Path(directory))
+        self.assertEqual(unit.harness, "Codex")
+        self.assertEqual(unit.models, ["gpt-5.6-sol"])
+        self.assertEqual([turn.text for turn in unit.turns], ["Fix the flaky test"])
+        self.assertEqual((unit.tokens.input, unit.tokens.cache_read, unit.tokens.output), (600, 400, 50))
+        tools = [item.tool for item in unit.turns[0].items if item.tool]
+        self.assertEqual([(tool.name, tool.withheld) for tool in tools],
+                         [("exec_command", "prod or staging data access"), ("apply_patch", "credential file"), ("exec_command", None)])
+        self.assertEqual(tools[2].output, "3 passed")
+        self.assertEqual([mate.title for mate in unit.teammates], ["Codex subagent: Curie (explorer)"])
+        self.assertEqual([turn.text for turn in unit.teammates[0].turns], ["Find the flaky test"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        for leaked in (GITHUB_TOKEN, CUSTOMER_EMAIL, "gAAAA-private", "TOKEN=x", "environment_context", "copied parent history"):
+            self.assertNotIn(leaked, pages[0])
+        self.assertIn("3 passed", pages[0])
+
+    def test_hook_reads_codex_commands_and_install_is_idempotent(self):
+        import contextlib, io, subprocess
+        hook = Path(check_pr_hook.__file__)
+        for tool_input in ({"cmd": "gh pr create --repo DiversioTeam/demo --body x"}, {"command": ["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body", "x"]}):
+            completed = subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": tool_input, "cwd": "/tmp"}), capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 2, tool_input)
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "hooks.json").write_text(json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "x"}]}]}}))
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory]), 0)
+                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory]), 0)
+            config = json.loads(Path(directory, "hooks.json").read_text())
+        self.assertEqual(len(config["hooks"]["PreToolUse"]), 1)
+        self.assertIn("check_pr_hook.py", config["hooks"]["PreToolUse"][0]["hooks"][0]["command"])
+        self.assertIn("Stop", config["hooks"])
 
 
 class PiChildFindingsTests(unittest.TestCase):
@@ -736,7 +813,7 @@ class ShareTests(unittest.TestCase):
         git("remote", "add", "origin", "https://github.com/DiversioTeam/demo.git")
         build_store(root / "store")
         (root / "pi").mkdir()
-        self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--pi-root", str(root / "pi"), "--out", str(root / "out")]
+        self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--pi-root", str(root / "pi"), "--codex-root", str(root / "pi"), "--out", str(root / "out")]
         self.env = mock.patch.dict("os.environ", {"AGENT_SESSION_HOME": str(root / "state")})
         self.env.start()
         self.uploads, self.deleted, self.bodies = [], [], []

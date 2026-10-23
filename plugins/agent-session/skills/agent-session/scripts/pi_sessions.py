@@ -17,7 +17,7 @@ from pathlib import Path
 
 from provenance import Provenance
 from redaction import withheld_reason
-from repo_context import RepoContext
+from repo_context import RepoContext, is_recent
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Pi"
@@ -210,9 +210,9 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
     pattern = context.evidence_pattern()
     found = []
     for path in root.glob("*/*.jsonl"):
+        if not is_recent(path, context.since):
+            continue
         try:
-            if path.stat().st_mtime < context.since:
-                continue
             with path.open(encoding="utf-8", errors="replace") as handle:
                 first = handle.readline()
                 header = json.loads(first) if first.strip() else {}

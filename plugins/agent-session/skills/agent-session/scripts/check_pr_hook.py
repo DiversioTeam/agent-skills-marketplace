@@ -87,7 +87,10 @@ def main() -> int:
     except json.JSONDecodeError:
         return 0
     tool_input = payload.get("tool_input") or {}
-    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    # Claude Code's Bash sends `command`; Codex's exec_command sends `cmd`, its shell tool an argv list.
+    command = (tool_input.get("command") or tool_input.get("cmd")) if isinstance(tool_input, dict) else None
+    if isinstance(command, list):
+        command = " ".join(str(part) for part in command)
     if not isinstance(command, str):
         return 0
     reason = decide(command, Path(payload.get("cwd") or ".").expanduser())
