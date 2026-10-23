@@ -541,9 +541,6 @@ def parser() -> argparse.ArgumentParser:
     codex_hook.add_argument("--codex-home", help="Codex's home (default: $CODEX_HOME or ~/.codex).")
     codex_hook.set_defaults(run=cmd_install_codex_hook)
 
-    check = commands.add_parser("check-body", help="Exit 1 unless the body has a session link or a declaration.")
-    check.add_argument("body_file")
-    check.set_defaults(run=cmd_check_body)
     return root
 
 
