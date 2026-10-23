@@ -450,9 +450,14 @@ def cmd_render_export(args: argparse.Namespace) -> int:
     now = datetime.now(timezone.utc)
     expires = (now + timedelta(days=args.retention_days)).strftime("%Y-%m-%d")
     generated = now.strftime("%Y-%m-%d %H:%M UTC")
-    pages, _ = build_pages(context, units, Redactor(), expires, generated)
+    # The caller's exact secret values (Courage's known secrets), one per line in a private file, redact before rendering.
+    known: tuple[str, ...] = ()
+    if args.known_secrets_file:
+        values = Path(args.known_secrets_file).read_text(encoding="utf-8").splitlines()
+        known = tuple(sorted({value for value in values if len(value) >= 8}, key=len, reverse=True))
+    pages, _ = build_pages(context, units, Redactor(known_secrets=known), expires, generated)
     names = publisher.build_names(context.repo_name, context.branch, len(pages), context.head, now)
-    pages, _ = build_pages(context, units, Redactor(), expires, generated, names)
+    pages, _ = build_pages(context, units, Redactor(known_secrets=known), expires, generated, names)
     out = Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
     files = []
@@ -584,6 +589,7 @@ def parser() -> argparse.ArgumentParser:
     export.add_argument("--pr", type=int)
     export.add_argument("--out", required=True)
     export.add_argument("--retention-days", type=int, default=DEFAULT_RETENTION_DAYS)
+    export.add_argument("--known-secrets-file", help="Exact secret values to redact, one per line (a private file the caller deletes).")
     export.set_defaults(run=cmd_render_export)
 
     codex_hook = commands.add_parser("install-codex-hook", help="Add the PR guard to Codex's hooks.json.")

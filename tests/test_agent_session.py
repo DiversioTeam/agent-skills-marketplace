@@ -891,6 +891,30 @@ class CourageExportTests(unittest.TestCase):
         self.assertNotIn(dev, updated)
         self.assertEqual(updated.count("## Agent sessions"), 1)
         self.assertIn("## Testing", updated)
+        # Courage's line last: repeated shares change nothing.
+        last = f"## Agent sessions\n\n- [Agent session transcript]({dev})\n- [Courage conversation transcript]({courage})\n\n## Testing\n"
+        once = pr_body.upsert(last, pr_body.section([("Agent session transcript", new_dev)]))
+        self.assertEqual(pr_body.upsert(once, pr_body.section([("Agent session transcript", new_dev)])), once)
+
+    def test_render_export_redacts_known_secrets_before_rendering(self):
+        import contextlib, io
+        secret = "plain-db-" + "password-" + "93ab"
+        with tempfile.TemporaryDirectory() as directory:
+            export = Path(directory) / "conv.jsonl"
+            export.write_text("\n".join(json.dumps(entry) for entry in [
+                {"type": "session", "id": "c", "cwd": "courage"},
+                {"type": "message", "id": "1", "parentId": None, "timestamp": "2026-10-23T10:00:00Z", "message": {"role": "user", "content": "echo the password"}},
+                {"type": "message", "id": "2", "parentId": "1", "timestamp": "2026-10-23T10:00:01Z", "message": {"role": "assistant", "content": [{"type": "text", "text": f"It is {secret}"}]}},
+            ]) + "\n")
+            secrets_file = Path(directory) / "known"
+            secrets_file.write_text(secret + "\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                agent_session.main(["render-export", "--file", str(export), "--repo-slug", "DiversioTeam/demo", "--branch", "x",
+                                    "--head", HEAD, "--out", str(Path(directory) / "out"), "--known-secrets-file", str(secrets_file)])
+            html = Path(json.loads(out.getvalue())["files"][0]).read_text(encoding="utf-8")
+        self.assertNotIn(secret, html)
+        self.assertIn("[redacted]", html)
 
 
 class PrBodyAndHookTests(unittest.TestCase):

@@ -26,7 +26,7 @@ def section(links: list[tuple[str, str]], note: str = "") -> str:
 
 # Each source owns its own lines: Courage's publish keeps the developer's link and the developer's `share` keeps Courage's.
 COURAGE_LABEL = "Courage conversation transcript"
-_LINK_LINE = re.compile(r"^- \[(?P<label>[^\]]+)\]\(https://internal-share\.diversio\.com/session-[^)]+\)\s*$", re.MULTILINE)
+_LINK_LINE = re.compile(r"^- \[(?P<label>[^\]]+)\]\(https://internal-share\.diversio\.com/session-[^)]+\)[ \t]*$", re.MULTILINE)
 
 
 def upsert(body: str, new_section: str, keep_labels: tuple[str, ...] = (COURAGE_LABEL,)) -> str:

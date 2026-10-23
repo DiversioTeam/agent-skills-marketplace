@@ -163,7 +163,7 @@
       "category": "Process",
       "title": "Agent Session Transcripts",
       "description": "Attach the redacted agent session behind every PR: prompts, replies, tool calls, and subagents, published to Internal Share.",
-      "version": "v0.3.0",
+      "version": "v0.4.0",
       "skills": [
         {
           "name": "agent-session",
