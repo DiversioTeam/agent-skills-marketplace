@@ -462,6 +462,12 @@ class PiTests(unittest.TestCase):
             context = demo_context()
             context.worktree_branches = {cwd: "feature/demo-transcripts"}
             self.assertEqual(pi_sessions.find_sessions(context, Path(directory)), [path])
+            nested = demo_context()
+            nested.worktree_branches = {"/work": "feature/demo-transcripts"}
+            self.assertEqual(pi_sessions.find_sessions(nested, Path(directory)), [path])
+            sibling = demo_context()
+            sibling.worktree_branches = {"/work/demo": "feature/demo-transcripts"}
+            self.assertEqual(pi_sessions.find_sessions(sibling, Path(directory)), [])
             elsewhere = demo_context()
             elsewhere.worktree_branches = {cwd: "other"}
             self.assertEqual(pi_sessions.find_sessions(elsewhere, Path(directory)), [])

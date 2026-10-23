@@ -42,6 +42,10 @@ class RepoContext:
     def worktrees_on_branch(self) -> set[str]:
         return {path for path, branch in self.worktree_branches.items() if branch == self.branch}
 
+    def in_worktree_on_branch(self, cwd: str) -> bool:
+        """Whether a session's directory is a worktree on the branch, or inside one."""
+        return any(cwd == path or cwd.startswith(path.rstrip("/") + "/") for path in self.worktrees_on_branch()) if cwd else False
+
     @property
     def repo_name(self) -> str:
         return self.repo_slug.split("/")[-1] if self.repo_slug else self.root.name

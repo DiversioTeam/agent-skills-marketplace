@@ -79,7 +79,7 @@ def parse_session(path: Path, context: RepoContext) -> Unit:
                 path=str(path), cwd=str(header.get("cwd", "")))
     active, abandoned = _active_path(entries)
     markers = context.evidence_pattern()
-    on_branch = unit.cwd in context.worktrees_on_branch()
+    on_branch = context.in_worktree_on_branch(unit.cwd)
     pending: dict[str, ToolCall] = {}
     turn: Turn | None = None
 
@@ -152,7 +152,6 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
     if not root.is_dir():
         return []
     pattern = context.evidence_pattern()
-    on_branch = context.worktrees_on_branch()
     found = []
     for path in root.glob("*/*.jsonl"):
         try:
@@ -161,7 +160,7 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
             with path.open(encoding="utf-8", errors="replace") as handle:
                 first = handle.readline()
                 header = json.loads(first) if first.strip() else {}
-                if isinstance(header, dict) and header.get("cwd") in on_branch:
+                if isinstance(header, dict) and context.in_worktree_on_branch(str(header.get("cwd") or "")):
                     found.append(path)
                     continue
                 if pattern and (pattern.search(first) or any(pattern.search(line) for line in handle)):
