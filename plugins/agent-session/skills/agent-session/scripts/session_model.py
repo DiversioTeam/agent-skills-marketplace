@@ -88,3 +88,5 @@ class Unit:
     omitted_turns: int = 0
     # How a lead's calls and messages name this worker: a teammate's name, a subagent's tool-use id, a run or thread id.
     worker_key: str = ""
+    # Other things the reader should know about this transcript (abandoned Pi branches), shown under its heading.
+    notes: list[str] = field(default_factory=list)

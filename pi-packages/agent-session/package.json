@@ -1,0 +1,16 @@
+{
+  "name": "agent-session",
+  "version": "0.1.0",
+  "description": "Blocks Pi from creating or rewriting a DiversioTeam PR body without an agent session transcript link or a 'No agent session:' declaration.",
+  "keywords": ["pi-package", "pull-request", "agent-session"],
+  "files": ["extensions/", "tests/", "README.md"],
+  "scripts": {
+    "test": "node --test tests/agent-session.test.mjs"
+  },
+  "pi": {
+    "extensions": ["./extensions/agent-session/index.ts"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  }
+}

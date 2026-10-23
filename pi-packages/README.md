@@ -6,6 +6,7 @@ Pi-native packages that extend pi with tools, commands, skills, and UI widgets.
 
 | Package | What it gives you |
 |---------|-------------------|
+| [`agent-session`](./agent-session) | Blocks `gh pr create` and PR body edits in DiversioTeam repos without an agent session transcript link or a `No agent session: <reason>` line (the Pi side of the `agent-session` skill) |
 | [`ci-status`](./ci-status) | `/ci`, `/ci-detail`, `/ci-logs`, auto-watch, and LLM tools with fresh checkout-scoped lookup, exact GitHub job selection, published local-ci checks and read-only native snapshot logs, real CircleCI console output, and explicit errors for ambiguous jobs or unavailable logs |
 | [`dev-workflow`](./dev-workflow) | 16 core workflow prompts including `/workflow:crafting` (`/workflow:help`, `/workflow:run`, `/workflow:prompts`, `/workflow:flow`), CI analysis, PR review feedback, release PR prep, local skills, optional pi-subagents chain, and seeded cmux split launching for subagent-style prompts |
 | [`image-router`](./image-router) | Routes images to an explicitly approved secondary vision destination; RPC/extension/tool routing requires saved `auto` consent. Missing consent or destinations fail closed, with no provider/model fallback. Configure per-model routing via `/image-router`. |

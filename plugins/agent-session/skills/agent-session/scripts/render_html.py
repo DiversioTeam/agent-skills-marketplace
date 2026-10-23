@@ -184,7 +184,7 @@ class Page:
         turns = "".join(self.turn(turn, depth, not many or index < 5 or index >= len(unit.turns) - 3)
                         for index, turn in enumerate(unit.turns))
         gap = (f"<p class=\"note\">{unit.omitted_turns} earlier or later turns in this session were about other work and are not included.</p>"
-               if unit.omitted_turns else "")
+               if unit.omitted_turns else "") + "".join(f"<p class=\"note\">{html.escape(note)}</p>" for note in unit.notes)
         tokens = unit.tokens
         meta = " · ".join(part for part in (unit.harness, ", ".join(unit.models), f"{_time(unit.started)} to {_short_time(unit.ended)}",
                                               f"{tokens.total:,} tokens" if tokens.total else "") if part)

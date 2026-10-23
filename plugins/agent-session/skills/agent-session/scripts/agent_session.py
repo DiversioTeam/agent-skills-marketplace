@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check  # noqa: E402
 import claude_code  # noqa: E402
+import pi_sessions  # noqa: E402
 import pr_body  # noqa: E402
 import slicing  # noqa: E402
 import publish as publisher  # noqa: E402
@@ -59,15 +60,17 @@ def _select_turns(unit: Unit, context: RepoContext, whole: bool) -> None:
 
 
 def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
-    root = Path(args.projects_root).expanduser() if args.projects_root else None
-    paths = claude_code.find_sessions(context, root)
-    if args.session:
-        wanted = set(args.session)
-        all_paths = [path for project in (root or claude_code.projects_root()).iterdir() if project.is_dir()
-                     for path in project.glob("*.jsonl") if path.stem in wanted]
-        paths = sorted({*paths, *all_paths}, key=lambda path: path.stat().st_mtime)
+    """Every harness's sessions for this branch: Claude Code (with subagents and teammates), then Pi."""
+    claude_root = Path(args.projects_root).expanduser() if args.projects_root else None
+    pi_root = Path(args.pi_root).expanduser() if getattr(args, "pi_root", None) else None
+    wanted = set(args.session or [])
     excluded = set(args.exclude or [])
-    whole = set(args.whole or []) | set(args.session or [])
+    whole = set(args.whole or []) | wanted
+    paths = claude_code.find_sessions(context, claude_root)
+    if wanted:
+        root = claude_root or claude_code.projects_root()
+        extra = [path for project in root.iterdir() if project.is_dir() for path in project.glob("*.jsonl") if path.stem in wanted] if root.is_dir() else []
+        paths = sorted({*paths, *extra}, key=lambda path: path.stat().st_mtime)
     units = []
     for path in paths:
         if path.stem in excluded:
@@ -76,6 +79,20 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
         _select_turns(unit, context, unit.id in whole)
         unit.teammates = [mate for mate in unit.teammates if mate.id not in excluded]
         if unit.turns or unit.teammates:
+            units.append(unit)
+    pi_paths = pi_sessions.find_sessions(context, pi_root)
+    if wanted:
+        root = pi_root or pi_sessions.sessions_root()
+        extra = [path for path in root.glob("*/*.jsonl") if path.stem in wanted or path.stem.split("_")[-1] in wanted] if root.is_dir() else []
+        pi_paths = sorted({*pi_paths, *extra}, key=lambda path: path.stat().st_mtime)
+    for path in pi_paths:
+        if path.stem in excluded or path.stem.split("_")[-1] in excluded:
+            continue
+        unit = pi_sessions.parse_session(path, context)
+        # A Pi session that ran in a worktree on the branch is about the branch; others keep their matching turns.
+        on_branch = any(evidence.startswith("ran in a worktree") for evidence in unit.evidence)
+        _select_turns(unit, context, on_branch or unit.id in whole or unit.session_id in whole)
+        if unit.turns:
             units.append(unit)
     return units
 
@@ -421,6 +438,7 @@ def parser() -> argparse.ArgumentParser:
         sub.add_argument("--exclude", action="append", help="Leave out this session or teammate id.")
         sub.add_argument("--whole", action="append", help="Include every turn of this session, not only the matching ones.")
         sub.add_argument("--projects-root", help="Claude Code projects folder (default: ~/.claude/projects).")
+        sub.add_argument("--pi-root", help="Pi sessions folder (default: ~/.pi/agent/sessions).")
         sub.add_argument("--out", help="Where previews go (default: ~/.agent/sessions/<repo>-<branch>).")
 
     find = commands.add_parser("find", help="List the sessions behind this branch or PR.")
