@@ -55,6 +55,26 @@ def _tool_output(content: object) -> str:
     return ""
 
 
+_BACKGROUND_ID = re.compile(r"\bwith ID:?\s*([A-Za-z0-9_-]{4,})")
+_BACKGROUND_FILE = re.compile(r"Output is being written to:?\s*(\S+?)\.?(?:\s|$)")
+# Tools whose output is another call's background output.
+_BACKGROUND_READERS = {"TaskOutput", "BashOutput", "AgentOutputTool"}
+
+
+def _background_handles(output: str) -> list[str]:
+    return [*_BACKGROUND_ID.findall(output), *_BACKGROUND_FILE.findall(output)]
+
+
+def _inherited_reason(call: ToolCall, background: dict[str, str | None]) -> str | None:
+    """A call that reads background output inherits the withholding of the call that started it; an unknown origin is
+    withheld, since the output could be anything."""
+    flat = json.dumps(call.input, default=str)
+    reasons = [reason for handle, reason in background.items() if handle in flat]
+    if reasons:
+        return next((reason for reason in reasons if reason), None)
+    return "background output of unknown origin" if call.name in _BACKGROUND_READERS else None
+
+
 def _classify(text: str, record: dict[str, object], in_subagent: bool) -> tuple[str, str, str] | None:
     """(kind, sender, text) for a prompt-like user message, or None when it is harness noise."""
     text = _REMINDER.sub("", text).strip()
@@ -85,6 +105,8 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
     unit = Unit(id=path.stem, harness=HARNESS, kind=kind, title=title, session_id=session_id, path=str(path),  # type: ignore[arg-type]
                 parent_tool_use_id=parent_tool_use_id)
     pending: dict[str, ToolCall] = {}
+    # Background work (a task id, its output file) mapped to the withholding reason of the call that started it.
+    background: dict[str, str | None] = {}
     counted: set[str] = set()
     turn: Turn | None = None
     evidence = context.evidence_pattern()
@@ -136,7 +158,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
                     tool_input = block.get("input") if isinstance(block.get("input"), dict) else {}
                     call = ToolCall(id=str(block.get("id", "")), name=str(block.get("name", "")), input=tool_input,  # type: ignore[arg-type]
                                     timestamp=timestamp)
-                    call.withheld = withheld_reason(call.name, call.input)
+                    call.withheld = withheld_reason(call.name, call.input) or _inherited_reason(call, background)
                     pending[call.id] = call
                     current(timestamp, branch).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
         else:
@@ -151,6 +173,8 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
                     if call:
                         call.output = _tool_output(block.get("content"))
                         call.is_error = bool(block.get("is_error"))
+                        for handle in _background_handles(call.output):
+                            background[handle] = call.withheld
                 elif block.get("type") == "text":
                     texts.append(str(block.get("text", "")))
                 elif block.get("type") == "image":

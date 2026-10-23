@@ -59,6 +59,9 @@ def _select_turns(unit: Unit, context: RepoContext, whole: bool) -> None:
             return True
         return any(item.tool and item.tool.subagent and item.tool.subagent.evidence for item in turn.items)
     kept = [turn for turn in unit.turns if belongs(turn)]
+    # A session tied to the PR only by its pr-link record (it opened the PR from another branch) is kept whole.
+    if not kept and any(evidence.startswith("linked to PR") for evidence in unit.evidence):
+        return
     unit.omitted_turns = len(unit.turns) - len(kept)
     unit.turns = kept
     if kept and unit.omitted_turns:

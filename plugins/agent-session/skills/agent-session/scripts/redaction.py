@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -256,6 +257,21 @@ _PROD_OR_STAGING = re.compile(
 _DATA_TOOL_NAMES = re.compile(r"(?:django|database|sql|query|postgres|mysql|mongo|redis|bigquery|snowflake)", re.IGNORECASE)
 
 
+def _path_tokens(command: str) -> list[str]:
+    """Path-like words in a shell command (`cat ~/.docker/config.json`, `source .env`), for the shared path classifier."""
+    try:
+        words = shlex.split(command, posix=True)
+    except ValueError:
+        words = command.split()
+    tokens = []
+    for word in words:
+        for part in re.split(r"[;&|<>()=,\s]+", word):
+            part = part.strip("'\"`")
+            if "/" in part or part.startswith(".") or "." in part:
+                tokens.append(part)
+    return tokens
+
+
 def withheld_reason(tool_name: str, tool_input: dict[str, object]) -> str | None:
     """Why a tool call's output must not be published at all, or None."""
     for key in ("file_path", "path", "notebook_path"):
@@ -266,6 +282,8 @@ def withheld_reason(tool_name: str, tool_input: dict[str, object]) -> str | None
     if isinstance(command, list):
         command = " ".join(str(part) for part in command)
     if isinstance(command, str):
+        if any(is_credential_path(token) for token in _path_tokens(command)):
+            return "credential file"
         if _SECRET_COMMANDS.search(command):
             return "command prints credentials"
         if _DATA_COMMANDS.search(command) and _PROD_OR_STAGING.search(command):

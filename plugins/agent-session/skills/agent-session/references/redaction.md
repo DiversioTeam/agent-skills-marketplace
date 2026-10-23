@@ -26,7 +26,11 @@ The tool call still shows its input; the output is replaced with a reason.
 
 - **credential file:** reads or writes of `.env*` (not `.example`), `*.pem`,
   `*.key`, SSH keys, `.npmrc`, `.netrc`, `credentials*`, `secrets*`, cookie
-  stores, and anything under `.ssh`, `.aws`, `.kube`, `.gnupg`, `.docker`.
+  stores, and anything under `.ssh`, `.aws`, `.kube`, `.gnupg`, `.docker`,
+  whether a file tool or a shell command (`cat`, `source`, `cp`) touches them.
+- **background output:** `TaskOutput`, `BashOutput` and reads of a background
+  task's output file inherit the withholding of the call that started the task;
+  output from a task of unknown origin is withheld.
 - **command prints credentials:** `env`, `printenv`, `op read|inject|run`,
   `security find-*-password`, `gh auth token`, `aws configure export-credentials`,
   `kubectl get secret`, `cat .env`, and similar.
@@ -36,6 +40,9 @@ The tool call still shows its input; the output is replaced with a reason.
   publishes one turn's output when the developer asks.
 - **looks like personal data:** outputs with repeated personal keys
   (`email`, `first_name`, `phone`, …), such as query results and CSVs.
+
+Structured tool inputs (a `Write`'s content, MCP arguments) are redacted value
+by value before they are shown as JSON, so escaping cannot hide a known secret.
 
 ## Clipped or dropped
 

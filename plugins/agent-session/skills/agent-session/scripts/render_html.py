@@ -113,7 +113,17 @@ class Page:
         command = data.get("command") or data.get("cmd")
         if isinstance(command, str) and set(data) <= {"command", "cmd", "description", "timeout", "run_in_background"}:
             return self.text(command, LIMITS["input"])
-        return self.text(json.dumps(data, indent=2, ensure_ascii=False, default=str), LIMITS["input"])
+        # Redact each string before serializing: JSON escaping (backslashes, quotes, newlines) would hide exact known values.
+        return self.text(json.dumps(self._scrub(data), indent=2, ensure_ascii=False, default=str), LIMITS["input"])
+
+    def _scrub(self, value: object) -> object:
+        if isinstance(value, str):
+            return self.redactor.text(value)
+        if isinstance(value, list):
+            return [self._scrub(item) for item in value]
+        if isinstance(value, dict):
+            return {key: self._scrub(item) for key, item in value.items()}
+        return value
 
     def _output(self, call: ToolCall) -> tuple[str, str]:
         """(css class, escaped body) for a tool's output."""

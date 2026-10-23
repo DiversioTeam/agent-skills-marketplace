@@ -235,6 +235,59 @@ class ClaudeCodeTests(unittest.TestCase):
         found = {path.name for path in claude_code.find_sessions(demo_context(), self.root)}
         self.assertIn(linked.name, found)
         self.assertNotIn(other.name, found)
+        # Selected end to end: no turn matches the branch, but the session opened the PR, so it is kept whole.
+        unit = claude_code.load_session(linked, demo_context())
+        agent_session._select_turns(unit, demo_context(), whole=False)
+        self.assertEqual([turn.text for turn in unit.turns], ["Unrelated words"])
+
+
+class CourageBotFindingsTests(unittest.TestCase):
+    """Regressions for the redaction gaps courage-bot reproduced on #116."""
+
+    def render(self, records, known=()):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "s.jsonl"
+            path.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+            unit = claude_code.parse_unit(path, "session", "Session", demo_context())
+            pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(known_secrets=tuple(known)), "2027-10-23", "now")
+            return unit, pages[0]
+
+    def tool(self, call_id, name, tool_input, output, timestamp):
+        return [_record("assistant", [{"type": "tool_use", "id": call_id, "name": name, "input": tool_input}], timestamp),
+                _record("user", [{"type": "tool_result", "tool_use_id": call_id, "content": output}], timestamp)]
+
+    def test_known_secrets_with_json_escapes_are_redacted_in_structured_inputs(self):
+        secret = "syn\\the\"tic\nvalue-" + "42ab"
+        _, html = self.render([_record("user", "write it", "2026-10-23T10:00:00Z", origin={"kind": "human"}),
+                               *self.tool("w1", "Write", {"file_path": "/repo/app.cfg", "content": f"token = {secret}"}, "ok", "2026-10-23T10:00:01Z")],
+                              known=[secret])
+        escaped = json.dumps(secret)[1:-1]
+        self.assertNotIn(escaped, html)
+        self.assertNotIn(render_html.html.escape(escaped), html)
+
+    def test_shell_reads_of_credential_paths_are_withheld(self):
+        auth = "dXNlcjpw" + "YXNzd29yZA=="
+        unit, html = self.render([_record("user", "check docker", "2026-10-23T10:00:00Z", origin={"kind": "human"}),
+                                  *self.tool("b1", "Bash", {"command": "cat ~/.docker/config.json"}, f'{{"auths": {{"r": {{"auth": "{auth}"}}}}}}', "2026-10-23T10:00:01Z")])
+        self.assertNotIn(auth, html)
+        self.assertIn("Output withheld: credential file.", html)
+
+    def test_background_output_inherits_the_starting_calls_withholding(self):
+        sentinel = "private-" + "note-" + "77"
+        started = "Command running in background with ID: bg12345. Output is being written to: /tmp/tasks/bg12345.output"
+        records = [_record("user", "check prod", "2026-10-23T10:00:00Z", origin={"kind": "human"}),
+                   *self.tool("b1", "Bash", {"command": "ssh production 'tail app.log'", "run_in_background": True}, started, "2026-10-23T10:00:01Z"),
+                   *self.tool("o1", "TaskOutput", {"task_id": "bg12345"}, sentinel, "2026-10-23T10:00:02Z"),
+                   *self.tool("r1", "Read", {"file_path": "/tmp/tasks/bg12345.output"}, sentinel, "2026-10-23T10:00:03Z"),
+                   *self.tool("o2", "TaskOutput", {"task_id": "never-seen"}, sentinel, "2026-10-23T10:00:04Z"),
+                   *self.tool("b2", "Bash", {"command": "pytest", "run_in_background": True}, started.replace("bg12345", "bg99999"), "2026-10-23T10:00:05Z"),
+                   *self.tool("o3", "TaskOutput", {"task_id": "bg99999"}, "4 passed", "2026-10-23T10:00:06Z")]
+        unit, html = self.render(records)
+        reasons = {item.tool.id: item.tool.withheld for item in unit.turns[0].items if item.tool}
+        self.assertEqual(reasons, {"b1": "prod or staging data access", "o1": "prod or staging data access", "r1": "prod or staging data access",
+                                   "o2": "background output of unknown origin", "b2": None, "o3": None})
+        self.assertNotIn(sentinel, html)
+        self.assertIn("4 passed", html)
 
 
 class PrBodyAndHookTests(unittest.TestCase):
