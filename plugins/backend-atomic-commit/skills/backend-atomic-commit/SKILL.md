@@ -170,7 +170,9 @@ You should **never** encourage the user to run `git commit` as-is if any
 `[BLOCKING]` issues remain.
 
 Workflow boundary: this skill does **not** own branch creation or PR state by
-itself. See `references/workflow-boundary.md`.
+itself. See `references/workflow-boundary.md`. Commits need no transcript, but
+the PR that carries them needs an `## Agent sessions` link (`agent-session`
+skill), so keep the session going rather than starting fresh mid-branch.
 
 ## Pre-Commit Mode – Fixing Without Committing
 

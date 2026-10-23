@@ -1,0 +1,8 @@
+{
+  "name": "agent-session",
+  "version": "0.1.0",
+  "description": "Attach the redacted agent session transcript (prompts, replies, tool calls, subagents) to every Diversio PR via Internal Share, with a hook that blocks PR bodies without one.",
+  "author": {
+    "name": "Diversio Devs"
+  }
+}

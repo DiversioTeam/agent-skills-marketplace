@@ -236,6 +236,11 @@ If key context is missing, emit:
 - `[SHOULD_FIX]` – listing the missing items and suggesting how to include
   them.
 
+The description must also carry a `## Agent sessions` section with the
+redacted transcript link from the `agent-session` skill, or a
+`No agent session: <reason>` declaration. Missing both is `[BLOCKING]`:
+Courage's `courage/agent-session` status flags it on the PR.
+
 ### 3.2 Self-review checklist
 
 Prompt the author to confirm they have checked:

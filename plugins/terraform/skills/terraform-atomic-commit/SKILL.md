@@ -117,6 +117,8 @@ In `atomic-commit` mode, additionally:
 - Refuse to approve the commit if the staged diff includes unrelated changes (split commits).
 - Require all checks relevant to the touched files to pass (fmt/validate/lint/docs).
 - Propose a commit message with no AI signature.
+- Commits need no transcript; the PR that carries them needs an
+  `## Agent sessions` link from the `agent-session` skill.
 
 ## Output Format
 
