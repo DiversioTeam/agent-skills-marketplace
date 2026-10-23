@@ -109,7 +109,7 @@ class Page:
     def _input(self, call: ToolCall) -> str:
         data = dict(call.input)
         if call.withheld == "credential file":
-            for key in ("content", "new_string", "old_string", "edits", "new_source"):
+            for key in ("content", "new_string", "old_string", "edits", "new_source", "input"):
                 if key in data:
                     data[key] = "[withheld: credential file]"
         command = data.get("command") or data.get("cmd")

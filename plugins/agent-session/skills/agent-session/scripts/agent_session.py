@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check  # noqa: E402
 import claude_code  # noqa: E402
+import codex_sessions  # noqa: E402
 import pi_sessions  # noqa: E402
 import pr_body  # noqa: E402
 import slicing  # noqa: E402
@@ -94,6 +95,22 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
             for turn in unit.turns:
                 turn.branch = context.branch
         _select_turns(unit, context, unit.id in whole or unit.session_id in whole)
+        if unit.turns or unit.teammates:
+            units.append(unit)
+    codex_root = Path(args.codex_root).expanduser() if getattr(args, "codex_root", None) else None
+    codex_paths = codex_sessions.find_sessions(context, codex_root)
+    if wanted:
+        root = codex_root or codex_sessions.sessions_root()
+        extra = [path for path in root.glob("*/*/*/*.jsonl") if any(path.stem.endswith(item) for item in wanted)] if root.is_dir() else []
+        codex_paths = sorted({*codex_paths, *extra}, key=lambda path: path.stat().st_mtime)
+    for path in codex_paths:
+        if any(path.stem.endswith(item) for item in excluded):
+            continue
+        unit = codex_sessions.load_session(path, context, codex_root)
+        # A rollout on the branch is the work (its turns carry the branch); a lead keeps only its turns about the
+        # subagent that did the work.
+        _select_turns(unit, context, any(path.stem.endswith(item) for item in whole))
+        unit.teammates = [mate for mate in unit.teammates if not any(mate.id.endswith(item) for item in excluded)]
         if unit.turns or unit.teammates:
             units.append(unit)
     return units
@@ -417,6 +434,26 @@ def cmd_install_shim(args: argparse.Namespace) -> int:
     on_path = str(target.parent) in os.environ.get("PATH", "").split(os.pathsep)
     if not on_path and not args.quiet:
         print(f"Add {target.parent} to PATH so local-ci can run `agent-session check`.")
+def cmd_install_codex_hook(args: argparse.Namespace) -> int:
+    """Add the PR guard to Codex's hooks.json (Codex asks the developer to trust it on next start). Idempotent."""
+    home = Path(args.codex_home or os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+    path = home / "hooks.json"
+    hook = Path(__file__).resolve().parent / "check_pr_hook.py"
+    command = f"python3 {shlex.quote(str(hook))}"
+    try:
+        config = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except json.JSONDecodeError:
+        print(f"{path} is not valid JSON; fix it, then run install-codex-hook again.")
+        return 1
+    hooks = config.setdefault("hooks", {})
+    entries = hooks.setdefault("PreToolUse", [])
+    if any(hook_entry.get("command") == command for entry in entries for hook_entry in entry.get("hooks", [])):
+        print(f"The agent-session PR guard is already in {path}.")
+        return 0
+    entries.append({"hooks": [{"type": "command", "command": command, "timeout": 15}]})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    print(f"Added the agent-session PR guard to {path}. Codex asks you to trust it the next time it starts.")
     return 0
 
 
@@ -441,6 +478,7 @@ def parser() -> argparse.ArgumentParser:
         sub.add_argument("--whole", action="append", help="Include every turn of this session, not only the matching ones.")
         sub.add_argument("--projects-root", help="Claude Code projects folder (default: ~/.claude/projects).")
         sub.add_argument("--pi-root", help="Pi sessions folder (default: ~/.pi/agent/sessions).")
+        sub.add_argument("--codex-root", help="Codex sessions folder (default: $CODEX_HOME/sessions or ~/.codex/sessions).")
         sub.add_argument("--out", help="Where previews go (default: ~/.agent/sessions/<repo>-<branch>).")
 
     find = commands.add_parser("find", help="List the sessions behind this branch or PR.")
@@ -499,6 +537,13 @@ def parser() -> argparse.ArgumentParser:
     body_check = commands.add_parser("check-body", help="Exit 1 unless the body has a session link or a declaration.")
     body_check.add_argument("body_file")
     body_check.set_defaults(run=cmd_check_body)
+    codex_hook = commands.add_parser("install-codex-hook", help="Add the PR guard to Codex's hooks.json.")
+    codex_hook.add_argument("--codex-home", help="Codex's home (default: $CODEX_HOME or ~/.codex).")
+    codex_hook.set_defaults(run=cmd_install_codex_hook)
+
+    check = commands.add_parser("check-body", help="Exit 1 unless the body has a session link or a declaration.")
+    check.add_argument("body_file")
+    check.set_defaults(run=cmd_check_body)
     return root
 
 

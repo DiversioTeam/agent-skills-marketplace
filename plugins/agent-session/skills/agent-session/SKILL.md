@@ -48,8 +48,8 @@ Run from the repository (any worktree) on the PR's branch, after the last
 commit you are about to push: the transcript records the commits it covers
 (base..HEAD) and its name carries `h<HEAD12>`, so new commits make it stale.
 
-1. **Find (optional).** `python3 "$S" find [--pr N]` lists Claude Code and Pi
-   sessions that ran on this branch, linked this PR, or mention the branch or
+1. **Find (optional).** `python3 "$S" find [--pr N]` lists Claude Code, Pi,
+   and Codex sessions that ran on this branch, linked this PR, or mention the branch or
    PR URL, with their subagents and teammates. Add a missing one with `--session ID`, drop one with
    `--exclude ID`, keep a whole session with `--whole ID` (on `share` too).
 2. **Share.** `python3 "$S" share [--pr N] --open` finds the PR with `gh`
@@ -101,6 +101,9 @@ improve.
   belongs to the branch when it ran in a worktree that has the branch checked
   out, or mentions the branch or PR. The `agent-session` Pi package guards PR
   create and edit like the Claude Code hook.
-- **Codex:** session parsing for `~/.codex/sessions/` follows in the next
-  release; until then, publish the Claude Code and Pi sessions involved and
-  say in the PR that Codex was used. local-ci's check still applies.
+- **Codex:** rollouts in `$CODEX_HOME/sessions/` (default `~/.codex`), matched
+  by the `git.branch` and repository Codex records, or a worktree on the
+  branch, or a mention. Subagent rollouts attach to their parent thread, from
+  where their own work starts. Reasoning is encrypted and never shown.
+  `python3 "$S" install-codex-hook` adds the same PR guard to Codex's
+  `hooks.json` (Codex asks the developer to trust it).
