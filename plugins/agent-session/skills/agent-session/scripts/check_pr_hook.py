@@ -29,12 +29,16 @@ MESSAGE = (
 )
 
 
-def _bodies(command: str, cwd: Path) -> list[str]:
-    """The PR body texts a command passes: inline `--body`/`-b` values (and `body=` API fields) and `--body-file` contents."""
-    try:
-        tokens = shlex.split(command, posix=True)
-    except ValueError:
-        return []
+def _bodies(command: str, cwd: Path, argv: list[str] | None = None) -> list[str]:
+    """The PR body texts a command passes: inline `--body`/`-b` values (and `body=` API fields) and `--body-file` contents.
+    An argv list keeps its own argument boundaries."""
+    if argv is not None:
+        tokens = argv
+    else:
+        try:
+            tokens = shlex.split(command, posix=True)
+        except ValueError:
+            return []
     texts = []
     for index, token in enumerate(tokens):
         following = tokens[index + 1] if index + 1 < len(tokens) else None
@@ -61,8 +65,8 @@ def _is_diversio(command: str, cwd: Path) -> bool:
     return "diversioteam/" in completed.stdout.lower()
 
 
-def decide(command: str, cwd: Path) -> str | None:
-    """The reason to block, or None to allow."""
+def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
+    """The reason to block, or None to allow. `argv` is the command as an argument list, when the tool sent one."""
     match = PR_COMMAND.search(command)
     api = API_COMMAND.search(command)
     if not match and not api:
@@ -76,7 +80,7 @@ def decide(command: str, cwd: Path) -> str | None:
     if not _is_diversio(command, cwd):
         return None
     # A heredoc body (`--body "$(cat <<'EOF' ...)"`) arrives as one token holding the text, so its lines are checked too.
-    if LINK.search(command) or any(has_transcript(text) for text in _bodies(command, cwd)):
+    if LINK.search(command) or any(has_transcript(text) for text in _bodies(command, cwd, argv)):
         return None
     return MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
 
@@ -89,11 +93,17 @@ def main() -> int:
     tool_input = payload.get("tool_input") or {}
     # Claude Code's Bash sends `command`; Codex's exec_command sends `cmd`, its shell tool an argv list.
     command = (tool_input.get("command") or tool_input.get("cmd")) if isinstance(tool_input, dict) else None
+    argv = None
     if isinstance(command, list):
-        command = " ".join(str(part) for part in command)
+        argv = [str(part) for part in command]
+        # A shell's -c payload is itself a command line; anything else keeps its argument boundaries.
+        if len(argv) >= 3 and Path(argv[0]).name in ("sh", "bash", "zsh") and argv[1] in ("-c", "-lc"):
+            command, argv = argv[2], None
+        else:
+            command = shlex.join(argv)
     if not isinstance(command, str):
         return 0
-    reason = decide(command, Path(payload.get("cwd") or ".").expanduser())
+    reason = decide(command, Path(payload.get("cwd") or ".").expanduser(), argv)
     if reason:
         print(reason, file=sys.stderr)
         return 2

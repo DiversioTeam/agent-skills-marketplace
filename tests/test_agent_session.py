@@ -749,6 +749,107 @@ class PiChildFindingsTests(unittest.TestCase):
                 child = unit.turns[0].items[0].tool.subagent
                 self.assertEqual(child.cwd, child_cwd)
                 self.assertEqual(bool(child.evidence), expected)
+class CodexSlicingTests(unittest.TestCase):
+    def test_codex_lead_keeps_only_the_child_on_this_branch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            git = lambda branch: {"branch": branch, "repository_url": "git@github.com:DiversioTeam/demo.git"}
+            call = lambda call_id, task: _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": call_id,
+                                                                  "arguments": json.dumps({"task": task})}, 3)
+            activity = lambda call_id, thread: _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": call_id,
+                                                                                                       "kind": "started", "agent_thread_id": thread}}, 3)
+            lead = [
+                _codex("session_meta", {"id": "lead", "cwd": "/work/demo", "git": git("main")}, 0),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Run both tasks"}]}, 1),
+                call("k1", "transcripts"), activity("k1", "child-good"),
+                call("k2", "cleanup secret-cleanup"), activity("k2", "child-other"),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Unrelated lunch question"}]}, 4),
+            ]
+            children = {
+                "child-good": [_codex("session_meta", {"id": "child-good", "parent_thread_id": "lead", "agent_nickname": "Curie", "cwd": "/work/demo",
+                                                       "git": git("feature/demo-transcripts")}, 0),
+                               _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Built transcripts"}]}, 1)],
+                "child-other": [_codex("session_meta", {"id": "child-other", "parent_thread_id": "lead", "agent_nickname": "Noether", "cwd": "/work/demo",
+                                                        "git": git("main")}, 0),
+                                _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Cleaned secret-cleanup"}]}, 1)],
+            }
+            path = day / "rollout-2026-10-23T11-00-00-lead.jsonl"
+            path.write_text("\n".join(json.dumps(record) for record in lead) + "\n")
+            for thread, records in children.items():
+                (day / f"rollout-2026-10-23T11-01-00-{thread}.jsonl").write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            self.assertEqual(codex_sessions.find_sessions(demo_context(), Path(directory)), [path])
+            unit = codex_sessions.load_session(path, demo_context(), Path(directory))
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([mate.worker_key for mate in unit.teammates], ["child-good"])
+        self.assertEqual([turn.text for turn in unit.turns], ["Run both tasks"])
+        self.assertEqual([item.tool.links_to for turn in unit.turns for item in turn.items if item.tool], ["child-good"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Built transcripts", pages[0])
+        self.assertNotIn("secret-cleanup", pages[0])
+        self.assertNotIn("lunch", pages[0])
+
+
+class CodexReviewFindingsTests(unittest.TestCase):
+    """Regressions for courage-bot's #118 findings."""
+
+    def test_write_stdin_polls_inherit_the_terminal_sessions_withholding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            records = [
+                _codex("session_meta", {"id": "t", "cwd": "/work/demo", "git": {"branch": "feature/demo-transcripts", "repository_url": "git@github.com:DiversioTeam/demo.git"}}, 0),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Tail the staging log"}]}, 1),
+                _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "x1", "arguments": json.dumps({"cmd": "ssh staging 'tail -f app.log'"})}, 2),
+                _codex("response_item", {"type": "function_call_output", "call_id": "x1", "output": "Process running with session ID 12345"}, 3),
+                _codex("response_item", {"type": "function_call", "name": "write_stdin", "call_id": "x2", "arguments": json.dumps({"session_id": 12345, "chars": ""})}, 4),
+                _codex("response_item", {"type": "function_call_output", "call_id": "x2", "output": "staging-" + "secret-" + "line"}, 5),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "x3", "input": "await tools.write_stdin({session_id: 12345, chars: ''})"}, 6),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "x3", "output": "staging-" + "secret-" + "line2"}, 7),
+            ]
+            path = day / "rollout-2026-10-23T11-00-00-t.jsonl"
+            path.write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            unit = codex_sessions.load_session(path, demo_context(), Path(directory))
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 3)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("staging-secret-line", pages[0])
+
+    def test_grandchildren_reach_the_transcript(self):
+        with tempfile.TemporaryDirectory() as directory:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            git = lambda branch: {"branch": branch, "repository_url": "git@github.com:DiversioTeam/demo.git"}
+            write = lambda name, records: (day / f"rollout-2026-10-23T11-0{len(name)}-00-{name}.jsonl").write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            write("main", [_codex("session_meta", {"id": "main", "cwd": "/w", "git": git("main")}, 0),
+                           _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Delegate it"}]}, 1),
+                           _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "k1", "arguments": "{}"}, 2),
+                           _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "k1", "agent_thread_id": "child"}}, 3)])
+            write("child", [_codex("session_meta", {"id": "child", "parent_thread_id": "main", "cwd": "/w", "git": git("main")}, 0),
+                            _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Delegating further"}]}, 1)])
+            write("grandchild", [_codex("session_meta", {"id": "grandchild", "parent_thread_id": "child", "cwd": "/w", "git": git("feature/demo-transcripts")}, 0),
+                                 _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Grandchild did the work"}]}, 1)])
+            main = day / "rollout-2026-10-23T11-04-00-main.jsonl"
+            self.assertEqual(codex_sessions.find_sessions(demo_context(), Path(directory)), [main])
+            unit = codex_sessions.load_session(main, demo_context(), Path(directory))
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([mate.worker_key for mate in unit.teammates], ["child", "grandchild"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Grandchild did the work", pages[0])
+        self.assertIn("Delegate it", pages[0])
+
+    def test_hook_keeps_argv_boundaries(self):
+        import subprocess
+        hook = Path(check_pr_hook.__file__)
+
+        def run(command, cwd="/tmp"):
+            return subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": command}, "cwd": cwd}),
+                                  capture_output=True, text=True).returncode
+        self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body", "No agent session: hand edited"]), 0)
+        self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body", "Summary only"]), 2)
+        self.assertEqual(run(["bash", "-lc", "gh pr create --repo DiversioTeam/demo --body 'No agent session: hand edited'"]), 0)
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "my body.md").write_text("No agent session: hand edited\n")
+            self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body-file", "my body.md"], directory), 0)
 
 
 class PrBodyAndHookTests(unittest.TestCase):

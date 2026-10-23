@@ -16,6 +16,7 @@ import os
 import re
 from pathlib import Path
 
+from provenance import Provenance
 from redaction import is_credential_path, withheld_reason
 from repo_context import RepoContext, is_recent, parse_repo_slug
 from session_model import Item, Tokens, ToolCall, Turn, Unit
@@ -30,6 +31,7 @@ _CONTEXT_BLOCK = re.compile(r"^\s*<(?P<tag>" + "|".join(re.escape(tag) for tag i
 # Code-mode `exec` wraps shell calls in JavaScript: tools.exec_command({cmd: "..."}).
 _NESTED_COMMAND = re.compile(r"""\b(?:cmd|command)\s*["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)""")
 _PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (\S+)", re.MULTILINE)
+_TERMINAL = re.compile(r"session ID:?\s*(\d+)", re.IGNORECASE)
 _CALLS = {"function_call", "custom_tool_call", "local_shell_call", "tool_search_call"}
 _OUTPUTS = {"function_call_output", "custom_tool_call_output", "local_shell_call_output", "tool_search_output"}
 
@@ -144,8 +146,12 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
     start = int(meta.get("subagent_history_start_ordinal") or 0) if kind == "subagent" else 0
     markers = context.evidence_pattern()
     pending: dict[str, ToolCall] = {}
+    # A long-running exec_command leaves a terminal session that write_stdin polls; the polls inherit its withholding.
+    terminals = Provenance()
     turn: Turn | None = None
     usage: dict = {}
+    # Calls that started or messaged a subagent thread (SubAgentActivity items), by call id.
+    spawned: dict[str, str] = {}
 
     def current(timestamp: str) -> Turn:
         nonlocal turn
@@ -160,6 +166,9 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
         payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
         timestamp = str(record.get("timestamp", ""))
         kind_ = record.get("type")
+        item = payload.get("item") if isinstance(payload.get("item"), dict) else {}
+        if kind_ == "event_msg" and item.get("type") == "SubAgentActivity" and item.get("id") and item.get("agent_thread_id"):
+            spawned[str(item["id"])] = str(item["agent_thread_id"])
         if kind_ == "turn_context" and payload.get("model") and payload["model"] not in unit.models:
             unit.models.append(str(payload["model"]))
         elif kind_ == "event_msg" and payload.get("type") == "token_count" and isinstance(payload.get("info"), dict):
@@ -183,14 +192,20 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
                 current(timestamp).items.append(Item(kind="assistant", text=text, timestamp=timestamp))
             elif item_type in _CALLS:
                 call = _call(payload, timestamp)
+                call.withheld = call.withheld or terminals.inherited(call)
                 pending[call.id] = call
                 current(timestamp).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
             elif item_type in _OUTPUTS:
                 call = pending.get(str(payload.get("call_id", "")))
                 if call:
                     call.output = _output(payload.get("output", payload.get("tools", "")))
+                    terminals.record([f'"session_id": {handle}' for handle in _TERMINAL.findall(call.output)]
+                                     + [f"session_id: {handle}" for handle in _TERMINAL.findall(call.output)]
+                                     + [f"session_id:{handle}" for handle in _TERMINAL.findall(call.output)], call.withheld)
         if markers and turn is not None and markers.search(json.dumps(record)):
             turn.evidence = True
+    for call in pending.values():
+        call.links_to = spawned.get(call.id, "")
     if usage:
         cached = int(usage.get("cached_input_tokens") or 0)
         unit.tokens = Tokens(input=max(int(usage.get("input_tokens") or 0) - cached, 0), output=int(usage.get("output_tokens") or 0),
@@ -215,34 +230,66 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
         if not is_recent(path, context.since):
             continue
         meta = _meta(path)
-        if _parent(meta):
-            continue
         git = meta.get("git") if isinstance(meta.get("git"), dict) else {}
-        if (git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug) \
-                or context.in_worktree_on_branch(str(meta.get("cwd") or "")):
-            found.append(path)
-            continue
-        if pattern:
+        matched = (git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug) \
+            or context.in_worktree_on_branch(str(meta.get("cwd") or ""))
+        if not matched and pattern:
             try:
                 with path.open(encoding="utf-8", errors="replace") as handle:
-                    if any(pattern.search(line) for line in handle):
-                        found.append(path)
+                    matched = any(pattern.search(line) for line in handle)
             except OSError:
                 continue
+        if not matched:
+            continue
+        # A subagent's work brings in its parent rollout, where the slicer keeps the turns that spawned it.
+        # Walk up to the top-level rollout (a grandchild's work belongs to its lead too).
+        target, parent, hops = path, _parent(meta), 0
+        while parent and hops < 8:
+            parents = sorted(root.glob(f"*/*/*/*-{parent}.jsonl"))
+            if not parents:
+                break
+            target, parent, hops = parents[0], _parent(_meta(parents[0])), hops + 1
+        if not parent and target not in found:
+            found.append(target)
     return sorted(found, key=lambda candidate: candidate.stat().st_mtime)
 
 
 def load_session(path: Path, context: RepoContext, root: Path | None = None) -> Unit:
-    """A top-level rollout with its subagents (rollouts whose parent is this thread) attached."""
+    """A top-level rollout with every descendant subagent rollout attached (children, grandchildren, …), each from its
+    own history start. A subagent whose descendants worked on the branch counts as working on it too, so the chain
+    from the lead to the work stays connected."""
     unit = parse_session(path, context)
     root = root or sessions_root()
     since = path.stat().st_mtime - 7 * 24 * 60 * 60
+    children: dict[str, list[Path]] = {}
     for candidate in sorted(root.glob("*/*/*/*.jsonl")):
         try:
             if candidate == path or candidate.stat().st_mtime < since:
                 continue
         except OSError:
             continue
-        if _parent(_meta(candidate)) == unit.session_id:
-            unit.teammates.append(parse_session(candidate, context, "subagent"))
+        parent = _parent(_meta(candidate))
+        if parent:
+            children.setdefault(parent, []).append(candidate)
+    queue = [(unit.session_id, None)]
+    attached: list[tuple[Unit, Unit | None]] = []
+    while queue:
+        thread, owner = queue.pop(0)
+        for candidate in children.get(thread, []):
+            child = parse_session(candidate, context, "subagent")
+            child.worker_key = child.session_id
+            unit.teammates.append(child)
+            attached.append((child, owner))
+            queue.append((child.session_id, child))
+    below: dict[int, list[Unit]] = {}
+    for child, owner in attached:
+        if owner is not None:
+            below.setdefault(id(owner), []).append(child)
+
+    def works(child: Unit) -> bool:
+        return bool(child.evidence) or any(works(grandchild) for grandchild in below.get(id(child), []))
+
+    for child, _owner in attached:
+        if not child.evidence and works(child):
+            child.evidence.append("its subagent worked on the branch")
     return unit
