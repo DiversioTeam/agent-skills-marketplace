@@ -198,7 +198,9 @@ class Page:
         span = f"{_time(starts[0])} to {_time(ends[-1])}" if starts and ends else ""
         pr = f" · PR #{context.pr}" if context.pr else ""
         rows = [("Repository", context.repo_slug or context.repo_name), ("Branch", context.branch),
-                ("Pull request", f"#{context.pr}" if context.pr else "not opened yet"), ("Agents", ", ".join(harnesses)),
+                ("Pull request", f"#{context.pr}" if context.pr else "not opened yet"),
+                ("Covers", f"{context.base[:12] or 'start'}..{context.head[:12]} ({_plural(len(context.commits), 'commit')})" if context.head else ""),
+                ("Agents", ", ".join(harnesses)),
                 ("Models", ", ".join(models)), ("Time", span),
                 ("Sessions", ", ".join(_plural(sum(1 for unit in everything if unit.kind == kind), kind)
                                        for kind in ("session", "teammate", "subagent"))),
@@ -339,12 +341,17 @@ def build_pages(context: RepoContext, units: list[Unit], redactor: Redactor, exp
         size += length
     links = names or [f"part-{index + 1}.html" for index in range(len(parts))]
     summary = page.redaction_summary()
+    # What the page covers, for tools: the repo, branch, base..head, and the commits in between.
+    coverage = "".join(f"<meta name=\"agent-session-{name}\" content=\"{html.escape(value)}\">" for name, value in (
+        ("repo", context.repo_slug), ("branch", context.branch), ("base", context.base), ("head", context.head),
+        ("commits", " ".join(context.commits))) if value)
     pages = []
     for index, part in enumerate(parts):
         header = page.header([unit for unit, _ in part], (index + 1, len(parts)), links).replace("<!--REDACTION-->", summary)
         title = html.escape(f"Agent sessions · {context.repo_name} · {context.branch}")
         pages.append(f"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
                      f"<meta name=\"generator\" content=\"{GENERATOR}\"><meta name=\"agent-session-expires\" content=\"{html.escape(expires)}\">"
+                     f"{coverage}"
                      f"<meta name=\"referrer\" content=\"no-referrer\"><title>{title}</title><style>{STYLE}</style></head>"
                      f"<body><main>{header}{''.join(section for _, section in part)}</main></body></html>")
     return pages, page

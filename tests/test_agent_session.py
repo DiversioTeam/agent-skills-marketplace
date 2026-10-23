@@ -16,6 +16,7 @@ publish = importlib.import_module("publish")
 redaction = importlib.import_module("redaction")
 render_html = importlib.import_module("render_html")
 repo_context = importlib.import_module("repo_context")
+store = importlib.import_module("store")
 
 # Synthetic secrets, assembled at runtime so no literal token shape is committed.
 GITHUB_TOKEN = "ghp_" + "Zx9Q" * 9
@@ -26,6 +27,7 @@ JWT = "eyJ" + "hbGciOiJIUzI1NiJ9" + "." + "eyJzdWIiOiIxIn0" + "." + "c2lnbmF0dXJ
 ENV_SECRET = "synthetic-" + "env-value-" + "7f3a9c"
 CUSTOMER_EMAIL = "pat.customer" + "@" + "acme-example.io"
 STAFF_EMAIL = "dev" + "@" + "diversio.com"
+HEAD = "0123456789abcdef0123456789abcdef01234567"
 
 
 class RedactorTests(unittest.TestCase):
@@ -132,7 +134,7 @@ def build_store(root: Path) -> Path:
 
 def demo_context() -> "repo_context.RepoContext":
     return repo_context.RepoContext(root=Path("/tmp/demo-repo"), branch="feature/demo-transcripts", repo_slug="DiversioTeam/demo",
-                                    pr=7, worktrees=[Path("/tmp/demo-repo")], since=0)
+                                    pr=7, worktrees=[Path("/tmp/demo-repo")], since=0, head=HEAD, base="f" * 40, commits=[HEAD])
 
 
 class ClaudeCodeTests(unittest.TestCase):
@@ -182,6 +184,8 @@ class ClaudeCodeTests(unittest.TestCase):
         self.assertIn("<strong>database</strong>", html)
         self.assertNotRegex(html, r"<(?:link|img|iframe|object|embed)\b|\bon[a-z]+=|src=")
         self.assertEqual(dict(page.withheld), {"credential file": 1, "prod or staging data access": 1})
+        self.assertIn(f'<meta name="agent-session-head" content="{HEAD}">', html)
+        self.assertIn(f"ffffffffffff..{HEAD[:12]} (1 commit)", html)
 
     def test_drop_turn_and_include_output(self):
         unit = claude_code.load_session(self.main, demo_context())
@@ -200,7 +204,7 @@ class ClaudeCodeTests(unittest.TestCase):
         render_html.MAX_PART_BYTES = 1
         try:
             # One session of three turns plus its teammate: each turn and the teammate land in their own part.
-            names = publish.build_names("demo", "feature/demo-transcripts", 4)
+            names = publish.build_names("demo", "feature/demo-transcripts", 4, HEAD)
             pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now", names)
         finally:
             render_html.MAX_PART_BYTES = original
@@ -237,9 +241,10 @@ class PrBodyAndHookTests(unittest.TestCase):
     LINK = "https://internal-share.diversio.com/session-demo-feature-demo-20261023-a1b2c3.html"
 
     def test_names_are_flat_and_bounded(self):
-        names = publish.build_names("courage", "feature/" + "x" * 300, 2)
+        names = publish.build_names("courage", "feature/" + "x" * 300, 2, HEAD)
         for name in names:
             self.assertTrue(name.startswith("session-courage-feature-"))
+            self.assertIn(f"-h{HEAD[:12]}-", name)
             self.assertNotIn("/", name)
             self.assertLessEqual(len(name), 180)
             self.assertTrue(name.endswith(".html"))
@@ -282,3 +287,65 @@ class PrBodyAndHookTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShareTests(unittest.TestCase):
+    """share: one command that renders, publishes, records coverage, links the PR, and deletes what it supersedes."""
+
+    def setUp(self):
+        import subprocess
+        from unittest import mock
+        self.mock = mock
+        self.directory = tempfile.TemporaryDirectory()
+        root = Path(self.directory.name)
+        self.repo = root / "repo"
+        self.repo.mkdir()
+        git = lambda *args: subprocess.run(["git", "-C", str(self.repo), *args], check=True, capture_output=True)
+        git("init", "-q", "-b", "main")
+        git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "init")
+        git("checkout", "-q", "-b", "feature/demo-transcripts")
+        git("remote", "add", "origin", "https://github.com/DiversioTeam/demo.git")
+        build_store(root / "store")
+        self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--out", str(root / "out")]
+        self.env = mock.patch.dict("os.environ", {"AGENT_SESSION_HOME": str(root / "state")})
+        self.env.start()
+        self.uploads, self.deleted, self.bodies = [], [], []
+        patches = [
+            mock.patch.object(publish, "upload", side_effect=lambda path, name: self.uploads.append(name) or publish.link_for(name)),
+            mock.patch.object(publish, "delete", side_effect=lambda name: self.deleted.append(name) or True),
+            mock.patch.object(agent_session, "_find_pr", return_value=7),
+            mock.patch.object(agent_session, "_update_pr_body", side_effect=lambda context, pr, section: self.bodies.append((pr, section)) or True),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def tearDown(self):
+        self.env.stop()
+        self.directory.cleanup()
+
+    def test_first_publish_waits_for_yes_then_republish_is_one_command(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 3)
+            self.assertEqual(self.uploads, [])
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes"]), 0)
+        first = list(self.uploads)
+        record = store.latest("DiversioTeam/demo", "feature/demo-transcripts")
+        self.assertEqual(record["names"], first)
+        self.assertEqual(len(record["head"]), 40)
+        self.assertIn(f"-h{record['head'][:12]}-", first[0])
+        self.assertEqual(self.bodies[0][0], 7)
+        self.assertIn(publish.link_for(first[0]), self.bodies[0][1])
+        # A later republish needs no --yes and deletes the upload it replaces.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        self.assertEqual(self.deleted, first)
+        self.assertNotEqual(self.uploads[-1], first[0])
+
+    def test_declare_none_records_and_links(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["declare-none", "hand-edited a config value", "--repo", str(self.repo)]), 0)
+        self.assertEqual(store.latest("DiversioTeam/demo", "feature/demo-transcripts")["none"], "hand-edited a config value")
+        self.assertIn("No agent session: hand-edited a config value", self.bodies[0][1])

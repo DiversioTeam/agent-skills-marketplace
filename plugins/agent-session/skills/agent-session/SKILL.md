@@ -13,9 +13,11 @@ redacted, rendered as one script-free HTML file, and published to Diversio
 Internal Share (staff only, behind Cloudflare Access). A PR no agent worked on
 says so with `No agent session: <reason>` instead.
 
-This is not optional. Courage sets a `courage/agent-session` status on every
-PR, and the plugin's Claude Code hook blocks `gh pr create` and body edits
-without a link or declaration. Never work around either; never fake a link.
+This is not optional. A transcript must cover the branch's current HEAD:
+local-ci's `agent-session` check (in every Diversio repo's required
+`local/verify`) fails when it does not, and the plugin's Claude Code hook
+blocks `gh pr create` and body edits without a link or declaration. Never
+work around either; never fake a link.
 
 Script (standard library Python 3.10+, works under Claude Code, Pi, and Codex):
 
@@ -23,41 +25,46 @@ Script (standard library Python 3.10+, works under Claude Code, Pi, and Codex):
 S="<this skill>/scripts/agent_session.py"   # e.g. ${CLAUDE_PLUGIN_ROOT}/skills/agent-session/scripts
 ```
 
+## When local-ci Reports `agent-session:`
+
+The failure starts with `agent-session: missing`, `agent-session: stale`, or
+`agent-session: unlinked` and prints the exact command to run. Run it. It is
+`python3 "$S" share --repo <root> [--pr N]`, which renders, publishes, rewrites
+the PR body's `## Agent sessions` section with the new link, and deletes the
+upload it supersedes. Then run local-ci again. If it is the branch's first
+publish, `share` stops with exit code 3 for the review below; continue with
+`--yes` after the developer agrees.
+
 ## Workflow
 
-Run from the repository (any worktree) on the PR's branch.
+Run from the repository (any worktree) on the PR's branch, after the last
+commit you are about to push: the transcript records the commits it covers
+(base..HEAD) and its name carries `h<HEAD12>`, so new commits make it stale.
 
-1. **Find.** `python3 "$S" find [--pr N]` lists sessions that ran on this
-   branch, linked this PR, or mention the branch or PR URL, with their
-   teammates. The current session should be among them. Add a missing one with
-   `--session ID`, drop one with `--exclude ID`, keep a whole session (not
-   only matching turns) with `--whole ID`.
-2. **Render.** `python3 "$S" render [--pr N] --open` writes the preview to
-   `~/.agent/sessions/<repo>-<branch>/` and prints a redaction summary
-   (counts by kind, never values).
-3. **Review with the developer.** Show the summary and preview path and say
-   plainly: *the page includes your own prompts word for word and is visible
-   to all Diversio staff.* Ask once whether to publish. Offer:
-   - `--drop-turn N` (repeatable) to remove a turn by the number on the page;
-   - `--include-output N` to publish a withheld prod/staging output in turn N
-     (only when the developer asks; credentials are never included).
-   Re-render after any change. Do not publish without a yes.
-4. **Publish.** `python3 "$S" publish` uploads with `cloudflared access`
-   (first use opens a browser sign-in). It refuses files changed since render.
-   The developer becomes the uploader and can delete the page in Internal
-   Share.
-5. **Link.** Put the printed `## Agent sessions` section in the PR body:
-   `python3 "$S" update-body BODY.md --link URL [--link URL2]` replaces an
-   existing section or appends one. Then create or edit the PR with
-   `--body-file BODY.md`. Check with `python3 "$S" check-body BODY.md`.
+1. **Find (optional).** `python3 "$S" find [--pr N]` lists sessions that ran
+   on this branch, linked this PR, or mention the branch or PR URL, with their
+   teammates. Add a missing one with `--session ID`, drop one with
+   `--exclude ID`, keep a whole session with `--whole ID` (on `share` too).
+2. **Share.** `python3 "$S" share [--pr N] --open` finds the PR with `gh`
+   when `--pr` is omitted, writes the preview to
+   `~/.agent/sessions/<repo>-<branch>/`, and prints coverage and a redaction
+   summary (counts by kind, never values).
+3. **Review with the developer (first publish on a branch).** Show the summary
+   and preview path and say plainly: *the page includes your own prompts word
+   for word and is visible to all Diversio staff.* Ask once. Offer
+   `--drop-turn N` (repeatable) and `--include-output N` (a withheld
+   prod/staging output, only when the developer asks; credentials never).
+   With a yes, run `share ... --yes`. Later republishes on the branch publish
+   directly, keeping the same choices you pass.
+4. **Result.** The page is uploaded with `cloudflared access` (first use opens
+   a browser sign-in); the developer is the uploader and can delete it. The
+   publish is recorded in `~/.agent/sessions/published.jsonl` (local-ci reads
+   it before a PR exists). With an open PR, its body's `## Agent sessions`
+   section now holds the newest link; without one, `share` prints the section
+   to put in the body (`update-body BODY.md --link URL` writes it into a file).
 
-Before the PR exists, render without `--pr`; the branch is enough to find the
-sessions. When more work lands on the PR, render and publish again and
-replace the section's links (Internal Share never overwrites a name, so each
-publish gets a fresh one).
-
-For a PR with no agent involvement, write the declaration instead:
-`python3 "$S" update-body BODY.md --none "hand-edited config value"`.
+For a branch no agent worked on: `python3 "$S" declare-none "reason"` records
+it and writes `No agent session: <reason>` into the PR body.
 
 ## What Gets Redacted
 
@@ -83,4 +90,4 @@ improve.
 - **Pi and Codex:** session parsing for `~/.pi/agent/sessions/` and
   `~/.codex/sessions/` follows in the next release; until then, publish the
   Claude Code sessions involved, or declare `No agent session: <reason>` and
-  name the agent in the reason. Courage's status check still applies.
+  name the agent in the reason. local-ci's check still applies.

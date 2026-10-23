@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Claude Code PreToolUse hook: block creating or rewriting a DiversioTeam PR body without an agent session link.
 
-Reads the hook payload on stdin. Exit 0 allows the call; exit 2 blocks it and shows stderr to the model. Courage's
-`courage/agent-session` status on the PR is the real gate; this gives the agent the feedback before the PR exists.
+Reads the hook payload on stdin. Exit 0 allows the call; exit 2 blocks it and shows stderr to the model. local-ci's
+agent-session check (required `local/verify`) is the real gate; this gives the agent the feedback before the PR exists.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ API_COMMAND = re.compile(r"\bgh\s+api\b[^\n]*\brepos/[^/\s]+/[^/\s]+/pulls\b")
 BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
 MESSAGE = (
     "This PR needs its agent session transcript. Run the agent-session skill "
-    "(`python3 {script} render --open`, review the page, then `publish`) and put the link in the body's "
+    "(`python3 {script} share`; on a first publish review the preview with the developer, then add `--yes`). It links the newest transcript in the body's "
     "'## Agent sessions' section. For a PR no agent worked on, add a line 'No agent session: <reason>'."
 )
 

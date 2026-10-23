@@ -239,7 +239,7 @@ If key context is missing, emit:
 The description must also carry a `## Agent sessions` section with the
 redacted transcript link from the `agent-session` skill, or a
 `No agent session: <reason>` declaration. Missing both is `[BLOCKING]`:
-Courage's `courage/agent-session` status flags it on the PR.
+local-ci's `agent-session` check fails it too (`agent-session: missing|stale|unlinked`).
 
 ### 3.2 Self-review checklist
 

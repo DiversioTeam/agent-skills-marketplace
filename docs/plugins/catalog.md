@@ -286,7 +286,10 @@ when command files change.
     DiversioTeam PR. Renders one script-free HTML page, redacts locally
     (Courage re-checks), lets the author review and drop turns, publishes to
     Internal Share through Cloudflare Access, and writes the PR body's
-    `## Agent sessions` section. Ships a Claude Code `PreToolUse` hook that
+    `## Agent sessions` section. `share` is one command (render, publish,
+    link, delete the superseded upload); names carry the covered HEAD, which
+    local-ci's opt-in `agent-session` check compares with the branch HEAD.
+    Ships a Claude Code `PreToolUse` hook that
     blocks `gh pr create` and body edits without a link or a
     `No agent session: <reason>` declaration.
   - Claude install: `claude plugin install agent-session@diversiotech`

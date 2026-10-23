@@ -32,6 +32,10 @@ class RepoContext:
     pr: int | None = None
     worktrees: list[Path] = field(default_factory=list)
     since: float = 0.0
+    # The commits a transcript covers: base (where the branch left the default branch) to head, oldest first.
+    head: str = ""
+    base: str = ""
+    commits: list[str] = field(default_factory=list)
 
     @property
     def repo_name(self) -> str:
@@ -70,4 +74,7 @@ class RepoContext:
             since = float(first[0]) - LOOKBACK_SECONDS
         else:
             since = time.time() - 14 * 24 * 60 * 60
-        return cls(root=root, branch=branch, repo_slug=slug, default_branch=default, pr=pr, worktrees=worktrees, since=since)
+        head = _git(root, "rev-parse", "HEAD")
+        commits = _git(root, "rev-list", "--reverse", "--max-count=500", f"{base}..{head}").splitlines() if base and head else []
+        return cls(root=root, branch=branch, repo_slug=slug, default_branch=default, pr=pr, worktrees=worktrees, since=since,
+                   head=head, base=base, commits=commits)
