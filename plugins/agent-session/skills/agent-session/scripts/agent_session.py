@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -26,8 +28,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import check  # noqa: E402
 import claude_code  # noqa: E402
 import pr_body  # noqa: E402
+import slicing  # noqa: E402
 import publish as publisher  # noqa: E402
 from redaction import Redactor, collect_known_secrets  # noqa: E402
 from render_html import build_pages, number_turns  # noqa: E402
@@ -51,23 +55,7 @@ def _out_dir(args: argparse.Namespace, context: RepoContext) -> Path:
 
 
 def _select_turns(unit: Unit, context: RepoContext, whole: bool) -> None:
-    """Keep the turns that belong to this work: on the branch, mentioning it or the PR, or starting a subagent that does."""
-    if whole:
-        return
-    def belongs(turn: Turn) -> bool:
-        if turn.evidence or (context.branch and turn.branch == context.branch):
-            return True
-        return any(item.tool and item.tool.subagent and item.tool.subagent.evidence for item in turn.items)
-    kept = [turn for turn in unit.turns if belongs(turn)]
-    # A session tied to the PR only by its pr-link record (it opened the PR from another branch) is kept whole.
-    if not kept and any(evidence.startswith("linked to PR") for evidence in unit.evidence):
-        return
-    unit.omitted_turns = len(unit.turns) - len(kept)
-    unit.turns = kept
-    if kept and unit.omitted_turns:
-        unit.started = kept[0].timestamp
-        last = kept[-1]
-        unit.ended = max([last.timestamp, *(item.timestamp for item in last.items if item.timestamp)])
+    slicing.slice_to_work(unit, context, whole)
 
 
 def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
@@ -86,8 +74,7 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
             continue
         unit = claude_code.load_session(path, context)
         _select_turns(unit, context, unit.id in whole)
-        unit.teammates = [mate for mate in unit.teammates
-                          if mate.id not in excluded and (mate.evidence or mate.id in whole or unit.id in whole)]
+        unit.teammates = [mate for mate in unit.teammates if mate.id not in excluded]
         if unit.turns or unit.teammates:
             units.append(unit)
     return units
@@ -346,6 +333,53 @@ def cmd_update_body(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check(args: argparse.Namespace) -> int:
+    """The local-ci step: exit 1 unless a published transcript covers HEAD (linked from the open PR, if there is one)."""
+    context = RepoContext.detect(Path(args.repo).resolve())
+    pr, error = check.open_pr(context.repo_slug, context.branch) if context.branch else (None, "")
+    result = check.decide(check.Input(repo_root=str(context.root), repo_slug=context.repo_slug, branch=context.branch, head=context.head,
+                                      pr=pr, pr_lookup_error=error, published=store.latest(context.repo_slug, context.branch)))
+    print(result.message)
+    return 0 if result.ok else 1
+
+
+SHIM = """#!/bin/sh
+# agent-session: installed by the agent-session skill (agent_session.py install-shim). Runs the skill's CLI; when the
+# recorded copy is gone (a plugin update), it uses the newest installed one.
+cli={cli}
+if [ ! -f "$cli" ]; then
+  cli=$(ls -t "$HOME"/.claude/plugins/cache/*/agent-session/*/skills/agent-session/scripts/agent_session.py \\
+    "${{CODEX_HOME:-$HOME/.codex}}"/skills/agent-session/scripts/agent_session.py 2>/dev/null | head -n 1)
+fi
+if [ -z "$cli" ] || [ ! -f "$cli" ]; then
+  echo "agent-session: missing (the agent-session skill is not installed)"
+  echo "fix: claude plugin install agent-session@diversiotech (or the Codex/Pi skill), start a session once, then run local-ci again"
+  exit 1
+fi
+exec python3 "$cli" "$@"
+"""
+
+
+def cmd_install_shim(args: argparse.Namespace) -> int:
+    """Put `agent-session` on PATH (default ~/.local/bin), pointing at this copy of the CLI. Safe to run every session."""
+    target = Path(args.bin_dir).expanduser() / "agent-session"
+    content = SHIM.format(cli=shlex.quote(str(Path(__file__).resolve())))
+    try:
+        current = target.read_text(encoding="utf-8") if target.exists() else ""
+    except OSError:
+        current = ""
+    if current != content:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        target.chmod(0o755)
+        if not args.quiet:
+            print(f"Installed {target}.")
+    on_path = str(target.parent) in os.environ.get("PATH", "").split(os.pathsep)
+    if not on_path and not args.quiet:
+        print(f"Add {target.parent} to PATH so local-ci can run `agent-session check`.")
+    return 0
+
+
 def cmd_check_body(args: argparse.Namespace) -> int:
     body = sys.stdin.read() if args.body_file == "-" else Path(args.body_file).read_text(encoding="utf-8")
     if pr_body.has_transcript(body):
@@ -412,9 +446,18 @@ def parser() -> argparse.ArgumentParser:
     update.add_argument("--none", help="Declare that no agent session was involved, with the reason.")
     update.set_defaults(run=cmd_update_body)
 
-    check = commands.add_parser("check-body", help="Exit 1 unless the body has a session link or a declaration.")
-    check.add_argument("body_file")
-    check.set_defaults(run=cmd_check_body)
+    head_check = commands.add_parser("check", help="The local-ci step: exit 1 unless a published transcript covers HEAD.")
+    head_check.add_argument("--repo", default=".")
+    head_check.set_defaults(run=cmd_check)
+
+    shim = commands.add_parser("install-shim", help="Install the `agent-session` command on PATH (default ~/.local/bin).")
+    shim.add_argument("--bin-dir", default="~/.local/bin")
+    shim.add_argument("--quiet", action="store_true")
+    shim.set_defaults(run=cmd_install_shim)
+
+    body_check = commands.add_parser("check-body", help="Exit 1 unless the body has a session link or a declaration.")
+    body_check.add_argument("body_file")
+    body_check.set_defaults(run=cmd_check_body)
     return root
 
 

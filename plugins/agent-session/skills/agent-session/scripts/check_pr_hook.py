@@ -23,7 +23,8 @@ API_COMMAND = re.compile(r"\bgh\s+api\b[^\n]*\brepos/[^/\s]+/[^/\s]+/pulls\b")
 BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
 MESSAGE = (
     "This PR needs its agent session transcript. Run the agent-session skill "
-    "(`python3 {script} share`; on a first publish review the preview with the developer, then add `--yes`). It links the newest transcript in the body's "
+    "(`agent-session share`, or `python3 {script} share`; on a first publish review the preview with the developer, then add `--yes`). "
+    "It links the newest transcript in the body's "
     "'## Agent sessions' section. For a PR no agent worked on, add a line 'No agent session: <reason>'."
 )
 

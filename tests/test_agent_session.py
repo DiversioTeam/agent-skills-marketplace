@@ -1,5 +1,6 @@
 import importlib
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -17,6 +18,8 @@ redaction = importlib.import_module("redaction")
 render_html = importlib.import_module("render_html")
 repo_context = importlib.import_module("repo_context")
 store = importlib.import_module("store")
+check = importlib.import_module("check")
+slicing = importlib.import_module("slicing")
 
 # Synthetic secrets, assembled at runtime so no literal token shape is committed.
 GITHUB_TOKEN = "ghp_" + "Zx9Q" * 9
@@ -241,6 +244,73 @@ class ClaudeCodeTests(unittest.TestCase):
         self.assertEqual([turn.text for turn in unit.turns], ["Unrelated words"])
 
 
+def build_lead_store(root: Path) -> Path:
+    """A lead session on main running three features through three teammates and a subagent. Feature B is this PR."""
+    project = root / "-tmp-lead"
+    session = project / "22222222-0000-0000-0000-000000000000"
+    (session / "subagents").mkdir(parents=True)
+    rec = lambda kind, content, ts, **extra: _record(kind, content, ts, branch="main", **extra)
+    tool = lambda call_id, name, tool_input, ts: rec("assistant", [{"type": "tool_use", "id": call_id, "name": name, "input": tool_input}], ts)
+    result = lambda call_id, text, ts: rec("user", [{"type": "tool_result", "tool_use_id": call_id, "content": text}], ts)
+    records = [
+        rec("user", "Build feature A: the Fleet panel.", "2026-10-23T09:00:00Z", origin={"kind": "human"}),
+        rec("assistant", [{"type": "text", "text": "Starting Fleet work with a teammate."}], "2026-10-23T09:00:01Z"),
+        tool("a1", "Agent", {"name": "alpha", "description": "Fleet panel", "prompt": "Build the Fleet panel secret-alpha-plan", "subagent_type": "general-purpose"}, "2026-10-23T09:00:02Z"),
+        result("a1", "spawned alpha", "2026-10-23T09:00:03Z"),
+        rec("user", "Also build feature B: transcripts. And C: the video.", "2026-10-23T09:10:00Z", origin={"kind": "human"}),
+        rec("assistant", [{"type": "text", "text": "Spawning the transcripts teammate now."}], "2026-10-23T09:10:01Z"),
+        tool("b1", "Agent", {"name": "beta", "description": "PR transcripts", "prompt": "Design and build PR transcripts", "subagent_type": "general-purpose"}, "2026-10-23T09:10:02Z"),
+        result("b1", "spawned beta", "2026-10-23T09:10:03Z"),
+        rec("assistant", [{"type": "text", "text": "And the video teammate."}], "2026-10-23T09:10:04Z"),
+        tool("g1", "Agent", {"name": "gamma", "description": "Explainer video", "prompt": "Make the video secret-gamma-plan", "subagent_type": "general-purpose"}, "2026-10-23T09:10:05Z"),
+        result("g1", "spawned gamma", "2026-10-23T09:10:06Z"),
+        rec("user", '<teammate-message teammate_id="alpha">Fleet panel is done secret-alpha-report</teammate-message>', "2026-10-23T09:20:00Z"),
+        rec("assistant", [{"type": "text", "text": "Great, merging plan for Fleet."}], "2026-10-23T09:20:01Z"),
+        rec("user", '<teammate-message teammate_id="beta">Design ready for review</teammate-message>', "2026-10-23T09:30:00Z"),
+        rec("assistant", [{"type": "text", "text": "Approving the design."}], "2026-10-23T09:30:01Z"),
+        tool("s1", "SendMessage", {"to": "beta", "message": "Go, with conservative defaults", "summary": "go"}, "2026-10-23T09:30:02Z"),
+        result("s1", "queued", "2026-10-23T09:30:03Z"),
+        rec("assistant", [{"type": "text", "text": "Also nudging gamma."}], "2026-10-23T09:30:04Z"),
+        tool("s2", "SendMessage", {"to": "gamma", "message": "Use the new logo secret-gamma-note"}, "2026-10-23T09:30:05Z"),
+        result("s2", "queued", "2026-10-23T09:30:06Z"),
+        rec("user", "How is the video going?", "2026-10-23T09:40:00Z", origin={"kind": "human"}),
+        rec("assistant", [{"type": "text", "text": "Video is rendering."}], "2026-10-23T09:40:01Z"),
+    ]
+    main = project / f"{session.name}.jsonl"
+    main.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+    for name, lines in (("alpha", ["Working on Fleet on feature/fleet-panel"]), ("beta", ["Working on feature/demo-transcripts", "Opened PR"]),
+                        ("gamma", ["Rendering the video"])):
+        path = session / "subagents" / f"agent-a{name}-1.jsonl"
+        path.write_text("\n".join(json.dumps(rec("assistant", [{"type": "text", "text": line}], f"2026-10-23T09:1{index}:00Z"))
+                                  for index, line in enumerate(lines)) + "\n", encoding="utf-8")
+        (session / "subagents" / f"agent-a{name}-1.meta.json").write_text(json.dumps({"name": name, "taskKind": "in_process_teammate"}))
+    return main
+
+
+class SlicingTests(unittest.TestCase):
+    def test_a_multi_feature_lead_session_shows_only_this_prs_work(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = build_lead_store(Path(directory))
+            self.assertEqual(claude_code.find_sessions(demo_context(), Path(directory)), [main])
+            unit = claude_code.load_session(main, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([mate.worker_key for mate in unit.teammates], ["beta"])
+        self.assertTrue(unit.title.endswith("only the parts about this work"))
+        prompts = [turn.text for turn in unit.turns]
+        self.assertEqual(prompts, ["Also build feature B: transcripts. And C: the video.", "Design ready for review"])
+        calls = [(item.tool.name, item.tool.links_to) for turn in unit.turns for item in turn.items if item.tool]
+        self.assertEqual(calls, [("Agent", "beta"), ("SendMessage", "beta")])
+        texts = [item.text for turn in unit.turns for item in turn.items if item.kind == "assistant"]
+        self.assertEqual(texts, ["Spawning the transcripts teammate now.", "Approving the design."])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        html = pages[0]
+        for present in ("Design and build PR transcripts", "Go, with conservative defaults", "Teammate: beta", "Working on feature/demo-transcripts"):
+            self.assertIn(present, html)
+        for absent in ("secret-alpha", "secret-gamma", "Fleet panel", "Explainer video", "Rendering the video", "How is the video going"):
+            self.assertNotIn(absent, html)
+        self.assertIn("turns in this session were about other work", html)
+
+
 class CourageBotFindingsTests(unittest.TestCase):
     """Regressions for the redaction gaps courage-bot reproduced on #116."""
 
@@ -288,6 +358,71 @@ class CourageBotFindingsTests(unittest.TestCase):
                                    "o2": "background output of unknown origin", "b2": None, "o3": None})
         self.assertNotIn(sentinel, html)
         self.assertIn("4 passed", html)
+
+
+class CheckTests(unittest.TestCase):
+    """`agent-session check`, the local-ci step. Its output is a contract for coding agents; change it deliberately."""
+
+    LINK = "https://internal-share.diversio.com/session-courage-feature-x-20261023-h0123456789ab-a1b2c3.html"
+    OLD = "https://internal-share.diversio.com/session-courage-feature-x-20261022-hfedcba987654-d4e5f6.html"
+
+    def input(self, **changes):
+        values = dict(repo_root="/work/courage", repo_slug="DiversioTeam/courage", branch="feature/x", head=HEAD)
+        values.update(changes)
+        return check.Input(**values)
+
+    def test_failure_output_is_pinned(self):
+        result = check.decide(self.input(pr=(79, f"## Agent sessions\n\n- [Agent session transcript]({self.OLD})\n")))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.message, "\n".join([
+            "agent-session: stale (transcript covers fedcba987654, HEAD is 0123456789ab) for DiversioTeam/courage branch feature/x PR #79",
+            "fix: agent-session share --repo /work/courage --pr 79",
+            "next: share renders a redacted preview, publishes it to internal-share, and puts its link in the PR body's \"## Agent sessions\" "
+            "section; on a branch's first publish it stops (exit 3) for the developer's review, then rerun with --yes. Run local-ci again afterwards.",
+            "no agent worked on this branch: agent-session declare-none '<reason>' --repo /work/courage --pr 79 (writes \"No agent session: <reason>\")",
+        ]))
+
+    def test_unverified_and_quoting(self):
+        result = check.decide(self.input(pr_lookup_error="gh could not read the PR (check gh auth status)"))
+        self.assertEqual(result.message, "agent-session: unverified (gh could not read the PR (check gh auth status)) for DiversioTeam/courage branch feature/x\n"
+                                         "fix: gh auth login, then run local-ci again\n"
+                                         "next: with the PR readable, the check compares the PR body's agent session link with HEAD")
+        quoted = check.decide(self.input(repo_root="/work/$(touch marker)/it's"))
+        self.assertIn("--repo '/work/$(touch marker)/it'\"'\"'s'", quoted.message)
+
+    def test_decisions(self):
+        current = {"head": HEAD, "links": [self.LINK]}
+        cases = [
+            (dict(pr=(1, "x\n" + self.LINK)), True, "ok"),
+            (dict(pr=(1, self.OLD + "\n" + self.LINK)), True, "ok"),
+            (dict(pr=(1, "## Agent sessions\n\nNo agent session: hand-edited config")), True, "declared"),
+            (dict(pr=(1, "No agent session:")), False, "missing"),
+            (dict(pr=(1, self.OLD)), False, "stale"),
+            (dict(pr=(1, self.OLD), published=current), False, "unlinked"),
+            (dict(pr=(1, "https://internal-share.diversio.com/report.html")), False, "missing"),
+            (dict(published=current), True, "ok"),
+            (dict(published={"head": "f" * 40, "links": [self.OLD]}), False, "stale"),
+            (dict(published={"head": "f" * 40, "none": "manual fix"}), True, "declared"),
+            (dict(), False, "missing"),
+            (dict(branch="", published=current), False, "missing"),
+            (dict(pr_lookup_error="x", published=current), False, "unverified"),
+        ]
+        for changes, ok, kind in cases:
+            result = check.decide(self.input(**changes))
+            self.assertEqual((result.ok, result.kind), (ok, kind), changes)
+
+    def test_shim_installs_idempotently(self):
+        import contextlib, io, subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                agent_session.main(["install-shim", "--bin-dir", directory])
+                agent_session.main(["install-shim", "--bin-dir", directory, "--quiet"])
+            shim = Path(directory, "agent-session")
+            self.assertTrue(os.access(shim, os.X_OK))
+            self.assertEqual(out.getvalue().count("Installed"), 1)
+            completed = subprocess.run([str(shim), "--help"], capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 0)
+            self.assertIn("share", completed.stdout)
 
 
 class PrBodyAndHookTests(unittest.TestCase):

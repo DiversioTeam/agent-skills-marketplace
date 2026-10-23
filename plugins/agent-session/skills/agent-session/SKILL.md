@@ -14,26 +14,33 @@ Internal Share (staff only, behind Cloudflare Access). A PR no agent worked on
 says so with `No agent session: <reason>` instead.
 
 This is not optional. A transcript must cover the branch's current HEAD:
-local-ci's `agent-session` check (in every Diversio repo's required
-`local/verify`) fails when it does not, and the plugin's Claude Code hook
-blocks `gh pr create` and body edits without a link or declaration. Never
-work around either; never fake a link.
+each Diversio repo's local-ci runs `agent-session check` as a required step,
+and the plugin's Claude Code hook blocks `gh pr create` and body edits
+without a link or declaration. Never work around either; never fake a link.
 
-Script (standard library Python 3.10+, works under Claude Code, Pi, and Codex):
+The `agent-session` command (a shim in `~/.local/bin`, installed and kept
+current by the plugin's SessionStart hook, the Pi extension, or
+`install-codex-hook`; by hand: `python3 <skill>/scripts/agent_session.py
+install-shim`) runs this skill's CLI. Standard library Python 3.9+, same under
+Claude Code, Pi, and Codex.
 
 ```bash
-S="<this skill>/scripts/agent_session.py"   # e.g. ${CLAUDE_PLUGIN_ROOT}/skills/agent-session/scripts
+S="<this skill>/scripts/agent_session.py"   # `python3 "$S" …` is the same as `agent-session …`
 ```
 
 ## When local-ci Reports `agent-session:`
 
-The failure starts with `agent-session: missing`, `agent-session: stale`, or
-`agent-session: unlinked` and prints the exact command to run. Run it. It is
-`python3 "$S" share --repo <root> [--pr N]`, which renders, publishes, rewrites
-the PR body's `## Agent sessions` section with the new link, and deletes the
-upload it supersedes. Then run local-ci again. If it is the branch's first
+The failure starts with `agent-session: missing`, `stale`, `unlinked`, or
+`unverified` and prints the exact `fix:` command. Run it: usually
+`agent-session share --repo <root> [--pr N]`, which renders, publishes,
+rewrites the PR body's `## Agent sessions` section with the new link, and
+deletes the upload it supersedes. Then run local-ci again. On a branch's first
 publish, `share` stops with exit code 3 for the review below; continue with
-`--yes` after the developer agrees.
+`--yes` after the developer agrees. `unverified` means gh could not read the
+PR: fix `gh auth`, then rerun.
+
+A repo opts in with one step in `.local-ci.toml` (see
+`references/local-ci-step.md`).
 
 ## Workflow
 

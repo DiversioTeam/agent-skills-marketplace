@@ -20,6 +20,8 @@ class ToolCall:
     withheld: str | None = None
     # A subagent this call started, rendered nested at the call site.
     subagent: Unit | None = None
+    # The worker (subagent, teammate, child thread) this call spawned or messaged, by its worker_key.
+    links_to: str = ""
 
 
 @dataclass
@@ -84,3 +86,5 @@ class Unit:
     teammates: list[Unit] = field(default_factory=list)
     # Turns left out because they were about other work; shown as a gap note.
     omitted_turns: int = 0
+    # How a lead's calls and messages name this worker: a teammate's name, a subagent's tool-use id, a run or thread id.
+    worker_key: str = ""

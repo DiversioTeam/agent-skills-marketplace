@@ -61,6 +61,16 @@ _BACKGROUND_FILE = re.compile(r"Output is being written to:?\s*(\S+?)\.?(?:\s|$)
 _BACKGROUND_READERS = {"TaskOutput", "BashOutput", "AgentOutputTool"}
 
 
+def _worker_link(call: ToolCall) -> str:
+    """Which worker a call spawns or messages: a teammate by name (Agent's `name`, SendMessage's `to`), else a
+    subagent by the Agent call's own id."""
+    if call.name in ("Agent", "Task"):
+        return str(call.input.get("name") or call.id)
+    if call.name == "SendMessage":
+        return str(call.input.get("to") or call.input.get("recipient") or "")
+    return ""
+
+
 def _background_handles(output: str) -> list[str]:
     return [*_BACKGROUND_ID.findall(output), *_BACKGROUND_FILE.findall(output)]
 
@@ -159,6 +169,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
                     call = ToolCall(id=str(block.get("id", "")), name=str(block.get("name", "")), input=tool_input,  # type: ignore[arg-type]
                                     timestamp=timestamp)
                     call.withheld = withheld_reason(call.name, call.input) or _inherited_reason(call, background)
+                    call.links_to = _worker_link(call)
                     pending[call.id] = call
                     current(timestamp, branch).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
         else:
@@ -215,10 +226,12 @@ def load_session(main_path: Path, context: RepoContext) -> Unit:
         if meta.get("taskKind") == "in_process_teammate" or not tool_use_id:
             name = str(meta.get("name") or meta.get("description") or path.stem)
             teammate = parse_unit(path, "teammate", f"Teammate: {name}", context)
+            teammate.worker_key = str(meta.get("name") or "")
             unit.teammates.append(teammate)
             continue
         title = f"Subagent: {meta.get('description') or meta.get('agentType') or path.stem}"
         subagent = parse_unit(path, "subagent", title, context, tool_use_id)
+        subagent.worker_key = tool_use_id
         if tool_use_id in calls:
             calls[tool_use_id].subagent = subagent
         else:

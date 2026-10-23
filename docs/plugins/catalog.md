@@ -287,8 +287,11 @@ when command files change.
     (Courage re-checks), lets the author review and drop turns, publishes to
     Internal Share through Cloudflare Access, and writes the PR body's
     `## Agent sessions` section. `share` is one command (render, publish,
-    link, delete the superseded upload); names carry the covered HEAD, which
-    local-ci's opt-in `agent-session` check compares with the branch HEAD.
+    link, delete the superseded upload); names carry the covered HEAD.
+    `agent-session check` (a shim on PATH, kept current by the plugin) is the
+    per-repo local-ci step that fails when no published transcript covers HEAD.
+    Transcripts are scoped to the PR's work: the worker that did it plus the
+    lead's spawn, messages and prompts about it.
     Ships a Claude Code `PreToolUse` hook that
     blocks `gh pr create` and body edits without a link or a
     `No agent session: <reason>` declaration.
