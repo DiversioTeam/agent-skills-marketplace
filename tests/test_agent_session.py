@@ -617,6 +617,13 @@ def build_codex_store(root: Path) -> Path:
         _codex("response_item", {"type": "function_call_output", "call_id": "c1", "output": f"row {CUSTOMER_EMAIL}"}, 6),
         _codex("response_item", {"type": "custom_tool_call", "name": "apply_patch", "call_id": "c2", "input": "*** Begin Patch\n*** Update File: /work/demo/.env\n+TOKEN=x\n*** End Patch"}, 7),
         _codex("response_item", {"type": "custom_tool_call_output", "call_id": "c2", "output": json.dumps({"output": "Success."})}, 8),
+        _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "c4",
+                                 "input": 'const r = await tools.exec_command({cmd:"ssh production \\"tail app.log\\"","workdir":"/work/demo"}); text(r.output);'}, 8),
+        _codex("response_item", {"type": "custom_tool_call_output", "call_id": "c4", "output": "private-" + "prod-" + "log"}, 8),
+        _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "c5",
+                                 "input": 'const r = await tools.exec_command({cmd:"git status --short"}); text(r.output);'}, 8),
+        _codex("response_item", {"type": "custom_tool_call_output", "call_id": "c5", "output": "M app.py"}, 8),
+        _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "<task>Also tidy the fixture</task>"}]}, 9),
         _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "c3", "arguments": json.dumps({"cmd": "pytest -q"})}, 9),
         _codex("response_item", {"type": "function_call_output", "call_id": "c3", "output": json.dumps({"output": "3 passed"})}, 10),
         _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": f"Fixed. Token was {GITHUB_TOKEN}"}]}, 11),
@@ -644,16 +651,17 @@ class CodexTests(unittest.TestCase):
             unit = codex_sessions.load_session(main, demo_context(), Path(directory))
         self.assertEqual(unit.harness, "Codex")
         self.assertEqual(unit.models, ["gpt-5.6-sol"])
-        self.assertEqual([turn.text for turn in unit.turns], ["Fix the flaky test"])
+        self.assertEqual([turn.text for turn in unit.turns], ["Fix the flaky test", "<task>Also tidy the fixture</task>"])
         self.assertEqual((unit.tokens.input, unit.tokens.cache_read, unit.tokens.output), (600, 400, 50))
-        tools = [item.tool for item in unit.turns[0].items if item.tool]
+        tools = [item.tool for turn in unit.turns for item in turn.items if item.tool]
         self.assertEqual([(tool.name, tool.withheld) for tool in tools],
-                         [("exec_command", "prod or staging data access"), ("apply_patch", "credential file"), ("exec_command", None)])
-        self.assertEqual(tools[2].output, "3 passed")
+                         [("exec_command", "prod or staging data access"), ("apply_patch", "credential file"),
+                          ("exec", "prod or staging data access"), ("exec", None), ("exec_command", None)])
+        self.assertEqual(tools[4].output, "3 passed")
         self.assertEqual([mate.title for mate in unit.teammates], ["Codex subagent: Curie (explorer)"])
         self.assertEqual([turn.text for turn in unit.teammates[0].turns], ["Find the flaky test"])
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
-        for leaked in (GITHUB_TOKEN, CUSTOMER_EMAIL, "gAAAA-private", "TOKEN=x", "environment_context", "copied parent history"):
+        for leaked in (GITHUB_TOKEN, CUSTOMER_EMAIL, "gAAAA-private", "TOKEN=x", "environment_context", "copied parent history", "private-prod-log"):
             self.assertNotIn(leaked, pages[0])
         self.assertIn("3 passed", pages[0])
 

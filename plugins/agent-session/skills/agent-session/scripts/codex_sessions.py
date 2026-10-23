@@ -21,8 +21,14 @@ from repo_context import RepoContext, is_recent, parse_repo_slug
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Codex"
-# Harness context Codex injects as user messages (<environment_context>, <user_instructions>, plugin lists): not prompts.
-_CONTEXT_BLOCK = re.compile(r"^\s*<(?P<tag>[a-z][a-z0-9_-]*)\b[^>]*>[\s\S]*</(?P=tag)>\s*$")
+# Harness context Codex injects as user messages: not the developer's prompt. Only these known wrappers are dropped, so
+# a prompt the developer wrapped in a tag of their own (<task>…</task>) stays.
+_CONTEXT_TAGS = ("environment_context", "user_instructions", "recommended_plugins", "app-context", "app_context",
+                 "permissions_instructions", "collaboration_mode", "skills_instructions", "apps_instructions", "plugins_instructions",
+                 "turn_aborted", "subagent_notification", "model_switch", "realtime_context", "personality")
+_CONTEXT_BLOCK = re.compile(r"^\s*<(?P<tag>" + "|".join(re.escape(tag) for tag in _CONTEXT_TAGS) + r")\b[^>]*>[\s\S]*</(?P=tag)>\s*$")
+# Code-mode `exec` wraps shell calls in JavaScript: tools.exec_command({cmd: "..."}).
+_NESTED_COMMAND = re.compile(r"""\b(?:cmd|command)\s*["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)""")
 _PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (\S+)", re.MULTILINE)
 _CALLS = {"function_call", "custom_tool_call", "local_shell_call", "tool_search_call"}
 _OUTPUTS = {"function_call_output", "custom_tool_call_output", "local_shell_call_output", "tool_search_output"}
@@ -114,6 +120,11 @@ def _call(payload: dict, timestamp: str) -> ToolCall:
         arguments = {"arguments": arguments}
     call = ToolCall(id=str(payload.get("call_id") or payload.get("id") or ""), name=name, input=arguments, timestamp=timestamp)
     call.withheld = withheld_reason(name, arguments)
+    code = arguments.get("input")
+    if not call.withheld and isinstance(code, str):
+        # Classify each shell command a code-mode wrapper runs, then the whole script as a fallback for computed commands.
+        nested = [literal[1:-1].replace('\\"', '"').replace("\\'", "'").replace("\\n", "\n") for literal in _NESTED_COMMAND.findall(code)]
+        call.withheld = next((reason for reason in (withheld_reason("exec_command", {"cmd": command}) for command in [*nested, code]) if reason), None)
     patch = arguments.get("input")
     if not call.withheld and isinstance(patch, str) and any(is_credential_path(path) for path in _PATCH_FILE.findall(patch)):
         call.withheld = "credential file"
