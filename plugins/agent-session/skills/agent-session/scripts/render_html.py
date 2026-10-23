@@ -11,7 +11,7 @@ import html
 import json
 import re
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 from redaction import Redactor, looks_like_personal_rows
@@ -206,7 +206,7 @@ class Page:
                 ("Generated", self.generated), ("Expires", self.expires)]
         table = "".join(f"<dt>{html.escape(name)}</dt><dd>{html.escape(value)}</dd>" for name, value in rows if value)
         toc = "".join(f"<li><a href=\"#unit-{html.escape(unit.id)}\">{html.escape(unit.title)}</a> · {_plural(len(unit.turns), 'turn')}</li>"
-                      for top in units for unit in [top, *top.teammates])
+                      for unit in units)
         nav = ""
         if part[1] > 1:
             nav = "<p class=\"parts\">" + " · ".join(
@@ -295,12 +295,39 @@ details.subagent{margin:6px 0 10px 12px;border-left:3px solid var(--line);paddin
 """
 
 
+def _split(unit: Unit, page: Page) -> list[Unit]:
+    """One unit, or consecutive slices of its turns that each fit in a part. A single huge turn still stands alone."""
+    measure = Page(context=page.context, redactor=Redactor(known_secrets=page.redactor.known_secrets), expires="", generated="")
+    if len(measure.unit(unit).encode()) <= MAX_PART_BYTES:
+        return [unit]
+    slices: list[list[Turn]] = [[]]
+    size = 0
+    for turn in unit.turns:
+        length = len(measure.turn(turn, 0, True).encode())
+        if slices[-1] and size + length > MAX_PART_BYTES:
+            slices.append([])
+            size = 0
+        slices[-1].append(turn)
+        size += length
+    return [replace(unit, id=f"{unit.id}-{index + 1}", turns=turns, title=f"{unit.title} ({index + 1} of {len(slices)})",
+                    omitted_turns=unit.omitted_turns if index == 0 else 0) for index, turns in enumerate(slices)]
+
+
 def build_pages(context: RepoContext, units: list[Unit], redactor: Redactor, expires: str, generated: str,
                 names: list[str] | None = None) -> tuple[list[str], Page]:
     """HTML for each part (one unless the page passes the size cap) and the Page holding redaction counts."""
     number_turns(units)
     page = Page(context=context, redactor=redactor, expires=expires, generated=generated)
-    sections = [(unit, page.unit(unit)) for unit in units]
+    # Titles and senders come from session metadata (subagent descriptions, teammate names): redact them like any text.
+    for top in units:
+        for unit in _walk(top):
+            unit.title = page.line(unit.title, 200)
+            unit.id = page.line(unit.id, 120)
+            for turn in unit.turns:
+                turn.sender = page.line(turn.sender, 80)
+    # Teammates become top-level sections so a part can break between them, and one long session splits by turns.
+    flat = [piece for top in units for unit in (replace(top, teammates=[]), *top.teammates) for piece in _split(unit, page)]
+    sections = [(unit, page.unit(unit)) for unit in flat]
     parts: list[list[tuple[Unit, str]]] = [[]]
     size = 0
     for unit, section in sections:

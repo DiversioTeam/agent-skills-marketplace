@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from pr_body import has_transcript  # noqa: E402
+from pr_body import LINK, has_transcript  # noqa: E402
 
 PR_COMMAND = re.compile(r"\bgh\s+pr\s+(?P<verb>create|edit)\b")
 API_COMMAND = re.compile(r"\bgh\s+api\b[^\n]*\brepos/[^/\s]+/[^/\s]+/pulls\b")
@@ -28,22 +28,26 @@ MESSAGE = (
 )
 
 
-def _body_files(command: str, cwd: Path) -> list[str]:
+def _bodies(command: str, cwd: Path) -> list[str]:
+    """The PR body texts a command passes: inline `--body`/`-b` values (and `body=` API fields) and `--body-file` contents."""
     try:
         tokens = shlex.split(command, posix=True)
     except ValueError:
         return []
     texts = []
     for index, token in enumerate(tokens):
-        value = None
-        if token in ("--body-file", "-F") and index + 1 < len(tokens):
-            value = tokens[index + 1]
-        elif token.startswith("--body-file="):
-            value = token.split("=", 1)[1]
-        if value and value != "-":
-            path = (cwd / value).expanduser()
+        following = tokens[index + 1] if index + 1 < len(tokens) else None
+        if token in ("--body", "-b") and following is not None:
+            texts.append(following)
+        elif token.startswith("--body="):
+            texts.append(token.split("=", 1)[1])
+        elif token.startswith("body=") and index and tokens[index - 1] in ("-f", "-F", "--field", "--raw-field"):
+            texts.append(token.split("=", 1)[1])
+        file = following if token in ("--body-file", "-F") and following and not following.startswith("body=") else (
+            token.split("=", 1)[1] if token.startswith("--body-file=") else None)
+        if file and file != "-":
             try:
-                texts.append(path.read_text(encoding="utf-8"))
+                texts.append((cwd / file).expanduser().read_text(encoding="utf-8"))
             except OSError:
                 pass
     return texts
@@ -70,7 +74,8 @@ def decide(command: str, cwd: Path) -> str | None:
         return None
     if not _is_diversio(command, cwd):
         return None
-    if has_transcript(command) or any(has_transcript(text) for text in _body_files(command, cwd)):
+    # A heredoc body (`--body "$(cat <<'EOF' ...)"`) arrives as one token holding the text, so its lines are checked too.
+    if LINK.search(command) or any(has_transcript(text) for text in _bodies(command, cwd)):
         return None
     return MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
 

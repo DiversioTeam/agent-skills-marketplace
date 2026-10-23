@@ -61,6 +61,9 @@ class RedactorTests(unittest.TestCase):
         self.assertFalse(redaction.looks_like_personal_rows("def send_email(user): return user.email"))
         self.assertEqual(redaction.withheld_reason("Read", {"file_path": "/repo/.env.local"}), "credential file")
         self.assertIsNone(redaction.withheld_reason("Read", {"file_path": "/repo/.env.example"}))
+        self.assertEqual(redaction.withheld_reason("Read", {"file_path": "/repo/config/secrets-prod.json"}), "credential file")
+        self.assertEqual(redaction.withheld_reason("Read", {"file_path": "/repo/credentials.local"}), "credential file")
+        self.assertIsNone(redaction.withheld_reason("Read", {"file_path": "/repo/app/secrets_manager.py"}))
         self.assertEqual(redaction.withheld_reason("Bash", {"command": "printenv | sort"}), "command prints credentials")
         self.assertEqual(redaction.withheld_reason("Bash", {"command": "op read op://Vault/item/field"}), "command prints credentials")
         self.assertEqual(redaction.withheld_reason("Bash", {"command": "psql -h db.prod.internal -c 'select 1'"}), "prod or staging data access")
@@ -191,17 +194,43 @@ class ClaudeCodeTests(unittest.TestCase):
         self.assertEqual(dropped.text, "")
         self.assertIn("removed by the developer", dropped.items[0].text)
 
-    def test_large_pages_split_into_linked_parts(self):
-        units = [claude_code.load_session(self.main, demo_context()) for _ in range(3)]
+    def test_large_pages_split_into_linked_parts_even_within_one_session(self):
+        unit = claude_code.load_session(self.main, demo_context())
         original = render_html.MAX_PART_BYTES
         render_html.MAX_PART_BYTES = 1
         try:
-            names = publish.build_names("demo", "feature/demo-transcripts", 3)
-            pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now", names)
+            # One session of three turns plus its teammate: each turn and the teammate land in their own part.
+            names = publish.build_names("demo", "feature/demo-transcripts", 4)
+            pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now", names)
         finally:
             render_html.MAX_PART_BYTES = original
-        self.assertEqual(len(pages), 3)
-        self.assertIn(f'href="{names[1]}"', pages[0])
+        self.assertEqual(len(pages), 4)
+        self.assertIn(f'href="{names[3]}"', pages[0])
+        self.assertIn("Session 11111111 (1 of 3)", pages[0])
+        self.assertIn("Teammate: renderer", pages[3])
+
+    def test_titles_and_senders_are_redacted(self):
+        unit = claude_code.load_session(self.main, demo_context())
+        unit.teammates[0].title = f"Teammate: {CUSTOMER_EMAIL}"
+        unit.teammates[0].turns[0].sender = GITHUB_TOKEN
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(CUSTOMER_EMAIL, pages[0])
+        self.assertNotIn(GITHUB_TOKEN, pages[0])
+
+    def test_pr_links_alone_find_a_session_and_numbers_are_whole(self):
+        project = self.root / "-elsewhere"
+        project.mkdir()
+        linked = project / "aaaaaaaa-0000-0000-0000-000000000000.jsonl"
+        linked.write_text("\n".join(json.dumps(record) for record in [
+            _record("user", "Unrelated words", "2026-10-23T11:00:00Z", branch="main", origin={"kind": "human"}),
+            {"type": "pr-link", "sessionId": "x", "prNumber": 7, "prRepository": "DiversioTeam/demo", "timestamp": "2026-10-23T11:01:00Z"},
+        ]) + "\n", encoding="utf-8")
+        other = project / "bbbbbbbb-0000-0000-0000-000000000000.jsonl"
+        other.write_text(json.dumps(_record("user", "see https://github.com/DiversioTeam/demo/pull/74 and feature/demo-transcripts-2",
+                                            "2026-10-23T11:00:00Z", branch="main", origin={"kind": "human"})) + "\n", encoding="utf-8")
+        found = {path.name for path in claude_code.find_sessions(demo_context(), self.root)}
+        self.assertIn(linked.name, found)
+        self.assertNotIn(other.name, found)
 
 
 class PrBodyAndHookTests(unittest.TestCase):
@@ -234,6 +263,9 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --fill", cwd))
         self.assertIsNone(check_pr_hook.decide(f"gh pr create {repo} --title T --body 'See {self.LINK}'", cwd))
         self.assertIsNone(check_pr_hook.decide(f"gh pr create {repo} --body \"$(cat <<'EOF'\nNo agent session: manual hotfix\nEOF\n)\"", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"gh pr create {repo} --title T --body 'No agent session: manual hotfix'", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"gh pr create {repo} --title T --body='No agent session: manual hotfix'", cwd))
+        self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --title 'No agent session: sneaky title' --body x", cwd))
         self.assertIsNone(check_pr_hook.decide(f"gh pr edit 7 {repo} --add-label bug", cwd))
         self.assertIsNotNone(check_pr_hook.decide(f"gh pr edit 7 {repo} --body 'rewritten'", cwd))
         self.assertIsNone(check_pr_hook.decide("gh pr create --repo someone/else --body 'x'", cwd))

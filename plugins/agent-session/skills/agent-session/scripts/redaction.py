@@ -212,12 +212,18 @@ _CREDENTIAL_FILES = {
 }
 
 
+# `secrets-prod.json`, `credentials.local`: data files named for credentials, but not source code about them.
+_CREDENTIAL_PREFIXES = ("secrets", "credentials", ".secrets", "service-account", "service_account")
+_SOURCE_SUFFIXES = (".py", ".pyi", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".rb", ".go", ".rs", ".java", ".kt", ".md", ".html", ".css")
+
+
 def is_credential_path(path: str) -> bool:
     parts = path.lower().replace("\\", "/").split("/")
     filename = parts[-1]
     return (
         any(part in _CREDENTIAL_DIRECTORIES for part in parts)
         or filename in _CREDENTIAL_FILES
+        or (filename.startswith(_CREDENTIAL_PREFIXES) and not filename.endswith(_SOURCE_SUFFIXES))
         or filename == ".env"
         or (filename.startswith(".env.") and not filename.endswith((".example", ".sample", ".template")))
         or re.search(r"\.(?:pem|key|p12|pfx|jks|keystore)$", filename) is not None

@@ -46,6 +46,15 @@ class RepoContext:
             markers.append(f"github.com/{self.repo_slug}/pull/{self.pr}")
         return markers
 
+    def evidence_pattern(self) -> re.Pattern[str] | None:
+        """The markers as whole tokens (`pull/7` is not `pull/74`, `feature/x` is not `feature/x-2`), plus Claude Code's
+        structured `pr-link` record for this PR."""
+        parts = [rf"(?<![\w.-]){re.escape(marker)}(?![\w-])" for marker in self.evidence_markers()]
+        if self.pr and self.repo_slug:
+            parts.append(rf'"prNumber":\s*"?{self.pr}\b[^\n]*"prRepository":\s*"{re.escape(self.repo_slug)}"')
+            parts.append(rf'"prRepository":\s*"{re.escape(self.repo_slug)}"[^\n]*"prNumber":\s*"?{self.pr}\b')
+        return re.compile("|".join(parts)) if parts else None
+
     @classmethod
     def detect(cls, cwd: Path, branch: str | None = None, pr: int | None = None) -> RepoContext:
         root = Path(_git(cwd, "rev-parse", "--show-toplevel") or cwd)

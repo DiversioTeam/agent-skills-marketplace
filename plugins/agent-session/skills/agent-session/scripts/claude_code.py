@@ -87,7 +87,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
     pending: dict[str, ToolCall] = {}
     counted: set[str] = set()
     turn: Turn | None = None
-    markers = context.evidence_markers()
+    evidence = context.evidence_pattern()
 
     def current(timestamp: str, branch: str) -> Turn:
         nonlocal turn
@@ -160,7 +160,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
                 turn_kind, sender, text = classified
                 turn = Turn(kind=turn_kind, sender=sender, text=text, timestamp=timestamp, branch=branch)  # type: ignore[arg-type]
                 unit.turns.append(turn)
-        if any(marker in line for marker in markers):
+        if evidence and kind_ != "pr-link" and evidence.search(line):
             current(timestamp, branch).evidence = True
         if context.branch and branch == context.branch:
             current(timestamp, branch).branch = branch
@@ -215,7 +215,8 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
     root = root or projects_root()
     if not root.is_dir():
         return []
-    markers = [marker.encode() for marker in context.evidence_markers()]
+    evidence = context.evidence_pattern()
+    pattern = re.compile(evidence.pattern.encode()) if evidence else None
     worktree_dirs = {re.sub(r"[^A-Za-z0-9]", "-", str(path)) for path in context.worktrees}
     found: list[Path] = []
     for project in root.iterdir():
@@ -228,19 +229,19 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
             except OSError:
                 continue
             files = [path, *sorted((path.with_suffix("") / "subagents").glob("agent-*.jsonl"))]
-            if any(_mentions(candidate, markers, context.branch if project.name in worktree_dirs else "") for candidate in files):
+            if any(_mentions(candidate, pattern, context.branch if project.name in worktree_dirs else "") for candidate in files):
                 found.append(path)
     return sorted(found, key=lambda candidate: candidate.stat().st_mtime)
 
 
-def _mentions(path: Path, markers: list[bytes], branch: str) -> bool:
+def _mentions(path: Path, pattern: re.Pattern[bytes] | None, branch: str) -> bool:
     branch_record = f'"gitBranch":"{branch}"'.encode() if branch else b""
     try:
         with path.open("rb") as handle:
             for line in handle:
                 if branch_record and branch_record in line:
                     return True
-                if any(marker in line for marker in markers):
+                if pattern and pattern.search(line):
                     return True
     except OSError:
         return False
