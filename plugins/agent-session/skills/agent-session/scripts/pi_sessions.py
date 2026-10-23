@@ -15,6 +15,7 @@ import os
 import re
 from pathlib import Path
 
+from provenance import Provenance
 from redaction import withheld_reason
 from repo_context import RepoContext
 from session_model import Item, Tokens, ToolCall, Turn, Unit
@@ -81,6 +82,8 @@ def parse_session(path: Path, context: RepoContext) -> Unit:
     markers = context.evidence_pattern()
     on_branch = context.in_worktree_on_branch(unit.cwd)
     pending: dict[str, ToolCall] = {}
+    # Pi's bash saves truncated output to a file (details.fullOutputPath); reading it inherits the bash call's withholding.
+    overflow = Provenance()
     turn: Turn | None = None
 
     def current(timestamp: str) -> Turn:
@@ -126,7 +129,7 @@ def parse_session(path: Path, context: RepoContext) -> Unit:
                     elif block.get("type") == "toolCall":
                         arguments = block.get("arguments") if isinstance(block.get("arguments"), dict) else {}
                         call = ToolCall(id=str(block.get("id", "")), name=str(block.get("name", "")), input=arguments, timestamp=timestamp)
-                        call.withheld = withheld_reason(call.name, call.input)
+                        call.withheld = withheld_reason(call.name, call.input) or overflow.inherited(call)
                         pending[call.id] = call
                         current(timestamp).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
             elif role == "toolResult":
@@ -134,6 +137,8 @@ def parse_session(path: Path, context: RepoContext) -> Unit:
                 if call:
                     call.output = _text(message.get("content"))
                     call.is_error = bool(message.get("isError"))
+                    details = message.get("details") if isinstance(message.get("details"), dict) else {}
+                    overflow.record([str(details.get("fullOutputPath") or "")], call.withheld)
         if markers and turn is not None and markers.search(json.dumps(entry)):
             turn.evidence = True
     if abandoned:

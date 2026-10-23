@@ -441,13 +441,16 @@ def build_pi_store(root: Path, cwd: str) -> Path:
         message("aa000003", "aa000002", "assistant", [{"type": "thinking", "thinking": "", "thinkingSignature": "x"},
                                                     {"type": "toolCall", "id": "c1", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}],
                 model="gpt-5.5", usage=usage),
-        message("aa000004", "aa000003", "toolResult", [{"type": "text", "text": f"secret row {CUSTOMER_EMAIL}"}], toolCallId="c1", toolName="bash", isError=False),
+        message("aa000004", "aa000003", "toolResult", [{"type": "text", "text": f"secret row {CUSTOMER_EMAIL}"}], toolCallId="c1", toolName="bash", isError=False,
+                details={"truncation": {"truncated": True}, "fullOutputPath": "/tmp/pi-bash-abc123.log"}),
         message("aa000005", "aa000004", "assistant", [{"type": "text", "text": f"Abandoned idea with {GITHUB_TOKEN}"}], model="gpt-5.5", usage=usage),
         {"type": "branch_summary", "id": "aa000006", "parentId": "aa000004", "timestamp": "2026-10-23T10:00:06Z", "fromId": "aa000005", "summary": "x"},
         message("aa000007", "aa000006", "user", [{"type": "text", "text": "Try the other approach"}]),
-        message("aa000008", "aa000007", "assistant", [{"type": "toolCall", "id": "c2", "name": "read", "arguments": {"path": "README.md"}}], model="gpt-5.5", usage=usage),
+        message("aa000008", "aa000007", "assistant", [{"type": "toolCall", "id": "c2", "name": "read", "arguments": {"path": "README.md"}},
+                                                    {"type": "toolCall", "id": "c3", "name": "read", "arguments": {"path": "/tmp/pi-bash-abc123.log"}}], model="gpt-5.5", usage=usage),
         message("aa000009", "aa000008", "toolResult", [{"type": "text", "text": "# Demo"}], toolCallId="c2", toolName="read", isError=False),
-        message("aa000010", "aa000009", "assistant", [{"type": "text", "text": "Done on the other approach."}], model="gpt-5.5", usage=usage),
+        message("aa000011", "aa000009", "toolResult", [{"type": "text", "text": "private-" + "overflow-" + "row"}], toolCallId="c3", toolName="read", isError=False),
+        message("aa000010", "aa000011", "assistant", [{"type": "text", "text": "Done on the other approach."}], model="gpt-5.5", usage=usage),
     ]
     path = folder / "2026-10-23T10-00-00-000Z_01pi-session.jsonl"
     path.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n", encoding="utf-8")
@@ -476,12 +479,14 @@ class PiTests(unittest.TestCase):
         self.assertEqual(unit.models, ["gpt-5.5"])
         self.assertEqual([turn.text for turn in unit.turns], ["/skill:review Review the branch", "Try the other approach"])
         self.assertEqual(unit.tokens.output, 60)
-        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access", None])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool],
+                         ["prod or staging data access", None, "prod or staging data access"])
         self.assertEqual(unit.notes, ["1 entry on abandoned branches of the session tree is not shown."])
         pages, _ = render_html.build_pages(context, [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn(GITHUB_TOKEN, pages[0])
         self.assertNotIn(CUSTOMER_EMAIL, pages[0])
         self.assertNotIn("long skill body", pages[0])
+        self.assertNotIn("private-overflow-row", pages[0])
         self.assertIn("Done on the other approach.", pages[0])
         self.assertIn("Agents</dt><dd>Pi", pages[0])
 
