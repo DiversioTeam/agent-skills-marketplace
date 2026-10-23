@@ -396,6 +396,28 @@ class ShareTests(unittest.TestCase):
         self.assertEqual(self.deleted, first)
         self.assertNotEqual(self.uploads[-1], first[0])
 
+    def test_republish_keeps_dropped_turns_and_a_failed_link_keeps_the_old_page(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes", "--drop-turn", "1"]), 0)
+        first = list(self.uploads)
+        preview = Path(self.directory.name) / "out" / first[0]
+        self.assertNotIn("Add the transcript feature", preview.read_text(encoding="utf-8"))
+        self.assertEqual(len(store.latest("DiversioTeam/demo", "feature/demo-transcripts")["choices"]["drop"]), 1)
+        # A plain republish remembers the drop.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        second = self.uploads[-1]
+        self.assertNotIn("Add the transcript feature", (Path(self.directory.name) / "out" / second).read_text(encoding="utf-8"))
+        # When the PR body cannot be updated, the page it still links is kept and share fails.
+        with self.mock.patch.object(agent_session, "_update_pr_body", return_value=False), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 1)
+        self.assertNotIn(second, self.deleted)
+        # --reset-choices brings the turn back.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--reset-choices"]), 0)
+        self.assertIn("Add the transcript feature", (Path(self.directory.name) / "out" / self.uploads[-1]).read_text(encoding="utf-8"))
+
     def test_declare_none_records_and_links(self):
         import contextlib, io
         with contextlib.redirect_stdout(io.StringIO()):

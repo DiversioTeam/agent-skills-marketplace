@@ -93,21 +93,36 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
     return units
 
 
-def _apply_turn_choices(units: list[Unit], drop: set[int], include_output: set[int]) -> None:
+def turn_key(unit: Unit, turn: Turn) -> str:
+    """A turn's identity across renders (turn numbers shift as sessions grow): its transcript, time, and text."""
+    return f"{unit.id}:{turn.timestamp}:{hashlib.sha256(turn.text.encode()).hexdigest()[:10]}"
+
+
+def _apply_turn_choices(units: list[Unit], drop: set[int], include_output: set[int], drop_keys: set[str] = frozenset(),
+                        include_keys: set[str] = frozenset()) -> tuple[list[str], list[str]]:
+    """Drop turns and publish withheld prod/staging output, by page number (this render) or by stable key (an earlier
+    publish's choices). Returns every key dropped and included, to remember for the next republish."""
     number_turns(units)
+    dropped, included = [], []
     stack = list(units)
     while stack:
         unit = stack.pop()
         stack.extend(unit.teammates)
         for turn in unit.turns:
+            key = turn_key(unit, turn)
+            include = turn.number in include_output or key in include_keys
             for item in turn.items:
                 if item.tool and item.tool.subagent:
                     stack.append(item.tool.subagent)
-                if item.tool and turn.number in include_output and item.tool.withheld == "prod or staging data access":
+                if item.tool and include and item.tool.withheld == "prod or staging data access":
                     item.tool.withheld = None
-            if turn.number in drop:
+            if include:
+                included.append(key)
+            if turn.number in drop or key in drop_keys:
+                dropped.append(key)
                 turn.text = ""
                 turn.items = [Item(kind="note", text=f"Turn {turn.number} was removed by the developer before publishing.")]
+    return sorted(dropped), sorted(included)
 
 
 def cmd_find(args: argparse.Namespace) -> int:
@@ -134,13 +149,28 @@ def cmd_find(args: argparse.Namespace) -> int:
     return 0
 
 
+def _remembered_choices(args: argparse.Namespace, context: RepoContext) -> dict:
+    """The developer's choices from this branch's last publish, merged into this run's arguments, so a republish keeps
+    every turn they dropped and every session they excluded. --reset-choices starts over."""
+    previous = store.latest(context.repo_slug, context.branch) or {}
+    remembered = {} if getattr(args, "reset_choices", False) else dict(previous.get("choices") or {})
+    for name in ("session", "exclude", "whole"):
+        merged = sorted({*(getattr(args, name, None) or []), *remembered.get(name, [])})
+        setattr(args, name, merged or None)
+        remembered[name] = merged
+    return remembered
+
+
 def _render(args: argparse.Namespace, context: RepoContext) -> tuple[Path, dict] | None:
     """Write the preview page(s) and manifest; print the summary. None when no session was found."""
+    choices = _remembered_choices(args, context)
     units = load_units(context, args)
     if not units:
         print("No agent sessions found for this branch. Add one with --session ID, or run declare-none 'reason' if no agent worked on it.")
         return None
-    _apply_turn_choices(units, set(args.drop_turn or []), set(args.include_output or []))
+    dropped, included = _apply_turn_choices(units, set(args.drop_turn or []), set(args.include_output or []),
+                                             set(choices.get("drop", [])), set(choices.get("include_output", [])))
+    choices.update(drop=dropped, include_output=included)
     roots = [context.root, *context.worktrees]
     redactor = Redactor(known_secrets=collect_known_secrets(roots))
     now = datetime.now(timezone.utc)
@@ -159,7 +189,7 @@ def _render(args: argparse.Namespace, context: RepoContext) -> tuple[Path, dict]
         files.append({"name": name, "sha256": hashlib.sha256(html_text.encode()).hexdigest(), "bytes": len(html_text.encode())})
     counts = {kind: count for kind, count in redactor.counts.items() if count}
     manifest = {"repo": context.repo_slug, "branch": context.branch, "pr": context.pr, "expires": expires, "files": files,
-                "head": context.head, "base": context.base, "commits": context.commits,
+                "head": context.head, "base": context.base, "commits": context.commits, "choices": choices,
                 "sessions": [unit.id for unit in units], "redactions": counts, "withheld": dict(page.withheld),
                 "clipped": page.counts["clipped"], "turns": page.counts["turns"]}
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -235,14 +265,15 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     pr = context.pr or _find_pr(context)
     store.record({"repo": context.repo_slug, "branch": context.branch, "head": manifest["head"], "base": manifest["base"],
-                  "commits": manifest["commits"], "names": names, "links": links, "pr": pr,
+                  "commits": manifest["commits"], "names": names, "links": links, "pr": pr, "choices": manifest.get("choices", {}),
                   "published_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     for link in links:
         print(f"Published: {link}")
     section = pr_body.section(list(zip(_labels(links), links)))
-    if pr:
-        _update_pr_body(context, pr, section)
-    else:
+    if pr and not _update_pr_body(context, pr, section):
+        # The PR still links the previous page, so keep it; local-ci will report the new one as unlinked.
+        return 1
+    if not pr:
         print("\nNo open PR yet. Put this section in the PR body (or run share again after opening it):\n\n" + section)
     for name in (previous or {}).get("names") or []:
         if name not in names:
@@ -349,6 +380,8 @@ def parser() -> argparse.ArgumentParser:
                          help="Publish the withheld prod or staging output in this turn (repeatable). Never applies to credentials.")
         sub.add_argument("--retention-days", type=int, default=DEFAULT_RETENTION_DAYS)
         sub.add_argument("--open", action="store_true", help="Open the preview in the browser.")
+        sub.add_argument("--reset-choices", action="store_true",
+                         help="Forget the dropped turns, included outputs, and session choices remembered from this branch's last publish.")
 
     share = commands.add_parser("share", help="Render, publish, link in the PR, and delete superseded uploads (the usual command).")
     rendering(share)

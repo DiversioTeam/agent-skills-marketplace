@@ -55,7 +55,9 @@ commit you are about to push: the transcript records the commits it covers
    `--drop-turn N` (repeatable) and `--include-output N` (a withheld
    prod/staging output, only when the developer asks; credentials never).
    With a yes, run `share ... --yes`. Later republishes on the branch publish
-   directly, keeping the same choices you pass.
+   directly and remember the developer's choices (dropped turns, included
+   outputs, `--session`/`--exclude`/`--whole`); `--reset-choices` forgets them.
+   If the PR body cannot be updated, `share` fails and keeps the old page.
 4. **Result.** The page is uploaded with `cloudflared access` (first use opens
    a browser sign-in); the developer is the uploader and can delete it. The
    publish is recorded in `~/.agent/sessions/published.jsonl` (local-ci reads
