@@ -39,6 +39,11 @@ def _prune_children(tool: ToolCall, keys: set[str]) -> None:
     tool.withheld = tool.withheld or "results of other work"
 
 
+def _relevant(worker: Unit) -> bool:
+    """A worker that did this work itself, or started one that did (at any depth)."""
+    return bool(worker.evidence) or any(_relevant(child) for child in nested_subagents(worker))
+
+
 def _related_items(turn: Turn, keys: set[str], pattern) -> list[Item]:
     """The calls that spawn or message a worker, the lead's text just before them, and text that names the work."""
     kept: list[Item] = []
@@ -65,8 +70,12 @@ def slice_to_work(unit: Unit, context: RepoContext, whole: bool) -> None:
     """Keep the parts of `unit` (a top-level session) that belong to this PR's work; mutate it in place."""
     if whole:
         return
-    workers = [worker for worker in [*nested_subagents(unit), *unit.teammates] if worker.evidence]
+    workers = [worker for worker in [*nested_subagents(unit), *unit.teammates] if _relevant(worker)]
     keys = {worker.worker_key for worker in workers if worker.worker_key}
+    # A worker that only started the one doing the work keeps just that path: its call to the worker and what led there.
+    for worker in workers:
+        if not worker.evidence:
+            slice_to_work(worker, context, whole=False)
     pattern = context.evidence_pattern()
     kept: list[Turn] = []
     sliced = False

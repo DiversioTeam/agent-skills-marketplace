@@ -555,6 +555,42 @@ class LittlePersonFindingsTests(unittest.TestCase):
         self.assertTrue(all(len(page.encode()) <= 400_000 for page in pages), [len(page.encode()) for page in pages])
         self.assertIn("continued", pages[1])
 
+    def test_a_grandchild_on_the_branch_keeps_the_path_to_it(self):
+        import argparse
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            main = self.write(directory, "-p/77777777-0000-0000-0000-000000000000.jsonl", [
+                _record("user", "Coordinate the work", "2026-10-23T10:00:00Z", branch="main", origin={"kind": "human"}),
+                _record("assistant", [{"type": "tool_use", "id": "p1", "name": "Agent", "input": {"description": "parent", "prompt": "go"}}], "2026-10-23T10:00:01Z", branch="main"),
+                _record("user", "private-" + "lead-" + "other", "2026-10-23T10:10:00Z", branch="main", origin={"kind": "human"}),
+                _record("assistant", [{"type": "tool_use", "id": "u1", "name": "Agent", "input": {"description": "unrelated", "prompt": "elsewhere"}}], "2026-10-23T10:10:01Z", branch="main"),
+            ])
+            folder = Path(directory) / "-p" / "77777777-0000-0000-0000-000000000000" / "subagents"
+            self.write(folder, "agent-parent.jsonl", [
+                _record("user", "go", "2026-10-23T10:00:02Z", branch="main"),
+                _record("assistant", [{"type": "tool_use", "id": "c1", "name": "Agent", "input": {"description": "child", "prompt": "dig"}}], "2026-10-23T10:00:03Z", branch="main"),
+                _record("user", "private-" + "parent-" + "other", "2026-10-23T10:00:30Z", branch="main"),
+                _record("assistant", [{"type": "text", "text": "private-" + "parent-" + "reply"}], "2026-10-23T10:00:31Z", branch="main"),
+            ])
+            (folder / "agent-parent.meta.json").write_text(json.dumps({"toolUseId": "p1", "description": "parent"}))
+            self.write(folder, "agent-child.jsonl", [
+                _record("user", "dig", "2026-10-23T10:00:04Z"),
+                _record("assistant", [{"type": "text", "text": "Grandchild did the PR work"}], "2026-10-23T10:00:05Z"),
+            ])
+            (folder / "agent-child.meta.json").write_text(json.dumps({"toolUseId": "c1", "description": "child"}))
+            self.write(folder, "agent-unrelated.jsonl", [
+                _record("user", "elsewhere", "2026-10-23T10:10:02Z", branch="main"),
+                _record("assistant", [{"type": "text", "text": "private-" + "sibling-" + "work"}], "2026-10-23T10:10:03Z", branch="main"),
+            ])
+            (folder / "agent-unrelated.meta.json").write_text(json.dumps({"toolUseId": "u1", "description": "unrelated"}))
+            args = argparse.Namespace(projects_root=directory, pi_root=empty, codex_root=empty, session=None, exclude=None, whole=None)
+            units = agent_session.load_units(demo_context(), args)
+        self.assertEqual([unit.id for unit in units], [main.stem])
+        pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Grandchild did the PR work", pages[0])
+        self.assertIn("Coordinate the work", pages[0])
+        for sentinel in ("lead-other", "parent-other", "parent-reply", "sibling-work"):
+            self.assertNotIn("private-" + sentinel, pages[0])
+
     def test_a_huge_subagent_moves_to_its_own_sections_that_fit(self):
         calls = []
         for index in range(400):
@@ -999,10 +1035,17 @@ class ShareTests(unittest.TestCase):
         finally:
             render_html.MAX_PART_BYTES = original
         self.assertNotIn(linked[0], self.deleted)
+        # The stuck part outlives a replacement that links while deletion still fails ...
+        with self.mock.patch.object(publish, "delete", return_value=False), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        self.assertEqual(store.cleanup_debt("DiversioTeam/demo", "feature/demo-transcripts"), sorted([stuck, linked[0]]))
+        self.assertTrue(store.latest("DiversioTeam/demo", "feature/demo-transcripts")["linked"])
+        # ... and the next share deletes it.
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(agent_session.main(["share", *self.args]), 0)
         self.assertIn(stuck, self.deleted)
         self.assertIn(linked[0], self.deleted)
+        self.assertEqual(store.cleanup_debt("DiversioTeam/demo", "feature/demo-transcripts"), [])
 
     def test_declare_none_records_and_links(self):
         import contextlib, io
