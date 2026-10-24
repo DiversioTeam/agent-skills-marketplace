@@ -618,6 +618,17 @@ class LittlePersonFindingsTests(unittest.TestCase):
 class PrBodyAndHookTests(unittest.TestCase):
     LINK = "https://internal-share.diversio.com/session-demo-feature-demo-20261023-a1b2c3.html"
 
+    def test_publisher_timeouts_are_failures_not_crashes(self):
+        import subprocess
+        from unittest import mock
+        with mock.patch.object(publish, "_cloudflared", return_value="cloudflared"), \
+                mock.patch.object(publish.subprocess, "run", side_effect=subprocess.TimeoutExpired("cloudflared", 60)):
+            self.assertFalse(publish.delete("session-x.html"))
+        with mock.patch.object(publish.shutil, "which", return_value="/usr/local/bin/cloudflared"), \
+                mock.patch.object(publish.subprocess, "run", side_effect=subprocess.TimeoutExpired("cloudflared", 600)):
+            with self.assertRaises(publish.PublishError):
+                publish._cloudflared()
+
     def test_names_are_flat_and_bounded(self):
         names = publish.build_names("courage", "feature/" + "x" * 300, 2, HEAD)
         for name in names:
@@ -824,6 +835,38 @@ class ShareTests(unittest.TestCase):
         self.assertIn(stuck, self.deleted)
         self.assertIn(linked[0], self.deleted)
         self.assertEqual(store.cleanup_debt("DiversioTeam/demo", "feature/demo-transcripts"), [])
+
+    def test_a_same_named_branch_in_another_repository_stays_out(self):
+        import contextlib, io
+        other = Path(self.directory.name) / "store" / "-work-other"
+        other.mkdir(parents=True)
+        record = lambda kind, content, timestamp: {**_record(kind, content, timestamp), "cwd": "/work/other"}
+        (other / "88888888-0000-0000-0000-000000000000.jsonl").write_text("\n".join(json.dumps(item) for item in [
+            record("user", "private-" + "other-" + "repo prompt", "2026-10-23T12:00:00Z"),
+            record("assistant", [{"type": "text", "text": "Done"}], "2026-10-23T12:00:01Z")]) + "\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes"]), 0)
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        out = Path(self.directory.name) / "out"
+        for name in self.uploads:
+            if (out / name).exists():
+                self.assertNotIn("private-other-repo", (out / name).read_text(encoding="utf-8"))
+        self.assertIn("Add the transcript feature", (out / self.uploads[-1]).read_text(encoding="utf-8"))
+        # Naming the session still brings it in.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--session", "88888888-0000-0000-0000-000000000000"]), 0)
+        self.assertIn("private-other-repo", (out / self.uploads[-1]).read_text(encoding="utf-8"))
+
+    def test_drop_numbers_follow_unpublished_previews_too(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            # Preview only (a first publish waits for --yes): turn 1 and its subagent go, the next prompt shows as 2.
+            self.assertEqual(agent_session.main(["share", *self.args, "--drop-turn", "1"]), 3)
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes", "--drop-turn", "2"]), 0)
+        page = (Path(self.directory.name) / "out" / self.uploads[-1]).read_text(encoding="utf-8")
+        self.assertNotIn("Add the transcript feature", page)
+        self.assertNotIn("please render this safely", page)
+        self.assertIn("Build the renderer", page)
 
     def test_declare_none_records_and_links(self):
         import contextlib, io

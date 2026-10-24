@@ -251,9 +251,10 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
     root = root or projects_root()
     if not root.is_dir():
         return []
-    evidence = context.evidence_pattern()
-    pattern = re.compile(evidence.pattern.encode()) if evidence else None
-    worktree_dirs = {re.sub(r"[^A-Za-z0-9]", "-", str(path)) for path in context.worktrees}
+    def compiled(evidence: re.Pattern[str] | None) -> re.Pattern[bytes] | None:
+        return re.compile(evidence.pattern.encode()) if evidence else None
+    # A session in this repository counts by its branch; one elsewhere only by what names this repository (the PR).
+    in_repo, elsewhere = compiled(context.evidence_pattern()), compiled(context.evidence_pattern(branch=False))
     found: list[Path] = []
     for project in root.iterdir():
         if not project.is_dir():
@@ -265,9 +266,26 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
             except OSError:
                 continue
             files = [path, *sorted((path.with_suffix("") / "subagents").glob("agent-*.jsonl"))]
-            if any(_mentions(candidate, pattern, context.branch if project.name in worktree_dirs else "") for candidate in files):
+            here = context.in_repo(_cwd(path))
+            if any(_mentions(candidate, in_repo if here else elsewhere, context.branch if here else "") for candidate in files):
                 found.append(path)
     return sorted(found, key=lambda candidate: candidate.stat().st_mtime)
+
+
+def _cwd(path: Path) -> str:
+    """The working directory a session file records first."""
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(record, dict) and record.get("cwd"):
+                    return str(record["cwd"])
+    except OSError:
+        pass
+    return ""
 
 
 def _mentions(path: Path, pattern: re.Pattern[bytes] | None, branch: str) -> bool:

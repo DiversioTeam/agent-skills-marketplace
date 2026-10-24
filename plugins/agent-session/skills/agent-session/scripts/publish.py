@@ -51,7 +51,10 @@ def _cloudflared() -> str:
     cloudflared = shutil.which("cloudflared")
     if cloudflared is None:
         raise PublishError("cloudflared is required to publish. Install it with: brew install cloudflared")
-    login = subprocess.run([cloudflared, "access", "login", "--quiet", INTERNAL_SHARE_URL], timeout=600, check=False)
+    try:
+        login = subprocess.run([cloudflared, "access", "login", "--quiet", INTERNAL_SHARE_URL], timeout=600, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise PublishError("Cloudflare Access sign-in did not complete. Retry and finish the browser sign-in.") from error
     if login.returncode != 0:
         raise PublishError("Cloudflare Access sign-in did not complete. Retry and finish the browser sign-in.")
     return cloudflared
@@ -60,11 +63,14 @@ def _cloudflared() -> str:
 def delete(name: str) -> bool:
     """Delete a page this developer uploaded (the Worker lets only the uploader delete). True when it is gone."""
     cloudflared = _cloudflared()
-    completed = subprocess.run(
-        [cloudflared, "access", "curl", urllib.parse.urljoin(INTERNAL_SHARE_URL, f"delete/{urllib.parse.quote(name)}"),
-         "-X", "POST", "--dump-header", "-", "--output", "/dev/null"],
-        capture_output=True, text=True, timeout=60, check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [cloudflared, "access", "curl", urllib.parse.urljoin(INTERNAL_SHARE_URL, f"delete/{urllib.parse.quote(name)}"),
+             "-X", "POST", "--dump-header", "-", "--output", "/dev/null"],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
     statuses = re.findall(r"^HTTP/\S+\s+(\d{3})", f"{completed.stdout}\n{completed.stderr}", flags=re.MULTILINE)
     return completed.returncode == 0 and bool(statuses) and statuses[-1] in ("303", "404")
 

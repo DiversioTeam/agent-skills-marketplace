@@ -156,7 +156,14 @@ def cmd_find(args: argparse.Namespace) -> int:
 def _remembered_choices(args: argparse.Namespace, context: RepoContext) -> dict:
     """The developer's choices from this branch's last publish, merged into this run's arguments, so a republish keeps
     every turn they dropped and every session they excluded. --reset-choices starts over."""
+    # The newest of this branch's last preview and its last publish: numbers given now refer to the preview just shown.
     previous = store.latest(context.repo_slug, context.branch) or {}
+    try:
+        preview = json.loads((_out_dir(args, context) / MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        preview = {}
+    if isinstance(preview, dict) and preview.get("repo") == context.repo_slug and preview.get("branch") == context.branch:
+        previous = preview
     remembered = {} if getattr(args, "reset_choices", False) else dict(previous.get("choices") or {})
     for name in ("session", "exclude", "whole"):
         merged = sorted({*(getattr(args, name, None) or []), *remembered.get(name, [])})
