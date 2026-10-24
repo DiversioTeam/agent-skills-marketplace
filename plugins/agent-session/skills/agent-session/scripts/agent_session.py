@@ -275,7 +275,7 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
             links.append(publisher.upload(out / name, name))
     except publisher.PublishError as error:
         print(error)
-        _abandon(context, manifest, names[:len(links)])
+        _abandon(context, names[:len(links)])
         return 1
     manifest["links"] = links
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -293,32 +293,37 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
     store.record({**entry, "linked": True})
     if not pr:
         print("\nNo open PR yet. Put this section in the PR body (or run share again after opening it):\n\n" + section)
-    for name in stale:
-        if name not in names:
-            try:
-                gone = publisher.delete(str(name))
-            except publisher.PublishError:
-                gone = False
-            print(f"{'Deleted' if gone else 'Could not delete'} the superseded {name}.")
+    debt = store.cleanup_debt(context.repo_slug, context.branch)
+    superseded = [name for name in dict.fromkeys([*stale, *debt]) if name not in names]
+    left = _delete(superseded)
+    for name in superseded:
+        print(f"{'Could not delete' if name in left else 'Deleted'} the superseded {name}.")
+    if debt or left:
+        # What is still undeleted stays owed past this link, so a later share retries it.
+        store.record_cleanup(context.repo_slug, context.branch, left)
     return 0
 
 
-def _abandon(context: RepoContext, manifest: dict, uploaded: list[str]) -> None:
-    """Delete the parts a failed publish already uploaded. Any that cannot be deleted are recorded as an unlinked
-    publish, so the next successful share deletes them; the page the PR links is untouched either way."""
+def _delete(names: list[str]) -> list[str]:
+    """Delete uploads; return the names that could not be deleted."""
     left = []
-    for name in uploaded:
+    for name in names:
         try:
             gone = publisher.delete(name)
         except publisher.PublishError:
             gone = False
         if not gone:
             left.append(name)
+    return left
+
+
+def _abandon(context: RepoContext, uploaded: list[str]) -> None:
+    """Delete the parts a failed publish already uploaded. Any that cannot be deleted become cleanup debt, retried by
+    every later share until they are gone; the page the PR links is untouched either way."""
+    left = _delete(uploaded)
     print(f"Removed {len(uploaded) - len(left)} part(s) uploaded before the failure.")
     if left:
-        store.record({"repo": context.repo_slug, "branch": context.branch, "head": manifest["head"], "base": manifest["base"],
-                      "commits": manifest["commits"], "names": left, "links": [], "pr": context.pr, "linked": False,
-                      "choices": manifest.get("choices", {}), "published_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        store.record_cleanup(context.repo_slug, context.branch, [*store.cleanup_debt(context.repo_slug, context.branch), *left])
 
 
 def cmd_publish(args: argparse.Namespace) -> int:

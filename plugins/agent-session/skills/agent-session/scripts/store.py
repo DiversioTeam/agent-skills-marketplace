@@ -4,7 +4,8 @@ local-ci's agent-session check reads this file when a branch has no PR yet, so t
 {"repo": "Owner/name", "branch": "...", "head": "<sha>", "base": "<sha>", "commits": [...], "names": [...],
  "links": [...], "pr": 12 | null, "linked": true | false, "published_at": "<iso>"} or, for work with no agent,
 {..., "none": "<reason>"}. A publish whose PR body update failed has "linked": false.
-The newest line for a repo and branch wins.
+The newest publish line for a repo and branch wins. Lines with "cleanup": [names] are not publishes: the newest one lists
+uploads that could not be deleted yet, retried by every later share until they are gone.
 """
 
 from __future__ import annotations
@@ -46,10 +47,24 @@ def unlinked_since_last_link(repo: str, branch: str) -> list[str]:
     """Upload names a successful link supersedes: the last linked publish's, and every publish since whose linking failed."""
     names: list[str] = []
     for entry in reversed(history(repo, branch)):
+        if "cleanup" in entry:
+            continue
         names.extend(str(name) for name in entry.get("names") or [])
         if entry.get("linked", True):
             break
     return names
+
+
+def cleanup_debt(repo: str, branch: str) -> list[str]:
+    """Uploads an earlier share could not delete."""
+    for entry in reversed(history(repo, branch)):
+        if "cleanup" in entry:
+            return [str(name) for name in entry["cleanup"] or []]
+    return []
+
+
+def record_cleanup(repo: str, branch: str, names: list[str]) -> None:
+    record({"repo": repo, "branch": branch, "cleanup": sorted(set(names))})
 
 
 def latest(repo: str, branch: str) -> dict[str, object] | None:
@@ -63,6 +78,6 @@ def latest(repo: str, branch: str) -> dict[str, object] | None:
             entry = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if isinstance(entry, dict) and entry.get("repo") == repo and entry.get("branch") == branch:
+        if isinstance(entry, dict) and entry.get("repo") == repo and entry.get("branch") == branch and "cleanup" not in entry:
             found = entry
     return found
