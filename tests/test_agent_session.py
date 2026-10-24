@@ -555,6 +555,34 @@ class LittlePersonFindingsTests(unittest.TestCase):
         self.assertTrue(all(len(page.encode()) <= 400_000 for page in pages), [len(page.encode()) for page in pages])
         self.assertIn("continued", pages[1])
 
+    def test_a_huge_subagent_moves_to_its_own_sections_that_fit(self):
+        calls = []
+        for index in range(400):
+            calls.append(_record("assistant", [{"type": "tool_use", "id": f"k{index}", "name": "Bash", "input": {"command": f"echo {index}"}}], "2026-10-23T10:00:03Z"))
+            calls.append(_record("user", [{"type": "tool_result", "tool_use_id": f"k{index}", "content": "y" * 3000}], "2026-10-23T10:00:04Z"))
+        with tempfile.TemporaryDirectory() as directory:
+            main = self.write(directory, "-p/66666666-0000-0000-0000-000000000000.jsonl", [
+                _record("user", "Work on it", "2026-10-23T10:00:00Z", origin={"kind": "human"}),
+                _record("assistant", [{"type": "tool_use", "id": "p1", "name": "Agent", "input": {"description": "big child", "prompt": "go"}}], "2026-10-23T10:00:01Z"),
+            ])
+            folder = Path(directory) / "-p" / "66666666-0000-0000-0000-000000000000" / "subagents"
+            self.write(folder, "agent-big.jsonl", [_record("user", "go", "2026-10-23T10:00:02Z"), *calls,
+                                                   _record("assistant", [{"type": "text", "text": "Child finished"}], "2026-10-23T10:00:05Z")])
+            (folder / "agent-big.meta.json").write_text(json.dumps({"toolUseId": "p1", "description": "big child"}))
+            unit = claude_code.load_session(main, demo_context())
+        original = render_html.MAX_PART_BYTES
+        render_html.MAX_PART_BYTES = 400_000
+        try:
+            pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+            again, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        finally:
+            render_html.MAX_PART_BYTES = original
+        self.assertGreater(len(pages), 2)
+        self.assertEqual(len(again), len(pages))  # the units are not changed by rendering
+        self.assertTrue(all(len(page.encode()) <= 400_000 for page in pages), [len(page.encode()) for page in pages])
+        self.assertIn("too long to show inline", pages[0])
+        self.assertIn("Child finished", pages[-1])
+
     def test_bare_credential_operands_are_withheld(self):
         for command in ("cat secrets", "cat secrets-prod", "less service-account", "cat cookies", "head credentials"):
             self.assertEqual(redaction.withheld_reason("Bash", {"command": command}), "credential file", command)
@@ -848,6 +876,56 @@ class ShareTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(agent_session.main(["share", *self.args]), 0)
         self.assertEqual(sorted(self.deleted), sorted([first, second]))
+
+    def test_drop_numbers_name_the_turns_the_last_preview_showed(self):
+        import contextlib, io
+        # Turn 1 holds a subagent (turn 2); dropping it renumbers the next prompt as turn 2 in the preview.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes", "--drop-turn", "1"]), 0)
+        preview = (Path(self.directory.name) / "out" / self.uploads[-1]).read_text(encoding="utf-8")
+        self.assertRegex(preview, r'href="#turn-2">2</a><span class="who-s developer">Developer</span><span class="first">&lt;script')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--drop-turn", "2"]), 0)
+        page = (Path(self.directory.name) / "out" / self.uploads[-1]).read_text(encoding="utf-8")
+        self.assertNotIn("please render this safely", page)
+        self.assertNotIn("Add the transcript feature", page)
+        self.assertIn("Build the renderer", page)
+        self.assertEqual(len(store.latest("DiversioTeam/demo", "feature/demo-transcripts")["choices"]["drop"]), 2)
+
+    def test_a_failed_upload_removes_the_parts_it_already_uploaded(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes"]), 0)
+        linked = list(self.uploads)
+        attempts = []
+
+        def flaky(path, name):
+            attempts.append(name)
+            if len(attempts) == 2:
+                raise publish.PublishError("upload failed")
+            self.uploads.append(name)
+            return publish.link_for(name)
+
+        original = render_html.MAX_PART_BYTES
+        render_html.MAX_PART_BYTES = 1
+        try:
+            with self.mock.patch.object(publish, "upload", side_effect=flaky), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agent_session.main(["share", *self.args]), 1)
+            first_part = attempts[0]
+            self.assertEqual(self.deleted, [first_part])  # removed at once; the linked page stays
+            # A part that cannot be removed now is remembered and removed by the next successful share.
+            attempts.clear()
+            with self.mock.patch.object(publish, "upload", side_effect=flaky), \
+                    self.mock.patch.object(publish, "delete", return_value=False), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agent_session.main(["share", *self.args]), 1)
+            stuck = attempts[0]
+        finally:
+            render_html.MAX_PART_BYTES = original
+        self.assertNotIn(linked[0], self.deleted)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        self.assertIn(stuck, self.deleted)
+        self.assertIn(linked[0], self.deleted)
 
     def test_declare_none_records_and_links(self):
         import contextlib, io
