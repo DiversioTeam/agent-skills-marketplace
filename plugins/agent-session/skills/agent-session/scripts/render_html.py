@@ -23,6 +23,8 @@ MAX_PART_BYTES = 20 * 1024 * 1024
 PAGE_OVERHEAD_BYTES = 64 * 1024
 LIMITS = {"prompt": 20_000, "assistant": 20_000, "input": 3_000, "output": 4_000, "read": 2_000}
 GENERATOR = "agent-session/1"
+# A credential-file call's input fields that are shown; every other field may hold the file's contents.
+CREDENTIAL_SAFE_KEYS = {"file_path", "path", "notebook_path", "command", "cmd", "description", "timeout", "run_in_background"}
 
 
 def _clip(text: str, limit: int, counts: Counter[str]) -> str:
@@ -109,9 +111,8 @@ class Page:
     def _input(self, call: ToolCall) -> str:
         data = dict(call.input)
         if call.withheld == "credential file":
-            for key in ("content", "new_string", "old_string", "edits", "new_source"):
-                if key in data:
-                    data[key] = "[withheld: credential file]"
+            # Every field but the target and the command: harnesses name file contents differently (Pi's oldText/newText).
+            data = {key: value if key in CREDENTIAL_SAFE_KEYS else "[withheld: credential file]" for key, value in data.items()}
         command = data.get("command") or data.get("cmd")
         if isinstance(command, str) and set(data) <= {"command", "cmd", "description", "timeout", "run_in_background"}:
             return self.text(command, LIMITS["input"])

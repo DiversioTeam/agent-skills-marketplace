@@ -474,6 +474,12 @@ class PiTests(unittest.TestCase):
             elsewhere = demo_context()
             elsewhere.worktree_branches = {cwd: "other"}
             self.assertEqual(pi_sessions.find_sessions(elsewhere, Path(directory)), [])
+            # A worktree nested inside one on the branch is owned by its own (other) branch.
+            inner = demo_context()
+            inner.worktree_branches = {"/work": "feature/demo-transcripts", cwd: "feature/other"}
+            self.assertEqual(pi_sessions.find_sessions(inner, Path(directory)), [])
+            self.assertFalse(inner.in_worktree_on_branch(cwd + "/backend"))
+            self.assertTrue(inner.in_worktree_on_branch("/work/elsewhere"))
             unit = pi_sessions.parse_session(path, context)
         self.assertEqual(unit.harness, "Pi")
         self.assertEqual(unit.models, ["gpt-5.5"])
@@ -733,6 +739,46 @@ class PiChildFindingsTests(unittest.TestCase):
         self.assertIn("Build the renderer", pages[0])
         self.assertNotIn("private-task-other", pages[0])
         self.assertNotIn("Other work", pages[0])
+
+    def test_pi_edits_of_credential_files_hide_their_text(self):
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Rotate the key for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "edit", "arguments": {
+                "path": "/work/demo/.env", "oldText": "API_KEY=private-" + "old-" + "cred", "newText": "API_KEY=private-" + "new-" + "cred"}}]},
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "edit", "content": [{"type": "text", "text": "Edited"}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("/work/demo/.env", pages[0])
+        self.assertNotIn("private-old-cred", pages[0])
+        self.assertNotIn("private-new-cred", pages[0])
+
+    def test_a_turn_naming_the_work_drops_its_spawns_for_other_work(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-a_worker_0", "run-a", "/elsewhere", say("Did the work")),
+                ("run-b_worker_0", "run-b", "/elsewhere", say("private-" + "other-" + "child")),
+            ])
+            message = lambda entry_id, parent, role, content, **extra: {"type": "message", "id": entry_id, "parentId": parent,
+                                                                       "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
+            entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": "/elsewhere"},
+                       message("e1", None, "user", "Run both"),
+                       message("e2", "e1", "assistant", [
+                           {"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": [{"agent": "worker", "task": "Implement feature/demo-transcripts"}]}},
+                           {"type": "toolCall", "id": "c2", "name": "subagent", "arguments": {"tasks": [{"agent": "worker", "task": "private-" + "other-" + "task"}]}}]),
+                       message("e3", "e2", "toolResult", [{"type": "text", "text": "done"}], toolCallId="c1", toolName="subagent", details={"runId": "run-a"}),
+                       message("e4", "e3", "toolResult", [{"type": "text", "text": "private-" + "other-" + "result"}], toolCallId="c2", toolName="subagent", details={"runId": "run-b"})]
+            lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Did the work", pages[0])
+        self.assertIn("Implement feature/demo-transcripts", pages[0])
+        for sentinel in ("other-child", "other-task", "other-result"):
+            self.assertNotIn("private-" + sentinel, pages[0])
 
     def test_structured_run_ids_attach_children_to_their_spawning_call(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]

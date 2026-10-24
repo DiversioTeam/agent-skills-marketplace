@@ -43,8 +43,10 @@ class RepoContext:
         return {path for path, branch in self.worktree_branches.items() if branch == self.branch}
 
     def in_worktree_on_branch(self, cwd: str) -> bool:
-        """Whether a session's directory is a worktree on the branch, or inside one."""
-        return any(cwd == path or cwd.startswith(path.rstrip("/") + "/") for path in self.worktrees_on_branch()) if cwd else False
+        """Whether a session's directory is a worktree on the branch, or inside one. The most specific registered worktree
+        containing it owns it, so a worktree nested inside one on the branch keeps its own branch."""
+        owners = [path for path in self.worktree_branches if cwd == path or cwd.startswith(path.rstrip("/") + "/")] if cwd else []
+        return bool(owners) and self.worktree_branches[max(owners, key=len)] == self.branch
 
     @property
     def repo_name(self) -> str:
@@ -81,6 +83,7 @@ class RepoContext:
         for line in porcelain:
             if line.startswith("worktree "):
                 current = line.removeprefix("worktree ")
+                worktree_branches[current] = ""  # detached until a branch line says otherwise
             elif line.startswith("branch refs/heads/") and current:
                 worktree_branches[current] = line.removeprefix("branch refs/heads/")
         since = 0.0
