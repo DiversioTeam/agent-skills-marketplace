@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import webbrowser
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -398,9 +399,19 @@ def cmd_update_body(args: argparse.Namespace) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     """The local-ci step: exit 1 unless a published transcript covers HEAD (linked from the open PR, if there is one)."""
     context = RepoContext.detect(Path(args.repo).resolve())
-    pr, error = check.open_pr(context.repo_slug, context.branch) if context.branch else (None, "")
-    result = check.decide(check.Input(repo_root=str(context.root), repo_slug=context.repo_slug, branch=context.branch, head=context.head,
-                                      pr=pr, pr_lookup_error=error, published=store.latest(context.repo_slug, context.branch)))
+    probe = check.Input(repo_root=str(context.root), repo_slug=context.repo_slug, branch=context.branch, head=context.head,
+                        remote=bool(os.environ.get("CLAUDE_CODE_REMOTE")),
+                        merged_into="" if context.branch else check.merged_into(str(context.root)))
+    if check.skip_reason(probe):
+        result = check.decide(probe)
+    else:
+        pull, error = check.open_pr(context.repo_slug, context.branch) if context.branch else (None, "")
+        user = (pull or {}).get("user") or {}
+        login = str(user.get("login") or "")
+        result = check.decide(replace(probe, pr=(int(pull["number"]), str(pull.get("body") or "")) if pull else None, pr_lookup_error=error,
+                                      pr_base=str(((pull or {}).get("base") or {}).get("ref") or ""), pr_author=login,
+                                      pr_author_is_bot=user.get("type") == "Bot" or login.endswith("[bot]"),
+                                      published=store.latest(context.repo_slug, context.branch)))
     print(result.message)
     return 0 if result.ok else 1
 

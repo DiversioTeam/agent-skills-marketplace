@@ -392,6 +392,59 @@ class CheckTests(unittest.TestCase):
         quoted = check.decide(self.input(repo_root="/work/$(touch marker)/it's"))
         self.assertIn("--repo '/work/$(touch marker)/it'\"'\"'s'", quoted.message)
 
+    def test_release_flows_bots_and_cloud_sessions_are_skipped(self):
+        cases = [
+            (dict(branch="main"), "HEAD is on the integration branch main"),
+            (dict(branch="dev"), "HEAD is on the integration branch dev"),
+            (dict(branch="release/2026.10.24"), "HEAD is on the integration branch release/2026.10.24"),
+            (dict(branch="", merged_into="master"), "HEAD is already on the integration branch master"),
+            (dict(branch="promote/2026.10.24", pr=(9, ""), pr_base="release"), "a promotion or release PR (promote/2026.10.24 into release)"),
+            (dict(branch="releases/2026.10.24", pr=(9, ""), pr_base="master"), "a promotion or release PR (releases/2026.10.24 into master)"),
+            (dict(pr=(9, ""), pr_base="dev", pr_author="dependabot[bot]", pr_author_is_bot=True), "a bot's PR (dependabot[bot])"),
+            (dict(remote=True), "a cloud session; transcripts are published from a developer's machine"),
+        ]
+        for changes, reason in cases:
+            with self.subTest(changes=changes):
+                result = check.decide(self.input(**changes))
+                self.assertTrue(result.ok)
+                self.assertEqual(result.kind, "skipped")
+                self.assertTrue(result.message.startswith(f"agent-session: skipped ({reason}) for DiversioTeam/courage branch "), result.message)
+        # Feature work is still checked: a human's feature PR into master, a promote/ branch with no PR, a detached HEAD
+        # that no integration branch contains, and a bot-looking branch name from a person.
+        for changes in (dict(pr=(9, ""), pr_base="master"), dict(branch="promote/2026.10.24"), dict(branch=""),
+                        dict(branch="dependabot/pip/x", pr=(9, ""), pr_base="dev", pr_author="someone")):
+            with self.subTest(changes=changes):
+                self.assertEqual(check.decide(self.input(**changes)).ok, False)
+
+    def test_check_command_skips_without_asking_github(self):
+        import contextlib, io, subprocess
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            git = lambda *args: subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+            git("init", "-q", "-b", "main")
+            git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "init")
+            git("update-ref", "refs/remotes/origin/master", "HEAD")
+            git("checkout", "-q", "--detach")
+            no_github = mock.patch.object(check, "open_pr", side_effect=AssertionError("asked GitHub"))
+            with no_github, contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(agent_session.main(["check", "--repo", str(repo)]), 0)
+            self.assertTrue(out.getvalue().startswith("agent-session: skipped (HEAD is already on the integration branch master)"), out.getvalue())
+            git("checkout", "-q", "-b", "feature/x")
+            with no_github, mock.patch.dict("os.environ", {"CLAUDE_CODE_REMOTE": "true"}), contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(agent_session.main(["check", "--repo", str(repo)]), 0)
+            self.assertIn("skipped (a cloud session", out.getvalue())
+            bot = {"number": 5, "body": "", "base": {"ref": "main"}, "user": {"login": "dependabot[bot]", "type": "Bot"}}
+            with mock.patch.object(check, "open_pr", return_value=(bot, "")), mock.patch.dict("os.environ", {"CLAUDE_CODE_REMOTE": ""}), \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(agent_session.main(["check", "--repo", str(repo)]), 0)
+            self.assertIn("skipped (a bot's PR (dependabot[bot]))", out.getvalue())
+            person = {**bot, "user": {"login": "someone", "type": "User"}}
+            with mock.patch.object(check, "open_pr", return_value=(person, "")), mock.patch.dict("os.environ", {"CLAUDE_CODE_REMOTE": ""}), \
+                    mock.patch.dict("os.environ", {"AGENT_SESSION_HOME": directory}), contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(agent_session.main(["check", "--repo", str(repo)]), 1)
+            self.assertTrue(out.getvalue().startswith("agent-session: missing"), out.getvalue())
+
     def test_decisions(self):
         current = {"head": HEAD, "links": [self.LINK]}
         cases = [
