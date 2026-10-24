@@ -1076,6 +1076,63 @@ class CodexReviewFindingsTests(unittest.TestCase):
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn("staging-json-line", pages[0])
 
+    def test_code_mode_javascript_arguments_and_credential_precedence(self):
+        patch = "*** Begin Patch\n*** Update File: /work/demo/.env\n+API_KEY=private-" + "mixed-" + "patch\n*** End Patch"
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "j1",
+                                         "input": 'text(await tools.read_file({path: "/work/demo/.env"}));'}, 2),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "j1", "output": "API_KEY=private-" + "js-" + "read"}, 3),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "j2",
+                                         "input": 'await tools.mcp__postgres__query({"sql":"select 1"});\n'
+                                                  f"await tools.apply_patch({json.dumps(patch)});"}, 4),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "j2", "output": "Done"}, 5),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["credential file", "credential file"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("private-js-read", pages[0])
+        self.assertNotIn("private-mixed-patch", pages[0])
+
+    def test_yielded_code_cells_pass_on_withholding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "y1",
+                                         "input": "await tools.exec_command({cmd: \"ssh staging 'tail -f app.log'\", yield_time_ms: 1000})"}, 2),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "y1", "output": "Script running with cell ID 17"}, 3),
+                _codex("response_item", {"type": "function_call", "name": "wait", "call_id": "y2", "arguments": json.dumps({"cell_id": "17"})}, 4),
+                _codex("response_item", {"type": "function_call_output", "call_id": "y2", "output": "staging-" + "cell-" + "line"}, 5),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "y3", "input": "await functions.wait({cell_id: '17'})"}, 6),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "y3", "output": "staging-" + "cell-" + "line2"}, 7),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 3)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("staging-cell-line", pages[0])
+
+    def test_children_older_than_a_week_before_the_leads_last_write_stay_attached(self):
+        import os, time
+        with tempfile.TemporaryDirectory() as directory:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            git = lambda branch: {"branch": branch, "repository_url": "git@github.com:DiversioTeam/demo.git"}
+            lead = day / "rollout-2026-10-23T11-00-00-lead.jsonl"
+            child = day / "rollout-2026-10-23T11-01-00-kid.jsonl"
+            lead.write_text("\n".join(json.dumps(record) for record in [
+                _codex("session_meta", {"id": "lead", "cwd": "/w", "git": git("main")}, 0),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Delegate it"}]}, 1),
+                _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "k1", "arguments": "{}"}, 2),
+                _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "k1", "agent_thread_id": "kid"}}, 3)]) + "\n")
+            child.write_text("\n".join(json.dumps(record) for record in [
+                _codex("session_meta", {"id": "kid", "parent_thread_id": "lead", "cwd": "/w", "git": git("feature/demo-transcripts")}, 0),
+                _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Child did the work"}]}, 1)]) + "\n")
+            now = time.time()
+            os.utime(child, (now - 10 * 86400, now - 10 * 86400))
+            os.utime(lead, (now, now))
+            unit = codex_sessions.load_session(lead, demo_context(), Path(directory))
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Child did the work", pages[0])
+        self.assertIn("Delegate it", pages[0])
+
     def test_grandchildren_reach_the_transcript(self):
         with tempfile.TemporaryDirectory() as directory:
             day = Path(directory) / "2026" / "10" / "23"
