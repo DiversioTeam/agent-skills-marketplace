@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS))
 agent_session = importlib.import_module("agent_session")
 claude_code = importlib.import_module("claude_code")
 check_pr_hook = importlib.import_module("check_pr_hook")
+codex_sessions = importlib.import_module("codex_sessions")
 pi_sessions = importlib.import_module("pi_sessions")
 pr_body = importlib.import_module("pr_body")
 publish = importlib.import_module("publish")
@@ -665,6 +666,92 @@ class PiSlicingTests(unittest.TestCase):
         self.assertIn("Working on feature/demo-transcripts", pages[0])
         self.assertNotIn("secret-cleanup", pages[0])
         self.assertNotIn("lunch", pages[0])
+def _codex(record_type, payload, ordinal, timestamp="2026-10-23T11:00:00Z"):
+    return {"timestamp": timestamp, "ordinal": ordinal, "type": record_type, "payload": payload}
+
+
+def build_codex_store(root: Path) -> Path:
+    day = root / "2026" / "10" / "23"
+    day.mkdir(parents=True)
+    git = {"branch": "feature/demo-transcripts", "commit_hash": HEAD, "repository_url": "git@github.com:DiversioTeam/demo.git"}
+    main = [
+        _codex("session_meta", {"id": "thread-main", "cwd": "/work/demo", "git": git, "source": "cli"}, 0),
+        _codex("turn_context", {"model": "gpt-5.6-sol"}, 1),
+        _codex("response_item", {"type": "message", "role": "developer", "content": [{"type": "input_text", "text": "system rules"}]}, 2),
+        _codex("response_item", {"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": "<environment_context>\n<cwd>/work/demo</cwd>\n</environment_context>"},
+            {"type": "input_text", "text": "Fix the flaky test"}]}, 3),
+        _codex("response_item", {"type": "reasoning", "encrypted_content": "gAAAA-private"}, 4),
+        _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "c1",
+                                 "arguments": json.dumps({"cmd": "psql -h db.staging.internal -c 'select * from users'"})}, 5),
+        _codex("response_item", {"type": "function_call_output", "call_id": "c1", "output": f"row {CUSTOMER_EMAIL}"}, 6),
+        _codex("response_item", {"type": "custom_tool_call", "name": "apply_patch", "call_id": "c2", "input": "*** Begin Patch\n*** Update File: /work/demo/.env\n+TOKEN=x\n*** End Patch"}, 7),
+        _codex("response_item", {"type": "custom_tool_call_output", "call_id": "c2", "output": json.dumps({"output": "Success."})}, 8),
+        _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "c4",
+                                 "input": 'const r = await tools.exec_command({cmd:"ssh production \\"tail app.log\\"","workdir":"/work/demo"}); text(r.output);'}, 8),
+        _codex("response_item", {"type": "custom_tool_call_output", "call_id": "c4", "output": "private-" + "prod-" + "log"}, 8),
+        _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "c5",
+                                 "input": 'const r = await tools.exec_command({cmd:"git status --short"}); text(r.output);'}, 8),
+        _codex("response_item", {"type": "custom_tool_call_output", "call_id": "c5", "output": "M app.py"}, 8),
+        _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "<task>Also tidy the fixture</task>"}]}, 9),
+        _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "c3", "arguments": json.dumps({"cmd": "pytest -q"})}, 9),
+        _codex("response_item", {"type": "function_call_output", "call_id": "c3", "output": json.dumps({"output": "3 passed"})}, 10),
+        _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": f"Fixed. Token was {GITHUB_TOKEN}"}]}, 11),
+        _codex("event_msg", {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 50}}}, 12),
+    ]
+    sub = [
+        _codex("session_meta", {"id": "thread-sub", "parent_thread_id": "thread-main", "agent_nickname": "Curie", "agent_role": "explorer",
+                                "subagent_history_start_ordinal": 2, "cwd": "/work/demo", "git": git}, 0),
+        _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "copied parent history"}]}, 1),
+        _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Find the flaky test"}]}, 2),
+        _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "It is test_retry."}]}, 3),
+    ]
+    other = [_codex("session_meta", {"id": "thread-other", "cwd": "/elsewhere", "git": {**git, "branch": "main"}}, 0)]
+    for name, records in (("rollout-2026-10-23T11-00-00-thread-main", main), ("rollout-2026-10-23T11-05-00-thread-sub", sub),
+                          ("rollout-2026-10-23T11-06-00-thread-other", other)):
+        (day / f"{name}.jsonl").write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+    return day / "rollout-2026-10-23T11-00-00-thread-main.jsonl"
+
+
+class CodexTests(unittest.TestCase):
+    def test_codex_rollouts_by_git_branch_with_subagents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            main = build_codex_store(Path(directory))
+            self.assertEqual(codex_sessions.find_sessions(demo_context(), Path(directory)), [main])
+            unit = codex_sessions.load_session(main, demo_context(), Path(directory))
+        self.assertEqual(unit.harness, "Codex")
+        self.assertEqual(unit.models, ["gpt-5.6-sol"])
+        self.assertEqual([turn.text for turn in unit.turns], ["Fix the flaky test", "<task>Also tidy the fixture</task>"])
+        self.assertEqual((unit.tokens.input, unit.tokens.cache_read, unit.tokens.output), (600, 400, 50))
+        tools = [item.tool for turn in unit.turns for item in turn.items if item.tool]
+        self.assertEqual([(tool.name, tool.withheld) for tool in tools],
+                         [("exec_command", "prod or staging data access"), ("apply_patch", "credential file"),
+                          ("exec", "prod or staging data access"), ("exec", None), ("exec_command", None)])
+        self.assertEqual(tools[4].output, "3 passed")
+        self.assertEqual([mate.title for mate in unit.teammates], ["Codex subagent: Curie (explorer)"])
+        self.assertEqual([turn.text for turn in unit.teammates[0].turns], ["Find the flaky test"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        for leaked in (GITHUB_TOKEN, CUSTOMER_EMAIL, "gAAAA-private", "TOKEN=x", "environment_context", "copied parent history", "private-prod-log"):
+            self.assertNotIn(leaked, pages[0])
+        self.assertIn("3 passed", pages[0])
+
+    def test_hook_reads_codex_commands_and_install_is_idempotent(self):
+        import contextlib, io, subprocess
+        hook = Path(check_pr_hook.__file__)
+        for tool_input in ({"cmd": "gh pr create --repo DiversioTeam/demo --body x"}, {"command": ["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body", "x"]}):
+            completed = subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": tool_input, "cwd": "/tmp"}), capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 2, tool_input)
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "hooks.json").write_text(json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "x"}]}]}}))
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory, "--bin-dir", f"{directory}/bin"]), 0)
+                self.assertEqual(agent_session.main(["install-codex-hook", "--codex-home", directory, "--bin-dir", f"{directory}/bin"]), 0)
+            config = json.loads(Path(directory, "hooks.json").read_text())
+            self.assertTrue(os.access(Path(directory, "bin", "agent-session"), os.X_OK), "a fresh install gets the command")
+            self.assertEqual(len(config["hooks"]["SessionStart"]), 1)
+        self.assertEqual(len(config["hooks"]["PreToolUse"]), 1)
+        self.assertIn("check_pr_hook.py", config["hooks"]["PreToolUse"][0]["hooks"][0]["command"])
+        self.assertIn("Stop", config["hooks"])
 
 
 class PiChildFindingsTests(unittest.TestCase):
@@ -801,7 +888,7 @@ class PiChildFindingsTests(unittest.TestCase):
                 ("run-x_worker_0", "run-x", "/elsewhere", say("private-" + "excluded-" + "worker on feature/demo-transcripts")),
                 ("run-x_worker_1", "run-x", "/elsewhere", say("Kept worker on feature/demo-transcripts")),
             ], result="done")
-            args = argparse.Namespace(projects_root=empty, pi_root=directory, session=None, exclude=["run-x_worker_0"], whole=None)
+            args = argparse.Namespace(projects_root=empty, pi_root=directory, codex_root=empty, session=None, exclude=["run-x_worker_0"], whole=None)
             units = agent_session.load_units(demo_context(), args)
         pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")
         self.assertIn("Kept worker", pages[0])
@@ -880,6 +967,158 @@ class PiChildFindingsTests(unittest.TestCase):
                 child = unit.turns[0].items[0].tool.subagent
                 self.assertEqual(child.cwd, child_cwd)
                 self.assertEqual(bool(child.evidence), expected)
+class CodexSlicingTests(unittest.TestCase):
+    def test_codex_lead_keeps_only_the_child_on_this_branch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            git = lambda branch: {"branch": branch, "repository_url": "git@github.com:DiversioTeam/demo.git"}
+            call = lambda call_id, task: _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": call_id,
+                                                                  "arguments": json.dumps({"task": task})}, 3)
+            activity = lambda call_id, thread: _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": call_id,
+                                                                                                       "kind": "started", "agent_thread_id": thread}}, 3)
+            lead = [
+                _codex("session_meta", {"id": "lead", "cwd": "/work/demo", "git": git("main")}, 0),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Run both tasks"}]}, 1),
+                call("k1", "transcripts"), activity("k1", "child-good"),
+                call("k2", "cleanup secret-cleanup"), activity("k2", "child-other"),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Unrelated lunch question"}]}, 4),
+            ]
+            children = {
+                "child-good": [_codex("session_meta", {"id": "child-good", "parent_thread_id": "lead", "agent_nickname": "Curie", "cwd": "/work/demo",
+                                                       "git": git("feature/demo-transcripts")}, 0),
+                               _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Built transcripts"}]}, 1)],
+                "child-other": [_codex("session_meta", {"id": "child-other", "parent_thread_id": "lead", "agent_nickname": "Noether", "cwd": "/work/demo",
+                                                        "git": git("main")}, 0),
+                                _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Cleaned secret-cleanup"}]}, 1)],
+            }
+            path = day / "rollout-2026-10-23T11-00-00-lead.jsonl"
+            path.write_text("\n".join(json.dumps(record) for record in lead) + "\n")
+            for thread, records in children.items():
+                (day / f"rollout-2026-10-23T11-01-00-{thread}.jsonl").write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            self.assertEqual(codex_sessions.find_sessions(demo_context(), Path(directory)), [path])
+            unit = codex_sessions.load_session(path, demo_context(), Path(directory))
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([mate.worker_key for mate in unit.teammates], ["child-good"])
+        self.assertEqual([turn.text for turn in unit.turns], ["Run both tasks"])
+        self.assertEqual([item.tool.links_to for turn in unit.turns for item in turn.items if item.tool], ["child-good"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Built transcripts", pages[0])
+        self.assertNotIn("secret-cleanup", pages[0])
+        self.assertNotIn("lunch", pages[0])
+
+
+class CodexReviewFindingsTests(unittest.TestCase):
+    """Regressions for courage-bot's #118 findings."""
+
+    def test_write_stdin_polls_inherit_the_terminal_sessions_withholding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            records = [
+                _codex("session_meta", {"id": "t", "cwd": "/work/demo", "git": {"branch": "feature/demo-transcripts", "repository_url": "git@github.com:DiversioTeam/demo.git"}}, 0),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Tail the staging log"}]}, 1),
+                _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "x1", "arguments": json.dumps({"cmd": "ssh staging 'tail -f app.log'"})}, 2),
+                _codex("response_item", {"type": "function_call_output", "call_id": "x1", "output": "Process running with session ID 12345"}, 3),
+                _codex("response_item", {"type": "function_call", "name": "write_stdin", "call_id": "x2", "arguments": json.dumps({"session_id": 12345, "chars": ""})}, 4),
+                _codex("response_item", {"type": "function_call_output", "call_id": "x2", "output": "staging-" + "secret-" + "line"}, 5),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "x3", "input": "await tools.write_stdin({session_id: 12345, chars: ''})"}, 6),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "x3", "output": "staging-" + "secret-" + "line2"}, 7),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "x4", "input": 'await tools.write_stdin({"session_id":12345,"chars":""})'}, 8),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "x4", "output": "staging-" + "secret-" + "line3"}, 9),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "x5", "input": "await tools.write_stdin({session_id : '12345', chars: ''})"}, 10),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "x5", "output": "staging-" + "secret-" + "line4"}, 11),
+            ]
+            path = day / "rollout-2026-10-23T11-00-00-t.jsonl"
+            path.write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            unit = codex_sessions.load_session(path, demo_context(), Path(directory))
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 5)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("staging-secret-line", pages[0])
+
+    def _rollout(self, directory, records):
+        day = Path(directory) / "2026" / "10" / "23"
+        day.mkdir(parents=True)
+        head = [_codex("session_meta", {"id": "t", "cwd": "/work/demo", "git": {"branch": "feature/demo-transcripts", "repository_url": "git@github.com:DiversioTeam/demo.git"}}, 0),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Look into it"}]}, 1)]
+        path = day / "rollout-2026-10-23T11-00-00-t.jsonl"
+        path.write_text("\n".join(json.dumps(record) for record in [*head, *records]) + "\n")
+        return codex_sessions.load_session(path, demo_context(), Path(directory))
+
+    def test_code_mode_keeps_nested_tool_meaning(self):
+        patch = "*** Begin Patch\n*** Update File: /work/demo/.env\n@@\n-API_KEY=old\n+API_KEY=private-" + "patch-" + "value\n*** End Patch"
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "q1",
+                                         "input": 'text(await tools.mcp__postgres__query({"sql":"select note from accounts"}));'}, 2),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "q1", "output": "private-" + "db-" + "row"}, 3),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "q2",
+                                         "input": f"await tools.apply_patch({json.dumps(patch)});"}, 4),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "q2", "output": "Done"}, 5),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool],
+                         ["prod or staging data access", "credential file"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("private-db-row", pages[0])
+        self.assertNotIn("private-patch-value", pages[0])
+
+    def test_terminals_opened_by_a_json_result_pass_on_withholding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "s1", "arguments": json.dumps({"cmd": "ssh staging 'tail -f app.log'"})}, 2),
+                _codex("response_item", {"type": "function_call_output", "call_id": "s1", "output": json.dumps({"session_id": 12345, "output": ""})}, 3),
+                _codex("response_item", {"type": "function_call", "name": "write_stdin", "call_id": "s2", "arguments": json.dumps({"session_id": 12345, "chars": ""})}, 4),
+                _codex("response_item", {"type": "function_call_output", "call_id": "s2", "output": "staging-" + "json-" + "line"}, 5),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "s3", "input": "await tools.write_stdin({session_id: 12345, chars: ''})"}, 6),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "s3", "output": "staging-" + "json-" + "line2"}, 7),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 3)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("staging-json-line", pages[0])
+
+    def test_grandchildren_reach_the_transcript(self):
+        with tempfile.TemporaryDirectory() as directory:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            git = lambda branch: {"branch": branch, "repository_url": "git@github.com:DiversioTeam/demo.git"}
+            write = lambda name, records: (day / f"rollout-2026-10-23T11-0{len(name)}-00-{name}.jsonl").write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            write("main", [_codex("session_meta", {"id": "main", "cwd": "/w", "git": git("main")}, 0),
+                           _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Delegate it"}]}, 1),
+                           _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "k1", "arguments": "{}"}, 2),
+                           _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "k1", "agent_thread_id": "child"}}, 3)])
+            write("child", [_codex("session_meta", {"id": "child", "parent_thread_id": "main", "cwd": "/w", "git": git("main")}, 0),
+                            _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Delegating further"}]}, 1),
+                            _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "g1", "arguments": "{}"}, 2),
+                            _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "g1", "agent_thread_id": "grandchild"}}, 3),
+                            _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Unrelated child prompt secret-child-work"}]}, 4),
+                            _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "u1", "arguments": json.dumps({"cmd": "ls"})}, 5),
+                            _codex("response_item", {"type": "function_call_output", "call_id": "u1", "output": "secret-child-output"}, 6)])
+            write("grandchild", [_codex("session_meta", {"id": "grandchild", "parent_thread_id": "child", "cwd": "/w", "git": git("feature/demo-transcripts")}, 0),
+                                 _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Grandchild did the work"}]}, 1)])
+            main = day / "rollout-2026-10-23T11-04-00-main.jsonl"
+            self.assertEqual(codex_sessions.find_sessions(demo_context(), Path(directory)), [main])
+            unit = codex_sessions.load_session(main, demo_context(), Path(directory))
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([mate.worker_key for mate in unit.teammates], ["child", "grandchild"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Grandchild did the work", pages[0])
+        self.assertIn("Delegate it", pages[0])
+        self.assertNotIn("secret-child-work", pages[0])
+        self.assertNotIn("secret-child-output", pages[0])
+
+    def test_hook_keeps_argv_boundaries(self):
+        import subprocess
+        hook = Path(check_pr_hook.__file__)
+
+        def run(command, cwd="/tmp"):
+            return subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": command}, "cwd": cwd}),
+                                  capture_output=True, text=True).returncode
+        self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body", "No agent session: hand edited"]), 0)
+        self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body", "Summary only"]), 2)
+        self.assertEqual(run(["bash", "-lc", "gh pr create --repo DiversioTeam/demo --body 'No agent session: hand edited'"]), 0)
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "my body.md").write_text("No agent session: hand edited\n")
+            self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body-file", "my body.md"], directory), 0)
 
 
 class PrBodyAndHookTests(unittest.TestCase):
@@ -952,7 +1191,7 @@ class ShareTests(unittest.TestCase):
         git("remote", "add", "origin", "https://github.com/DiversioTeam/demo.git")
         build_store(root / "store")
         (root / "pi").mkdir()
-        self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--pi-root", str(root / "pi"), "--out", str(root / "out")]
+        self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--pi-root", str(root / "pi"), "--codex-root", str(root / "pi"), "--out", str(root / "out")]
         self.env = mock.patch.dict("os.environ", {"AGENT_SESSION_HOME": str(root / "state")})
         self.env.start()
         self.uploads, self.deleted, self.bodies = [], [], []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -16,6 +17,26 @@ LOOKBACK_SECONDS = 2 * 24 * 60 * 60
 def _git(cwd: Path, *args: str) -> str:
     completed = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=False, timeout=30)
     return completed.stdout.strip() if completed.returncode == 0 else ""
+
+
+def is_recent(path: Path, since: float) -> bool:
+    """True when a JSONL session was written to since `since`. The modification time alone is not enough (copies and
+    migrations touch old files), so the last record's timestamp must agree when it has one."""
+    try:
+        if path.stat().st_mtime < since:
+            return False
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            handle.seek(max(handle.tell() - 65536, 0))
+            lines = handle.read().splitlines()
+    except OSError:
+        return False
+    for line in reversed(lines):
+        match = re.search(rb'"timestamp"\s*:\s*"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', line)
+        if match:
+            stamp = datetime.fromisoformat(match.group(1).decode()).replace(tzinfo=timezone.utc).timestamp()
+            return stamp >= since
+    return True
 
 
 def parse_repo_slug(remote_url: str) -> str:
