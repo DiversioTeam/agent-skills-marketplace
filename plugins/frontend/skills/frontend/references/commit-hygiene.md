@@ -40,7 +40,8 @@ Enforce:
 ### 5. Create the commit
 
 Craft a concise message matching repo conventions and create the commit only
-after required gates pass.
+after required gates pass. Commits need no transcript; the PR that carries them
+needs an `## Agent sessions` link from the `agent-session` skill.
 
 ## Output
 

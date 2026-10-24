@@ -1,0 +1,28 @@
+{
+  "description": "Install or refresh the agent-session command on PATH at session start, and block creating or rewriting a DiversioTeam PR body without an agent session transcript link or a 'No agent session:' declaration.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/agent-session/scripts/check_pr_hook.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/agent-session/scripts/agent_session.py\" install-shim --quiet",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

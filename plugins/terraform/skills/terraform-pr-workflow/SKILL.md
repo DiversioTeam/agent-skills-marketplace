@@ -35,6 +35,10 @@ PR description must include either:
   - `terragrunt plan` output summary for the relevant stacks, or
 - **A clear explanation** of why plans weren’t run (missing creds, non-executable change, doc-only PR, etc.) plus what validation was done instead (fmt/validate/lint).
 
+It must also carry a `## Agent sessions` section with the redacted transcript
+link from the `agent-session` skill, or `No agent session: <reason>`. Missing
+both is `[BLOCKING]`.
+
 Strongly preferred sections (when applicable):
 - `What changed`
 - `Plan / Validation`

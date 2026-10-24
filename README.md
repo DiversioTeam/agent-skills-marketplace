@@ -16,6 +16,10 @@ Diversio's shared agent workflows for Claude Code, Pi, and Codex.
 - **Source documentation** for the Agentic Tools section of the Diversio
   Engineering website.
 
+Every DiversioTeam PR links the redacted agent session that produced it. Install
+`agent-session` (Claude Code plugin with its PR hook, or the Codex skill) and
+see its [catalog entry](docs/plugins/catalog.md#documentation-and-planning).
+
 Use the [plugin catalog](docs/plugins/catalog.md) to choose a Claude Code plugin
 or skill. Use the [Pi package index](pi-packages/README.md) to see Pi commands,
 shortcuts, and package-specific documentation.
