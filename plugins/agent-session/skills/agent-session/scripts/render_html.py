@@ -23,6 +23,8 @@ MAX_PART_BYTES = 20 * 1024 * 1024
 PAGE_OVERHEAD_BYTES = 64 * 1024
 LIMITS = {"prompt": 20_000, "assistant": 20_000, "input": 3_000, "output": 4_000, "read": 2_000}
 GENERATOR = "agent-session/1"
+# A credential-file call's input fields that are shown; every other field may hold the file's contents.
+CREDENTIAL_SAFE_KEYS = {"file_path", "path", "notebook_path", "command", "cmd", "description", "timeout", "run_in_background"}
 
 
 def _clip(text: str, limit: int, counts: Counter[str]) -> str:
@@ -109,9 +111,8 @@ class Page:
     def _input(self, call: ToolCall) -> str:
         data = dict(call.input)
         if call.withheld == "credential file":
-            for key in ("content", "new_string", "old_string", "edits", "new_source"):
-                if key in data:
-                    data[key] = "[withheld: credential file]"
+            # Every field but the target and the command: harnesses name file contents differently (Pi's oldText/newText).
+            data = {key: value if key in CREDENTIAL_SAFE_KEYS else "[withheld: credential file]" for key, value in data.items()}
         command = data.get("command") or data.get("cmd")
         if isinstance(command, str) and set(data) <= {"command", "cmd", "description", "timeout", "run_in_background"}:
             return self.text(command, LIMITS["input"])
@@ -146,7 +147,7 @@ class Page:
         flags = " error" if call.is_error else ""
         badge = "<span class=\"badge err\">error</span>" if call.is_error else ""
         badge += "<span class=\"badge held\">withheld</span>" if css == "withheld" else ""
-        subagent = self.unit(call.subagent, depth + 1) if call.subagent else ""
+        subagent = "".join(self.unit(child, depth + 1) for child in call.subagents)
         summary = html.escape(self._summary(call))
         return (f"<details class=\"tool{flags}\"><summary><span class=\"tname\">{html.escape(call.name)}</span>"
                 f"<span class=\"targ\">{summary}</span>{badge}<span class=\"ts\">{_short_time(call.timestamp)}</span></summary>"
@@ -184,7 +185,7 @@ class Page:
         turns = "".join(self.turn(turn, depth, not many or index < 5 or index >= len(unit.turns) - 3)
                         for index, turn in enumerate(unit.turns))
         gap = (f"<p class=\"note\">{unit.omitted_turns} earlier or later turns in this session were about other work and are not included.</p>"
-               if unit.omitted_turns else "")
+               if unit.omitted_turns else "") + "".join(f"<p class=\"note\">{html.escape(note)}</p>" for note in unit.notes)
         tokens = unit.tokens
         meta = " · ".join(part for part in (unit.harness, ", ".join(unit.models), f"{_time(unit.started)} to {_short_time(unit.ended)}",
                                               f"{tokens.total:,} tokens" if tokens.total else "") if part)
@@ -251,8 +252,8 @@ def _walk(unit: Unit):
     yield unit
     for turn in unit.turns:
         for item in turn.items:
-            if item.tool and item.tool.subagent:
-                yield from _walk(item.tool.subagent)
+            for child in item.tool.subagents if item.tool else []:
+                yield from _walk(child)
     for teammate in unit.teammates:
         yield from _walk(teammate)
 
@@ -267,8 +268,8 @@ def number_turns(units: list[Unit]) -> None:
             number += 1
             turn.number = number
             for item in turn.items:
-                if item.tool and item.tool.subagent:
-                    visit(item.tool.subagent)
+                for child in item.tool.subagents if item.tool else []:
+                    visit(child)
         for teammate in unit.teammates:
             visit(teammate)
 
@@ -318,10 +319,12 @@ def _hoist(unit: Unit, measure: Page, budget: int) -> list[Unit]:
         items = []
         for item in turn.items:
             call = item.tool
-            if call and call.subagent and len(measure.item(item, 0).encode()) > budget:
-                items.append(replace(item, tool=replace(call, subagent=None)))
-                items.append(Item(kind="note", text=f"{call.subagent.title} ran here. It is too long to show inline, so it follows as its own section."))
-                hoisted.extend(_hoist(call.subagent, measure, budget))
+            if call and call.subagents and len(measure.item(item, 0).encode()) > budget:
+                items.append(replace(item, tool=replace(call, subagent=None, more_subagents=[])))
+                titles = ", ".join(child.title for child in call.subagents)
+                items.append(Item(kind="note", text=f"{titles} ran here. It is too long to show inline, so it follows as its own section."))
+                for child in call.subagents:
+                    hoisted.extend(_hoist(child, measure, budget))
             else:
                 items.append(item)
         turns.append(replace(turn, items=items))

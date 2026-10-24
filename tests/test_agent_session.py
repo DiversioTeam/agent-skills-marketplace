@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS))
 agent_session = importlib.import_module("agent_session")
 claude_code = importlib.import_module("claude_code")
 check_pr_hook = importlib.import_module("check_pr_hook")
+pi_sessions = importlib.import_module("pi_sessions")
 pr_body = importlib.import_module("pr_body")
 publish = importlib.import_module("publish")
 redaction = importlib.import_module("redaction")
@@ -425,6 +426,75 @@ class CheckTests(unittest.TestCase):
             completed = subprocess.run([str(shim), "--help"], capture_output=True, text=True)
             self.assertEqual(completed.returncode, 0)
             self.assertIn("share", completed.stdout)
+def build_pi_store(root: Path, cwd: str) -> Path:
+    folder = root / ("--" + cwd.strip("/").replace("/", "-") + "--")
+    folder.mkdir(parents=True)
+    usage = {"input": 100, "output": 20, "cacheRead": 50, "cacheWrite": 0, "totalTokens": 170}
+
+    def message(entry_id, parent, role, content, **extra):
+        return {"type": "message", "id": entry_id, "parentId": parent, "timestamp": f"2026-10-23T10:00:{entry_id[-2:]}Z",
+                "message": {"role": role, "content": content, **extra}}
+    entries = [
+        {"type": "session", "version": 3, "id": "01pi-session", "timestamp": "2026-10-23T10:00:00Z", "cwd": cwd},
+        {"type": "model_change", "id": "aa000001", "parentId": None, "timestamp": "2026-10-23T10:00:01Z", "provider": "openai-codex", "modelId": "gpt-5.5"},
+        message("aa000002", "aa000001", "user", [{"type": "text", "text": '<skill name="review" location="/x/SKILL.md">\nlong skill body\n</skill>\nReview the branch'}]),
+        message("aa000003", "aa000002", "assistant", [{"type": "thinking", "thinking": "", "thinkingSignature": "x"},
+                                                    {"type": "toolCall", "id": "c1", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}],
+                model="gpt-5.5", usage=usage),
+        message("aa000004", "aa000003", "toolResult", [{"type": "text", "text": f"secret row {CUSTOMER_EMAIL}"}], toolCallId="c1", toolName="bash", isError=False,
+                details={"truncation": {"truncated": True}, "fullOutputPath": "/tmp/pi-bash-abc123.log"}),
+        message("aa000005", "aa000004", "assistant", [{"type": "text", "text": f"Abandoned idea with {GITHUB_TOKEN}"}], model="gpt-5.5", usage=usage),
+        {"type": "branch_summary", "id": "aa000006", "parentId": "aa000004", "timestamp": "2026-10-23T10:00:06Z", "fromId": "aa000005", "summary": "x"},
+        message("aa000007", "aa000006", "user", [{"type": "text", "text": "Try the other approach"}]),
+        message("aa000008", "aa000007", "assistant", [{"type": "toolCall", "id": "c2", "name": "read", "arguments": {"path": "README.md"}},
+                                                    {"type": "toolCall", "id": "c3", "name": "read", "arguments": {"path": "/tmp/pi-bash-abc123.log"}}], model="gpt-5.5", usage=usage),
+        message("aa000009", "aa000008", "toolResult", [{"type": "text", "text": "# Demo"}], toolCallId="c2", toolName="read", isError=False),
+        message("aa000011", "aa000009", "toolResult", [{"type": "text", "text": "private-" + "overflow-" + "row"}], toolCallId="c3", toolName="read", isError=False),
+        message("aa000010", "aa000011", "assistant", [{"type": "text", "text": "Done on the other approach."}], model="gpt-5.5", usage=usage),
+    ]
+    path = folder / "2026-10-23T10-00-00-000Z_01pi-session.jsonl"
+    path.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n", encoding="utf-8")
+    return path
+
+
+class PiTests(unittest.TestCase):
+    def test_pi_sessions_follow_the_active_branch_and_render_redacted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = "/work/demo-feature"
+            path = build_pi_store(Path(directory), cwd)
+            context = demo_context()
+            context.worktree_branches = {cwd: "feature/demo-transcripts"}
+            self.assertEqual(pi_sessions.find_sessions(context, Path(directory)), [path])
+            nested = demo_context()
+            nested.worktree_branches = {"/work": "feature/demo-transcripts"}
+            self.assertEqual(pi_sessions.find_sessions(nested, Path(directory)), [path])
+            sibling = demo_context()
+            sibling.worktree_branches = {"/work/demo": "feature/demo-transcripts"}
+            self.assertEqual(pi_sessions.find_sessions(sibling, Path(directory)), [])
+            elsewhere = demo_context()
+            elsewhere.worktree_branches = {cwd: "other"}
+            self.assertEqual(pi_sessions.find_sessions(elsewhere, Path(directory)), [])
+            # A worktree nested inside one on the branch is owned by its own (other) branch.
+            inner = demo_context()
+            inner.worktree_branches = {"/work": "feature/demo-transcripts", cwd: "feature/other"}
+            self.assertEqual(pi_sessions.find_sessions(inner, Path(directory)), [])
+            self.assertFalse(inner.in_worktree_on_branch(cwd + "/backend"))
+            self.assertTrue(inner.in_worktree_on_branch("/work/elsewhere"))
+            unit = pi_sessions.parse_session(path, context)
+        self.assertEqual(unit.harness, "Pi")
+        self.assertEqual(unit.models, ["gpt-5.5"])
+        self.assertEqual([turn.text for turn in unit.turns], ["/skill:review Review the branch", "Try the other approach"])
+        self.assertEqual(unit.tokens.output, 60)
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool],
+                         ["prod or staging data access", None, "prod or staging data access"])
+        self.assertEqual(unit.notes, ["1 entry on abandoned branches of the session tree is not shown."])
+        pages, _ = render_html.build_pages(context, [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(GITHUB_TOKEN, pages[0])
+        self.assertNotIn(CUSTOMER_EMAIL, pages[0])
+        self.assertNotIn("long skill body", pages[0])
+        self.assertNotIn("private-overflow-row", pages[0])
+        self.assertIn("Done on the other approach.", pages[0])
+        self.assertIn("Agents</dt><dd>Pi", pages[0])
 
 
 class LittlePersonFindingsTests(unittest.TestCase):
@@ -560,6 +630,256 @@ class LittlePersonFindingsTests(unittest.TestCase):
             self.assertEqual(redaction.withheld_reason("Bash", {"command": command}), "credential file", command)
         for command in ("git status", "pytest tests/test_secret_rotation.py -q", "cat README.md"):
             self.assertIsNone(redaction.withheld_reason("Bash", {"command": command}), command)
+class PiSlicingTests(unittest.TestCase):
+    def test_pi_lead_keeps_only_the_subagent_for_this_branch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "--elsewhere--"
+            artifacts = folder / "subagent-artifacts"
+            artifacts.mkdir(parents=True)
+            message = lambda entry_id, parent, role, content, **extra: {"type": "message", "id": entry_id, "parentId": parent,
+                                                                       "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
+            entries = [
+                {"type": "session", "version": 3, "id": "lead-1", "timestamp": "2026-10-23T10:00:00Z", "cwd": "/elsewhere"},
+                message("e1", None, "user", "Do the transcripts work and the unrelated cleanup"),
+                message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"agent": "delegate", "task": "transcripts"}}]),
+                message("e3", "e2", "toolResult", [{"type": "text", "text": "run run-good finished"}], toolCallId="c1", toolName="subagent"),
+                message("e4", "e3", "assistant", [{"type": "toolCall", "id": "c2", "name": "subagent", "arguments": {"agent": "delegate", "task": "cleanup secret-cleanup"}}]),
+                message("e5", "e4", "toolResult", [{"type": "text", "text": "run run-other finished"}], toolCallId="c2", toolName="subagent"),
+                message("e6", "e5", "user", "Unrelated question about lunch"),
+            ]
+            lead = folder / "2026-10-23T10-00-00-000Z_lead-1.jsonl"
+            lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n", encoding="utf-8")
+            for run_id, text in (("run-good", "Working on feature/demo-transcripts"), ("run-other", "Cleaning up secret-cleanup")):
+                transcript = artifacts / f"{run_id}_delegate_transcript.jsonl"
+                transcript.write_text(json.dumps({"recordType": "message", "timestamp": "2026-10-23T10:01:00Z",
+                                                  "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n")
+                (artifacts / f"{run_id}_delegate_meta.json").write_text(json.dumps({"runId": run_id, "parentSessionId": "lead-1", "agent": "delegate",
+                                                                                    "transcriptPath": str(transcript)}))
+            self.assertEqual(pi_sessions.find_sessions(demo_context(), Path(directory)), [lead])
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual([turn.text for turn in unit.turns], ["Do the transcripts work and the unrelated cleanup"])
+        calls = [item.tool for turn in unit.turns for item in turn.items if item.tool]
+        self.assertEqual([call.links_to for call in calls], ["run-good"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Working on feature/demo-transcripts", pages[0])
+        self.assertNotIn("secret-cleanup", pages[0])
+        self.assertNotIn("lunch", pages[0])
+
+
+class PiChildFindingsTests(unittest.TestCase):
+    """Regressions for little-person's #117 findings on pi-subagents children."""
+
+    def store(self, directory, lead_cwd, children, tasks=("a", "b"), result="run run-par finished; run run-unrelated finished", details=None):
+        folder = Path(directory) / "--lead--"
+        artifacts = folder / "subagent-artifacts"
+        artifacts.mkdir(parents=True)
+        message = lambda entry_id, parent, role, content, **extra: {"type": "message", "id": entry_id, "parentId": parent,
+                                                                   "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
+        entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": lead_cwd},
+                   message("e1", None, "user", "Run the workers"),
+                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": list(tasks)}}]),
+                   message("e3", "e2", "toolResult", [{"type": "text", "text": result}], toolCallId="c1", toolName="subagent",
+                           **({"details": details} if details else {}))]
+        lead = folder / "2026-10-23T10-00-00-000Z_lead-2.jsonl"
+        lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
+        for name, run_id, cwd, messages in children:
+            transcript = artifacts / f"{name}_transcript.jsonl"
+            transcript.write_text("\n".join(json.dumps({"recordType": "message", "cwd": cwd, "timestamp": "2026-10-23T10:01:00Z", "message": item})
+                                            for item in messages) + "\n")
+            index = int(name.rsplit("_", 1)[1]) if name.rsplit("_", 1)[1].isdigit() else None
+            (artifacts / f"{name}_meta.json").write_text(json.dumps({"runId": run_id, "parentSessionId": "lead-2", "agent": name.split("_")[1],
+                                                                     "transcriptPath": str(transcript), **({"index": index} if index is not None else {})}))
+        return lead
+
+    def test_a_read_naming_a_known_and_an_unknown_overflow_file_is_withheld(self):
+        sentinel = "private-" + "overflow-" + "mixed"
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Check prod for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "bash", "arguments": {"command": "ls -R"}}]},
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "bash", "content": [{"type": "text", "text": "a\n[Output truncated. Full output: /tmp/pi-bash-safe.log]"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k2", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}]},
+            {"role": "toolResult", "toolCallId": "k2", "toolName": "bash", "content": [{"type": "text", "text": "row\n" * 10000}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k3", "name": "bash", "arguments": {"command": "tail /tmp/pi-bash-safe.log /tmp/pi-bash-9f3a.log"}}]},
+            {"role": "toolResult", "toolCallId": "k3", "toolName": "bash", "content": [{"type": "text", "text": sentinel}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(sentinel, pages[0])
+
+    def test_a_task_naming_the_work_keeps_only_its_child_and_its_task(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        tasks = [{"agent": "worker", "task": "Implement feature/demo-transcripts"}, {"agent": "worker", "task": "private-" + "task-" + "sibling"}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did the work")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("private-" + "note-" + "sibling")),
+            ], tasks=tasks, result="run run-par: worker 0 did the work; worker 1 found private-" + "result-" + "sibling")
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Did the work", pages[0])
+        self.assertIn("Implement feature/demo-transcripts", pages[0])
+        for sentinel in ("note-sibling", "task-sibling", "result-sibling"):
+            self.assertNotIn("private-" + sentinel, pages[0])
+
+    def test_a_filtered_siblings_task_prompt_does_not_render(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        tasks = [{"agent": "worker", "task": "Build the renderer"}, {"agent": "worker", "task": "private-" + "task-" + "other"}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("Other work")),
+            ], tasks=tasks)
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Build the renderer", pages[0])
+        self.assertNotIn("private-task-other", pages[0])
+        self.assertNotIn("Other work", pages[0])
+
+    def test_pi_edits_of_credential_files_hide_their_text(self):
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Rotate the key for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "edit", "arguments": {
+                "path": "/work/demo/.env", "oldText": "API_KEY=private-" + "old-" + "cred", "newText": "API_KEY=private-" + "new-" + "cred"}}]},
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "edit", "content": [{"type": "text", "text": "Edited"}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("/work/demo/.env", pages[0])
+        self.assertNotIn("private-old-cred", pages[0])
+        self.assertNotIn("private-new-cred", pages[0])
+
+    def test_a_turn_naming_the_work_drops_its_spawns_for_other_work(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-a_worker_0", "run-a", "/elsewhere", say("Did the work")),
+                ("run-b_worker_0", "run-b", "/elsewhere", say("private-" + "other-" + "child")),
+            ])
+            message = lambda entry_id, parent, role, content, **extra: {"type": "message", "id": entry_id, "parentId": parent,
+                                                                       "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
+            entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": "/elsewhere"},
+                       message("e1", None, "user", "Run both"),
+                       message("e2", "e1", "assistant", [
+                           {"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": [{"agent": "worker", "task": "Implement feature/demo-transcripts"}]}},
+                           {"type": "toolCall", "id": "c2", "name": "subagent", "arguments": {"tasks": [{"agent": "worker", "task": "private-" + "other-" + "task"}]}}]),
+                       message("e3", "e2", "toolResult", [{"type": "text", "text": "done"}], toolCallId="c1", toolName="subagent", details={"runId": "run-a"}),
+                       message("e4", "e3", "toolResult", [{"type": "text", "text": "private-" + "other-" + "result"}], toolCallId="c2", toolName="subagent", details={"runId": "run-b"})]
+            lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Did the work", pages[0])
+        self.assertIn("Implement feature/demo-transcripts", pages[0])
+        for sentinel in ("other-child", "other-task", "other-result"):
+            self.assertNotIn("private-" + sentinel, pages[0])
+
+    def test_structured_run_ids_attach_children_to_their_spawning_call(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", say("Did feature/demo-transcripts"))],
+                              tasks=[{"agent": "delegate", "task": "spawn-" + "task-" + "marker"}], result="All done.",
+                              details={"mode": "single", "runId": "run-par"})
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual(unit.teammates, [])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("spawn-task-marker", pages[0])
+        self.assertIn("Did feature/demo-transcripts", pages[0])
+
+    def test_exclude_removes_a_reported_pi_teammate(self):
+        import argparse
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            self.store(directory, "/elsewhere", [
+                ("run-x_worker_0", "run-x", "/elsewhere", say("private-" + "excluded-" + "worker on feature/demo-transcripts")),
+                ("run-x_worker_1", "run-x", "/elsewhere", say("Kept worker on feature/demo-transcripts")),
+            ], result="done")
+            args = argparse.Namespace(projects_root=empty, pi_root=directory, session=None, exclude=["run-x_worker_0"], whole=None)
+            units = agent_session.load_units(demo_context(), args)
+        pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Kept worker", pages[0])
+        self.assertNotIn("private-excluded-worker", pages[0])
+
+    def test_child_overflow_reads_inherit_withholding_without_details(self):
+        sentinel = "private-" + "overflow-" + "child"
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Check prod for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}]},
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "bash", "content": [{"type": "text", "text": "row 1\n[Output truncated. Full output: /tmp/pi-bash-private.log]"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k2", "name": "read", "arguments": {"path": "/tmp/pi-bash-private.log"}},
+                                              {"type": "toolCall", "id": "k3", "name": "bash", "arguments": {"command": "tail /tmp/pi-bash-private.log"}}]},
+            {"role": "toolResult", "toolCallId": "k2", "toolName": "read", "content": [{"type": "text", "text": sentinel}]},
+            {"role": "toolResult", "toolCallId": "k3", "toolName": "bash", "content": [{"type": "text", "text": sentinel + "-2"}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(sentinel, pages[0])
+
+    def test_parallel_children_of_one_call_all_render_and_unrelated_ones_are_filtered(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("First half of feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("Second half of feature/demo-transcripts")),
+                ("run-unrelated_cleaner", "run-unrelated", "/elsewhere", say("secret-unrelated cleanup")),
+            ])
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("First half", pages[0])
+        self.assertIn("Second half", pages[0])
+        self.assertNotIn("secret-unrelated", pages[0])
+
+    def test_siblings_sharing_a_run_id_are_selected_one_by_one(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("private-" + "note-" + "sibling")),
+            ])
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Did feature/demo-transcripts", pages[0])
+        self.assertNotIn("private-note-sibling", pages[0])
+
+    def test_overflow_reads_whose_notice_was_cut_off_are_withheld(self):
+        sentinel = "private-" + "overflow-" + "cut"
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Check prod for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}]},
+            # pi-subagents kept only the first 32 KiB: the trailing "Full output:" notice is gone.
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "bash", "content": [{"type": "text", "text": "row\n" * 10000}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k2", "name": "read", "arguments": {"path": "/tmp/pi-bash-9f3a.log"}}]},
+            {"role": "toolResult", "toolCallId": "k2", "toolName": "read", "content": [{"type": "text", "text": sentinel}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(sentinel, pages[0])
+
+    def test_a_child_running_in_the_worktree_finds_its_lead(self):
+        say = [{"role": "assistant", "content": [{"type": "text", "text": "Did the work"}]}]
+        for child_cwd, expected in (("/work/demo/backend", True), ("/work/demo-other", False)):
+            with tempfile.TemporaryDirectory() as directory:
+                lead = self.store(directory, "/elsewhere", [("run-par_worker", "run-par", child_cwd, say)])
+                context = demo_context()
+                context.worktree_branches = {"/work/demo": "feature/demo-transcripts"}
+                self.assertEqual(pi_sessions.find_sessions(context, Path(directory)), [lead] if expected else [], child_cwd)
+                unit = pi_sessions.load_session(lead, context)
+                child = unit.turns[0].items[0].tool.subagent
+                self.assertEqual(child.cwd, child_cwd)
+                self.assertEqual(bool(child.evidence), expected)
 
 
 class PrBodyAndHookTests(unittest.TestCase):
@@ -631,7 +951,8 @@ class ShareTests(unittest.TestCase):
         git("checkout", "-q", "-b", "feature/demo-transcripts")
         git("remote", "add", "origin", "https://github.com/DiversioTeam/demo.git")
         build_store(root / "store")
-        self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--out", str(root / "out")]
+        (root / "pi").mkdir()
+        self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--pi-root", str(root / "pi"), "--out", str(root / "out")]
         self.env = mock.patch.dict("os.environ", {"AGENT_SESSION_HOME": str(root / "state")})
         self.env.start()
         self.uploads, self.deleted, self.bodies = [], [], []

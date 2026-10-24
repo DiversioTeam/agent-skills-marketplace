@@ -6,6 +6,12 @@ when command files change.
 
 ## Review And Workflow
 
+- `agent-session` (pi package)
+  - Purpose: blocks Pi's `gh pr create` and PR body edits in DiversioTeam repos
+    without an agent session transcript link or a `No agent session: <reason>`
+    line, using the `agent-session` skill's hook script.
+  - Pi install: `pi install git:github.com/DiversioTeam/agent-skills-marketplace`
+  - Package path: `pi-packages/agent-session`
 - `ci-status` (pi package)
   - Purpose: pi-native CI status extension with GitHub Actions and CircleCI
     status discovery, auto-watch after pushes, widget/status rendering,
@@ -298,7 +304,8 @@ when command files change.
   - Claude install: `claude plugin install agent-session@diversiotech`
   - Skill path: `plugins/agent-session/skills/agent-session`
   - Slash command: `/agent-session:share`
-  - Sessions read: Claude Code now; Pi and Codex next.
+  - Sessions read: Claude Code and Pi (the `agent-session` Pi package guards
+    PR create and edit); Codex next.
 
 - `browser-walkthrough-recording`
   - Purpose: real browser walkthroughs with readable captions, highlights,

@@ -10,11 +10,40 @@ turns on the branch are the work and stay whole. Everything else is counted as o
 from __future__ import annotations
 
 from repo_context import RepoContext
-from session_model import Item, Turn, Unit
+from session_model import Item, ToolCall, Turn, Unit
 
 
 def nested_subagents(unit: Unit) -> list[Unit]:
-    return [item.tool.subagent for turn in unit.turns for item in turn.items if item.tool and item.tool.subagent]
+    return [subagent for turn in unit.turns for item in turn.items if item.tool for subagent in item.tool.subagents]
+
+
+def _prune_children(tool: ToolCall, keys: set[str], other_work: bool = False) -> None:
+    """One call can start several children (parallel runs). When some do this work, only they stay, and the call keeps
+    only their part of a multi-task payload: other tasks become placeholders, or the whole list is withheld when the
+    children cannot be mapped to tasks. The call's own output, which carries every child's result, is withheld. With
+    `other_work` (the turn delegated this work elsewhere), a call whose children all do other work loses them, its
+    payload, and its result."""
+    children = tool.subagents
+    if not other_work and not any(child.worker_key in keys for child in children):
+        return
+    kept = [child for child in children if child.worker_key in keys or not child.worker_key]
+    if len(kept) == len(children):
+        return
+    tool.subagent, tool.more_subagents = (kept[0] if kept else None), kept[1:]
+    if not kept:
+        # A spawn only for other work (`other_work`): its whole payload and result are that work's.
+        tool.input = {"task": "[a spawn for other work, not shown]"}
+        tool.withheld = tool.withheld or "results of other work"
+        return
+    tasks = tool.input.get("tasks")
+    if isinstance(tasks, list):
+        if all(child.task_index is not None for child in children):
+            mine = {child.task_index for child in kept}
+            tasks = [task if index in mine else "[a task for other work, not shown]" for index, task in enumerate(tasks)]
+        else:
+            tasks = "[withheld: tasks shared with other work]"
+        tool.input = {**tool.input, "tasks": tasks}
+    tool.withheld = tool.withheld or "results of other work"
 
 
 def _relevant(worker: Unit) -> bool:
@@ -35,7 +64,9 @@ def _related_items(turn: Turn, keys: set[str], pattern) -> list[Item]:
             else:
                 pending_text.append(item)
             continue
-        if item.tool and item.tool.links_to and item.tool.links_to in keys:
+        tool = item.tool
+        if tool and ((tool.links_to and tool.links_to in keys) or any(child.worker_key in keys for child in tool.subagents)):
+            _prune_children(tool, keys)
             kept.extend(pending_text)
             kept.append(item)
         pending_text = []
@@ -59,8 +90,14 @@ def slice_to_work(unit: Unit, context: RepoContext, whole: bool) -> None:
         if context.branch and turn.branch == context.branch:
             kept.append(turn)
             continue
-        # A turn that names the branch or PR itself is part of the work: it stays whole.
+        # A turn that names the branch or PR itself is part of the work: it stays whole, less parallel children doing
+        # other work.
         if turn.evidence:
+            spawns = [item.tool for item in turn.items if item.tool and item.tool.subagents]
+            # When the turn hands this work to particular workers, its other spawns are other work.
+            delegated = any(child.worker_key in keys for tool in spawns for child in tool.subagents)
+            for tool in spawns:
+                _prune_children(tool, keys, other_work=delegated)
             kept.append(turn)
             continue
         inbound = turn.kind == "teammate" and turn.sender in keys

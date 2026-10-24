@@ -186,6 +186,9 @@ jobs:
           npm install --global @mariozechner/pi-coding-agent@0.70.6
           pi --version
 
+      - name: Test the agent-session PR guard
+        run: node --test pi-packages/agent-session/tests/agent-session.test.mjs
+
       - name: Test bridge root selection and native skill discovery
         # Capture the pinned CLI before pnpm adds dependency binaries to PATH.
         run: PI_TEST_BINARY="$(command -v pi)" pnpm --config.verify-deps-before-run=false --dir pi-packages/skills-bridge test

@@ -36,6 +36,17 @@ class RepoContext:
     head: str = ""
     base: str = ""
     commits: list[str] = field(default_factory=list)
+    # The branch checked out in each worktree, for harnesses that do not record the branch (Pi, Codex).
+    worktree_branches: dict[str, str] = field(default_factory=dict)
+
+    def worktrees_on_branch(self) -> set[str]:
+        return {path for path, branch in self.worktree_branches.items() if branch == self.branch}
+
+    def in_worktree_on_branch(self, cwd: str) -> bool:
+        """Whether a session's directory is a worktree on the branch, or inside one. The most specific registered worktree
+        containing it owns it, so a worktree nested inside one on the branch keeps its own branch."""
+        owners = [path for path in self.worktree_branches if cwd == path or cwd.startswith(path.rstrip("/") + "/")] if cwd else []
+        return bool(owners) and self.worktree_branches[max(owners, key=len)] == self.branch
 
     @property
     def repo_name(self) -> str:
@@ -65,8 +76,16 @@ class RepoContext:
         branch = branch or _git(root, "branch", "--show-current")
         slug = parse_repo_slug(_git(root, "remote", "get-url", "origin"))
         default = _git(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD").removeprefix("origin/") or "main"
-        worktrees = [Path(line.removeprefix("worktree ")) for line in _git(root, "worktree", "list", "--porcelain").splitlines()
-                     if line.startswith("worktree ")] or [root]
+        porcelain = _git(root, "worktree", "list", "--porcelain").splitlines()
+        worktrees = [Path(line.removeprefix("worktree ")) for line in porcelain if line.startswith("worktree ")] or [root]
+        worktree_branches: dict[str, str] = {}
+        current = ""
+        for line in porcelain:
+            if line.startswith("worktree "):
+                current = line.removeprefix("worktree ")
+                worktree_branches[current] = ""  # detached until a branch line says otherwise
+            elif line.startswith("branch refs/heads/") and current:
+                worktree_branches[current] = line.removeprefix("branch refs/heads/")
         since = 0.0
         base = _git(root, "merge-base", f"origin/{default}", branch) if branch else ""
         first = _git(root, "log", "--format=%ct", "--reverse", f"{base}..{branch}").splitlines() if base else []
@@ -77,4 +96,4 @@ class RepoContext:
         head = _git(root, "rev-parse", "HEAD")
         commits = _git(root, "rev-list", "--reverse", "--max-count=500", f"{base}..{head}").splitlines() if base and head else []
         return cls(root=root, branch=branch, repo_slug=slug, default_branch=default, pr=pr, worktrees=worktrees, since=since,
-                   head=head, base=base, commits=commits)
+                   head=head, base=base, commits=commits, worktree_branches=worktree_branches)
