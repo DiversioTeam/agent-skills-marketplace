@@ -153,17 +153,24 @@ def cmd_find(args: argparse.Namespace) -> int:
     return 0
 
 
-def _remembered_choices(args: argparse.Namespace, context: RepoContext) -> dict:
-    """The developer's choices from this branch's last publish, merged into this run's arguments, so a republish keeps
-    every turn they dropped and every session they excluded. --reset-choices starts over."""
-    # The newest of this branch's last preview and its last publish: numbers given now refer to the preview just shown.
-    previous = store.latest(context.repo_slug, context.branch) or {}
+def _last_preview(args: argparse.Namespace, context: RepoContext) -> dict:
+    """This branch's last rendered preview's manifest, or {}."""
     try:
         preview = json.loads((_out_dir(args, context) / MANIFEST).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        preview = {}
-    if isinstance(preview, dict) and preview.get("repo") == context.repo_slug and preview.get("branch") == context.branch:
-        previous = preview
+        return {}
+    return preview if isinstance(preview, dict) and preview.get("repo") == context.repo_slug and preview.get("branch") == context.branch else {}
+
+
+class ChoiceError(Exception):
+    """A turn number that the last preview did not show."""
+
+
+def _remembered_choices(args: argparse.Namespace, context: RepoContext) -> dict:
+    """The developer's choices from this branch's last publish, merged into this run's arguments, so a republish keeps
+    every turn they dropped and every session they excluded. --reset-choices starts over."""
+    # The newest of this branch's last preview and its last publish.
+    previous = _last_preview(args, context) or store.latest(context.repo_slug, context.branch) or {}
     remembered = {} if getattr(args, "reset_choices", False) else dict(previous.get("choices") or {})
     for name in ("session", "exclude", "whole"):
         merged = sorted({*(getattr(args, name, None) or []), *remembered.get(name, [])})
@@ -179,9 +186,23 @@ def _render(args: argparse.Namespace, context: RepoContext) -> tuple[Path, dict]
     if not units:
         print("No agent sessions found for this branch. Add one with --session ID, or run declare-none 'reason' if no agent worked on it.")
         return None
-    dropped, included = _apply_turn_choices(units, set(args.drop_turn or []), set(args.include_output or []),
-                                             set(choices.get("drop", [])), set(choices.get("include_output", [])))
+    drop, include = set(args.drop_turn or []), set(args.include_output or [])
+    drop_keys, include_keys = set(choices.get("drop", [])), set(choices.get("include_output", []))
+    # Numbers name the turns the last preview showed, even if the session has grown since: resolve them through that
+    # preview's number-to-turn map.
+    shown = {int(number): key for number, key in (_last_preview(args, context).get("numbers") or {}).items()}
+    if shown and (drop or include):
+        unknown = sorted(number for number in drop | include if number not in shown)
+        if unknown:
+            raise ChoiceError(f"Turn {', '.join(map(str, unknown))} is not in the last preview (it showed turns 1 to {max(shown)}). "
+                              "Run share again without turn numbers to see the current ones.")
+        drop_keys |= {shown[number] for number in drop}
+        include_keys |= {shown[number] for number in include}
+        drop, include = set(), set()
+    dropped, included = _apply_turn_choices(units, drop, include, drop_keys, include_keys)
     choices.update(drop=dropped, include_output=included)
+    number_turns(units)
+    numbers = {str(turn.number): turn_key(unit, turn) for unit, turn in _each_turn(units)}
     roots = [context.root, *context.worktrees]
     redactor = Redactor(known_secrets=collect_known_secrets(roots))
     now = datetime.now(timezone.utc)
@@ -200,7 +221,7 @@ def _render(args: argparse.Namespace, context: RepoContext) -> tuple[Path, dict]
         files.append({"name": name, "sha256": hashlib.sha256(html_text.encode()).hexdigest(), "bytes": len(html_text.encode())})
     counts = {kind: count for kind, count in redactor.counts.items() if count}
     manifest = {"repo": context.repo_slug, "branch": context.branch, "pr": context.pr, "expires": expires, "files": files,
-                "head": context.head, "base": context.base, "commits": context.commits, "choices": choices,
+                "head": context.head, "base": context.base, "commits": context.commits, "choices": choices, "numbers": numbers,
                 "sessions": [unit.id for unit in units], "redactions": counts, "withheld": dict(page.withheld),
                 "clipped": page.counts["clipped"], "turns": page.counts["turns"]}
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -216,7 +237,11 @@ def _render(args: argparse.Namespace, context: RepoContext) -> tuple[Path, dict]
 
 
 def cmd_render(args: argparse.Namespace) -> int:
-    rendered = _render(args, _context(args))
+    try:
+        rendered = _render(args, _context(args))
+    except ChoiceError as error:
+        print(error)
+        return 1
     if rendered:
         print("Review the page before publishing: it includes your own prompts word for word. "
               "Drop a turn with --drop-turn N; include a withheld prod/staging output with --include-output N.")
@@ -239,10 +264,19 @@ def _find_pr(context: RepoContext) -> int | None:
     pr, error = check.open_pr(context.repo_slug, context.branch)
     if error:
         raise PrLookupError(error)
-    return pr[0] if pr else None
+    return int(pr["number"]) if pr else None
 
 
 def _update_pr_body(context: RepoContext, pr: int, new_section: str) -> bool:
+    try:
+        return _edit_pr_body(context, pr, new_section)
+    except (OSError, subprocess.TimeoutExpired):
+        # The edit may or may not have landed: the caller keeps both the old and the new page until a later link.
+        print(f"gh did not answer while updating PR #{pr}; run share again, or add this section yourself:\n\n{new_section}")
+        return False
+
+
+def _edit_pr_body(context: RepoContext, pr: int, new_section: str) -> bool:
     view = subprocess.run(["gh", "pr", "view", str(pr), "-R", context.repo_slug, "--json", "body", "-q", ".body"],
                           capture_output=True, text=True, check=False, timeout=60)
     if view.returncode != 0:
@@ -283,7 +317,8 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
             links.append(publisher.upload(out / name, name))
     except publisher.PublishError as error:
         print(error)
-        _abandon(context, names[:len(links)])
+        # The part whose upload failed may have reached the server anyway (a lost response): clean it up too.
+        _abandon(context, names[:len(links) + 1])
         return 1
     manifest["links"] = links
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -293,10 +328,11 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
     for link in links:
         print(f"Published: {link}")
     section = pr_body.section(list(zip(_labels(links), links)))
+    # Journal the uploads before touching the PR, so nothing interrupts this share without leaving a cleanup record.
+    store.record({**entry, "linked": False})
     if pr and not _update_pr_body(context, pr, section):
-        # The PR still links the previous page, so keep it; local-ci will report the new one as unlinked, and the next
-        # successful share deletes this upload along with the old one.
-        store.record({**entry, "linked": False})
+        # The PR may still link the previous page, so keep it; local-ci will report the new one as unlinked, and the
+        # next successful share deletes this upload along with the old one.
         return 1
     store.record({**entry, "linked": True})
     if not pr:
@@ -356,7 +392,11 @@ def cmd_share(args: argparse.Namespace) -> int:
     except PrLookupError as error:
         print(f"Could not read this branch's PR ({error}); nothing was published. Fix gh auth, then run share again.")
         return 1
-    rendered = _render(args, context)
+    try:
+        rendered = _render(args, context)
+    except ChoiceError as error:
+        print(error)
+        return 1
     if not rendered:
         return 1
     previous = store.latest(context.repo_slug, context.branch)

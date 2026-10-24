@@ -93,7 +93,7 @@ def _record(kind, content, timestamp, branch="feature/demo-transcripts", **extra
     return {"type": kind, "timestamp": timestamp, "gitBranch": branch, "cwd": "/tmp/demo-repo", "sessionId": "s1", "message": message, **extra}
 
 
-def build_store(root: Path) -> Path:
+def build_store(root: Path, cwd: str = "") -> Path:
     project = root / "-tmp-demo-repo"
     session = project / "11111111-2222-3333-4444-555555555555"
     (session / "subagents").mkdir(parents=True)
@@ -132,6 +132,9 @@ def build_store(root: Path) -> Path:
     (session / "subagents" / "agent-amate-1.meta.json").write_text(json.dumps({"name": "renderer", "taskKind": "in_process_teammate"}))
     other = project / "99999999-0000-0000-0000-000000000000.jsonl"
     other.write_text(json.dumps(_record("user", "Unrelated session", "2026-10-23T08:00:00Z", branch="other", origin={"kind": "human"})) + "\n")
+    if cwd:  # the sessions ran in this checkout instead
+        for path in project.rglob("*.jsonl"):
+            path.write_text(path.read_text(encoding="utf-8").replace('"cwd": "/tmp/demo-repo"', json.dumps({"cwd": cwd})[1:-1]), encoding="utf-8")
     return main
 
 
@@ -618,6 +621,24 @@ class LittlePersonFindingsTests(unittest.TestCase):
 class PrBodyAndHookTests(unittest.TestCase):
     LINK = "https://internal-share.diversio.com/session-demo-feature-demo-20261023-a1b2c3.html"
 
+    def test_automatic_pr_lookup_reads_githubs_pull_object(self):
+        from unittest import mock
+        context = repo_context.RepoContext(root=Path("/tmp"), branch="feature/x", repo_slug="DiversioTeam/demo")
+        pull = {"number": 7, "body": "", "base": {"ref": "main"}, "user": {"login": "someone", "type": "User"}}
+        with mock.patch.object(check, "open_pr", return_value=(pull, "")):
+            self.assertEqual(agent_session._find_pr(context), 7)
+        with mock.patch.object(check, "open_pr", return_value=(None, "")):
+            self.assertIsNone(agent_session._find_pr(context))
+
+    def test_pr_edit_timeouts_are_a_failed_link(self):
+        import contextlib, io, subprocess
+        from unittest import mock
+        context = repo_context.RepoContext(root=Path("/tmp"), branch="feature/x", repo_slug="DiversioTeam/demo")
+        with mock.patch.object(agent_session.subprocess, "run", side_effect=subprocess.TimeoutExpired("gh", 60)), \
+                contextlib.redirect_stdout(io.StringIO()) as said:
+            self.assertFalse(agent_session._update_pr_body(context, 7, "## Agent sessions"))
+        self.assertIn("gh did not answer", said.getvalue())
+
     def test_publisher_timeouts_are_failures_not_crashes(self):
         import subprocess
         from unittest import mock
@@ -694,7 +715,7 @@ class ShareTests(unittest.TestCase):
         git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "init")
         git("checkout", "-q", "-b", "feature/demo-transcripts")
         git("remote", "add", "origin", "https://github.com/DiversioTeam/demo.git")
-        build_store(root / "store")
+        build_store(root / "store", str(self.repo.resolve()))
         self.args = ["--repo", str(self.repo), "--projects-root", str(root / "store"), "--out", str(root / "out")]
         self.env = mock.patch.dict("os.environ", {"AGENT_SESSION_HOME": str(root / "state")})
         self.env.start()
@@ -813,26 +834,26 @@ class ShareTests(unittest.TestCase):
         try:
             with self.mock.patch.object(publish, "upload", side_effect=flaky), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(agent_session.main(["share", *self.args]), 1)
-            first_part = attempts[0]
-            self.assertEqual(self.deleted, [first_part])  # removed at once; the linked page stays
+            # Removed at once, with the part whose upload failed (it may have landed); the linked page stays.
+            self.assertEqual(self.deleted, attempts[:2])
             # A part that cannot be removed now is remembered and removed by the next successful share.
             attempts.clear()
             with self.mock.patch.object(publish, "upload", side_effect=flaky), \
                     self.mock.patch.object(publish, "delete", return_value=False), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(agent_session.main(["share", *self.args]), 1)
-            stuck = attempts[0]
+            stuck = attempts[:2]
         finally:
             render_html.MAX_PART_BYTES = original
         self.assertNotIn(linked[0], self.deleted)
         # The stuck part outlives a replacement that links while deletion still fails ...
         with self.mock.patch.object(publish, "delete", return_value=False), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(agent_session.main(["share", *self.args]), 0)
-        self.assertEqual(store.cleanup_debt("DiversioTeam/demo", "feature/demo-transcripts"), sorted([stuck, linked[0]]))
+        self.assertEqual(store.cleanup_debt("DiversioTeam/demo", "feature/demo-transcripts"), sorted([*stuck, linked[0]]))
         self.assertTrue(store.latest("DiversioTeam/demo", "feature/demo-transcripts")["linked"])
         # ... and the next share deletes it.
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(agent_session.main(["share", *self.args]), 0)
-        self.assertIn(stuck, self.deleted)
+        self.assertTrue(set(stuck) <= set(self.deleted))
         self.assertIn(linked[0], self.deleted)
         self.assertEqual(store.cleanup_debt("DiversioTeam/demo", "feature/demo-transcripts"), [])
 
@@ -867,6 +888,72 @@ class ShareTests(unittest.TestCase):
         self.assertNotIn("Add the transcript feature", page)
         self.assertNotIn("please render this safely", page)
         self.assertIn("Build the renderer", page)
+
+    def test_workers_are_judged_by_their_own_repository(self):
+        import argparse
+        root = Path(self.directory.name)
+        here = str(self.repo.resolve())
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            def write(path, records):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            at = lambda cwd, branch, kind, content, timestamp, **extra: {**_record(kind, content, timestamp, branch=branch, **extra), "cwd": cwd}
+            # A lead in this repository with a teammate working in another repository on a same-named branch.
+            lead = Path(directory) / "-here" / "aaaaaaaa-0000-0000-0000-000000000000.jsonl"
+            write(lead, [at(here, "feature/demo-transcripts", "user", "Lead work here", "2026-10-23T10:00:00Z", origin={"kind": "human"})])
+            folder = lead.with_suffix("") / "subagents"
+            write(folder / "agent-amate-x.jsonl", [at("/work/other-repository", "feature/demo-transcripts", "user",
+                                                      '<teammate-message teammate_id="team-lead">private-' + 'other-' + 'teammate</teammate-message>', "2026-10-23T10:01:00Z")])
+            (folder / "agent-amate-x.meta.json").write_text(json.dumps({"name": "elsewhere", "taskKind": "in_process_teammate"}))
+            # A lead elsewhere on main, with no PR marker, whose worker ran here on the PR branch.
+            outside = Path(directory) / "-elsewhere" / "bbbbbbbb-0000-0000-0000-000000000000.jsonl"
+            write(outside, [at("/work/coordinator", "main", "user", "Coordinate", "2026-10-23T11:00:00Z", origin={"kind": "human"}),
+                            at("/work/coordinator", "main", "assistant", [{"type": "tool_use", "id": "w1", "name": "Agent", "input": {"description": "worker", "prompt": "go"}}], "2026-10-23T11:00:01Z")])
+            sub = outside.with_suffix("") / "subagents"
+            write(sub / "agent-worker.jsonl", [at(here, "feature/demo-transcripts", "user", "go", "2026-10-23T11:00:02Z"),
+                                               at(here, "feature/demo-transcripts", "assistant", [{"type": "text", "text": "Worker did it here"}], "2026-10-23T11:00:03Z")])
+            (sub / "agent-worker.meta.json").write_text(json.dumps({"toolUseId": "w1", "description": "worker"}))
+            context = agent_session._context(agent_session.parser().parse_args(["find", "--repo", str(self.repo)]))
+            args = argparse.Namespace(projects_root=directory, pi_root=empty, codex_root=empty, session=None, exclude=None, whole=None)
+            units = agent_session.load_units(context, args)
+            pages, _ = render_html.build_pages(context, units, redaction.Redactor(), "2027-10-23", "now")
+        page = "".join(pages)
+        self.assertIn("Lead work here", page)
+        self.assertNotIn("private-other-teammate", page)
+        self.assertIn("Worker did it here", page)
+        self.assertIn("Coordinate", page)
+
+    def test_drop_numbers_survive_the_session_growing_after_the_preview(self):
+        import contextlib, io, re
+        out = Path(self.directory.name) / "out"
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 3)
+        preview = next(out.glob("session-*.html")).read_text(encoding="utf-8")
+        shown = int(re.search(r'href="#turn-(\d+)">\d+</a><span class="who-s teammate">[^<]*</span><span class="first">Build the renderer', preview).group(1))
+        main = next((Path(self.directory.name) / "store").glob("*/11111111-*.jsonl"))
+        with main.open("a") as handle:
+            handle.write(json.dumps({**_record("user", "Looks good, publish it", "2026-10-23T10:02:30Z", origin={"kind": "human"}),
+                                     "cwd": str(self.repo.resolve())}) + "\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes", "--drop-turn", str(shown)]), 0)
+        page = (out / self.uploads[-1]).read_text(encoding="utf-8")
+        self.assertNotIn("Build the renderer", page)
+        self.assertIn("Looks good, publish it", page)
+        with contextlib.redirect_stdout(io.StringIO()) as said:
+            self.assertEqual(agent_session.main(["share", *self.args, "--drop-turn", "99"]), 1)
+        self.assertIn("Turn 99 is not in the last preview", said.getvalue())
+
+    def test_an_interrupted_pr_edit_leaves_its_upload_for_cleanup(self):
+        import contextlib, io, subprocess
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes"]), 0)
+        with self.mock.patch.object(agent_session, "_update_pr_body", side_effect=subprocess.TimeoutExpired("gh", 60)), \
+                contextlib.redirect_stdout(io.StringIO()), self.assertRaises(subprocess.TimeoutExpired):
+            agent_session.main(["share", *self.args])
+        orphan = self.uploads[-1]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        self.assertIn(orphan, self.deleted)
 
     def test_declare_none_records_and_links(self):
         import contextlib, io
