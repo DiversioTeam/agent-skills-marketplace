@@ -87,29 +87,45 @@ def turn_key(unit: Unit, turn: Turn) -> str:
 
 def _apply_turn_choices(units: list[Unit], drop: set[int], include_output: set[int], drop_keys: set[str] = frozenset(),
                         include_keys: set[str] = frozenset()) -> tuple[list[str], list[str]]:
-    """Drop turns and publish withheld prod/staging output, by page number (this render) or by stable key (an earlier
-    publish's choices). Returns every key dropped and included, to remember for the next republish."""
+    """Drop turns and publish withheld prod/staging output, by stable key (an earlier publish's choices) and by page
+    number (this run). Remembered choices apply first and the tree is numbered after them, exactly as the last preview
+    showed it, so a number names the turn the developer saw even when a dropped parent took its subagents with it.
+    Returns every key dropped and included, to remember for the next republish."""
+    dropped: set[str] = set()
+    included: set[str] = set()
+    removed: set[int] = set()
+
+    def apply(drops, includes) -> None:
+        for unit, turn in _each_turn(units):
+            if id(turn) in removed:
+                continue
+            key = turn_key(unit, turn)
+            if includes(turn, key):
+                included.add(key)
+                for item in turn.items:
+                    if item.tool and item.tool.withheld == "prod or staging data access":
+                        item.tool.withheld = None
+            if drops(turn, key):
+                dropped.add(key)
+                removed.add(id(turn))
+                turn.text = ""
+                turn.items = [Item(kind="note", text="This turn was removed by the developer before publishing.")]
+
+    apply(lambda turn, key: key in drop_keys, lambda turn, key: key in include_keys)
     number_turns(units)
-    dropped, included = [], []
+    apply(lambda turn, key: turn.number in drop, lambda turn, key: turn.number in include_output)
+    return sorted(dropped), sorted(included)
+
+
+def _each_turn(units: list[Unit]):
+    """Every turn on the page, a turn's subagents after it; a turn dropped while iterating takes its subagents along."""
     stack = list(units)
     while stack:
         unit = stack.pop()
         stack.extend(unit.teammates)
         for turn in unit.turns:
-            key = turn_key(unit, turn)
-            include = turn.number in include_output or key in include_keys
-            for item in turn.items:
-                if item.tool and item.tool.subagent:
-                    stack.append(item.tool.subagent)
-                if item.tool and include and item.tool.withheld == "prod or staging data access":
-                    item.tool.withheld = None
-            if include:
-                included.append(key)
-            if turn.number in drop or key in drop_keys:
-                dropped.append(key)
-                turn.text = ""
-                turn.items = [Item(kind="note", text=f"Turn {turn.number} was removed by the developer before publishing.")]
-    return sorted(dropped), sorted(included)
+            yield unit, turn
+            stack.extend(item.tool.subagent for item in turn.items if item.tool and item.tool.subagent)
 
 
 def cmd_find(args: argparse.Namespace) -> int:
@@ -247,18 +263,20 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
         print(f"Could not read this branch's PR ({error}); nothing was published. Fix gh auth, then run share again.")
         return 1
     stale = store.unlinked_since_last_link(context.repo_slug, context.branch)
-    links = []
+    for entry in manifest["files"]:
+        path = out / entry["name"]
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
+            print(f"{path.name} changed after render; render again before publishing.")
+            return 1
+    names = [entry["name"] for entry in manifest["files"]]
+    links: list[str] = []
     try:
-        for entry in manifest["files"]:
-            path = out / entry["name"]
-            if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
-                print(f"{path.name} changed after render; render again before publishing.")
-                return 1
-            links.append(publisher.upload(path, entry["name"]))
+        for name in names:
+            links.append(publisher.upload(out / name, name))
     except publisher.PublishError as error:
         print(error)
+        _abandon(context, manifest, names[:len(links)])
         return 1
-    names = [entry["name"] for entry in manifest["files"]]
     manifest["links"] = links
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     entry = {"repo": context.repo_slug, "branch": context.branch, "head": manifest["head"], "base": manifest["base"],
@@ -283,6 +301,24 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
                 gone = False
             print(f"{'Deleted' if gone else 'Could not delete'} the superseded {name}.")
     return 0
+
+
+def _abandon(context: RepoContext, manifest: dict, uploaded: list[str]) -> None:
+    """Delete the parts a failed publish already uploaded. Any that cannot be deleted are recorded as an unlinked
+    publish, so the next successful share deletes them; the page the PR links is untouched either way."""
+    left = []
+    for name in uploaded:
+        try:
+            gone = publisher.delete(name)
+        except publisher.PublishError:
+            gone = False
+        if not gone:
+            left.append(name)
+    print(f"Removed {len(uploaded) - len(left)} part(s) uploaded before the failure.")
+    if left:
+        store.record({"repo": context.repo_slug, "branch": context.branch, "head": manifest["head"], "base": manifest["base"],
+                      "commits": manifest["commits"], "names": left, "links": [], "pr": context.pr, "linked": False,
+                      "choices": manifest.get("choices", {}), "published_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
 
 
 def cmd_publish(args: argparse.Namespace) -> int:
