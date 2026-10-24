@@ -789,6 +789,13 @@ class PiChildFindingsTests(unittest.TestCase):
             with lead.open("a") as handle:
                 handle.write(json.dumps({"type": "message", "id": "e4", "parentId": "e1", "timestamp": "2026-10-23T10:05:00Z",
                                          "message": {"role": "user", "content": "Continue on feature/demo-transcripts another way"}}) + "\n")
+                # An active listing names the abandoned run without having started it.
+                for entry_id, parent, message in (
+                        ("e5", "e4", {"role": "assistant", "content": [{"type": "toolCall", "id": "l1", "name": "bash", "arguments": {"command": "ls subagent-artifacts"}}]}),
+                        ("e6", "e5", {"role": "toolResult", "toolCallId": "l1", "toolName": "bash",
+                                      "content": [{"type": "text", "text": "run-par_delegate_meta.json\nrun-par_delegate_transcript.jsonl"}]}),
+                        ("e7", "e6", {"role": "assistant", "content": [{"type": "toolCall", "id": "s1", "name": "subagent", "arguments": {"action": "status", "runId": "run-par"}}]})):
+                    handle.write(json.dumps({"type": "message", "id": entry_id, "parentId": parent, "timestamp": "2026-10-23T10:06:00Z", "message": message}) + "\n")
             unit = pi_sessions.load_session(lead, demo_context())
         self.assertEqual(unit.teammates, [])
         slicing.slice_to_work(unit, demo_context(), whole=False)
