@@ -21,6 +21,10 @@ from repo_context import RepoContext
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Pi"
+# Pi's bash writes overflow to <tmp>/pi-bash-<id>.log. pi-subagents keeps only the first 32 KiB of a child's tool output
+# and drops `details`, so a long result can lose its "Full output:" notice: an overflow file whose origin is unknown is
+# withheld rather than trusted.
+_OVERFLOW_FILE = re.compile(r"pi-bash[^\s/'\"]*\.log")
 _OVERFLOW_NOTICE = re.compile(r"Full output:?\s*(/\S+?)[\].,;)]*(?:\s|$)")
 _SKILL = re.compile(r"^<skill name=\"(?P<name>[^\"]+)\"[\s\S]*?</skill>\s*", re.MULTILINE)
 
@@ -54,6 +58,13 @@ def _text(content: object) -> str:
             elif block.get("type") == "image":
                 parts.append("[image omitted]")
     return "\n".join(parts)
+
+
+def _unknown_overflow(call: ToolCall, overflow: Provenance) -> str | None:
+    flat = json.dumps(call.input, default=str)
+    if _OVERFLOW_FILE.search(flat) and not any(handle in flat for handle in overflow.handles):
+        return "overflow output of unknown origin"
+    return None
 
 
 def _active_path(entries: list[dict]) -> tuple[list[dict], int]:
@@ -131,7 +142,7 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
                     elif block.get("type") == "toolCall":
                         arguments = block.get("arguments") if isinstance(block.get("arguments"), dict) else {}
                         call = ToolCall(id=str(block.get("id", "")), name=str(block.get("name", "")), input=arguments, timestamp=timestamp)
-                        call.withheld = withheld_reason(call.name, call.input) or overflow.inherited(call)
+                        call.withheld = withheld_reason(call.name, call.input) or overflow.inherited(call) or _unknown_overflow(call, overflow)
                         pending[call.id] = call
                         current(timestamp).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
             elif role == "toolResult":
@@ -189,7 +200,9 @@ def load_session(path: Path, context: RepoContext) -> Unit:
         label = f"{meta.get('agent') or run_id[:8]}" + (f" #{meta['index']}" if meta.get("index") is not None else "")
         child = parse_session(transcript, context, _child_entries(transcript), "subagent", f"Pi subagent: {label}")
         child.id = meta_path.name.removesuffix("_meta.json")
-        child.worker_key = run_id
+        # Each child is its own worker, even when a parallel run gives siblings one run id; the spawning call is
+        # related to the run through its children.
+        child.worker_key = child.id
         spawn = next((call for call in calls if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
         if spawn:
             spawn.links_to = run_id

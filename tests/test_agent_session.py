@@ -652,6 +652,35 @@ class PiChildFindingsTests(unittest.TestCase):
         self.assertIn("Second half", pages[0])
         self.assertNotIn("secret-unrelated", pages[0])
 
+    def test_siblings_sharing_a_run_id_are_selected_one_by_one(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("private-" + "note-" + "sibling")),
+            ])
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Did feature/demo-transcripts", pages[0])
+        self.assertNotIn("private-note-sibling", pages[0])
+
+    def test_overflow_reads_whose_notice_was_cut_off_are_withheld(self):
+        sentinel = "private-" + "overflow-" + "cut"
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Check prod for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}]},
+            # pi-subagents kept only the first 32 KiB: the trailing "Full output:" notice is gone.
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "bash", "content": [{"type": "text", "text": "row\n" * 10000}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k2", "name": "read", "arguments": {"path": "/tmp/pi-bash-9f3a.log"}}]},
+            {"role": "toolResult", "toolCallId": "k2", "toolName": "read", "content": [{"type": "text", "text": sentinel}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(sentinel, pages[0])
+
     def test_a_child_running_in_the_worktree_finds_its_lead(self):
         say = [{"role": "assistant", "content": [{"type": "text", "text": "Did the work"}]}]
         for child_cwd, expected in (("/work/demo/backend", True), ("/work/demo-other", False)):
