@@ -21,6 +21,10 @@ from repo_context import RepoContext, is_recent
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Pi"
+# Pi's bash writes overflow to <tmp>/pi-bash-<id>.log. pi-subagents keeps only the first 32 KiB of a child's tool output
+# and drops `details`, so a long result can lose its "Full output:" notice: an overflow file whose origin is unknown is
+# withheld rather than trusted.
+_OVERFLOW_FILE = re.compile(r"pi-bash[^\s/'\"]*\.log")
 _OVERFLOW_NOTICE = re.compile(r"Full output:?\s*(/\S+?)[\].,;)]*(?:\s|$)")
 _SKILL = re.compile(r"^<skill name=\"(?P<name>[^\"]+)\"[\s\S]*?</skill>\s*", re.MULTILINE)
 
@@ -56,6 +60,25 @@ def _text(content: object) -> str:
     return "\n".join(parts)
 
 
+def _unknown_overflow(call: ToolCall, overflow: Provenance) -> str | None:
+    """Withhold a call that names any overflow file no recorded notice explains, even beside files whose origin is known."""
+    flat = json.dumps(call.input, default=str)
+    known = {Path(handle).name for handle in overflow.handles if handle in flat}
+    if any(name not in known for name in _OVERFLOW_FILE.findall(flat)):
+        return "overflow output of unknown origin"
+    return None
+
+
+def _run_ids(details: object) -> list[str]:
+    """Run ids in a result's structured details (pi-subagents puts `runId` there; its text need not name the run)."""
+    if isinstance(details, dict):
+        found = [str(details["runId"])] if isinstance(details.get("runId"), str) else []
+        return found + [run for value in details.values() for run in _run_ids(value)]
+    if isinstance(details, list):
+        return [run for value in details for run in _run_ids(value)]
+    return []
+
+
 def _active_path(entries: list[dict]) -> tuple[list[dict], int]:
     """The entries from the root to the newest entry, and how many entries lie on other branches."""
     tree = [entry for entry in entries if entry.get("id") and entry.get("type") != "session"]
@@ -88,6 +111,9 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
     pending: dict[str, ToolCall] = {}
     # Pi's bash saves truncated output to a file (details.fullOutputPath); reading it inherits the bash call's withholding.
     overflow = Provenance()
+    # The pi-subagents runs each call started, from its result's structured details.
+    runs: dict[str, list[str]] = {}
+    unit.runs = runs
     turn: Turn | None = None
 
     def current(timestamp: str) -> Turn:
@@ -133,7 +159,7 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
                     elif block.get("type") == "toolCall":
                         arguments = block.get("arguments") if isinstance(block.get("arguments"), dict) else {}
                         call = ToolCall(id=str(block.get("id", "")), name=str(block.get("name", "")), input=arguments, timestamp=timestamp)
-                        call.withheld = withheld_reason(call.name, call.input) or overflow.inherited(call)
+                        call.withheld = withheld_reason(call.name, call.input) or overflow.inherited(call) or _unknown_overflow(call, overflow)
                         pending[call.id] = call
                         current(timestamp).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
             elif role == "toolResult":
@@ -144,6 +170,7 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
                     details = message.get("details") if isinstance(message.get("details"), dict) else {}
                     # Child artifacts drop `details`; the "Full output: <path>" notice in the text names the same file.
                     overflow.record([str(details.get("fullOutputPath") or ""), *_OVERFLOW_NOTICE.findall(call.output)], call.withheld)
+                    runs[call.id] = _run_ids(details)
         if markers and turn is not None and markers.search(json.dumps(entry)):
             turn.evidence = True
     if abandoned:
@@ -176,6 +203,7 @@ def load_session(path: Path, context: RepoContext) -> Unit:
     """A Pi session with its pi-subagents children (subagent-artifacts/<run>_<agent>_meta.json naming this session as
     the parent), nested at the call whose result names their run id, or listed after the session."""
     unit = parse_session(path, context)
+    pattern = context.evidence_pattern()
     calls = [item.tool for turn in unit.turns for item in turn.items if item.tool]
     for meta_path in sorted((path.parent / "subagent-artifacts").glob("*_meta.json")):
         try:
@@ -191,8 +219,17 @@ def load_session(path: Path, context: RepoContext) -> Unit:
         label = f"{meta.get('agent') or run_id[:8]}" + (f" #{meta['index']}" if meta.get("index") is not None else "")
         child = parse_session(transcript, context, _child_entries(transcript), "subagent", f"Pi subagent: {label}")
         child.id = meta_path.name.removesuffix("_meta.json")
-        child.worker_key = run_id
-        spawn = next((call for call in calls if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
+        # Each child is its own worker, even when a parallel run gives siblings one run id; the spawning call is
+        # related to the run through its children.
+        child.worker_key = child.id
+        child.task_index = meta["index"] if isinstance(meta.get("index"), int) else None
+        # The result's structured run id names the spawning call; the run id in its input or text is the fallback.
+        spawn = next((call for call in calls if run_id in unit.runs.get(call.id, [])), None) or next(
+            (call for call in calls if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
+        tasks = spawn.input.get("tasks") if spawn else None
+        if pattern and isinstance(tasks, list) and child.task_index is not None and child.task_index < len(tasks) \
+                and pattern.search(json.dumps(tasks[child.task_index], default=str)):
+            child.evidence.append("its task names the branch or PR")
         if spawn:
             spawn.links_to = run_id
             if spawn.subagent is None:

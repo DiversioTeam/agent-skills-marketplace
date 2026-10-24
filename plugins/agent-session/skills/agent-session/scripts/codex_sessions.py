@@ -30,6 +30,8 @@ _CONTEXT_TAGS = ("environment_context", "user_instructions", "recommended_plugin
 _CONTEXT_BLOCK = re.compile(r"^\s*<(?P<tag>" + "|".join(re.escape(tag) for tag in _CONTEXT_TAGS) + r")\b[^>]*>[\s\S]*</(?P=tag)>\s*$")
 # Code-mode `exec` wraps shell calls in JavaScript: tools.exec_command({cmd: "..."}).
 _NESTED_COMMAND = re.compile(r"""\b(?:cmd|command)\s*["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)""")
+# Code mode calls other tools too: tools.mcp__postgres__query({...}), tools["apply_patch"]("...").
+_NESTED_TOOL = re.compile(r"""\btools(?:\.([A-Za-z_]\w*)|\[\s*["']([^"']+)["']\s*\])\s*\(""")
 _PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (\S+)", re.MULTILINE)
 _TERMINAL = re.compile(r"session ID:?\s*(\d+)", re.IGNORECASE)
 # A terminal session id however the call spells it: {"session_id": 1}, {session_id: 1}, "session_id" : "1".
@@ -109,6 +111,24 @@ def _output(value: object) -> str:
     return _text(value)
 
 
+def _unescape(code: str) -> str:
+    """JavaScript or JSON string escapes undone, so a patch inside a string literal reads as lines."""
+    return code.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"').replace("\\'", "'")
+
+
+def _nested_tools(code: str) -> list[tuple[str, dict]]:
+    """Each tool a code-mode script calls, with its arguments when they are a JSON object literal, else the raw text."""
+    found = []
+    for match in _NESTED_TOOL.finditer(code):
+        rest = code[match.end():].lstrip()
+        try:
+            arguments, _ = json.JSONDecoder().raw_decode(rest)
+        except json.JSONDecodeError:
+            arguments = None
+        found.append((match.group(1) or match.group(2), arguments if isinstance(arguments, dict) else {"input": rest[:2000]}))
+    return found
+
+
 def _call(payload: dict, timestamp: str) -> ToolCall:
     kind = payload.get("type")
     name = str(payload.get("name") or ("shell" if kind == "local_shell_call" else kind or "tool"))
@@ -133,9 +153,13 @@ def _call(payload: dict, timestamp: str) -> ToolCall:
     if not call.withheld and isinstance(code, str):
         # Classify each shell command a code-mode wrapper runs, then the whole script as a fallback for computed commands.
         nested = [literal[1:-1].replace('\\"', '"').replace("\\'", "'").replace("\\n", "\n") for literal in _NESTED_COMMAND.findall(code)]
-        call.withheld = next((reason for reason in (withheld_reason("exec_command", {"cmd": command}) for command in [*nested, code]) if reason), None)
+        reasons = [withheld_reason("exec_command", {"cmd": command}) for command in [*nested, code]]
+        # Non-shell tools keep their own meaning: a database tool is classified by its name, as when called directly.
+        reasons += [withheld_reason(tool, tool_input) for tool, tool_input in _nested_tools(code)]
+        call.withheld = next((reason for reason in reasons if reason), None)
     patch = arguments.get("input")
-    if not call.withheld and isinstance(patch, str) and any(is_credential_path(path) for path in _PATCH_FILE.findall(patch)):
+    if not call.withheld and isinstance(patch, str) and any(
+            is_credential_path(path) for path in _PATCH_FILE.findall(patch) + _PATCH_FILE.findall(_unescape(patch))):
         call.withheld = "credential file"
     return call
 
@@ -206,8 +230,11 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
             elif item_type in _OUTPUTS:
                 call = pending.get(str(payload.get("call_id", "")))
                 if call:
-                    call.output = _output(payload.get("output", payload.get("tools", "")))
-                    for handle in _TERMINAL.findall(call.output):
+                    raw = payload.get("output", payload.get("tools", ""))
+                    call.output = _output(raw)
+                    # The terminal a call leaves open, from the raw result ({"session_id": 1, ...}) as well as its text.
+                    raw_text = raw if isinstance(raw, str) else json.dumps(raw, default=str)
+                    for handle in {*_TERMINAL.findall(call.output), *_TERMINAL_REF.findall(raw_text)}:
                         terminals[handle] = call.withheld
         if markers and turn is not None and markers.search(json.dumps(record)):
             turn.evidence = True
