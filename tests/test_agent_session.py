@@ -556,6 +556,34 @@ class LittlePersonFindingsTests(unittest.TestCase):
         self.assertTrue(all(len(page.encode()) <= 400_000 for page in pages), [len(page.encode()) for page in pages])
         self.assertIn("continued", pages[1])
 
+    def test_a_huge_subagent_moves_to_its_own_sections_that_fit(self):
+        calls = []
+        for index in range(400):
+            calls.append(_record("assistant", [{"type": "tool_use", "id": f"k{index}", "name": "Bash", "input": {"command": f"echo {index}"}}], "2026-10-23T10:00:03Z"))
+            calls.append(_record("user", [{"type": "tool_result", "tool_use_id": f"k{index}", "content": "y" * 3000}], "2026-10-23T10:00:04Z"))
+        with tempfile.TemporaryDirectory() as directory:
+            main = self.write(directory, "-p/66666666-0000-0000-0000-000000000000.jsonl", [
+                _record("user", "Work on it", "2026-10-23T10:00:00Z", origin={"kind": "human"}),
+                _record("assistant", [{"type": "tool_use", "id": "p1", "name": "Agent", "input": {"description": "big child", "prompt": "go"}}], "2026-10-23T10:00:01Z"),
+            ])
+            folder = Path(directory) / "-p" / "66666666-0000-0000-0000-000000000000" / "subagents"
+            self.write(folder, "agent-big.jsonl", [_record("user", "go", "2026-10-23T10:00:02Z"), *calls,
+                                                   _record("assistant", [{"type": "text", "text": "Child finished"}], "2026-10-23T10:00:05Z")])
+            (folder / "agent-big.meta.json").write_text(json.dumps({"toolUseId": "p1", "description": "big child"}))
+            unit = claude_code.load_session(main, demo_context())
+        original = render_html.MAX_PART_BYTES
+        render_html.MAX_PART_BYTES = 400_000
+        try:
+            pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+            again, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        finally:
+            render_html.MAX_PART_BYTES = original
+        self.assertGreater(len(pages), 2)
+        self.assertEqual(len(again), len(pages))  # the units are not changed by rendering
+        self.assertTrue(all(len(page.encode()) <= 400_000 for page in pages), [len(page.encode()) for page in pages])
+        self.assertIn("too long to show inline", pages[0])
+        self.assertIn("Child finished", pages[-1])
+
     def test_bare_credential_operands_are_withheld(self):
         for command in ("cat secrets", "cat secrets-prod", "less service-account", "cat cookies", "head credentials"):
             self.assertEqual(redaction.withheld_reason("Bash", {"command": command}), "credential file", command)
@@ -687,7 +715,7 @@ class CodexTests(unittest.TestCase):
 class PiChildFindingsTests(unittest.TestCase):
     """Regressions for little-person's #117 findings on pi-subagents children."""
 
-    def store(self, directory, lead_cwd, children):
+    def store(self, directory, lead_cwd, children, tasks=("a", "b"), result="run run-par finished; run run-unrelated finished", details=None):
         folder = Path(directory) / "--lead--"
         artifacts = folder / "subagent-artifacts"
         artifacts.mkdir(parents=True)
@@ -695,17 +723,94 @@ class PiChildFindingsTests(unittest.TestCase):
                                                                    "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
         entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": lead_cwd},
                    message("e1", None, "user", "Run the workers"),
-                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": ["a", "b"]}}]),
-                   message("e3", "e2", "toolResult", [{"type": "text", "text": "run run-par finished; run run-unrelated finished"}], toolCallId="c1", toolName="subagent")]
+                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": list(tasks)}}]),
+                   message("e3", "e2", "toolResult", [{"type": "text", "text": result}], toolCallId="c1", toolName="subagent",
+                           **({"details": details} if details else {}))]
         lead = folder / "2026-10-23T10-00-00-000Z_lead-2.jsonl"
         lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
         for name, run_id, cwd, messages in children:
             transcript = artifacts / f"{name}_transcript.jsonl"
             transcript.write_text("\n".join(json.dumps({"recordType": "message", "cwd": cwd, "timestamp": "2026-10-23T10:01:00Z", "message": item})
                                             for item in messages) + "\n")
+            index = int(name.rsplit("_", 1)[1]) if name.rsplit("_", 1)[1].isdigit() else None
             (artifacts / f"{name}_meta.json").write_text(json.dumps({"runId": run_id, "parentSessionId": "lead-2", "agent": name.split("_")[1],
-                                                                     "transcriptPath": str(transcript)}))
+                                                                     "transcriptPath": str(transcript), **({"index": index} if index is not None else {})}))
         return lead
+
+    def test_a_read_naming_a_known_and_an_unknown_overflow_file_is_withheld(self):
+        sentinel = "private-" + "overflow-" + "mixed"
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Check prod for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "bash", "arguments": {"command": "ls -R"}}]},
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "bash", "content": [{"type": "text", "text": "a\n[Output truncated. Full output: /tmp/pi-bash-safe.log]"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k2", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}]},
+            {"role": "toolResult", "toolCallId": "k2", "toolName": "bash", "content": [{"type": "text", "text": "row\n" * 10000}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k3", "name": "bash", "arguments": {"command": "tail /tmp/pi-bash-safe.log /tmp/pi-bash-9f3a.log"}}]},
+            {"role": "toolResult", "toolCallId": "k3", "toolName": "bash", "content": [{"type": "text", "text": sentinel}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(sentinel, pages[0])
+
+    def test_a_task_naming_the_work_keeps_only_its_child_and_its_task(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        tasks = [{"agent": "worker", "task": "Implement feature/demo-transcripts"}, {"agent": "worker", "task": "private-" + "task-" + "sibling"}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did the work")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("private-" + "note-" + "sibling")),
+            ], tasks=tasks, result="run run-par: worker 0 did the work; worker 1 found private-" + "result-" + "sibling")
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Did the work", pages[0])
+        self.assertIn("Implement feature/demo-transcripts", pages[0])
+        for sentinel in ("note-sibling", "task-sibling", "result-sibling"):
+            self.assertNotIn("private-" + sentinel, pages[0])
+
+    def test_a_filtered_siblings_task_prompt_does_not_render(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        tasks = [{"agent": "worker", "task": "Build the renderer"}, {"agent": "worker", "task": "private-" + "task-" + "other"}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("Other work")),
+            ], tasks=tasks)
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Build the renderer", pages[0])
+        self.assertNotIn("private-task-other", pages[0])
+        self.assertNotIn("Other work", pages[0])
+
+    def test_structured_run_ids_attach_children_to_their_spawning_call(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", say("Did feature/demo-transcripts"))],
+                              tasks=[{"agent": "delegate", "task": "spawn-" + "task-" + "marker"}], result="All done.",
+                              details={"mode": "single", "runId": "run-par"})
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual(unit.teammates, [])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("spawn-task-marker", pages[0])
+        self.assertIn("Did feature/demo-transcripts", pages[0])
+
+    def test_exclude_removes_a_reported_pi_teammate(self):
+        import argparse
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            self.store(directory, "/elsewhere", [
+                ("run-x_worker_0", "run-x", "/elsewhere", say("private-" + "excluded-" + "worker on feature/demo-transcripts")),
+                ("run-x_worker_1", "run-x", "/elsewhere", say("Kept worker on feature/demo-transcripts")),
+            ], result="done")
+            args = argparse.Namespace(projects_root=empty, pi_root=directory, session=None, exclude=["run-x_worker_0"], whole=None)
+            units = agent_session.load_units(demo_context(), args)
+        pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Kept worker", pages[0])
+        self.assertNotIn("private-excluded-worker", pages[0])
 
     def test_child_overflow_reads_inherit_withholding_without_details(self):
         sentinel = "private-" + "overflow-" + "child"
@@ -1047,6 +1152,56 @@ class ShareTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(agent_session.main(["share", *self.args]), 0)
         self.assertEqual(sorted(self.deleted), sorted([first, second]))
+
+    def test_drop_numbers_name_the_turns_the_last_preview_showed(self):
+        import contextlib, io
+        # Turn 1 holds a subagent (turn 2); dropping it renumbers the next prompt as turn 2 in the preview.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes", "--drop-turn", "1"]), 0)
+        preview = (Path(self.directory.name) / "out" / self.uploads[-1]).read_text(encoding="utf-8")
+        self.assertRegex(preview, r'href="#turn-2">2</a><span class="who-s developer">Developer</span><span class="first">&lt;script')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--drop-turn", "2"]), 0)
+        page = (Path(self.directory.name) / "out" / self.uploads[-1]).read_text(encoding="utf-8")
+        self.assertNotIn("please render this safely", page)
+        self.assertNotIn("Add the transcript feature", page)
+        self.assertIn("Build the renderer", page)
+        self.assertEqual(len(store.latest("DiversioTeam/demo", "feature/demo-transcripts")["choices"]["drop"]), 2)
+
+    def test_a_failed_upload_removes_the_parts_it_already_uploaded(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args, "--yes"]), 0)
+        linked = list(self.uploads)
+        attempts = []
+
+        def flaky(path, name):
+            attempts.append(name)
+            if len(attempts) == 2:
+                raise publish.PublishError("upload failed")
+            self.uploads.append(name)
+            return publish.link_for(name)
+
+        original = render_html.MAX_PART_BYTES
+        render_html.MAX_PART_BYTES = 1
+        try:
+            with self.mock.patch.object(publish, "upload", side_effect=flaky), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agent_session.main(["share", *self.args]), 1)
+            first_part = attempts[0]
+            self.assertEqual(self.deleted, [first_part])  # removed at once; the linked page stays
+            # A part that cannot be removed now is remembered and removed by the next successful share.
+            attempts.clear()
+            with self.mock.patch.object(publish, "upload", side_effect=flaky), \
+                    self.mock.patch.object(publish, "delete", return_value=False), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agent_session.main(["share", *self.args]), 1)
+            stuck = attempts[0]
+        finally:
+            render_html.MAX_PART_BYTES = original
+        self.assertNotIn(linked[0], self.deleted)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(agent_session.main(["share", *self.args]), 0)
+        self.assertIn(stuck, self.deleted)
+        self.assertIn(linked[0], self.deleted)
 
     def test_declare_none_records_and_links(self):
         import contextlib, io

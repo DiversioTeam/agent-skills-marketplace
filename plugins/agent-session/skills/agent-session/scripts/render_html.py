@@ -309,6 +309,27 @@ details.subagent{margin:6px 0 10px 12px;border-left:3px solid var(--line);paddin
 """
 
 
+def _hoist(unit: Unit, measure: Page, budget: int) -> list[Unit]:
+    """The unit, then any subagent too large to nest inside a part as its own section after it (recursively), with a
+    note at the call saying where it went. Builds copies: the caller renders the same units more than once."""
+    hoisted: list[Unit] = []
+    turns = []
+    for turn in unit.turns:
+        items = []
+        for item in turn.items:
+            call = item.tool
+            if call and call.subagents and len(measure.item(item, 0).encode()) > budget:
+                items.append(replace(item, tool=replace(call, subagent=None, more_subagents=[])))
+                titles = ", ".join(child.title for child in call.subagents)
+                items.append(Item(kind="note", text=f"{titles} ran here. It is too long to show inline, so it follows as its own section."))
+                for child in call.subagents:
+                    hoisted.extend(_hoist(child, measure, budget))
+            else:
+                items.append(item)
+        turns.append(replace(turn, items=items))
+    return [replace(unit, turns=turns), *hoisted]
+
+
 def _split_turn(turn: Turn, measure: Page, budget: int) -> list[Turn]:
     """A turn too large for one part, as consecutive copies holding slices of its items (the prompt stays on the first)."""
     pieces: list[list[Item]] = [[]]
@@ -357,7 +378,11 @@ def build_pages(context: RepoContext, units: list[Unit], redactor: Redactor, exp
             for turn in unit.turns:
                 turn.sender = page.line(turn.sender, 80)
     # Teammates become top-level sections so a part can break between them, and one long session splits by turns.
-    flat = [piece for top in units for unit in (replace(top, teammates=[]), *top.teammates) for piece in _split(unit, page)]
+    # A subagent too large for a part becomes its own section after its caller.
+    measure = Page(context=context, redactor=Redactor(known_secrets=redactor.known_secrets), expires="", generated="")
+    budget = MAX_PART_BYTES - PAGE_OVERHEAD_BYTES
+    flat = [piece for top in units for unit in (replace(top, teammates=[]), *top.teammates)
+            for section in _hoist(unit, measure, budget) for piece in _split(section, page)]
     sections = [(unit, page.unit(unit)) for unit in flat]
     parts: list[list[tuple[Unit, str]]] = [[]]
     size = 0
