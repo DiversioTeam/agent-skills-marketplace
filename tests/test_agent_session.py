@@ -806,7 +806,7 @@ class PiChildFindingsTests(unittest.TestCase):
                 ("run-x_worker_0", "run-x", "/elsewhere", say("private-" + "excluded-" + "worker on feature/demo-transcripts")),
                 ("run-x_worker_1", "run-x", "/elsewhere", say("Kept worker on feature/demo-transcripts")),
             ], result="done")
-            args = argparse.Namespace(projects_root=empty, pi_root=directory, session=None, exclude=["run-x_worker_0"], whole=None)
+            args = argparse.Namespace(projects_root=empty, pi_root=directory, codex_root=empty, session=None, exclude=["run-x_worker_0"], whole=None)
             units = agent_session.load_units(demo_context(), args)
         pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")
         self.assertIn("Kept worker", pages[0])
@@ -953,6 +953,46 @@ class CodexReviewFindingsTests(unittest.TestCase):
         self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 5)
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn("staging-secret-line", pages[0])
+
+    def _rollout(self, directory, records):
+        day = Path(directory) / "2026" / "10" / "23"
+        day.mkdir(parents=True)
+        head = [_codex("session_meta", {"id": "t", "cwd": "/work/demo", "git": {"branch": "feature/demo-transcripts", "repository_url": "git@github.com:DiversioTeam/demo.git"}}, 0),
+                _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Look into it"}]}, 1)]
+        path = day / "rollout-2026-10-23T11-00-00-t.jsonl"
+        path.write_text("\n".join(json.dumps(record) for record in [*head, *records]) + "\n")
+        return codex_sessions.load_session(path, demo_context(), Path(directory))
+
+    def test_code_mode_keeps_nested_tool_meaning(self):
+        patch = "*** Begin Patch\n*** Update File: /work/demo/.env\n@@\n-API_KEY=old\n+API_KEY=private-" + "patch-" + "value\n*** End Patch"
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "q1",
+                                         "input": 'text(await tools.mcp__postgres__query({"sql":"select note from accounts"}));'}, 2),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "q1", "output": "private-" + "db-" + "row"}, 3),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "q2",
+                                         "input": f"await tools.apply_patch({json.dumps(patch)});"}, 4),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "q2", "output": "Done"}, 5),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool],
+                         ["prod or staging data access", "credential file"])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("private-db-row", pages[0])
+        self.assertNotIn("private-patch-value", pages[0])
+
+    def test_terminals_opened_by_a_json_result_pass_on_withholding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "s1", "arguments": json.dumps({"cmd": "ssh staging 'tail -f app.log'"})}, 2),
+                _codex("response_item", {"type": "function_call_output", "call_id": "s1", "output": json.dumps({"session_id": 12345, "output": ""})}, 3),
+                _codex("response_item", {"type": "function_call", "name": "write_stdin", "call_id": "s2", "arguments": json.dumps({"session_id": 12345, "chars": ""})}, 4),
+                _codex("response_item", {"type": "function_call_output", "call_id": "s2", "output": "staging-" + "json-" + "line"}, 5),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "s3", "input": "await tools.write_stdin({session_id: 12345, chars: ''})"}, 6),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "s3", "output": "staging-" + "json-" + "line2"}, 7),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["prod or staging data access"] * 3)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("staging-json-line", pages[0])
 
     def test_grandchildren_reach_the_transcript(self):
         with tempfile.TemporaryDirectory() as directory:
