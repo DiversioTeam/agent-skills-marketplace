@@ -780,6 +780,23 @@ class PiChildFindingsTests(unittest.TestCase):
         for sentinel in ("other-child", "other-task", "other-result"):
             self.assertNotIn("private-" + sentinel, pages[0])
 
+    def test_children_spawned_on_an_abandoned_branch_are_not_shown(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", say("private-" + "abandoned-" + "child on feature/demo-transcripts"))],
+                              result="Done.", details={"runId": "run-par"})
+            # The developer went back to e1 and continued differently: e2 and e3 (the spawn and its result) are abandoned.
+            with lead.open("a") as handle:
+                handle.write(json.dumps({"type": "message", "id": "e4", "parentId": "e1", "timestamp": "2026-10-23T10:05:00Z",
+                                         "message": {"role": "user", "content": "Continue on feature/demo-transcripts another way"}}) + "\n")
+            unit = pi_sessions.load_session(lead, demo_context())
+        self.assertEqual(unit.teammates, [])
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Continue on feature/demo-transcripts another way", "".join(pages))
+        for page in pages:
+            self.assertNotIn("private-abandoned-child", page)
+
     def test_structured_run_ids_attach_children_to_their_spawning_call(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         with tempfile.TemporaryDirectory() as directory:
