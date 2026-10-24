@@ -94,6 +94,7 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
             for turn in unit.turns:
                 turn.branch = context.branch
         _select_turns(unit, context, unit.id in whole or unit.session_id in whole)
+        unit.teammates = [mate for mate in unit.teammates if mate.id not in excluded]
         if unit.turns or unit.teammates:
             units.append(unit)
     return units

@@ -628,7 +628,7 @@ class PiSlicingTests(unittest.TestCase):
 class PiChildFindingsTests(unittest.TestCase):
     """Regressions for little-person's #117 findings on pi-subagents children."""
 
-    def store(self, directory, lead_cwd, children):
+    def store(self, directory, lead_cwd, children, tasks=("a", "b"), result="run run-par finished; run run-unrelated finished", details=None):
         folder = Path(directory) / "--lead--"
         artifacts = folder / "subagent-artifacts"
         artifacts.mkdir(parents=True)
@@ -636,17 +636,94 @@ class PiChildFindingsTests(unittest.TestCase):
                                                                    "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
         entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": lead_cwd},
                    message("e1", None, "user", "Run the workers"),
-                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": ["a", "b"]}}]),
-                   message("e3", "e2", "toolResult", [{"type": "text", "text": "run run-par finished; run run-unrelated finished"}], toolCallId="c1", toolName="subagent")]
+                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": list(tasks)}}]),
+                   message("e3", "e2", "toolResult", [{"type": "text", "text": result}], toolCallId="c1", toolName="subagent",
+                           **({"details": details} if details else {}))]
         lead = folder / "2026-10-23T10-00-00-000Z_lead-2.jsonl"
         lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
         for name, run_id, cwd, messages in children:
             transcript = artifacts / f"{name}_transcript.jsonl"
             transcript.write_text("\n".join(json.dumps({"recordType": "message", "cwd": cwd, "timestamp": "2026-10-23T10:01:00Z", "message": item})
                                             for item in messages) + "\n")
+            index = int(name.rsplit("_", 1)[1]) if name.rsplit("_", 1)[1].isdigit() else None
             (artifacts / f"{name}_meta.json").write_text(json.dumps({"runId": run_id, "parentSessionId": "lead-2", "agent": name.split("_")[1],
-                                                                     "transcriptPath": str(transcript)}))
+                                                                     "transcriptPath": str(transcript), **({"index": index} if index is not None else {})}))
         return lead
+
+    def test_a_read_naming_a_known_and_an_unknown_overflow_file_is_withheld(self):
+        sentinel = "private-" + "overflow-" + "mixed"
+        child = [
+            {"role": "user", "content": [{"type": "text", "text": "Check prod for feature/demo-transcripts"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k1", "name": "bash", "arguments": {"command": "ls -R"}}]},
+            {"role": "toolResult", "toolCallId": "k1", "toolName": "bash", "content": [{"type": "text", "text": "a\n[Output truncated. Full output: /tmp/pi-bash-safe.log]"}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k2", "name": "bash", "arguments": {"command": "psql -h db.prod.internal -c 'select 1'"}}]},
+            {"role": "toolResult", "toolCallId": "k2", "toolName": "bash", "content": [{"type": "text", "text": "row\n" * 10000}]},
+            {"role": "assistant", "content": [{"type": "toolCall", "id": "k3", "name": "bash", "arguments": {"command": "tail /tmp/pi-bash-safe.log /tmp/pi-bash-9f3a.log"}}]},
+            {"role": "toolResult", "toolCallId": "k3", "toolName": "bash", "content": [{"type": "text", "text": sentinel}]},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            unit = pi_sessions.load_session(lead, demo_context())
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn(sentinel, pages[0])
+
+    def test_a_task_naming_the_work_keeps_only_its_child_and_its_task(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        tasks = [{"agent": "worker", "task": "Implement feature/demo-transcripts"}, {"agent": "worker", "task": "private-" + "task-" + "sibling"}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did the work")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("private-" + "note-" + "sibling")),
+            ], tasks=tasks, result="run run-par: worker 0 did the work; worker 1 found private-" + "result-" + "sibling")
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Did the work", pages[0])
+        self.assertIn("Implement feature/demo-transcripts", pages[0])
+        for sentinel in ("note-sibling", "task-sibling", "result-sibling"):
+            self.assertNotIn("private-" + sentinel, pages[0])
+
+    def test_a_filtered_siblings_task_prompt_does_not_render(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        tasks = [{"agent": "worker", "task": "Build the renderer"}, {"agent": "worker", "task": "private-" + "task-" + "other"}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [
+                ("run-par_worker_0", "run-par", "/elsewhere", say("Did feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/elsewhere", say("Other work")),
+            ], tasks=tasks)
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Build the renderer", pages[0])
+        self.assertNotIn("private-task-other", pages[0])
+        self.assertNotIn("Other work", pages[0])
+
+    def test_structured_run_ids_attach_children_to_their_spawning_call(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory:
+            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", say("Did feature/demo-transcripts"))],
+                              tasks=[{"agent": "delegate", "task": "spawn-" + "task-" + "marker"}], result="All done.",
+                              details={"mode": "single", "runId": "run-par"})
+            unit = pi_sessions.load_session(lead, demo_context())
+        slicing.slice_to_work(unit, demo_context(), whole=False)
+        self.assertEqual(unit.teammates, [])
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("spawn-task-marker", pages[0])
+        self.assertIn("Did feature/demo-transcripts", pages[0])
+
+    def test_exclude_removes_a_reported_pi_teammate(self):
+        import argparse
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            self.store(directory, "/elsewhere", [
+                ("run-x_worker_0", "run-x", "/elsewhere", say("private-" + "excluded-" + "worker on feature/demo-transcripts")),
+                ("run-x_worker_1", "run-x", "/elsewhere", say("Kept worker on feature/demo-transcripts")),
+            ], result="done")
+            args = argparse.Namespace(projects_root=empty, pi_root=directory, session=None, exclude=["run-x_worker_0"], whole=None)
+            units = agent_session.load_units(demo_context(), args)
+        pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")
+        self.assertIn("Kept worker", pages[0])
+        self.assertNotIn("private-excluded-worker", pages[0])
 
     def test_child_overflow_reads_inherit_withholding_without_details(self):
         sentinel = "private-" + "overflow-" + "child"

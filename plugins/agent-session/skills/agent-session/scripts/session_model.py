@@ -93,5 +93,9 @@ class Unit:
     omitted_turns: int = 0
     # How a lead's calls and messages name this worker: a teammate's name, a subagent's tool-use id, a run or thread id.
     worker_key: str = ""
+    # Which task of a multi-task spawning call this worker ran (pi-subagents' parallel `tasks`), when known.
+    task_index: int | None = None
+    # Harness-specific: Pi's run ids per tool call id, from structured result details.
+    runs: dict[str, list[str]] = field(default_factory=dict)
     # Other things the reader should know about this transcript (abandoned Pi branches), shown under its heading.
     notes: list[str] = field(default_factory=list)
