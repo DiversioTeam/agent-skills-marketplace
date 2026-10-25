@@ -1176,6 +1176,58 @@ class CodexReviewFindingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "my body.md").write_text("No agent session: hand edited\n")
             self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body-file", "my body.md"], directory), 0)
+class CourageExportTests(unittest.TestCase):
+    def test_render_export_labels_courage_and_names_the_head(self):
+        import contextlib, io
+        with tempfile.TemporaryDirectory() as directory:
+            export = build_pi_store(Path(directory) / "in", "/var/courage/workspaces/c1")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = agent_session.main(["render-export", "--file", str(export), "--repo-slug", "DiversioTeam/demo", "--branch", "courage/fix",
+                                           "--head", HEAD, "--pr", "7", "--out", str(Path(directory) / "out")])
+            self.assertEqual(code, 0)
+            result = json.loads(out.getvalue())
+            html = Path(result["files"][0]).read_text(encoding="utf-8")
+        self.assertIn(f"-h{HEAD[:12]}-", result["names"][0])
+        self.assertIn("Agents</dt><dd>Courage", html)
+        self.assertIn("Courage conversation", html)
+        self.assertNotIn(GITHUB_TOKEN, html)
+
+    def test_each_source_keeps_its_own_line(self):
+        dev = "https://internal-share.diversio.com/session-demo-x-20261023-h0123456789ab-aaaaaa.html"
+        courage = "https://internal-share.diversio.com/session-demo-x-20261023-hfedcba987654-bbbbbb.html"
+        body = f"## Summary\n\nx\n\n## Agent sessions\n\n- [Courage conversation transcript]({courage})\n- [Agent session transcript]({dev})\n\n## Testing\n"
+        new_dev = dev.replace("aaaaaa", "cccccc")
+        updated = pr_body.upsert(body, pr_body.section([("Agent session transcript", new_dev)]))
+        self.assertIn(new_dev, updated)
+        self.assertIn(courage, updated)
+        self.assertNotIn(dev, updated)
+        self.assertEqual(updated.count("## Agent sessions"), 1)
+        self.assertIn("## Testing", updated)
+        # Courage's line last: repeated shares change nothing.
+        last = f"## Agent sessions\n\n- [Agent session transcript]({dev})\n- [Courage conversation transcript]({courage})\n\n## Testing\n"
+        once = pr_body.upsert(last, pr_body.section([("Agent session transcript", new_dev)]))
+        self.assertEqual(pr_body.upsert(once, pr_body.section([("Agent session transcript", new_dev)])), once)
+
+    def test_render_export_redacts_known_secrets_before_rendering(self):
+        import contextlib, io
+        secret = "plain-db-" + "password-" + "93ab"
+        with tempfile.TemporaryDirectory() as directory:
+            export = Path(directory) / "conv.jsonl"
+            export.write_text("\n".join(json.dumps(entry) for entry in [
+                {"type": "session", "id": "c", "cwd": "courage"},
+                {"type": "message", "id": "1", "parentId": None, "timestamp": "2026-10-23T10:00:00Z", "message": {"role": "user", "content": "echo the password"}},
+                {"type": "message", "id": "2", "parentId": "1", "timestamp": "2026-10-23T10:00:01Z", "message": {"role": "assistant", "content": [{"type": "text", "text": f"It is {secret}"}]}},
+            ]) + "\n")
+            secrets_file = Path(directory) / "known"
+            secrets_file.write_text(secret + "\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                agent_session.main(["render-export", "--file", str(export), "--repo-slug", "DiversioTeam/demo", "--branch", "x",
+                                    "--head", HEAD, "--out", str(Path(directory) / "out"), "--known-secrets-file", str(secrets_file)])
+            html = Path(json.loads(out.getvalue())["files"][0]).read_text(encoding="utf-8")
+        self.assertNotIn(secret, html)
+        self.assertIn("[redacted]", html)
 
 
 class PrBodyAndHookTests(unittest.TestCase):
