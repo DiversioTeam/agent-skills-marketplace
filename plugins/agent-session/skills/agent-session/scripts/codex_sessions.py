@@ -149,6 +149,7 @@ def _object_literal(text: str) -> object:
 def _nested_tools(code: str) -> list[tuple[str, dict]]:
     """Each tool a code-mode script calls, with its arguments when they are a JSON or simple JavaScript object literal,
     else the raw text."""
+    # shortcut: literal tool-call text can over-withhold; exclude it only with a proven JavaScript lexical parser.
     found = []
     for match in _NESTED_TOOL.finditer(code):
         rest = code[match.end():].lstrip()

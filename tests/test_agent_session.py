@@ -1060,6 +1060,10 @@ class CodexReviewFindingsTests(unittest.TestCase):
             ('text(await tools["run"]({command: commands[0]}));', True),
             ('text(await tools.run({[field]: "printenv"}));', True),
             ('text(await tools.run(args));', True),
+            ('text(`${await tools.run(args)}`);', True),
+            ('text(`${`prefix`} ${await tools.exec_command({cmd})}`);', True),
+            ('/* " */ text(await tools.run(args)); /* " */', True),
+            ("const note = 'tools.run('; text(await tools.exec_command({cmd}));", True),
             ('text(await tools.exec_command({cmd: "git status"}));', False),
             ("text(await tools.exec_command({cmd: 'git status'}));", False),
             ('text(await tools.exec_command({cmd: `git status`}));', False),
@@ -1068,6 +1072,9 @@ class CodexReviewFindingsTests(unittest.TestCase):
             ("""text(await tools.exec_command({cmd: "node -e 'console.log({ok: true})'"}));""", False),
             ("""text(await tools.exec_command({cmd: 'node -e "console.log({ok: true})"'}));""", False),
             ("""text(await tools.exec_command({cmd: `node -e 'console.log({ok: true})'`}));""", False),
+            ("""text(await tools.exec_command({cmd: "rg -F 'tools.run(' src"}));""", True),
+            ("""text(await tools.exec_command({cmd: 'rg -F "tools.run(" src'}));""", True),
+            ("""text(await tools.exec_command({cmd: `rg -F 'tools.run(' src`}));""", True),
         ]
         sentinels = ["opaque-shell-output-sentinel", "opaque-terminal-output-sentinel", "opaque-cell-output-sentinel"]
         for code, unsafe in cases:
@@ -1270,6 +1277,16 @@ class CodexReviewFindingsTests(unittest.TestCase):
                 self.assertNotIn(sentinel, text)
         slicing.slice_to_work(unit, context, whole=False)
         self.assertEqual([mate.worker_key for mate in unit.teammates], ["child", "grandchild"])
+        if since:
+            bridge = unit.teammates[0]
+            omitted = 2 if historical_mentions else 1
+            self.assertEqual(bridge.omitted_turns, omitted)
+            bridge_pages, _ = render_html.build_pages(context, [bridge], redaction.Redactor(), "2027-10-23", "now")
+            self.assertIn(f"{omitted} earlier or later turns in this session were about other work and are not included.", bridge_pages[0])
+            slicing._trim_to_workers(bridge, {"grandchild"}, context.evidence_pattern())
+            self.assertEqual(bridge.omitted_turns, omitted)
+            repeated_pages, _ = render_html.build_pages(context, [bridge], redaction.Redactor(), "2027-10-23", "now")
+            self.assertEqual(repeated_pages, bridge_pages)
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertIn("Grandchild did the work", pages[0])
         self.assertIn("Delegate it", pages[0])
