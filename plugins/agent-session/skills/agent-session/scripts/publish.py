@@ -98,8 +98,10 @@ def upload(path: Path, name: str) -> str:
         except subprocess.TimeoutExpired as error:
             raise PublishError("The Internal Share upload timed out. Check the connection and retry.") from error
     output = f"{completed.stdout}\n{completed.stderr}"
-    statuses = re.findall(r"^HTTP/\S+[ \t]+(\d{3})(?=[ \t\r\n]|$)", output, flags=re.MULTILINE)
-    status = statuses[-1] if statuses else None
+    status_lines = re.findall(r"^HTTP/[^\r\n]*", output, flags=re.MULTILINE)
+    # A malformed final response must not inherit an earlier success or rejection.
+    final_status = re.match(r"HTTP/\S+[ \t]+(\d{3})(?=[ \t]|$)", status_lines[-1]) if status_lines else None
+    status = final_status.group(1) if final_status else None
     locations = re.findall(r"^location:\s*(\S+)\s*$", output, flags=re.IGNORECASE | re.MULTILINE)
     if completed.returncode == 0 and status == "303" and locations:
         return urllib.parse.urljoin(INTERNAL_SHARE_URL, locations[-1])
