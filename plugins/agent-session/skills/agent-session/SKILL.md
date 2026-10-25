@@ -13,10 +13,11 @@ redacted, rendered as one script-free HTML file, and published to Diversio
 Internal Share (staff only, behind Cloudflare Access). A PR no agent worked on
 says so with `No agent session: <reason>` instead.
 
-This is not optional. A transcript must cover the branch's current HEAD:
-each Diversio repo's local-ci runs `agent-session check` as a required step,
-and the plugin's Claude Code hook blocks `gh pr create` and body edits
-without a link or declaration. Never work around either; never fake a link.
+A transcript must cover the branch's current HEAD. In repositories that have
+enabled it, local-ci runs `agent-session check` as a required step; rollout is
+per repository, not automatic. The plugin's Claude Code hook blocks
+`gh pr create` and body edits without a link or declaration. Never work
+around either check; never fake a link.
 
 The `agent-session` command (a shim in `~/.local/bin`, installed and kept
 current by the plugin's SessionStart hook, the Pi extension, or
