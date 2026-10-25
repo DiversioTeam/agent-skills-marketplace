@@ -1065,6 +1065,9 @@ class CodexReviewFindingsTests(unittest.TestCase):
             ('text(await tools.exec_command({cmd: `git status`}));', False),
             ('text(await tools.exec_command({cmd: "git status"})); const note = `${label}`;', False),
             ('text(await tools.run({command: ["git", "status"]}));', False),
+            ("""text(await tools.exec_command({cmd: "node -e 'console.log({ok: true})'"}));""", False),
+            ("""text(await tools.exec_command({cmd: 'node -e "console.log({ok: true})"'}));""", False),
+            ("""text(await tools.exec_command({cmd: `node -e 'console.log({ok: true})'`}));""", False),
         ]
         sentinels = ["opaque-shell-output-sentinel", "opaque-terminal-output-sentinel", "opaque-cell-output-sentinel"]
         for code, unsafe in cases:
@@ -1198,7 +1201,16 @@ class CodexReviewFindingsTests(unittest.TestCase):
             with self.subTest(middle_on_branch=middle_on_branch):
                 self._assert_grandchildren_reach_the_transcript(since=1792713600, middle_on_branch=middle_on_branch)  # 2026-10-23 UTC
 
-    def _assert_grandchildren_reach_the_transcript(self, since, middle_on_branch=False):
+    def test_copied_old_grandchild_is_not_fresh_work(self):
+        self._assert_grandchildren_reach_the_transcript(since=1792713600, copied_sibling=True)
+
+    def test_old_middle_keeps_only_delegation_not_historical_branch_mentions(self):
+        for middle_on_branch in (False, True):
+            with self.subTest(middle_on_branch=middle_on_branch):
+                self._assert_grandchildren_reach_the_transcript(since=1792713600, middle_on_branch=middle_on_branch,
+                                                              historical_mentions=True)
+
+    def _assert_grandchildren_reach_the_transcript(self, since, middle_on_branch=False, copied_sibling=False, historical_mentions=False):
         context = demo_context()
         context.since = since
         with tempfile.TemporaryDirectory() as directory:
@@ -1229,8 +1241,33 @@ class CodexReviewFindingsTests(unittest.TestCase):
                     os.utime(ancestor, (since - 86400, since - 86400))
                 grandchild = next(day.glob("*-grandchild.jsonl"))
                 os.utime(grandchild, (since + 86400, since + 86400))
+            if copied_sibling:
+                stale = "2026-10-20T11:00:00Z"
+                write("copied", [_codex("session_meta", {"id": "copied", "parent_thread_id": "child", "cwd": "/w", "git": git(context.branch)}, 0, stale),
+                                 _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "secret-copied-sibling"}]}, 1, stale)])
+                copied = next(day.glob("*-copied.jsonl"))
+                os.utime(copied, (since + 86400, since + 86400))
+            if historical_mentions:
+                child = next(day.glob("*-child.jsonl"))
+                records = [json.loads(line) for line in child.read_text().splitlines()]
+                records.insert(4, _codex("response_item", {"type": "message", "role": "assistant", "content": [
+                    {"type": "output_text", "text": f"Historical {context.branch} secret-after-delegation"}]}, 3))
+                records.extend([
+                    _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "secret-historical-prompt"}]}, 7),
+                    _codex("response_item", {"type": "message", "role": "assistant", "content": [
+                        {"type": "output_text", "text": f"Historical {context.branch} secret-historical-mention"}]}, 8),
+                ])
+                child.write_text("\n".join(json.dumps(record) for record in records) + "\n")
+                os.utime(child, (since - 86400, since - 86400))
             self.assertEqual(codex_sessions.find_sessions(context, Path(directory)), [main])
             unit = codex_sessions.load_session(main, context, Path(directory))
+        if historical_mentions:
+            # Bridge pruning happens before shared slicing, including when a caller requests a whole session.
+            bridge = next(mate for mate in unit.teammates if mate.worker_key == "child")
+            text = "\n".join(turn.text + "\n" + "\n".join(item.text for item in turn.items) for turn in bridge.turns)
+            self.assertIn("Delegating further", text)
+            for sentinel in ("secret-historical-prompt", "secret-historical-mention", "secret-after-delegation"):
+                self.assertNotIn(sentinel, text)
         slicing.slice_to_work(unit, context, whole=False)
         self.assertEqual([mate.worker_key for mate in unit.teammates], ["child", "grandchild"])
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
@@ -1240,6 +1277,10 @@ class CodexReviewFindingsTests(unittest.TestCase):
         self.assertNotIn("secret-child-output", pages[0])
         self.assertNotIn("secret-lead-work", pages[0])
         self.assertNotIn("secret-expired-sibling", pages[0])
+        self.assertNotIn("secret-copied-sibling", pages[0])
+        self.assertNotIn("secret-historical-prompt", pages[0])
+        self.assertNotIn("secret-historical-mention", pages[0])
+        self.assertNotIn("secret-after-delegation", pages[0])
 
     def test_hook_keeps_argv_boundaries(self):
         import subprocess

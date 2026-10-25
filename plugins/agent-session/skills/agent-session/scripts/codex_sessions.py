@@ -18,7 +18,7 @@ from pathlib import Path
 
 from redaction import is_credential_path, withheld_reason
 from repo_context import RepoContext, is_recent, parse_repo_slug
-from slicing import DELEGATED
+from slicing import DELEGATED, _trim_to_workers
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Codex"
@@ -120,13 +120,15 @@ def _unescape(code: str) -> str:
     return code.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"').replace("\\'", "'")
 
 
-_JS_KEY = re.compile(r"""([{,]\s*)([A-Za-z_$][\w$]*)\s*:""")
 _STRING_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'|`((?:[^`\\]|\\.)*)`')
+_JS_LITERAL_OR_KEY = re.compile(_STRING_LITERAL.pattern + r'|(?P<prefix>[{,]\s*)(?P<key>[A-Za-z_$][\w$]*)\s*:')
 
 
 def _object_literal(text: str) -> object:
     """A complete JSON or simple JavaScript literal argument, not a computed expression."""
-    def json_string(match: re.Match) -> str:
+    def json_token(match: re.Match) -> str:
+        if match.group("key") is not None:
+            return f'{match.group("prefix")}"{match.group("key")}":'
         literal = match.group(0)
         if literal.startswith('"') or literal.startswith("`") and "${" in literal:
             return literal
@@ -135,7 +137,7 @@ def _object_literal(text: str) -> object:
 
     for normalize in (False, True):
         try:
-            candidate = _JS_KEY.sub(r'\1"\2":', _STRING_LITERAL.sub(json_string, text)) if normalize else text
+            candidate = _JS_LITERAL_OR_KEY.sub(json_token, text) if normalize else text
             value, end = json.JSONDecoder().raw_decode(candidate)
             if candidate[end:].lstrip().startswith(")"):
                 return value
@@ -334,16 +336,12 @@ def load_session(path: Path, context: RepoContext, root: Path | None = None) -> 
     parents: dict[str, str] = {}
     recent: set[str] = set()
     for candidate in sorted(root.glob("*/*/*/*.jsonl")):
-        try:
-            if candidate == path:
-                continue
-            modified = candidate.stat().st_mtime
-        except OSError:
+        if candidate == path:
             continue
         meta = _meta(candidate)
         thread = str(meta.get("id") or meta.get("session_id") or candidate.stem)
         paths[thread], parents[thread] = candidate, _parent(meta)
-        if modified >= context.since:
+        if is_recent(candidate, context.since):
             recent.add(thread)
     needed = set(recent)
     ancestors = list(recent)
@@ -382,4 +380,9 @@ def load_session(path: Path, context: RepoContext, root: Path | None = None) -> 
     for child, _owner in attached:
         if not child.evidence and works(child):
             child.evidence.append(DELEGATED)
+    keys = {child.worker_key for child, _owner in attached if child.evidence}
+    for child, _owner in attached:
+        if child.session_id not in recent:
+            # Prune before shared slicing can rediscover historical branch mentions as independent evidence.
+            _trim_to_workers(child, keys, pattern=None)
     return unit
