@@ -57,7 +57,10 @@ Ask only for the fields the repo actually uses. Examples:
 For monorepos or design-system repos, also identify:
 - affected package(s)
 - consumer impact
-- dependency publication expectations
+- dependency publication expectations: record the exact DS dev build for an
+  evolving feature PR; record the stable-package replacement and revalidation
+  when preparing the consumer merge. PR creation/review alone does not require
+  a stable release. Follow [the dependency-stage rules](design-system-dev-builds.md).
 
 ## Step 4: Build The PR Body
 
