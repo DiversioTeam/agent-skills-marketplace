@@ -20,12 +20,24 @@ github_context = "local/agent-session"
 
 - With an open PR, its body must link a page named `-h<HEAD12>-` for HEAD, or
   say `No agent session: <reason>`.
-- Without a PR, the local record must have a publish (or a declaration) for
-  this branch and HEAD.
-- A PR lookup that fails is `unverified`, never a pass.
+- Without a PR, the local record must have a publish for this branch and
+  HEAD, or a no-agent declaration for this branch. Declarations are not
+  HEAD-bound; do not leave one in place after an agent contributes.
+- A required PR lookup that fails is `unverified`, never a pass.
+- Before asking GitHub, it passes as `skipped (<why>)` for a cloud session
+  (`CLAUDE_CODE_REMOTE` set), HEAD on an integration branch (`main`, `master`,
+  `dev`, `release`, `release/...`, etc.), or a detached HEAD an `origin`
+  integration branch already contains (deploy triggers, release candidates).
+- After a successful PR lookup, it also skips a promotion/release PR from
+  `promote/`, `releases/`, etc. into an integration branch, or a bot's PR.
 
-Output starts with `agent-session: ok|missing|stale|unlinked|unverified` and,
+Output starts with `agent-session: ok|skipped|missing|stale|unlinked|unverified` and,
 on failure, gives the `fix:` command. Agents act on that line.
+
+For a repository whose local-ci planner emits the step list, add the same
+command to the planner's applicable plans instead of assuming a static TOML
+step will be included. Verify the generated plan contains `agent-session`;
+no local-ci-runner change or GitHub Actions enforcement job is needed.
 
 Order on a branch: commit, push, `agent-session share`, then `local-ci run`
 (local-ci posts statuses to the pushed commit).

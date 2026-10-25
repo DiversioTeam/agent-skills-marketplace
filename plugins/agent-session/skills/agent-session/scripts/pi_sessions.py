@@ -69,6 +69,12 @@ def _unknown_overflow(call: ToolCall, overflow: Provenance) -> str | None:
     return None
 
 
+def _starts_children(call: ToolCall) -> bool:
+    """pi-subagents' `subagent` tool run for execution; with `action` it only manages runs (status, list, guide), and
+    other tools (an `ls` of the artifacts) can name a run without having started it."""
+    return call.name == "subagent" and not call.input.get("action")
+
+
 def _run_ids(details: object) -> list[str]:
     """Run ids in a result's structured details (pi-subagents puts `runId` there; its text need not name the run)."""
     if isinstance(details, dict):
@@ -202,6 +208,11 @@ def load_session(path: Path, context: RepoContext) -> Unit:
     the parent), nested at the call whose result names their run id, or listed after the session."""
     unit = parse_session(path, context)
     pattern = context.evidence_pattern()
+    # Entries on abandoned branches of the session tree are not shown, and neither are the children they started.
+    entries = _entries(path)
+    active, _ = _active_path(entries)
+    kept = {id(entry) for entry in active}
+    abandoned = "\n".join(json.dumps(entry) for entry in entries if entry.get("type") != "session" and id(entry) not in kept)
     calls = [item.tool for turn in unit.turns for item in turn.items if item.tool]
     for meta_path in sorted((path.parent / "subagent-artifacts").glob("*_meta.json")):
         try:
@@ -222,8 +233,11 @@ def load_session(path: Path, context: RepoContext) -> Unit:
         child.worker_key = child.id
         child.task_index = meta["index"] if isinstance(meta.get("index"), int) else None
         # The result's structured run id names the spawning call; the run id in its input or text is the fallback.
-        spawn = next((call for call in calls if run_id in unit.runs.get(call.id, [])), None) or next(
-            (call for call in calls if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
+        spawns = [call for call in calls if _starts_children(call)]
+        spawn = next((call for call in spawns if run_id in unit.runs.get(call.id, [])), None) or next(
+            (call for call in spawns if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
+        if spawn is None and run_id in abandoned:
+            continue
         tasks = spawn.input.get("tasks") if spawn else None
         if pattern and isinstance(tasks, list) and child.task_index is not None and child.task_index < len(tasks) \
                 and pattern.search(json.dumps(tasks[child.task_index], default=str)):
