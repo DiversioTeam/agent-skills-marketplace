@@ -18,7 +18,7 @@ from pathlib import Path
 
 from redaction import is_credential_path, withheld_reason
 from repo_context import RepoContext, is_recent, parse_repo_slug
-from slicing import DELEGATED
+from slicing import DELEGATED, _trim_to_workers
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Codex"
@@ -36,11 +36,15 @@ _PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (\S+)", re.MULTIL
 _TERMINAL = re.compile(r"session ID:?\s*(\d+)", re.IGNORECASE)
 # A terminal session id however the call spells it: {"session_id": 1}, {session_id: 1}, "session_id" : "1".
 _TERMINAL_REF = re.compile(r"""session_id["']?\s*:\s*["']?(\d+)""")
+# A code-mode script that yields leaves a cell that `wait({cell_id})` resumes; its output inherits the same way.
+_CELL = re.compile(r"cell ID:?\s*([\w-]+)", re.IGNORECASE)
+_CELL_REF = re.compile(r"""cell_id["']?\s*:\s*["']?([\w-]+)""")
 
 
 def _terminal_refs(arguments: dict) -> list[str]:
     texts = [json.dumps(arguments, default=str), *(value for value in arguments.values() if isinstance(value, str))]
-    return [handle for text in texts for handle in _TERMINAL_REF.findall(text)]
+    return [handle for text in texts for handle in _TERMINAL_REF.findall(text)] + \
+        [f"cell:{cell}" for text in texts for cell in _CELL_REF.findall(text)]
 _CALLS = {"function_call", "custom_tool_call", "local_shell_call", "tool_search_call"}
 _OUTPUTS = {"function_call_output", "custom_tool_call_output", "local_shell_call_output", "tool_search_output"}
 
@@ -116,15 +120,40 @@ def _unescape(code: str) -> str:
     return code.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"').replace("\\'", "'")
 
 
+_STRING_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'|`((?:[^`\\]|\\.)*)`')
+_JS_LITERAL_OR_KEY = re.compile(_STRING_LITERAL.pattern + r'|(?P<prefix>[{,]\s*)(?P<key>[A-Za-z_$][\w$]*)\s*:')
+
+
+def _object_literal(text: str) -> object:
+    """A complete JSON or simple JavaScript literal argument, not a computed expression."""
+    def json_token(match: re.Match) -> str:
+        if match.group("key") is not None:
+            return f'{match.group("prefix")}"{match.group("key")}":'
+        literal = match.group(0)
+        if literal.startswith('"') or literal.startswith("`") and "${" in literal:
+            return literal
+        body = literal[1:-1].replace("\\'", "'").replace("\\`", "`").replace('\\"', '"')
+        return '"' + body.replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t") + '"'
+
+    for normalize in (False, True):
+        try:
+            candidate = _JS_LITERAL_OR_KEY.sub(json_token, text) if normalize else text
+            value, end = json.JSONDecoder().raw_decode(candidate)
+            if candidate[end:].lstrip().startswith(")"):
+                return value
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def _nested_tools(code: str) -> list[tuple[str, dict]]:
-    """Each tool a code-mode script calls, with its arguments when they are a JSON object literal, else the raw text."""
+    """Each tool a code-mode script calls, with its arguments when they are a JSON or simple JavaScript object literal,
+    else the raw text."""
+    # shortcut: literal tool-call text can over-withhold; exclude it only with a proven JavaScript lexical parser.
     found = []
     for match in _NESTED_TOOL.finditer(code):
         rest = code[match.end():].lstrip()
-        try:
-            arguments, _ = json.JSONDecoder().raw_decode(rest)
-        except json.JSONDecodeError:
-            arguments = None
+        arguments = _object_literal(rest)
         found.append((match.group(1) or match.group(2), arguments if isinstance(arguments, dict) else {"input": rest[:2000]}))
     return found
 
@@ -148,19 +177,27 @@ def _call(payload: dict, timestamp: str) -> ToolCall:
     if not isinstance(arguments, dict):
         arguments = {"arguments": arguments}
     call = ToolCall(id=str(payload.get("call_id") or payload.get("id") or ""), name=name, input=arguments, timestamp=timestamp)
-    call.withheld = withheld_reason(name, arguments)
+    reasons = [withheld_reason(name, arguments)]
     code = arguments.get("input")
-    if not call.withheld and isinstance(code, str):
+    if isinstance(code, str):
         # Classify each shell command a code-mode wrapper runs, then the whole script as a fallback for computed commands.
         nested = [literal[1:-1].replace('\\"', '"').replace("\\'", "'").replace("\\n", "\n") for literal in _NESTED_COMMAND.findall(code)]
-        reasons = [withheld_reason("exec_command", {"cmd": command}) for command in [*nested, code]]
+        reasons += [withheld_reason("exec_command", {"cmd": command}) for command in [*nested, code]]
         # Non-shell tools keep their own meaning: a database tool is classified by its name, as when called directly.
-        reasons += [withheld_reason(tool, tool_input) for tool, tool_input in _nested_tools(code)]
-        call.withheld = next((reason for reason in reasons if reason), None)
-    patch = arguments.get("input")
-    if not call.withheld and isinstance(patch, str) and any(
-            is_credential_path(path) for path in _PATCH_FILE.findall(patch) + _PATCH_FILE.findall(_unescape(patch))):
-        call.withheld = "credential file"
+        for tool, tool_input in _nested_tools(code):
+            reasons.append(withheld_reason(tool, tool_input))
+            command = tool_input.get("command") or tool_input.get("cmd")
+            # Only literal shell arguments are inspectable; do not evaluate JavaScript to guess what ran.
+            if tool in {"exec_command", "run"} and not (isinstance(command, str) or
+                    isinstance(command, list) and command and all(isinstance(part, str) for part in command)):
+                reasons.append("unresolved shell command")
+        # Any string the script passes that names a credential file, however the call around it is spelled.
+        literals = [_unescape(next(group for group in match.groups() if group is not None)) for match in _STRING_LITERAL.finditer(code)]
+        patched = _PATCH_FILE.findall(code) + _PATCH_FILE.findall(_unescape(code))
+        if any(is_credential_path(path) for path in [*patched, *(literal.strip() for literal in literals if "\n" not in literal)]):
+            reasons.append("credential file")
+    # A credential file outranks every other reason: only it also hides the call's input.
+    call.withheld = "credential file" if "credential file" in reasons else next((reason for reason in reasons if reason), None)
     return call
 
 
@@ -234,7 +271,8 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
                     call.output = _output(raw)
                     # The terminal a call leaves open, from the raw result ({"session_id": 1, ...}) as well as its text.
                     raw_text = raw if isinstance(raw, str) else json.dumps(raw, default=str)
-                    for handle in {*_TERMINAL.findall(call.output), *_TERMINAL_REF.findall(raw_text)}:
+                    cells = {f"cell:{cell}" for cell in [*_CELL.findall(call.output), *_CELL_REF.findall(raw_text)]}
+                    for handle in {*_TERMINAL.findall(call.output), *_TERMINAL_REF.findall(raw_text), *cells}:
                         terminals[handle] = call.withheld
         if markers and turn is not None and markers.search(json.dumps(record)):
             turn.evidence = True
@@ -294,23 +332,40 @@ def load_session(path: Path, context: RepoContext, root: Path | None = None) -> 
     from the lead to the work stays connected."""
     unit = parse_session(path, context)
     root = root or sessions_root()
-    since = path.stat().st_mtime - 7 * 24 * 60 * 60
-    children: dict[str, list[Path]] = {}
+    # Index old rollouts too: a recent worker can sit behind an ancestor older than the cutoff.
+    paths: dict[str, Path] = {}
+    parents: dict[str, str] = {}
+    recent: set[str] = set()
     for candidate in sorted(root.glob("*/*/*/*.jsonl")):
-        try:
-            if candidate == path or candidate.stat().st_mtime < since:
-                continue
-        except OSError:
+        if candidate == path:
             continue
-        parent = _parent(_meta(candidate))
-        if parent:
-            children.setdefault(parent, []).append(candidate)
+        meta = _meta(candidate)
+        thread = str(meta.get("id") or meta.get("session_id") or candidate.stem)
+        paths[thread], parents[thread] = candidate, _parent(meta)
+        if is_recent(candidate, context.since):
+            recent.add(thread)
+    needed = set(recent)
+    ancestors = list(recent)
+    while ancestors:
+        parent = parents.get(ancestors.pop())
+        if parent and parent not in needed:
+            needed.add(parent)
+            ancestors.append(parent)
+    children: dict[str, list[Path]] = {}
+    for thread, candidate in paths.items():
+        if thread in needed and parents[thread]:
+            children.setdefault(parents[thread], []).append(candidate)
     queue = [(unit.session_id, None)]
     attached: list[tuple[Unit, Unit | None]] = []
     while queue:
         thread, owner = queue.pop(0)
         for candidate in children.get(thread, []):
             child = parse_session(candidate, context, "subagent")
+            if child.session_id not in recent:
+                # An expired ancestor is only a bridge to current work, not fresh evidence of its own.
+                child.evidence.clear()
+                for turn in child.turns:
+                    turn.evidence, turn.branch = False, ""
             child.worker_key = child.session_id
             unit.teammates.append(child)
             attached.append((child, owner))
@@ -326,4 +381,9 @@ def load_session(path: Path, context: RepoContext, root: Path | None = None) -> 
     for child, _owner in attached:
         if not child.evidence and works(child):
             child.evidence.append(DELEGATED)
+    keys = {child.worker_key for child, _owner in attached if child.evidence}
+    for child, _owner in attached:
+        if child.session_id not in recent:
+            # Prune before shared slicing can rediscover historical branch mentions as independent evidence.
+            _trim_to_workers(child, keys, pattern=None)
     return unit

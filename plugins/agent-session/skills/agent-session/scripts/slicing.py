@@ -87,7 +87,7 @@ def _trim_to_workers(unit: Unit, keys: set[str], pattern) -> None:
         if items:
             turn.items = items
             kept.append(turn)
-    unit.omitted_turns = len(unit.turns) - len(kept)
+    unit.omitted_turns += len(unit.turns) - len(kept)
     unit.turns = kept
 
 

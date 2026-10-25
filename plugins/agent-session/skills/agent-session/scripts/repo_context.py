@@ -69,6 +69,10 @@ class RepoContext:
         owners = [path for path in self.worktree_branches if cwd == path or cwd.startswith(path.rstrip("/") + "/")] if cwd else []
         return bool(owners) and self.worktree_branches[max(owners, key=len)] == self.branch
 
+    def in_repo(self, cwd: str) -> bool:
+        """Whether a directory is inside one of this repository's worktrees."""
+        return any(cwd == str(path) or cwd.startswith(str(path).rstrip("/") + "/") for path in self.worktrees) if cwd else False
+
     @property
     def repo_name(self) -> str:
         return self.repo_slug.split("/")[-1] if self.repo_slug else self.root.name
@@ -82,10 +86,12 @@ class RepoContext:
             markers.append(f"github.com/{self.repo_slug}/pull/{self.pr}")
         return markers
 
-    def evidence_pattern(self) -> re.Pattern[str] | None:
+    def evidence_pattern(self, branch: bool = True) -> re.Pattern[str] | None:
         """The markers as whole tokens (`pull/7` is not `pull/74`, `feature/x` is not `feature/x-2`), plus Claude Code's
-        structured `pr-link` record for this PR."""
-        parts = [rf"(?<![\w.-]){re.escape(marker)}(?![\w-])" for marker in self.evidence_markers()]
+        structured `pr-link` record for this PR. Without `branch`, only what names this repository: the PR's URL and
+        record (a branch name alone is shared by every repository with a branch of that name)."""
+        markers = self.evidence_markers() if branch else [marker for marker in self.evidence_markers() if marker != self.branch]
+        parts = [rf"(?<![\w.-]){re.escape(marker)}(?![\w-])" for marker in markers]
         if self.pr and self.repo_slug:
             parts.append(rf'"prNumber":\s*"?{self.pr}\b[^\n]*"prRepository":\s*"{re.escape(self.repo_slug)}"')
             parts.append(rf'"prRepository":\s*"{re.escape(self.repo_slug)}"[^\n]*"prNumber":\s*"?{self.pr}\b')
