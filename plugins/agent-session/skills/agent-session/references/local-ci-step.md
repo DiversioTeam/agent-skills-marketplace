@@ -23,8 +23,14 @@ github_context = "local/agent-session"
 - Without a PR, the local record must have a publish (or a declaration) for
   this branch and HEAD.
 - A PR lookup that fails is `unverified`, never a pass.
+- Where no transcript belongs, it passes as `skipped (<why>)`, before asking
+  GitHub: HEAD on an integration branch (`main`, `master`, `dev`, `release*`,
+  ...) or a detached HEAD an `origin` integration branch already contains
+  (deploy triggers, release candidates); a PR from `promote/`, `releases/`
+  (release flows) into an integration branch; a bot's PR; and a cloud session
+  (`CLAUDE_CODE_REMOTE` set).
 
-Output starts with `agent-session: ok|missing|stale|unlinked|unverified` and,
+Output starts with `agent-session: ok|skipped|missing|stale|unlinked|unverified` and,
 on failure, gives the `fix:` command. Agents act on that line.
 
 Order on a branch: commit, push, `agent-session share`, then `local-ci run`

@@ -106,7 +106,9 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
     background = Provenance()
     counted: set[str] = set()
     turn: Turn | None = None
-    evidence = context.evidence_pattern()
+    # Each transcript is judged by its own repository: inside this one its branch counts; elsewhere (a teammate or
+    # subagent working in another repository) only what names this repository, the PR, does.
+    evidence, foreign = context.evidence_pattern(), context.evidence_pattern(branch=False)
 
     def current(timestamp: str, branch: str) -> Turn:
         nonlocal turn
@@ -127,10 +129,11 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
         if kind_ not in ("user", "assistant") or record.get("isMeta"):
             continue
         timestamp = str(record.get("timestamp", ""))
-        branch = str(record.get("gitBranch", ""))
+        unit.cwd = unit.cwd or str(record.get("cwd", ""))
+        here = context.in_repo(str(record.get("cwd") or unit.cwd))
+        branch = str(record.get("gitBranch", "")) if here else ""
         unit.started = unit.started or timestamp
         unit.ended = timestamp or unit.ended
-        unit.cwd = unit.cwd or str(record.get("cwd", ""))
         message = record.get("message")
         if not isinstance(message, dict):
             continue
@@ -181,7 +184,8 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
                 turn_kind, sender, text = classified
                 turn = Turn(kind=turn_kind, sender=sender, text=text, timestamp=timestamp, branch=branch)  # type: ignore[arg-type]
                 unit.turns.append(turn)
-        if evidence and kind_ != "pr-link" and evidence.search(line):
+        pattern = evidence if here else foreign
+        if pattern and kind_ != "pr-link" and pattern.search(line):
             current(timestamp, branch).evidence = True
         if context.branch and branch == context.branch:
             current(timestamp, branch).branch = branch
@@ -237,9 +241,10 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
     root = root or projects_root()
     if not root.is_dir():
         return []
-    evidence = context.evidence_pattern()
-    pattern = re.compile(evidence.pattern.encode()) if evidence else None
-    worktree_dirs = {re.sub(r"[^A-Za-z0-9]", "-", str(path)) for path in context.worktrees}
+    def compiled(evidence: re.Pattern[str] | None) -> re.Pattern[bytes] | None:
+        return re.compile(evidence.pattern.encode()) if evidence else None
+    # A session in this repository counts by its branch; one elsewhere only by what names this repository (the PR).
+    in_repo, elsewhere = compiled(context.evidence_pattern()), compiled(context.evidence_pattern(branch=False))
     found: list[Path] = []
     for project in root.iterdir():
         if not project.is_dir():
@@ -250,10 +255,28 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
                     continue
             except OSError:
                 continue
+            # Each file by its own repository: a lead elsewhere whose worker ran here is found through the worker.
             files = [path, *sorted((path.with_suffix("") / "subagents").glob("agent-*.jsonl"))]
-            if any(_mentions(candidate, pattern, context.branch if project.name in worktree_dirs else "") for candidate in files):
+            if any(_mentions(candidate, in_repo if here else elsewhere, context.branch if here else "")
+                   for candidate in files for here in [context.in_repo(_cwd(candidate))]):
                 found.append(path)
     return sorted(found, key=lambda candidate: candidate.stat().st_mtime)
+
+
+def _cwd(path: Path) -> str:
+    """The working directory a session file records first."""
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(record, dict) and record.get("cwd"):
+                    return str(record["cwd"])
+    except OSError:
+        pass
+    return ""
 
 
 def _mentions(path: Path, pattern: re.Pattern[bytes] | None, branch: str) -> bool:

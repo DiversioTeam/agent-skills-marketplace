@@ -22,7 +22,11 @@ MAX_NAME = 180
 
 
 class PublishError(RuntimeError):
-    """A user-facing publish error."""
+    """A user-facing publish error; an upload may have reached the server."""
+
+
+class UploadRejected(PublishError):
+    """This attempt did not create an upload; never delete the attempted name."""
 
 
 def _slug(value: str, limit: int) -> str:
@@ -51,7 +55,10 @@ def _cloudflared() -> str:
     cloudflared = shutil.which("cloudflared")
     if cloudflared is None:
         raise PublishError("cloudflared is required to publish. Install it with: brew install cloudflared")
-    login = subprocess.run([cloudflared, "access", "login", "--quiet", INTERNAL_SHARE_URL], timeout=600, check=False)
+    try:
+        login = subprocess.run([cloudflared, "access", "login", "--quiet", INTERNAL_SHARE_URL], timeout=600, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise PublishError("Cloudflare Access sign-in did not complete. Retry and finish the browser sign-in.") from error
     if login.returncode != 0:
         raise PublishError("Cloudflare Access sign-in did not complete. Retry and finish the browser sign-in.")
     return cloudflared
@@ -60,19 +67,25 @@ def _cloudflared() -> str:
 def delete(name: str) -> bool:
     """Delete a page this developer uploaded (the Worker lets only the uploader delete). True when it is gone."""
     cloudflared = _cloudflared()
-    completed = subprocess.run(
-        [cloudflared, "access", "curl", urllib.parse.urljoin(INTERNAL_SHARE_URL, f"delete/{urllib.parse.quote(name)}"),
-         "-X", "POST", "--dump-header", "-", "--output", "/dev/null"],
-        capture_output=True, text=True, timeout=60, check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [cloudflared, "access", "curl", urllib.parse.urljoin(INTERNAL_SHARE_URL, f"delete/{urllib.parse.quote(name)}"),
+             "-X", "POST", "--dump-header", "-", "--output", "/dev/null"],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
     statuses = re.findall(r"^HTTP/\S+\s+(\d{3})", f"{completed.stdout}\n{completed.stderr}", flags=re.MULTILINE)
     return completed.returncode == 0 and bool(statuses) and statuses[-1] in ("303", "404")
 
 
 def upload(path: Path, name: str) -> str:
     if path.stat().st_size > MAX_UPLOAD_BYTES:
-        raise PublishError("Internal Share accepts files up to 25 MB; render again so the page splits into parts.")
-    cloudflared = _cloudflared()
+        raise UploadRejected("Internal Share accepts files up to 25 MB; render again so the page splits into parts.")
+    try:
+        cloudflared = _cloudflared()
+    except PublishError as error:
+        raise UploadRejected(str(error)) from error
     with tempfile.TemporaryDirectory(prefix="agent-session-") as directory:
         staged = Path(directory) / name
         shutil.copy2(path, staged)
@@ -85,10 +98,11 @@ def upload(path: Path, name: str) -> str:
         except subprocess.TimeoutExpired as error:
             raise PublishError("The Internal Share upload timed out. Check the connection and retry.") from error
     output = f"{completed.stdout}\n{completed.stderr}"
-    statuses = re.findall(r"^HTTP/\S+\s+(\d{3})", output, flags=re.MULTILINE)
+    statuses = re.findall(r"^HTTP/\S+[ \t]+(\d{3})(?=[ \t\r\n]|$)", output, flags=re.MULTILINE)
+    status = statuses[-1] if statuses else None
     locations = re.findall(r"^location:\s*(\S+)\s*$", output, flags=re.IGNORECASE | re.MULTILINE)
-    if completed.returncode == 0 and "303" in statuses and locations:
+    if completed.returncode == 0 and status == "303" and locations:
         return urllib.parse.urljoin(INTERNAL_SHARE_URL, locations[-1])
-    if "409" in statuses:
-        raise PublishError("A file with that name already exists on Internal Share; publish again for a fresh name.")
+    if status == "409":
+        raise UploadRejected("A file with that name already exists on Internal Share; run share (or render) again for a fresh name.")
     raise PublishError("Could not upload to Internal Share. Check the connection and retry.")
