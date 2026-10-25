@@ -317,8 +317,9 @@ def _publish(context: RepoContext, out: Path, manifest: dict) -> int:
             links.append(publisher.upload(out / name, name))
     except publisher.PublishError as error:
         print(error)
-        # The part whose upload failed may have reached the server anyway (a lost response): clean it up too.
-        _abandon(context, names[:len(links) + 1])
+        # A lost response may hide an accepted upload; a confirmed rejection never owns the attempted name.
+        attempted = 0 if isinstance(error, publisher.UploadRejected) else 1
+        _abandon(context, names[:len(links) + attempted])
         return 1
     manifest["links"] = links
     (out / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")

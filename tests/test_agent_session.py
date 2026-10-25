@@ -699,6 +699,138 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class PublishTests(unittest.TestCase):
+    """Real upload response parsing with synthetic storage; no Cloudflare or GitHub calls."""
+
+    def setUp(self):
+        import hashlib
+        from unittest import mock
+        self.mock = mock
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.out = Path(self.directory.name)
+        self.context = repo_context.RepoContext(root=self.out, branch="feature/x", repo_slug="DiversioTeam/demo", pr=7)
+        self.names = ["session-first.html", "session-second.html", "session-third.html"]
+        files = []
+        for name in self.names:
+            content = f"<html>{name}</html>".encode()
+            (self.out / name).write_bytes(content)
+            files.append({"name": name, "sha256": hashlib.sha256(content).hexdigest()})
+        self.manifest = {"files": files, "head": HEAD, "base": "", "commits": []}
+        self.remote, self.attempts, self.deleted = {}, [], []
+        self.failure = None
+        self.delete_succeeds = True
+        patches = [
+            mock.patch.dict(os.environ, {"AGENT_SESSION_HOME": str(self.out / "state")}),
+            mock.patch.object(publish, "_cloudflared", return_value="cloudflared"),
+            mock.patch.object(publish.subprocess, "run", side_effect=self.upload_response),
+            mock.patch.object(publish, "delete", side_effect=self.delete),
+            mock.patch.object(agent_session, "_update_pr_body", return_value=True),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def upload_response(self, command, **kwargs):
+        import subprocess
+        staged = Path(command[command.index("--form") + 1].removeprefix("file=@").split(";", 1)[0])
+        name = staged.name
+        self.attempts.append(name)
+        if name in self.remote:
+            return subprocess.CompletedProcess(command, 0, "HTTP/1.1 100 Continue\r\n\r\nHTTP/2 409\r\n\r\n", "")
+        self.remote[name] = staged.read_bytes()
+        if name == self.names[1] and self.failure:
+            if isinstance(self.failure, Exception):
+                raise self.failure
+            return self.failure
+        return subprocess.CompletedProcess(command, 0, f"HTTP/2 303\r\nlocation: /{name}\r\n\r\n", "")
+
+    def delete(self, name):
+        self.deleted.append(name)
+        if self.delete_succeeds:
+            self.remote.pop(name, None)
+        return self.delete_succeeds
+
+    def run_publish(self):
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            return agent_session._publish(self.context, self.out, self.manifest)
+
+    def test_repeated_same_manifest_publish_preserves_linked_pages_and_journal(self):
+        self.assertEqual(self.run_publish(), 0)
+        remote = dict(self.remote)
+        journal = store.path().read_bytes()
+        manifest = (self.out / agent_session.MANIFEST).read_bytes()
+        for _ in range(2):
+            self.assertEqual(self.run_publish(), 1)
+            self.assertEqual(self.deleted, [])
+            self.assertEqual(self.remote, remote)
+            self.assertEqual(store.path().read_bytes(), journal)
+            self.assertEqual((self.out / agent_session.MANIFEST).read_bytes(), manifest)
+        self.assertEqual(self.attempts, [*self.names, self.names[0], self.names[0]])
+        agent_session._update_pr_body.assert_called_once()
+
+    def test_multipart_conflict_cleans_only_created_parts_and_never_owes_conflicting_page(self):
+        store.record({"repo": self.context.repo_slug, "branch": self.context.branch, "linked": True,
+                      "names": [self.names[1]], "links": [publish.link_for(self.names[1])]})
+        previous = store.latest(self.context.repo_slug, self.context.branch)
+        for succeeds in (True, False):
+            with self.subTest(delete_succeeds=succeeds):
+                self.remote = {self.names[1]: b"previously linked page"}
+                self.delete_succeeds = succeeds
+                self.deleted.clear()
+                self.assertEqual(self.run_publish(), 1)
+                self.assertEqual(self.deleted, [self.names[0]])
+                self.assertEqual(self.remote[self.names[1]], b"previously linked page")
+                self.assertNotIn(self.names[2], self.attempts)
+                self.assertEqual(store.latest(self.context.repo_slug, self.context.branch), previous)
+                self.assertEqual(store.cleanup_debt(self.context.repo_slug, self.context.branch),
+                                 [] if succeeds else [self.names[0]])
+        agent_session._update_pr_body.assert_not_called()
+
+    def test_lost_upload_response_still_cleans_created_and_uncertain_parts(self):
+        import subprocess
+        for failure in (subprocess.TimeoutExpired("cloudflared", 180),
+                        subprocess.CompletedProcess([], 1, "", "connection lost"),
+                        subprocess.CompletedProcess([], 0, "HTTP/2 303\r\n", ""),
+                        subprocess.CompletedProcess([], 0, "HTTP/2 4099\r\n", "")):
+            with self.subTest(failure=failure):
+                self.failure = failure
+                self.deleted.clear()
+                self.assertEqual(self.run_publish(), 1)
+                self.assertEqual(self.deleted, self.names[:2])
+                self.assertEqual(self.remote, {})
+                self.assertFalse(store.path().exists())
+        agent_session._update_pr_body.assert_not_called()
+
+    def test_upload_uses_final_http_status_to_identify_conflict(self):
+        import subprocess
+        for headers, stderr, returncode, rejected in (
+                ("HTTP/2 409\r\n", "", 0, True),
+                ("", "HTTP/2 409\r\n", 22, True),
+                ("HTTP/2 303\r\nlocation: /old.html\r\n\r\nHTTP/2 409\r\n", "", 0, True),
+                ("HTTP/2 409\r\n\r\nHTTP/2 500\r\n", "", 0, False),
+                ("HTTP/2 4099\r\n", "", 0, False),
+                ("", "", 0, False)):
+            with self.subTest(headers=headers, stderr=stderr), self.mock.patch.object(
+                    publish.subprocess, "run", return_value=subprocess.CompletedProcess([], returncode, headers, stderr)):
+                with self.assertRaises(publish.PublishError) as caught:
+                    publish.upload(self.out / self.names[0], self.names[0])
+                self.assertEqual(isinstance(caught.exception, publish.UploadRejected), rejected)
+
+    def test_pre_upload_rejections_never_delete_the_attempted_name(self):
+        self.manifest["files"] = self.manifest["files"][:1]
+        self.remote[self.names[0]] = b"existing page"
+        with self.mock.patch.object(publish, "MAX_UPLOAD_BYTES", 1):
+            self.assertEqual(self.run_publish(), 1)
+        with self.mock.patch.object(publish, "_cloudflared", side_effect=publish.PublishError("login failed")):
+            self.assertEqual(self.run_publish(), 1)
+        self.assertEqual(self.attempts, [])
+        self.assertEqual(self.deleted, [])
+        self.assertEqual(self.remote[self.names[0]], b"existing page")
+        self.assertFalse(store.path().exists())
+
+
 class ShareTests(unittest.TestCase):
     """share: one command that renders, publishes, records coverage, links the PR, and deletes what it supersedes."""
 

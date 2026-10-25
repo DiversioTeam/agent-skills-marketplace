@@ -22,7 +22,11 @@ MAX_NAME = 180
 
 
 class PublishError(RuntimeError):
-    """A user-facing publish error."""
+    """A user-facing publish error; an upload may have reached the server."""
+
+
+class UploadRejected(PublishError):
+    """This attempt did not create an upload; never delete the attempted name."""
 
 
 def _slug(value: str, limit: int) -> str:
@@ -77,8 +81,11 @@ def delete(name: str) -> bool:
 
 def upload(path: Path, name: str) -> str:
     if path.stat().st_size > MAX_UPLOAD_BYTES:
-        raise PublishError("Internal Share accepts files up to 25 MB; render again so the page splits into parts.")
-    cloudflared = _cloudflared()
+        raise UploadRejected("Internal Share accepts files up to 25 MB; render again so the page splits into parts.")
+    try:
+        cloudflared = _cloudflared()
+    except PublishError as error:
+        raise UploadRejected(str(error)) from error
     with tempfile.TemporaryDirectory(prefix="agent-session-") as directory:
         staged = Path(directory) / name
         shutil.copy2(path, staged)
@@ -91,10 +98,11 @@ def upload(path: Path, name: str) -> str:
         except subprocess.TimeoutExpired as error:
             raise PublishError("The Internal Share upload timed out. Check the connection and retry.") from error
     output = f"{completed.stdout}\n{completed.stderr}"
-    statuses = re.findall(r"^HTTP/\S+\s+(\d{3})", output, flags=re.MULTILINE)
+    statuses = re.findall(r"^HTTP/\S+[ \t]+(\d{3})(?=[ \t\r\n]|$)", output, flags=re.MULTILINE)
+    status = statuses[-1] if statuses else None
     locations = re.findall(r"^location:\s*(\S+)\s*$", output, flags=re.IGNORECASE | re.MULTILINE)
-    if completed.returncode == 0 and "303" in statuses and locations:
+    if completed.returncode == 0 and status == "303" and locations:
         return urllib.parse.urljoin(INTERNAL_SHARE_URL, locations[-1])
-    if "409" in statuses:
-        raise PublishError("A file with that name already exists on Internal Share; publish again for a fresh name.")
+    if status == "409":
+        raise UploadRejected("A file with that name already exists on Internal Share; run share (or render) again for a fresh name.")
     raise PublishError("Could not upload to Internal Share. Check the connection and retry.")
