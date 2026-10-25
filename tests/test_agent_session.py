@@ -1147,6 +1147,22 @@ class PublishTests(unittest.TestCase):
                 self.assertFalse(store.path().exists())
         agent_session._update_pr_body.assert_not_called()
 
+    def test_malformed_final_status_cleans_uncertain_upload_or_records_debt(self):
+        import subprocess
+        self.failure = subprocess.CompletedProcess([], 0, "HTTP/2 409\r\n\r\nHTTP/2 4099\r\n", "")
+        for succeeds in (True, False):
+            with self.subTest(delete_succeeds=succeeds):
+                self.remote.clear()
+                self.deleted.clear()
+                self.delete_succeeds = succeeds
+                self.assertEqual(self.run_publish(), 1)
+                self.assertEqual(self.deleted, self.names[:2])
+                self.assertEqual(set(self.remote), set() if succeeds else set(self.names[:2]))
+                self.assertEqual(store.cleanup_debt(self.context.repo_slug, self.context.branch),
+                                 [] if succeeds else self.names[:2])
+                self.assertIsNone(store.latest(self.context.repo_slug, self.context.branch))
+        agent_session._update_pr_body.assert_not_called()
+
     def test_upload_uses_final_http_status_to_identify_conflict(self):
         import subprocess
         for headers, stderr, returncode, rejected in (
@@ -1155,6 +1171,11 @@ class PublishTests(unittest.TestCase):
                 ("HTTP/2 303\r\nlocation: /old.html\r\n\r\nHTTP/2 409\r\n", "", 0, True),
                 ("HTTP/2 409\r\n\r\nHTTP/2 500\r\n", "", 0, False),
                 ("HTTP/2 4099\r\n", "", 0, False),
+                ("HTTP/2 409\r\n\r\nHTTP/2 4099\r\n", "", 0, False),
+                ("HTTP/2 409\r\n", "HTTP/2 invalid\r\n", 0, False),
+                ("HTTP/2 409\r\n\r\nHTTP/2\r\n", "", 0, False),
+                ("HTTP/2 303\r\nlocation: /old.html\r\n\r\nHTTP/2 4099\r\n", "", 0, False),
+                ("HTTP/2 4099\r\n\r\nHTTP/2 409\r\n", "", 0, True),
                 ("", "", 0, False)):
             with self.subTest(headers=headers, stderr=stderr), self.mock.patch.object(
                     publish.subprocess, "run", return_value=subprocess.CompletedProcess([], returncode, headers, stderr)):
