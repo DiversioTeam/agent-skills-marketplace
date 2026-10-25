@@ -1045,6 +1045,63 @@ class CodexReviewFindingsTests(unittest.TestCase):
         path.write_text("\n".join(json.dumps(record) for record in [*head, *records]) + "\n")
         return codex_sessions.load_session(path, demo_context(), Path(directory))
 
+    def test_code_mode_unresolved_shell_arguments_withhold_outputs_and_continuations(self):
+        cases = [
+            ('const cmd="printenv"; text(await tools.exec_command({cmd}));', True),
+            ('text(await tools.exec_command({cmd: getCommand()}));', True),
+            ('text(await tools.exec_command({cmd: "print" + "env"}));', True),
+            ('await tools.exec_command({cmd: "git status"}); text(await tools.run(args));', True),
+            ('text(await tools.exec_command({["cmd"]: "printenv"}));', True),
+            ('text(await tools.exec_command(args));', True),
+            ('text(await tools.exec_command({cmd: "git status", ...args}));', True),
+            ('text(await tools.exec_command({cmd: `${command}`}));', True),
+            ('text(await tools.exec_command({cmd: "git status"} && args));', True),
+            ('const command="printenv"; text(await tools.run({command}));', True),
+            ('text(await tools["run"]({command: commands[0]}));', True),
+            ('text(await tools.run({[field]: "printenv"}));', True),
+            ('text(await tools.run(args));', True),
+            ('text(await tools.exec_command({cmd: "git status"}));', False),
+            ("text(await tools.exec_command({cmd: 'git status'}));", False),
+            ('text(await tools.exec_command({cmd: `git status`}));', False),
+            ('text(await tools.exec_command({cmd: "git status"})); const note = `${label}`;', False),
+            ('text(await tools.run({command: ["git", "status"]}));', False),
+        ]
+        sentinels = ["opaque-shell-output-sentinel", "opaque-terminal-output-sentinel", "opaque-cell-output-sentinel"]
+        for code, unsafe in cases:
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                unit = self._rollout(directory, [
+                    _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "o1", "input": code}, 2),
+                    _codex("response_item", {"type": "custom_tool_call_output", "call_id": "o1",
+                                             "output": json.dumps({"session_id": 12345, "output": sentinels[0]})}, 3),
+                    _codex("response_item", {"type": "function_call", "name": "write_stdin", "call_id": "o2",
+                                             "arguments": json.dumps({"session_id": 12345, "chars": ""})}, 4),
+                    _codex("response_item", {"type": "function_call_output", "call_id": "o2",
+                                             "output": f"{sentinels[1]}\nScript running with cell ID 17"}, 5),
+                    _codex("response_item", {"type": "function_call", "name": "wait", "call_id": "o3",
+                                             "arguments": json.dumps({"cell_id": "17"})}, 6),
+                    _codex("response_item", {"type": "function_call_output", "call_id": "o3", "output": sentinels[2]}, 7),
+                ])
+                pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+                for sentinel in sentinels:
+                    if unsafe:
+                        self.assertNotIn(sentinel, pages[0])
+                    else:
+                        self.assertIn(sentinel, pages[0])
+                reasons = [item.tool.withheld for turn in unit.turns for item in turn.items if item.tool]
+                self.assertEqual(reasons, ["unresolved shell command" if unsafe else None] * 3)
+
+    def test_code_mode_unresolved_shell_keeps_credential_precedence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "o1",
+                                         "input": 'await tools.exec_command({cmd}); await tools.read_file({path: "/work/demo/.env"}); // private-input-sentinel'}, 2),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "o1", "output": "private-credential-output-sentinel"}, 3),
+            ])
+        self.assertEqual(unit.turns[0].items[0].tool.withheld, "credential file")
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        self.assertNotIn("private-input-sentinel", pages[0])
+        self.assertNotIn("private-credential-output-sentinel", pages[0])
+
     def test_code_mode_keeps_nested_tool_meaning(self):
         patch = "*** Begin Patch\n*** Update File: /work/demo/.env\n@@\n-API_KEY=old\n+API_KEY=private-" + "patch-" + "value\n*** End Patch"
         with tempfile.TemporaryDirectory() as directory:
@@ -1134,6 +1191,16 @@ class CodexReviewFindingsTests(unittest.TestCase):
         self.assertIn("Delegate it", pages[0])
 
     def test_grandchildren_reach_the_transcript(self):
+        self._assert_grandchildren_reach_the_transcript(since=0)
+
+    def test_recent_grandchild_reaches_the_transcript_through_an_old_middle(self):
+        for middle_on_branch in (False, True):
+            with self.subTest(middle_on_branch=middle_on_branch):
+                self._assert_grandchildren_reach_the_transcript(since=1792713600, middle_on_branch=middle_on_branch)  # 2026-10-23 UTC
+
+    def _assert_grandchildren_reach_the_transcript(self, since, middle_on_branch=False):
+        context = demo_context()
+        context.since = since
         with tempfile.TemporaryDirectory() as directory:
             day = Path(directory) / "2026" / "10" / "23"
             day.mkdir(parents=True)
@@ -1142,8 +1209,9 @@ class CodexReviewFindingsTests(unittest.TestCase):
             write("main", [_codex("session_meta", {"id": "main", "cwd": "/w", "git": git("main")}, 0),
                            _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Delegate it"}]}, 1),
                            _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "k1", "arguments": "{}"}, 2),
-                           _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "k1", "agent_thread_id": "child"}}, 3)])
-            write("child", [_codex("session_meta", {"id": "child", "parent_thread_id": "main", "cwd": "/w", "git": git("main")}, 0),
+                           _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "k1", "agent_thread_id": "child"}}, 3),
+                           _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Unrelated lead secret-lead-work"}]}, 4)])
+            write("child", [_codex("session_meta", {"id": "child", "parent_thread_id": "main", "cwd": "/w", "git": git(context.branch if middle_on_branch else "main")}, 0),
                             _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Delegating further"}]}, 1),
                             _codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": "g1", "arguments": "{}"}, 2),
                             _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": "g1", "agent_thread_id": "grandchild"}}, 3),
@@ -1153,15 +1221,25 @@ class CodexReviewFindingsTests(unittest.TestCase):
             write("grandchild", [_codex("session_meta", {"id": "grandchild", "parent_thread_id": "child", "cwd": "/w", "git": git("feature/demo-transcripts")}, 0),
                                  _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Grandchild did the work"}]}, 1)])
             main = day / "rollout-2026-10-23T11-04-00-main.jsonl"
-            self.assertEqual(codex_sessions.find_sessions(demo_context(), Path(directory)), [main])
-            unit = codex_sessions.load_session(main, demo_context(), Path(directory))
-        slicing.slice_to_work(unit, demo_context(), whole=False)
+            if since:
+                write("expired", [_codex("session_meta", {"id": "expired", "parent_thread_id": "main", "cwd": "/w", "git": git(context.branch)}, 0),
+                                  _codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "secret-expired-sibling"}]}, 1)])
+                for name in ("main", "child", "expired"):
+                    ancestor = next(day.glob(f"*-{name}.jsonl"))
+                    os.utime(ancestor, (since - 86400, since - 86400))
+                grandchild = next(day.glob("*-grandchild.jsonl"))
+                os.utime(grandchild, (since + 86400, since + 86400))
+            self.assertEqual(codex_sessions.find_sessions(context, Path(directory)), [main])
+            unit = codex_sessions.load_session(main, context, Path(directory))
+        slicing.slice_to_work(unit, context, whole=False)
         self.assertEqual([mate.worker_key for mate in unit.teammates], ["child", "grandchild"])
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertIn("Grandchild did the work", pages[0])
         self.assertIn("Delegate it", pages[0])
         self.assertNotIn("secret-child-work", pages[0])
         self.assertNotIn("secret-child-output", pages[0])
+        self.assertNotIn("secret-lead-work", pages[0])
+        self.assertNotIn("secret-expired-sibling", pages[0])
 
     def test_hook_keeps_argv_boundaries(self):
         import subprocess

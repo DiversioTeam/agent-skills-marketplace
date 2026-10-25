@@ -121,15 +121,24 @@ def _unescape(code: str) -> str:
 
 
 _JS_KEY = re.compile(r"""([{,]\s*)([A-Za-z_$][\w$]*)\s*:""")
-_JS_SINGLE = re.compile(r"'((?:[^'\\]|\\.)*)'")
 _STRING_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'|`((?:[^`\\]|\\.)*)`')
 
 
 def _object_literal(text: str) -> object:
-    """A JSON or simple JavaScript object literal at the start of `text` ({path: '/x'}), or None."""
-    for candidate in (text, _JS_SINGLE.sub(lambda match: json.dumps(match.group(1)), _JS_KEY.sub(r'\1"\2":', text))):
+    """A complete JSON or simple JavaScript literal argument, not a computed expression."""
+    def json_string(match: re.Match) -> str:
+        literal = match.group(0)
+        if literal.startswith('"') or literal.startswith("`") and "${" in literal:
+            return literal
+        body = literal[1:-1].replace("\\'", "'").replace("\\`", "`").replace('\\"', '"')
+        return '"' + body.replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t") + '"'
+
+    for normalize in (False, True):
         try:
-            return json.JSONDecoder().raw_decode(candidate)[0]
+            candidate = _JS_KEY.sub(r'\1"\2":', _STRING_LITERAL.sub(json_string, text)) if normalize else text
+            value, end = json.JSONDecoder().raw_decode(candidate)
+            if candidate[end:].lstrip().startswith(")"):
+                return value
         except json.JSONDecodeError:
             continue
     return None
@@ -172,7 +181,13 @@ def _call(payload: dict, timestamp: str) -> ToolCall:
         nested = [literal[1:-1].replace('\\"', '"').replace("\\'", "'").replace("\\n", "\n") for literal in _NESTED_COMMAND.findall(code)]
         reasons += [withheld_reason("exec_command", {"cmd": command}) for command in [*nested, code]]
         # Non-shell tools keep their own meaning: a database tool is classified by its name, as when called directly.
-        reasons += [withheld_reason(tool, tool_input) for tool, tool_input in _nested_tools(code)]
+        for tool, tool_input in _nested_tools(code):
+            reasons.append(withheld_reason(tool, tool_input))
+            command = tool_input.get("command") or tool_input.get("cmd")
+            # Only literal shell arguments are inspectable; do not evaluate JavaScript to guess what ran.
+            if tool in {"exec_command", "run"} and not (isinstance(command, str) or
+                    isinstance(command, list) and command and all(isinstance(part, str) for part in command)):
+                reasons.append("unresolved shell command")
         # Any string the script passes that names a credential file, however the call around it is spelled.
         literals = [_unescape(next(group for group in match.groups() if group is not None)) for match in _STRING_LITERAL.finditer(code)]
         patched = _PATCH_FILE.findall(code) + _PATCH_FILE.findall(_unescape(code))
@@ -314,24 +329,44 @@ def load_session(path: Path, context: RepoContext, root: Path | None = None) -> 
     from the lead to the work stays connected."""
     unit = parse_session(path, context)
     root = root or sessions_root()
-    # Children written since the branch started, however long before the lead's last write.
-    since = context.since
-    children: dict[str, list[Path]] = {}
+    # Index old rollouts too: a recent worker can sit behind an ancestor older than the cutoff.
+    paths: dict[str, Path] = {}
+    parents: dict[str, str] = {}
+    recent: set[str] = set()
     for candidate in sorted(root.glob("*/*/*/*.jsonl")):
         try:
-            if candidate == path or candidate.stat().st_mtime < since:
+            if candidate == path:
                 continue
+            modified = candidate.stat().st_mtime
         except OSError:
             continue
-        parent = _parent(_meta(candidate))
-        if parent:
-            children.setdefault(parent, []).append(candidate)
+        meta = _meta(candidate)
+        thread = str(meta.get("id") or meta.get("session_id") or candidate.stem)
+        paths[thread], parents[thread] = candidate, _parent(meta)
+        if modified >= context.since:
+            recent.add(thread)
+    needed = set(recent)
+    ancestors = list(recent)
+    while ancestors:
+        parent = parents.get(ancestors.pop())
+        if parent and parent not in needed:
+            needed.add(parent)
+            ancestors.append(parent)
+    children: dict[str, list[Path]] = {}
+    for thread, candidate in paths.items():
+        if thread in needed and parents[thread]:
+            children.setdefault(parents[thread], []).append(candidate)
     queue = [(unit.session_id, None)]
     attached: list[tuple[Unit, Unit | None]] = []
     while queue:
         thread, owner = queue.pop(0)
         for candidate in children.get(thread, []):
             child = parse_session(candidate, context, "subagent")
+            if child.session_id not in recent:
+                # An expired ancestor is only a bridge to current work, not fresh evidence of its own.
+                child.evidence.clear()
+                for turn in child.turns:
+                    turn.evidence, turn.branch = False, ""
             child.worker_key = child.session_id
             unit.teammates.append(child)
             attached.append((child, owner))
