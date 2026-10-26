@@ -1369,6 +1369,10 @@ class CodexReviewFindingsTests(unittest.TestCase):
 
             rollout("other", "/work/other", "DiversioTeam/other", "Implement feature/demo-transcripts in this other repository: private-" + "other-repo-" + "sentinel")
             linked = rollout("coordinator", "/work/coordinator", "DiversioTeam/other", "Coordinate https://github.com/DiversioTeam/demo/pull/7")
+            # The coordinator's later reply names only the branch: unrelated work in its own repository.
+            with linked.open("a") as handle:
+                handle.write(json.dumps(_codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "private-" + "later-" + "prompt"}]}, 2)) + "\n")
+                handle.write(json.dumps(_codex("response_item", {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "private-" + "later-" + "reply on feature/demo-transcripts"}]}, 3)) + "\n")
             here = rollout("here", "/work/demo", "DiversioTeam/demo", "Continue feature/demo-transcripts here")
             self.assertEqual(sorted(path.name for path in codex_sessions.find_sessions(demo_context(), Path(directory))), sorted([linked.name, here.name]))
             args = argparse.Namespace(projects_root=empty, pi_root=empty, codex_root=directory, session=None, exclude=None, whole=None)
@@ -1377,6 +1381,8 @@ class CodexReviewFindingsTests(unittest.TestCase):
         self.assertIn("Coordinate https://github.com/DiversioTeam/demo/pull/7", page)
         self.assertIn("Continue feature/demo-transcripts here", page)
         self.assertNotIn("private-other-repo-sentinel", page)
+        self.assertNotIn("private-later-prompt", page)
+        self.assertNotIn("private-later-reply", page)
 
     def test_children_older_than_a_week_before_the_leads_last_write_stay_attached(self):
         import os, time

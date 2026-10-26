@@ -231,7 +231,8 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
     on_branch = (git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug) \
         or context.in_worktree_on_branch(unit.cwd)
     start = int(meta.get("subagent_history_start_ordinal") or 0) if kind == "subagent" else 0
-    markers = context.evidence_pattern(branch=_here(meta, context))
+    unit.branch_counts = _here(meta, context)
+    markers = context.evidence_pattern(branch=unit.branch_counts)
     pending: dict[str, ToolCall] = {}
     # A long-running exec_command leaves a terminal session that write_stdin polls; the polls inherit its withholding.
     terminals: dict[str, str | None] = {}
