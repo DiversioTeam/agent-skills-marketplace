@@ -4,8 +4,9 @@ Layout: ~/.pi/agent/sessions/--<cwd with '/' as '-'>--/<timestamp>_<id>.jsonl. T
 (`type: session`, `cwd`); every other entry has `id` and `parentId`, forming a tree. The active conversation is the
 path from the newest entry back to the root; entries on abandoned branches are counted, not shown. Messages are
 `user`, `assistant` (blocks `text`, `thinking`, `toolCall`) and `toolResult` (by `toolCallId`). Pi does not record the
-git branch, so a session belongs to a branch when it mentions it (or the PR) or ran in a worktree that has it checked
-out.
+git branch, so a session belongs to a branch when it ran in a worktree that has it checked out, mentions the branch while
+running in this repository, or mentions the PR from anywhere (a branch name alone is shared by every repository with a
+branch of that name).
 """
 
 from __future__ import annotations
@@ -75,6 +76,12 @@ def _starts_children(call: ToolCall) -> bool:
     return call.name == "subagent" and not call.input.get("action")
 
 
+def _evidence(context: RepoContext, cwd: str) -> re.Pattern[str] | None:
+    """What ties a session or child to this work, judged by its own directory: in this repository the branch counts;
+    elsewhere only what names this repository, the PR."""
+    return context.evidence_pattern(branch=context.in_repo(cwd))
+
+
 def _run_ids(details: object) -> list[str]:
     """Run ids in a result's structured details (pi-subagents puts `runId` there; its text need not name the run)."""
     if isinstance(details, dict):
@@ -110,7 +117,7 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
     unit = Unit(id=path.stem, harness=HARNESS, kind=kind, title=title or f"Pi session {session_id[:8]}", session_id=session_id,  # type: ignore[arg-type]
                 path=str(path), cwd=str(header.get("cwd", "")))
     active, abandoned = _active_path(entries)
-    markers = context.evidence_pattern()
+    markers = _evidence(context, unit.cwd)
     on_branch = context.in_worktree_on_branch(unit.cwd)
     pending: dict[str, ToolCall] = {}
     # Pi's bash saves truncated output to a file (details.fullOutputPath); reading it inherits the bash call's withholding.
@@ -203,17 +210,36 @@ def _child_entries(transcript: Path) -> list[dict]:
     return entries
 
 
+def _abandoned_runs(entries: list[dict]) -> set[str]:
+    """Run ids that spawning calls on abandoned branches of the session tree started, by their results' structured
+    details."""
+    spawning: set[str] = set()
+    runs: set[str] = set()
+    for entry in entries:
+        message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+        if message.get("role") == "assistant":
+            for block in message.get("content") if isinstance(message.get("content"), list) else []:
+                if isinstance(block, dict) and block.get("type") == "toolCall" and _starts_children(
+                        ToolCall(id="", name=str(block.get("name", "")), input=block.get("arguments") if isinstance(block.get("arguments"), dict) else {})):
+                    spawning.add(str(block.get("id", "")))
+        elif message.get("role") == "toolResult" and str(message.get("toolCallId", "")) in spawning:
+            runs.update(_run_ids(message.get("details")))
+    return runs
+
+
 def load_session(path: Path, context: RepoContext) -> Unit:
     """A Pi session with its pi-subagents children (subagent-artifacts/<run>_<agent>_meta.json naming this session as
     the parent), nested at the call whose result names their run id, or listed after the session."""
     unit = parse_session(path, context)
-    pattern = context.evidence_pattern()
     # Entries on abandoned branches of the session tree are not shown, and neither are the children they started.
     entries = _entries(path)
     active, _ = _active_path(entries)
     kept = {id(entry) for entry in active}
-    abandoned = "\n".join(json.dumps(entry) for entry in entries if entry.get("type") != "session" and id(entry) not in kept)
+    off_path = [entry for entry in entries if entry.get("type") != "session" and id(entry) not in kept]
+    abandoned = "\n".join(json.dumps(entry) for entry in off_path)
+    abandoned_runs = _abandoned_runs(off_path)
     calls = [item.tool for turn in unit.turns for item in turn.items if item.tool]
+    spawns = [call for call in calls if _starts_children(call)]
     for meta_path in sorted((path.parent / "subagent-artifacts").glob("*_meta.json")):
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -232,13 +258,17 @@ def load_session(path: Path, context: RepoContext) -> Unit:
         # related to the run through its children.
         child.worker_key = child.id
         child.task_index = meta["index"] if isinstance(meta.get("index"), int) else None
-        # The result's structured run id names the spawning call; the run id in its input or text is the fallback.
-        spawns = [call for call in calls if _starts_children(call)]
-        spawn = next((call for call in spawns if run_id in unit.runs.get(call.id, [])), None) or next(
-            (call for call in spawns if run_id in json.dumps(call.input) or run_id in (call.output or "")), None)
+        # The result's structured run id names the spawning call. A run an abandoned call started stays out, even when an
+        # active call mentions it; otherwise the run id in the input or text of a call whose result names no run of its
+        # own is the fallback.
+        spawn = next((call for call in spawns if run_id in unit.runs.get(call.id, [])), None)
+        if spawn is None and run_id not in abandoned_runs:
+            spawn = next((call for call in spawns if not unit.runs.get(call.id)
+                          and (run_id in json.dumps(call.input) or run_id in (call.output or ""))), None)
         if spawn is None and run_id in abandoned:
             continue
         tasks = spawn.input.get("tasks") if spawn else None
+        pattern = _evidence(context, child.cwd)
         if pattern and isinstance(tasks, list) and child.task_index is not None and child.task_index < len(tasks) \
                 and pattern.search(json.dumps(tasks[child.task_index], default=str)):
             child.evidence.append("its task names the branch or PR")
@@ -254,11 +284,11 @@ def load_session(path: Path, context: RepoContext) -> Unit:
 
 
 def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
-    """Session files modified since the branch started that ran in a worktree on the branch or mention it or the PR."""
+    """Session files modified since the branch started that ran in a worktree on the branch, mention the branch while in
+    this repository, or mention the PR."""
     root = root or sessions_root()
     if not root.is_dir():
         return []
-    pattern = context.evidence_pattern()
     found = []
     for path in root.glob("*/*.jsonl"):
         try:
@@ -267,9 +297,11 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
             with path.open(encoding="utf-8", errors="replace") as handle:
                 first = handle.readline()
                 header = json.loads(first) if first.strip() else {}
-                if isinstance(header, dict) and context.in_worktree_on_branch(str(header.get("cwd") or "")):
+                cwd = str(header.get("cwd") or "") if isinstance(header, dict) else ""
+                if context.in_worktree_on_branch(cwd):
                     found.append(path)
                     continue
+                pattern = _evidence(context, cwd)
                 if pattern and (pattern.search(first) or any(pattern.search(line) for line in handle)):
                     found.append(path)
         except (OSError, json.JSONDecodeError):
@@ -286,7 +318,9 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
             child_entries = _child_entries(transcript)
         except (OSError, json.JSONDecodeError, AttributeError):
             continue
-        matched = context.in_worktree_on_branch(str(child_entries[0].get("cwd") or "")) or bool(
+        child_cwd = str(child_entries[0].get("cwd") or "")
+        pattern = _evidence(context, child_cwd)
+        matched = context.in_worktree_on_branch(child_cwd) or bool(
             pattern and any(pattern.search(json.dumps(entry)) for entry in child_entries))
         if matched and parent:
             found.extend(path for path in meta_path.parent.parent.glob(f"*_{parent}.jsonl") if path not in found)

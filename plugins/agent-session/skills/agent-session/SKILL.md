@@ -100,7 +100,8 @@ improve.
 - **Pi:** sessions in `~/.pi/agent/sessions/`, following the active path of
   each session tree (abandoned branches are counted, not shown). A Pi session
   belongs to the branch when it ran in a worktree that has the branch checked
-  out, or mentions the branch or PR. The `agent-session` Pi package guards PR
+  out, mentions the branch while running in this repository, or mentions the
+  PR from anywhere. The `agent-session` Pi package guards PR
   create and edit like the Claude Code hook.
 - **Codex:** session parsing for `~/.codex/sessions/` follows in the next
   release; until then, publish the Claude Code and Pi sessions involved and
