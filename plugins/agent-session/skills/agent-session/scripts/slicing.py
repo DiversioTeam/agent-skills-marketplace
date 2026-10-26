@@ -83,7 +83,7 @@ def slice_to_work(unit: Unit, context: RepoContext, whole: bool) -> None:
     for worker in workers:
         if not worker.evidence:
             slice_to_work(worker, context, whole=False)
-    pattern = context.evidence_pattern()
+    pattern = context.evidence_pattern(branch=unit.branch_counts)
     kept: list[Turn] = []
     sliced = False
     for turn in unit.turns:

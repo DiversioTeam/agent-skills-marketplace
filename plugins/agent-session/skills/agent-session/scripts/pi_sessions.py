@@ -117,6 +117,7 @@ def parse_session(path: Path, context: RepoContext, entries: list[dict] | None =
     unit = Unit(id=path.stem, harness=HARNESS, kind=kind, title=title or f"Pi session {session_id[:8]}", session_id=session_id,  # type: ignore[arg-type]
                 path=str(path), cwd=str(header.get("cwd", "")))
     active, abandoned = _active_path(entries)
+    unit.branch_counts = context.in_repo(unit.cwd)
     markers = _evidence(context, unit.cwd)
     on_branch = context.in_worktree_on_branch(unit.cwd)
     pending: dict[str, ToolCall] = {}

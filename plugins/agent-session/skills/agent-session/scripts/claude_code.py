@@ -193,6 +193,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
         unit.evidence.append("mentions the branch or PR")
     if any(turn.branch == context.branch for turn in unit.turns) and context.branch:
         unit.evidence.append(f"ran on branch {context.branch}")
+    unit.branch_counts = context.in_repo(unit.cwd)
     return unit
 
 
