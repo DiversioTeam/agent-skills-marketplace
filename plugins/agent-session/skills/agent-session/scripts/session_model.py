@@ -97,5 +97,8 @@ class Unit:
     task_index: int | None = None
     # Harness-specific: Pi's run ids per tool call id, from structured result details.
     runs: dict[str, list[str]] = field(default_factory=dict)
+    # Whether the branch name alone ties this transcript to the work: it ran in this repository. Elsewhere only the PR
+    # does (a branch name is shared by every repository with a branch of that name).
+    branch_counts: bool = True
     # Other things the reader should know about this transcript (abandoned Pi branches), shown under its heading.
     notes: list[str] = field(default_factory=list)

@@ -953,6 +953,41 @@ class PiChildFindingsTests(unittest.TestCase):
         for page in pages:
             self.assertNotIn("private-abandoned-child", page)
 
+    def test_a_selected_foreign_session_keeps_only_its_pr_turns(self):
+        import argparse
+        pr_url = "https://github.com/DiversioTeam/demo/pull/7"
+
+        def pi_store(folder, cwd):
+            path = Path(folder) / "--s--" / "2026-10-23T10-00-00-000Z_s.jsonl"
+            path.parent.mkdir(parents=True)
+            message = lambda entry_id, parent, role, content: {"type": "message", "id": entry_id, "parentId": parent,
+                                                               "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content}}
+            entries = [{"type": "session", "version": 3, "id": "s", "timestamp": "2026-10-23T10:00:00Z", "cwd": cwd},
+                       message("e1", None, "user", f"Review {pr_url}"),
+                       message("e2", "e1", "user", "private-" + "later-" + "prompt about other work"),
+                       message("e3", "e2", "assistant", [{"type": "text", "text": "private-" + "later-" + "reply on feature/demo-transcripts"}])]
+            path.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
+
+        def claude_store(folder, cwd):
+            path = Path(folder) / "-s" / "cccccccc-0000-0000-0000-000000000000.jsonl"
+            path.parent.mkdir(parents=True)
+            records = [_record("user", f"Review {pr_url}", "2026-10-23T10:00:00Z", branch="main", origin={"kind": "human"}),
+                       _record("user", "private-" + "later-" + "prompt about other work", "2026-10-23T10:01:00Z", branch="main", origin={"kind": "human"}),
+                       _record("assistant", [{"type": "text", "text": "private-" + "later-" + "reply on feature/demo-transcripts"}], "2026-10-23T10:01:05Z", branch="main")]
+            path.write_text("\n".join(json.dumps({**record, "cwd": cwd}) for record in records) + "\n")
+
+        for harness, store in (("pi", pi_store), ("claude", claude_store)):
+            for cwd, here in (("/work/other-repository", False), ("/tmp/demo-repo", True)):
+                with self.subTest(harness=harness, cwd=cwd), tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+                    store(directory, cwd)
+                    roots = {"projects_root": directory if harness == "claude" else empty, "pi_root": directory if harness == "pi" else empty}
+                    units = agent_session.load_units(demo_context(), argparse.Namespace(**roots, session=None, exclude=None, whole=None))
+                    page = "".join(render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")[0])
+                    self.assertIn("Review " + pr_url, page)
+                    # In this repository the branch ties the later turn to the work; elsewhere it does not.
+                    for sentinel in ("private-later-prompt", "private-later-reply"):
+                        (self.assertIn if here else self.assertNotIn)(sentinel, page)
+
     def test_sessions_in_another_repository_need_the_pr_not_just_a_shared_branch_name(self):
         import argparse
         pr_url = "https://github.com/DiversioTeam/demo/pull/7"
