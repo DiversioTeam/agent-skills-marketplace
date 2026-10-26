@@ -72,6 +72,10 @@ git push -u origin promote/YYYY.MM.DD[-N]
 gh pr create --base release --title "Promotion: DDth Month YYYY" --body-file /path/to/reviewed-promotion-notes.md
 ```
 
+Promotion and release PR bodies need a `## Agent sessions` section like every
+DiversioTeam PR: the transcript link from the `agent-session` skill for the
+session that prepared the candidate, or `No agent session: <reason>`.
+
 Feature PRs merge to `dev`; promotion is the intentional move onto `release`.
 The open promotion branch's local-ci run is a preflight only. In Django4Lyfe it
 can run the full parity lanes; failures block readiness. It does not replace

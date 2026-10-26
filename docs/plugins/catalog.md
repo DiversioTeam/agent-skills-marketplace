@@ -181,7 +181,8 @@ when command files change.
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
     `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes`,
-    `cloud-agent-onboarding`, `browser-walkthrough-recording` (24 total).
+    `cloud-agent-onboarding`, `browser-walkthrough-recording`, `agent-session`
+    (25 total).
   - Context: Pi includes skill names, descriptions, and file locations at
     startup; full SKILL.md instructions load on demand.
 - `monolith-review-orchestrator`
@@ -278,6 +279,26 @@ when command files change.
     `/terraform:check-pr`
 
 ## Documentation And Planning
+
+- `agent-session`
+  - Purpose: attach the redacted agent session transcript (developer prompts,
+    replies, tool calls, subagents, agent-team teammates) to every
+    DiversioTeam PR. Renders one script-free HTML page, redacts locally
+    (Courage re-checks), lets the author review and drop turns, publishes to
+    Internal Share through Cloudflare Access, and writes the PR body's
+    `## Agent sessions` section. `share` is one command (render, publish,
+    link, delete the superseded upload); names carry the covered HEAD.
+    `agent-session check` (a shim on PATH, kept current by the plugin) is the
+    per-repo local-ci step that fails when no published transcript covers HEAD.
+    Transcripts are scoped to the PR's work: the worker that did it plus the
+    lead's spawn, messages and prompts about it.
+    Ships a Claude Code `PreToolUse` hook that
+    blocks `gh pr create` and body edits without a link or a
+    `No agent session: <reason>` declaration.
+  - Claude install: `claude plugin install agent-session@diversiotech`
+  - Skill path: `plugins/agent-session/skills/agent-session`
+  - Slash command: `/agent-session:share`
+  - Sessions read: Claude Code now; Pi and Codex next.
 
 - `browser-walkthrough-recording`
   - Purpose: real browser walkthroughs with readable captions, highlights,

@@ -76,6 +76,12 @@ where it helps review; omit empty template sections and redundant file lists.
    Never recommend destructive migration rollback without verifying data safety.
 6. **Related work:** issue linkage and companion PRs, with dependency order
    when one repository consumes another's unpublished change.
+7. **Agent sessions (required in DiversioTeam repos):** a `## Agent sessions`
+   section linking the redacted transcript of the agent sessions behind the
+   PR, or `No agent session: <reason>` when no agent was involved. Use the
+   `agent-session` skill to render, review with the author, publish, and
+   write the section; keep an existing section's links when the work behind
+   them is unchanged. Never invent a link or skip the section.
 
 An optional local setup section, when included, goes after Verification and is
 collapsed (see below).
@@ -119,6 +125,8 @@ writing, moving, or updating one.
   claimed as run without having been run.
 - Existing PR base and draft state are preserved unless a change was requested.
 - Description covers the complete reviewed diff, not unrelated local work.
+- The `## Agent sessions` section has a published Internal Share transcript
+  link or a `No agent session: <reason>` declaration.
 
 ## Deliver Or Update
 

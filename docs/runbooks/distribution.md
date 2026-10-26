@@ -65,6 +65,7 @@ PLUGINS=(
   terraform
   login-cta-attribution-skill
   frontend
+  agent-session
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -109,6 +110,7 @@ PLUGINS=(
   terraform
   login-cta-attribution-skill
   frontend
+  agent-session
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -415,7 +417,8 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
     plugins/terraform/skills/terraform-atomic-commit \
     plugins/terraform/skills/terraform-pr-workflow \
     plugins/login-cta-attribution-skill/skills/login-cta-attribution-skill \
-    plugins/frontend/skills/frontend
+    plugins/frontend/skills/frontend \
+    plugins/agent-session/skills/agent-session
 ```
 
 The installer does not overwrite existing skill directories. Remove or move an
@@ -472,6 +475,7 @@ SKILLS=(
   terraform-pr-workflow
   login-cta-attribution-skill
   frontend
+  agent-session
 )
 
 for skill in "${SKILLS[@]}"; do

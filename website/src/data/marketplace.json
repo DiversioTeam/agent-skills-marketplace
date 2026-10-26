@@ -159,6 +159,20 @@
       "commands": ["generate", "canonicalize"]
     },
     {
+      "name": "agent-session",
+      "category": "Process",
+      "title": "Agent Session Transcripts",
+      "description": "Attach the redacted agent session behind every PR: prompts, replies, tool calls, and subagents, published to Internal Share.",
+      "version": "v0.1.1",
+      "skills": [
+        {
+          "name": "agent-session",
+          "description": "Attach the redacted agent session transcript to a Diversio PR: find, render, review, publish, link."
+        }
+      ],
+      "commands": ["share"]
+    },
+    {
       "name": "browser-walkthrough-recording",
       "category": "Documentation",
       "title": "Browser Walkthrough Recording",

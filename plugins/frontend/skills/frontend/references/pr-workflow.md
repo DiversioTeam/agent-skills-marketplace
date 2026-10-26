@@ -87,7 +87,15 @@ Use this precedence:
 ## Validation
 - commands run
 - preview/sandbox link if applicable
+
+## Agent sessions
+- [Agent session transcript](https://internal-share.diversio.com/session-….html)
 ```
+
+Every DiversioTeam PR body, template or fallback, needs the `## Agent sessions`
+section: the redacted transcript link from the `agent-session` skill, or
+`No agent session: <reason>`. Render, review it with the author, and publish
+before creating the PR; the Claude Code hook blocks `gh pr create` without it.
 
 ### Fallback release PR body
 
