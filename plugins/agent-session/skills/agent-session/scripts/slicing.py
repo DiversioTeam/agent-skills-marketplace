@@ -137,7 +137,7 @@ def slice_to_work(unit: Unit, context: RepoContext, whole: bool) -> None:
     # that spawned or messaged those workers stay, its unrelated work goes.
     for teammate in unit.teammates:
         if teammate.evidence and all(evidence == DELEGATED for evidence in teammate.evidence):
-            _trim_to_workers(teammate, keys, pattern)
+            _trim_to_workers(teammate, keys, context.evidence_pattern(branch=teammate.branch_counts))
     if keys and (sliced or unit.omitted_turns) and not any(turn.branch == context.branch for turn in kept):
         unit.title = f"{unit.title}: only the parts about this work"
     if kept and unit.omitted_turns:

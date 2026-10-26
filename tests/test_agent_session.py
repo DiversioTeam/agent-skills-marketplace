@@ -1400,6 +1400,52 @@ class CodexReviewFindingsTests(unittest.TestCase):
         self.assertNotIn("private-later-prompt", page)
         self.assertNotIn("private-later-reply", page)
 
+    def test_each_poll_in_a_script_needs_its_own_known_origin(self):
+        cases = [
+            ('await tools.write_stdin({session_id:12345, chars:""});\ntext(await tools.write_stdin(args));', False),
+            ('await functions.wait({cell_id:"17"});\ntext(await functions.wait(args));', False),
+            ('text(await tools.write_stdin({session_id:12345, chars:""}));\ntext(await functions.wait({cell_id:"17"}));', True),
+        ]
+        for code, safe in cases:
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                unit = self._rollout(directory, [
+                    _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "m1", "arguments": json.dumps({"cmd": "tail -f build.log"})}, 2),
+                    _codex("response_item", {"type": "function_call_output", "call_id": "m1", "output": "Process running with session ID 12345"}, 3),
+                    _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "m2", "input": "await tools.exec_command({cmd: \"tail -f build.log\", yield_time_ms: 1000})"}, 4),
+                    _codex("response_item", {"type": "custom_tool_call_output", "call_id": "m2", "output": "Script running with cell ID 17"}, 5),
+                    _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "m3", "input": code}, 6),
+                    _codex("response_item", {"type": "custom_tool_call_output", "call_id": "m3", "output": "private-" + "mixed-poll-" + "sentinel"}, 7),
+                ])
+                page = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")[0][0]
+                (self.assertIn if safe else self.assertNotIn)("private-mixed-poll-sentinel", page)
+
+    def test_a_foreign_intermediate_keeps_only_its_delegation(self):
+        import argparse
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+            git = lambda repository, branch: {"branch": branch, "repository_url": f"git@github.com:{repository}.git"}
+            message = lambda role, text, ordinal: _codex("response_item", {"type": "message", "role": role, "content": [
+                {"type": "input_text" if role == "user" else "output_text", "text": text}]}, ordinal)
+            spawn = lambda call, thread, ordinal: [_codex("response_item", {"type": "function_call", "name": "spawn_agent", "call_id": call, "arguments": "{}"}, ordinal),
+                                                   _codex("event_msg", {"type": "item_completed", "item": {"type": "SubAgentActivity", "id": call, "agent_thread_id": thread}}, ordinal + 1)]
+            write = lambda name, records: (day / f"rollout-2026-10-23T11-00-00-{name}.jsonl").write_text("\n".join(json.dumps(record) for record in records) + "\n")
+            write("lead", [_codex("session_meta", {"id": "lead", "cwd": "/work/demo", "git": git("DiversioTeam/demo", "main")}, 0),
+                           message("user", "Coordinate the work", 1), *spawn("c1", "middle", 2)])
+            write("middle", [_codex("session_meta", {"id": "middle", "parent_thread_id": "lead", "cwd": "/work/other", "git": git("DiversioTeam/other", "main")}, 0),
+                             message("user", "Hand it to a worker", 1), *spawn("c2", "worker", 2),
+                             message("user", "private-" + "foreign-later-" + "prompt", 4),
+                             message("assistant", "private-" + "foreign-later-" + "reply on feature/demo-transcripts", 5)])
+            write("worker", [_codex("session_meta", {"id": "worker", "parent_thread_id": "middle", "cwd": "/work/demo", "git": git("DiversioTeam/demo", "feature/demo-transcripts")}, 0),
+                             message("assistant", "Worker did the work", 1)])
+            args = argparse.Namespace(projects_root=empty, pi_root=empty, codex_root=directory, session=None, exclude=None, whole=None)
+            units = agent_session.load_units(demo_context(), args)
+        page = "".join(render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")[0])
+        self.assertIn("Worker did the work", page)
+        self.assertIn("Hand it to a worker", page)
+        self.assertNotIn("private-foreign-later-prompt", page)
+        self.assertNotIn("private-foreign-later-reply", page)
+
     def test_children_older_than_a_week_before_the_leads_last_write_stay_attached(self):
         import os, time
         with tempfile.TemporaryDirectory() as directory:

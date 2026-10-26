@@ -45,9 +45,27 @@ _POLLS = {"write_stdin", "wait"}
 _NESTED_POLL = re.compile(r"""\b(?:tools|functions)(?:\.\s*(?:write_stdin|wait)|\[\s*["'](?:write_stdin|wait)["']\s*\])\s*\(""")
 
 
-def _polls(call: ToolCall) -> bool:
+def _poll_handles(call: ToolCall) -> list[str | None]:
+    """The terminal or cell each poll in a call reads, one entry per poll; None where it cannot be told. Each poll is
+    judged on its own, so a known handle in one poll cannot vouch for another poll in the same script."""
+    if call.name.split("__")[-1] in _POLLS:
+        return [next(iter(_terminal_refs(call.input)), None)]
     code = call.input.get("input")
-    return call.name.split("__")[-1] in _POLLS or isinstance(code, str) and bool(_NESTED_POLL.search(code))
+    if not isinstance(code, str):
+        return []
+    handles: list[str | None] = []
+    for match in _NESTED_POLL.finditer(code):
+        # The poll's own argument text, up to its closing parenthesis; anything harder to read stays unknown.
+        argument = code[match.end():].split(")", 1)[0]
+        refs = _terminal_refs({"input": argument})
+        if not refs:
+            # Shorthand ({session_id}, {cell_id}) names a variable the script assigned a literal to.
+            for name, prefix in (("session_id", ""), ("cell_id", "cell:")):
+                if re.search(rf"(?<![\w$]){name}(?![\w$])", argument):
+                    assigned = re.findall(rf"""(?<![\w$.]){name}\s*=\s*["']?([\w-]+)""", code)
+                    refs = [prefix + assigned[-1]] if len(set(assigned)) == 1 else []
+        handles.append(refs[0] if len(set(refs)) == 1 else None)
+    return handles
 
 
 def _terminal_refs(arguments: dict) -> list[str]:
@@ -284,7 +302,7 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
                 polled = [terminals[handle] for handle in handles if handle in terminals]
                 call.withheld = call.withheld or next((reason for reason in polled if reason), None)
                 # A poll whose terminal or cell cannot be traced to the call that opened it may be reading anything.
-                if not call.withheld and _polls(call) and (not handles or any(handle not in terminals for handle in handles)):
+                if not call.withheld and any(handle is None or handle not in terminals for handle in _poll_handles(call)):
                     call.withheld = "polling output of unknown origin"
                 pending[call.id] = call
                 current(timestamp).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
