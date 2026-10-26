@@ -813,7 +813,7 @@ class CodexTests(unittest.TestCase):
 class PiChildFindingsTests(unittest.TestCase):
     """Regressions for little-person's #117 findings on pi-subagents children."""
 
-    def store(self, directory, lead_cwd, children, tasks=("a", "b"), result="run run-par finished; run run-unrelated finished", details=None):
+    def store(self, directory, lead_cwd, children, tasks=("a", "b"), result="run run-par finished; run run-unrelated finished", details=None, field="tasks"):
         folder = Path(directory) / "--lead--"
         artifacts = folder / "subagent-artifacts"
         artifacts.mkdir(parents=True)
@@ -821,7 +821,7 @@ class PiChildFindingsTests(unittest.TestCase):
                                                                    "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
         entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": lead_cwd},
                    message("e1", None, "user", "Run the workers"),
-                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": list(tasks)}}]),
+                   message("e2", "e1", "assistant", [{"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {field: list(tasks)}}]),
                    message("e3", "e2", "toolResult", [{"type": "text", "text": result}], toolCallId="c1", toolName="subagent",
                            **({"details": details} if details else {}))]
         lead = folder / "2026-10-23T10-00-00-000Z_lead-2.jsonl"
@@ -867,6 +867,22 @@ class PiChildFindingsTests(unittest.TestCase):
         self.assertIn("Implement feature/demo-transcripts", pages[0])
         for sentinel in ("note-sibling", "task-sibling", "result-sibling"):
             self.assertNotIn("private-" + sentinel, pages[0])
+
+    def test_chain_payloads_are_scoped_like_tasks(self):
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+        steps = [{"agent": "worker", "task": "Build the renderer"}, {"agent": "worker", "task": "private-" + "chain-" + "sibling"}]
+        for field in ("chain", "tasks"):
+            for both in (False, True):
+                with self.subTest(field=field, both_relevant=both), tempfile.TemporaryDirectory() as directory:
+                    lead = self.store(directory, "/tmp/demo-repo", [
+                        ("run-par_worker_0", "run-par", "/tmp/demo-repo", say("Did feature/demo-transcripts")),
+                        ("run-par_worker_1", "run-par", "/tmp/demo-repo", say("Also feature/demo-transcripts" if both else "Other work")),
+                    ], tasks=steps, result="run run-par finished", field=field)
+                    unit = pi_sessions.load_session(lead, demo_context())
+                    slicing.slice_to_work(unit, demo_context(), whole=False)
+                    page = "".join(render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")[0])
+                    self.assertIn("Did feature/demo-transcripts", page)
+                    (self.assertIn if both else self.assertNotIn)("private-chain-sibling", page)
 
     def test_a_filtered_siblings_task_prompt_does_not_render(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]

@@ -19,8 +19,8 @@ def nested_subagents(unit: Unit) -> list[Unit]:
 
 def _prune_children(tool: ToolCall, keys: set[str], other_work: bool = False) -> None:
     """One call can start several children (parallel runs). When some do this work, only they stay, and the call keeps
-    only their part of a multi-task payload: other tasks become placeholders, or the whole list is withheld when the
-    children cannot be mapped to tasks. The call's own output, which carries every child's result, is withheld. With
+    only their part of a multi-task payload: other tasks become placeholders, or the whole list (and any chain) is withheld
+    when the children cannot be mapped to tasks. The call's own output, which carries every child's result, is withheld. With
     `other_work` (the turn delegated this work elsewhere), a call whose children all do other work loses them, its
     payload, and its result."""
     children = tool.subagents
@@ -43,6 +43,9 @@ def _prune_children(tool: ToolCall, keys: set[str], other_work: bool = False) ->
         else:
             tasks = "[withheld: tasks shared with other work]"
         tool.input = {**tool.input, "tasks": tasks}
+    # pi-subagents' `chain` steps (some of them parallel groups) do not map to children safely: the whole chain is held.
+    if "chain" in tool.input:
+        tool.input = {**tool.input, "chain": "[withheld: chain steps shared with other work]"}
     tool.withheld = tool.withheld or "results of other work"
 
 
