@@ -708,7 +708,7 @@ class PiSlicingTests(unittest.TestCase):
             lead.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n", encoding="utf-8")
             for run_id, text in (("run-good", "Working on feature/demo-transcripts"), ("run-other", "Cleaning up secret-cleanup")):
                 transcript = artifacts / f"{run_id}_delegate_transcript.jsonl"
-                transcript.write_text(json.dumps({"recordType": "message", "timestamp": "2026-10-23T10:01:00Z",
+                transcript.write_text(json.dumps({"recordType": "message", "cwd": "/tmp/demo-repo", "timestamp": "2026-10-23T10:01:00Z",
                                                   "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n")
                 (artifacts / f"{run_id}_delegate_meta.json").write_text(json.dumps({"runId": run_id, "parentSessionId": "lead-1", "agent": "delegate",
                                                                                     "transcriptPath": str(transcript)}))
@@ -847,7 +847,7 @@ class PiChildFindingsTests(unittest.TestCase):
             {"role": "toolResult", "toolCallId": "k3", "toolName": "bash", "content": [{"type": "text", "text": sentinel}]},
         ]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            lead = self.store(directory, "/tmp/demo-repo", [("run-par_delegate", "run-par", "/tmp/demo-repo", child)])
             unit = pi_sessions.load_session(lead, demo_context())
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn(sentinel, pages[0])
@@ -856,9 +856,9 @@ class PiChildFindingsTests(unittest.TestCase):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         tasks = [{"agent": "worker", "task": "Implement feature/demo-transcripts"}, {"agent": "worker", "task": "private-" + "task-" + "sibling"}]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [
-                ("run-par_worker_0", "run-par", "/elsewhere", say("Did the work")),
-                ("run-par_worker_1", "run-par", "/elsewhere", say("private-" + "note-" + "sibling")),
+            lead = self.store(directory, "/tmp/demo-repo", [
+                ("run-par_worker_0", "run-par", "/tmp/demo-repo", say("Did the work")),
+                ("run-par_worker_1", "run-par", "/tmp/demo-repo", say("private-" + "note-" + "sibling")),
             ], tasks=tasks, result="run run-par: worker 0 did the work; worker 1 found private-" + "result-" + "sibling")
             unit = pi_sessions.load_session(lead, demo_context())
         slicing.slice_to_work(unit, demo_context(), whole=False)
@@ -872,9 +872,9 @@ class PiChildFindingsTests(unittest.TestCase):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         tasks = [{"agent": "worker", "task": "Build the renderer"}, {"agent": "worker", "task": "private-" + "task-" + "other"}]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [
-                ("run-par_worker_0", "run-par", "/elsewhere", say("Did feature/demo-transcripts")),
-                ("run-par_worker_1", "run-par", "/elsewhere", say("Other work")),
+            lead = self.store(directory, "/tmp/demo-repo", [
+                ("run-par_worker_0", "run-par", "/tmp/demo-repo", say("Did feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/tmp/demo-repo", say("Other work")),
             ], tasks=tasks)
             unit = pi_sessions.load_session(lead, demo_context())
         slicing.slice_to_work(unit, demo_context(), whole=False)
@@ -891,7 +891,7 @@ class PiChildFindingsTests(unittest.TestCase):
             {"role": "toolResult", "toolCallId": "k1", "toolName": "edit", "content": [{"type": "text", "text": "Edited"}]},
         ]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            lead = self.store(directory, "/tmp/demo-repo", [("run-par_delegate", "run-par", "/tmp/demo-repo", child)])
             unit = pi_sessions.load_session(lead, demo_context())
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertIn("/work/demo/.env", pages[0])
@@ -901,13 +901,13 @@ class PiChildFindingsTests(unittest.TestCase):
     def test_a_turn_naming_the_work_drops_its_spawns_for_other_work(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [
-                ("run-a_worker_0", "run-a", "/elsewhere", say("Did the work")),
-                ("run-b_worker_0", "run-b", "/elsewhere", say("private-" + "other-" + "child")),
+            lead = self.store(directory, "/tmp/demo-repo", [
+                ("run-a_worker_0", "run-a", "/tmp/demo-repo", say("Did the work")),
+                ("run-b_worker_0", "run-b", "/tmp/demo-repo", say("private-" + "other-" + "child")),
             ])
             message = lambda entry_id, parent, role, content, **extra: {"type": "message", "id": entry_id, "parentId": parent,
                                                                        "timestamp": "2026-10-23T10:00:00Z", "message": {"role": role, "content": content, **extra}}
-            entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": "/elsewhere"},
+            entries = [{"type": "session", "version": 3, "id": "lead-2", "timestamp": "2026-10-23T10:00:00Z", "cwd": "/tmp/demo-repo"},
                        message("e1", None, "user", "Run both"),
                        message("e2", "e1", "assistant", [
                            {"type": "toolCall", "id": "c1", "name": "subagent", "arguments": {"tasks": [{"agent": "worker", "task": "Implement feature/demo-transcripts"}]}},
@@ -926,7 +926,7 @@ class PiChildFindingsTests(unittest.TestCase):
     def test_children_spawned_on_an_abandoned_branch_are_not_shown(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", say("private-" + "abandoned-" + "child on feature/demo-transcripts"))],
+            lead = self.store(directory, "/tmp/demo-repo", [("run-par_delegate", "run-par", "/tmp/demo-repo", say("private-" + "abandoned-" + "child on feature/demo-transcripts"))],
                               result="Done.", details={"runId": "run-par"})
             # The developer went back to e1 and continued differently: e2 and e3 (the spawn and its result) are abandoned.
             with lead.open("a") as handle:
@@ -937,20 +937,57 @@ class PiChildFindingsTests(unittest.TestCase):
                         ("e5", "e4", {"role": "assistant", "content": [{"type": "toolCall", "id": "l1", "name": "bash", "arguments": {"command": "ls subagent-artifacts"}}]}),
                         ("e6", "e5", {"role": "toolResult", "toolCallId": "l1", "toolName": "bash",
                                       "content": [{"type": "text", "text": "run-par_delegate_meta.json\nrun-par_delegate_transcript.jsonl"}]}),
-                        ("e7", "e6", {"role": "assistant", "content": [{"type": "toolCall", "id": "s1", "name": "subagent", "arguments": {"action": "status", "runId": "run-par"}}]})):
+                        ("e7", "e6", {"role": "assistant", "content": [{"type": "toolCall", "id": "s1", "name": "subagent", "arguments": {"action": "status", "runId": "run-par"}}]}),
+                        # An active spawn whose task names the abandoned run, but whose result says it started its own.
+                        ("e8", "e7", {"role": "assistant", "content": [{"type": "toolCall", "id": "c2", "name": "subagent",
+                                                                        "arguments": {"agent": "delegate", "task": "Do the artifact files for run-par exist?"}}]}),
+                        ("e9", "e8", {"role": "toolResult", "toolCallId": "c2", "toolName": "subagent", "content": [{"type": "text", "text": "Artifacts exist."}],
+                                      "details": {"runId": "run-new"}})):
                     handle.write(json.dumps({"type": "message", "id": entry_id, "parentId": parent, "timestamp": "2026-10-23T10:06:00Z", "message": message}) + "\n")
             unit = pi_sessions.load_session(lead, demo_context())
         self.assertEqual(unit.teammates, [])
         slicing.slice_to_work(unit, demo_context(), whole=False)
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertIn("Continue on feature/demo-transcripts another way", "".join(pages))
+        self.assertIn("Artifacts exist.", "".join(pages))
         for page in pages:
             self.assertNotIn("private-abandoned-child", page)
+
+    def test_sessions_in_another_repository_need_the_pr_not_just_a_shared_branch_name(self):
+        import argparse
+        pr_url = "https://github.com/DiversioTeam/demo/pull/7"
+        say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
+
+        def native(folder, session_id, cwd, text):
+            path = Path(folder) / f"--{session_id}--" / f"2026-10-23T10-00-00-000Z_{session_id}.jsonl"
+            path.parent.mkdir(parents=True)
+            entries = [{"type": "session", "version": 3, "id": session_id, "timestamp": "2026-10-23T10:00:00Z", "cwd": cwd},
+                       {"type": "message", "id": "e1", "parentId": None, "timestamp": "2026-10-23T10:00:00Z", "message": {"role": "user", "content": text}}]
+            path.write_text("\n".join(json.dumps(entry) for entry in entries) + "\n")
+            return path
+
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            foreign = native(directory, "foreign", "/work/other-repository", "Work on feature/demo-transcripts: private-" + "foreign-" + "native")
+            linked = native(directory, "linked", "/work/other-repository", f"Review {pr_url}")
+            here = native(directory, "here", "/tmp/demo-repo/backend", "Work on feature/demo-transcripts here")
+            # A lead elsewhere whose only child also ran elsewhere and names just the branch.
+            lead = self.store(directory, "/work/coordinator", [("run-far_delegate", "run-far", "/work/other-repository",
+                                                                say("private-" + "foreign-" + "child on feature/demo-transcripts"))],
+                              result="Done.", details={"runId": "run-far"})
+            self.assertEqual(sorted(path.name for path in pi_sessions.find_sessions(demo_context(), Path(directory))), sorted([linked.name, here.name]))
+            self.assertEqual(pi_sessions.parse_session(foreign, demo_context()).evidence, [])
+            args = argparse.Namespace(projects_root=empty, pi_root=directory, session=None, exclude=None, whole=None)
+            units = agent_session.load_units(demo_context(), args)
+        page = "".join(render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")[0])
+        self.assertIn("Work on feature/demo-transcripts here", page)
+        self.assertIn("Review " + pr_url, page)
+        self.assertNotIn("private-foreign-native", page)
+        self.assertNotIn("private-foreign-child", page)
 
     def test_structured_run_ids_attach_children_to_their_spawning_call(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", say("Did feature/demo-transcripts"))],
+            lead = self.store(directory, "/tmp/demo-repo", [("run-par_delegate", "run-par", "/tmp/demo-repo", say("Did feature/demo-transcripts"))],
                               tasks=[{"agent": "delegate", "task": "spawn-" + "task-" + "marker"}], result="All done.",
                               details={"mode": "single", "runId": "run-par"})
             unit = pi_sessions.load_session(lead, demo_context())
@@ -964,9 +1001,9 @@ class PiChildFindingsTests(unittest.TestCase):
         import argparse
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
-            self.store(directory, "/elsewhere", [
-                ("run-x_worker_0", "run-x", "/elsewhere", say("private-" + "excluded-" + "worker on feature/demo-transcripts")),
-                ("run-x_worker_1", "run-x", "/elsewhere", say("Kept worker on feature/demo-transcripts")),
+            self.store(directory, "/tmp/demo-repo", [
+                ("run-x_worker_0", "run-x", "/tmp/demo-repo", say("private-" + "excluded-" + "worker on feature/demo-transcripts")),
+                ("run-x_worker_1", "run-x", "/tmp/demo-repo", say("Kept worker on feature/demo-transcripts")),
             ], result="done")
             args = argparse.Namespace(projects_root=empty, pi_root=directory, codex_root=empty, session=None, exclude=["run-x_worker_0"], whole=None)
             units = agent_session.load_units(demo_context(), args)
@@ -986,7 +1023,7 @@ class PiChildFindingsTests(unittest.TestCase):
             {"role": "toolResult", "toolCallId": "k3", "toolName": "bash", "content": [{"type": "text", "text": sentinel + "-2"}]},
         ]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            lead = self.store(directory, "/tmp/demo-repo", [("run-par_delegate", "run-par", "/tmp/demo-repo", child)])
             unit = pi_sessions.load_session(lead, demo_context())
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn(sentinel, pages[0])
@@ -994,10 +1031,10 @@ class PiChildFindingsTests(unittest.TestCase):
     def test_parallel_children_of_one_call_all_render_and_unrelated_ones_are_filtered(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [
-                ("run-par_worker_0", "run-par", "/elsewhere", say("First half of feature/demo-transcripts")),
-                ("run-par_worker_1", "run-par", "/elsewhere", say("Second half of feature/demo-transcripts")),
-                ("run-unrelated_cleaner", "run-unrelated", "/elsewhere", say("secret-unrelated cleanup")),
+            lead = self.store(directory, "/tmp/demo-repo", [
+                ("run-par_worker_0", "run-par", "/tmp/demo-repo", say("First half of feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/tmp/demo-repo", say("Second half of feature/demo-transcripts")),
+                ("run-unrelated_cleaner", "run-unrelated", "/tmp/demo-repo", say("secret-unrelated cleanup")),
             ])
             unit = pi_sessions.load_session(lead, demo_context())
         slicing.slice_to_work(unit, demo_context(), whole=False)
@@ -1009,9 +1046,9 @@ class PiChildFindingsTests(unittest.TestCase):
     def test_siblings_sharing_a_run_id_are_selected_one_by_one(self):
         say = lambda text: [{"role": "assistant", "content": [{"type": "text", "text": text}]}]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [
-                ("run-par_worker_0", "run-par", "/elsewhere", say("Did feature/demo-transcripts")),
-                ("run-par_worker_1", "run-par", "/elsewhere", say("private-" + "note-" + "sibling")),
+            lead = self.store(directory, "/tmp/demo-repo", [
+                ("run-par_worker_0", "run-par", "/tmp/demo-repo", say("Did feature/demo-transcripts")),
+                ("run-par_worker_1", "run-par", "/tmp/demo-repo", say("private-" + "note-" + "sibling")),
             ])
             unit = pi_sessions.load_session(lead, demo_context())
         slicing.slice_to_work(unit, demo_context(), whole=False)
@@ -1030,7 +1067,7 @@ class PiChildFindingsTests(unittest.TestCase):
             {"role": "toolResult", "toolCallId": "k2", "toolName": "read", "content": [{"type": "text", "text": sentinel}]},
         ]
         with tempfile.TemporaryDirectory() as directory:
-            lead = self.store(directory, "/elsewhere", [("run-par_delegate", "run-par", "/elsewhere", child)])
+            lead = self.store(directory, "/tmp/demo-repo", [("run-par_delegate", "run-par", "/tmp/demo-repo", child)])
             unit = pi_sessions.load_session(lead, demo_context())
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn(sentinel, pages[0])
@@ -1039,7 +1076,7 @@ class PiChildFindingsTests(unittest.TestCase):
         say = [{"role": "assistant", "content": [{"type": "text", "text": "Did the work"}]}]
         for child_cwd, expected in (("/work/demo/backend", True), ("/work/demo-other", False)):
             with tempfile.TemporaryDirectory() as directory:
-                lead = self.store(directory, "/elsewhere", [("run-par_worker", "run-par", child_cwd, say)])
+                lead = self.store(directory, "/tmp/demo-repo", [("run-par_worker", "run-par", child_cwd, say)])
                 context = demo_context()
                 context.worktree_branches = {"/work/demo": "feature/demo-transcripts"}
                 self.assertEqual(pi_sessions.find_sessions(context, Path(directory)), [lead] if expected else [], child_cwd)
