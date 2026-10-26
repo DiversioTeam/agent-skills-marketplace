@@ -116,6 +116,13 @@ have required schemas defined in `references/digest-schema.md`.
 Include freshness evidence: generated commit SHA, inspected file list, key
 file hashes or mtimes.
 
+## Design-system dependency work
+
+When a Diversio feature spans DS and a consuming frontend, read
+[references/design-system-dev-builds.md](references/design-system-dev-builds.md).
+Use repeatable exact dev prereleases during implementation, review and sandbox testing; reserve the stable-package
+requirement for the consumer merge handoff. Do not turn missing stable publication into an iteration blocker.
+
 ## Lane Routing
 
 After loading or detecting context, choose the requested lane and read only

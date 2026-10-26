@@ -63,9 +63,29 @@ Do not paste full process environments into chat because they may hold secrets.
 
 ## Make Frontend Consume DS Changes
 
-Only do this when the frontend actually needs the DS change and existing hooks
-have not already linked it. A separate DS checkout/Storybook process is not
-proof of frontend consumption.
+Only do this when the frontend actually needs the DS change. A separate DS
+checkout/Storybook process is not proof of frontend consumption.
+
+### Repeatable feature builds (preferred)
+
+For authorized feature integration, publish `pnpm release:dev` from the intended
+clean pushed DS checkout. Install its exact printed version in the matching
+consumer feature branch and update that branch's manifest and lockfile. Verify
+both the sandbox checkout and installed package; restart the discovered daemon
+and test the affected screen. Repeat for changed DS snapshots as needed. Never
+use a moving dev-tag pin or assume another feature's build is the right one.
+
+Do not block feature sandboxes waiting for stable publication. At the consumer
+merge handoff, coordinate a stable DS artifact containing the changes, replace
+the dev pin, remove overrides and revalidate a clean install. Retain normal
+publication authority, credentials, sandbox ownership and merge gates.
+See the [publisher](https://github.com/DiversioTeam/diversio-ds/blob/dev/scripts/release/README.md)
+and [cross-repo workflow](https://github.com/DiversioTeam/monolith/blob/main/docs/dev-guides/design-system-dev-builds.md).
+
+### Temporary installed-build override
+
+Use this alternative only for an authorized ephemeral probe, not as proof of a
+reproducible package install. Preserve existing manifest/lockfile pins in this lane.
 
 1. Inspect the frontend package manager, installed DS package location, build
    layout, workspace paths, and daemon name. Confirm both workspace SHAs and

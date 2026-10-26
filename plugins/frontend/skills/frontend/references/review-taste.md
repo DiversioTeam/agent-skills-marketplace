@@ -12,10 +12,14 @@ local stack and workflow context.
      matches.
 
 2. Dependency readiness is part of correctness.
-   - Do not approve frontend changes that rely on unpublished or unavailable
-     design-system/runtime capabilities.
-   - Treat app <-> design-system version mismatches and missing consumer support
-     as real review findings.
+   - Verify the actual installed artifact contains the capabilities the feature uses.
+     An exact published DS dev prerelease is valid during feature implementation,
+     review and sandbox testing; it is not an unpublished dependency.
+   - Missing exports, inaccessible packages and installed/source mismatches remain
+     real findings. Do not require stable publication merely to continue iteration.
+   - At the consumer merge handoff, require the appropriate stable pin and renewed
+     consumer checks. Separate that gate from code-review or dev-build evidence;
+     follow [the dependency-stage rules](design-system-dev-builds.md).
 
 3. User-visible semantics matter.
    - A visual cleanup that removes state cues, hierarchy, affordance, or

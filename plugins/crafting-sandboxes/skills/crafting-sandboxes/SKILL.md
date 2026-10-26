@@ -73,10 +73,14 @@ shows template defaults.
 
 When frontend needs DS changes, a correct `ds` branch is not sufficient:
 frontend normally consumes its installed `@diversioteam/diversio-ds` package.
-Check whether current manifests already link/build the workspace. Otherwise,
-use the reference's build → staged transfer → replace installed `dist` → clear
-Vite cache → restart flow with approved target paths and rollback protection.
-Do not change package manifests or lockfiles merely to test a sandbox build.
+Check whether current manifests already link/build the workspace. For authorized
+feature integration, prefer repeatable exact DS dev prereleases in the matching
+consumer feature branch, updating its manifest and lockfile together. Verify the
+installed artifact in the actual sandbox. A stable DS release is a consumer
+merge-handoff requirement, not a sandbox/iteration prerequisite.
+For an explicitly temporary package override, use the reference's staged transfer
+and rollback flow without changing manifests/lockfiles. Neither path authorizes
+publishing, pushing or changing another owner's sandbox during a read-only task.
 
 For an approved snapshot restore, update the definition, restore the live
 Postgres dependency, then run migrations using the backend's actual interpreter
