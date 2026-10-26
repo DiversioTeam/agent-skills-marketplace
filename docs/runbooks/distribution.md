@@ -141,7 +141,7 @@ not the Claude Code marketplace.
 ### Git-based install (recommended)
 
 The root `package.json` at the top of this repo declares every sub-package so pi
-can discover all seven from a single clone. One command replaces seven:
+can discover all eight from a single clone. One command replaces eight:
 
 ```bash
 pi install git:github.com/DiversioTeam/agent-skills-marketplace
@@ -171,7 +171,7 @@ Pinned refs are skipped by `pi update --extensions`.
 `~/.pi/agent/git/github.com/DiversioTeam/agent-skills-marketplace`, runs
 `npm install` if a `package.json` exists, and then reads the `pi` manifest to
 discover extensions, skills, prompts, and themes. The root manifest points into
-the `pi-packages/` subdirectories so pi finds `ci-status`, `dev-workflow`,
+the `pi-packages/` subdirectories so pi finds `agent-session`, `ci-status`, `dev-workflow`,
 `image-router`, `oh-my-pi`, `pi-monitor`, `pi-timestamps`, and `skills-bridge` without any
 extra configuration.
 
@@ -192,6 +192,7 @@ pi install "$PWD/pi-packages/oh-my-pi"
 pi install "$PWD/pi-packages/pi-monitor"
 pi install "$PWD/pi-packages/pi-timestamps"
 pi install "$PWD/pi-packages/skills-bridge"
+pi install "$PWD/pi-packages/agent-session"
 ```
 
 From the Diversio monolith root, include the submodule path:
@@ -204,6 +205,7 @@ pi install "$PWD/agent-skills-marketplace/pi-packages/oh-my-pi"
 pi install "$PWD/agent-skills-marketplace/pi-packages/pi-monitor"
 pi install "$PWD/agent-skills-marketplace/pi-packages/pi-timestamps"
 pi install "$PWD/agent-skills-marketplace/pi-packages/skills-bridge"
+pi install "$PWD/agent-skills-marketplace/pi-packages/agent-session"
 ```
 
 Before local-path installs or `-e` smoke tests of `dev-workflow` or `oh-my-pi`,
@@ -223,6 +225,7 @@ pi --no-extensions -e ./pi-packages/oh-my-pi
 pi --no-extensions -e ./pi-packages/pi-monitor
 pi --no-extensions -e ./pi-packages/pi-timestamps
 pi --no-extensions -e ./pi-packages/skills-bridge
+pi --no-extensions -e ./pi-packages/agent-session
 ```
 
 Use `-l` only when you need to test project-local install, reload, or
@@ -236,6 +239,7 @@ pi install -l ./pi-packages/oh-my-pi
 pi install -l ./pi-packages/pi-monitor
 pi install -l ./pi-packages/pi-timestamps
 pi install -l ./pi-packages/skills-bridge
+pi install -l ./pi-packages/agent-session
 ```
 
 Install a pi package in one scope at a time. Pi deduplicates the same package
@@ -278,6 +282,9 @@ pi-timestamps -> subtle per-turn transcript timing rows for exact timestamps,
                  timezone labels, and a live newest-turn status line
 
 skills-bridge -> selects marketplace skills from config or the current checkout
+
+agent-session -> blocks PR create and body edits in DiversioTeam repos without
+                 an agent session transcript link or a declaration
 ```
 
 `image-router` 0.2.x removes automatic cross-model/provider fallback. Saved

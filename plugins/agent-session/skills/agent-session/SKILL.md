@@ -49,9 +49,9 @@ Run from the repository (any worktree) on the PR's branch, after the last
 commit you are about to push: the transcript records the commits it covers
 (base..HEAD) and its name carries `h<HEAD12>`, so new commits make it stale.
 
-1. **Find (optional).** `python3 "$S" find [--pr N]` lists sessions that ran
-   on this branch, linked this PR, or mention the branch or PR URL, with their
-   teammates. Add a missing one with `--session ID`, drop one with
+1. **Find (optional).** `python3 "$S" find [--pr N]` lists Claude Code and Pi
+   sessions that ran on this branch, linked this PR, or mention the branch or
+   PR URL, with their subagents and teammates. Add a missing one with `--session ID`, drop one with
    `--exclude ID`, keep a whole session with `--whole ID` (on `share` too).
 2. **Share.** `python3 "$S" share [--pr N] --open` finds the PR with `gh`
    when `--pr` is omitted, writes the preview to
@@ -97,7 +97,12 @@ improve.
 - **Claude Code:** sessions in `~/.claude/projects/`, with subagents and agent
   team teammates from each session's `subagents/` folder. The hook in this
   plugin enforces the link.
-- **Pi and Codex:** session parsing for `~/.pi/agent/sessions/` and
-  `~/.codex/sessions/` follows in the next release; until then, publish the
-  Claude Code sessions involved, or declare `No agent session: <reason>` and
-  name the agent in the reason. local-ci's check still applies.
+- **Pi:** sessions in `~/.pi/agent/sessions/`, following the active path of
+  each session tree (abandoned branches are counted, not shown). A Pi session
+  belongs to the branch when it ran in a worktree that has the branch checked
+  out, mentions the branch while running in this repository, or mentions the
+  PR from anywhere. The `agent-session` Pi package guards PR
+  create and edit like the Claude Code hook.
+- **Codex:** session parsing for `~/.codex/sessions/` follows in the next
+  release; until then, publish the Claude Code and Pi sessions involved and
+  say in the PR that Codex was used. local-ci's check still applies.

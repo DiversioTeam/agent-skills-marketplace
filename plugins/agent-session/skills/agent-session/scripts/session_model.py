@@ -18,8 +18,13 @@ class ToolCall:
     is_error: bool = False
     # Why the output (and file contents in the input) are not published, if they are not.
     withheld: str | None = None
-    # A subagent this call started, rendered nested at the call site.
+    # A subagent this call started, rendered nested at the call site, and any more it started in parallel.
     subagent: Unit | None = None
+    more_subagents: list[Unit] = field(default_factory=list)
+
+    @property
+    def subagents(self) -> list[Unit]:
+        return [*([self.subagent] if self.subagent else []), *self.more_subagents]
     # The worker (subagent, teammate, child thread) this call spawned or messaged, by its worker_key.
     links_to: str = ""
 
@@ -88,3 +93,12 @@ class Unit:
     omitted_turns: int = 0
     # How a lead's calls and messages name this worker: a teammate's name, a subagent's tool-use id, a run or thread id.
     worker_key: str = ""
+    # Which task of a multi-task spawning call this worker ran (pi-subagents' parallel `tasks`), when known.
+    task_index: int | None = None
+    # Harness-specific: Pi's run ids per tool call id, from structured result details.
+    runs: dict[str, list[str]] = field(default_factory=dict)
+    # Whether the branch name alone ties this transcript to the work: it ran in this repository. Elsewhere only the PR
+    # does (a branch name is shared by every repository with a branch of that name).
+    branch_counts: bool = True
+    # Other things the reader should know about this transcript (abandoned Pi branches), shown under its heading.
+    notes: list[str] = field(default_factory=list)

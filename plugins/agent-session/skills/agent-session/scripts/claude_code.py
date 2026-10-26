@@ -14,6 +14,7 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
+from provenance import Provenance
 from redaction import withheld_reason
 from repo_context import RepoContext
 from session_model import Item, Tokens, ToolCall, Turn, Unit
@@ -57,10 +58,6 @@ def _tool_output(content: object) -> str:
 
 _BACKGROUND_ID = re.compile(r"\bwith ID:?\s*([A-Za-z0-9_-]{4,})")
 _BACKGROUND_FILE = re.compile(r"Output is being written to:?\s*(\S+?)\.?(?:\s|$)")
-# Tools whose output is another call's background output.
-_BACKGROUND_READERS = {"TaskOutput", "BashOutput", "AgentOutputTool"}
-
-
 def _worker_link(call: ToolCall) -> str:
     """Which worker a call spawns or messages: a teammate by name (Agent's `name`, SendMessage's `to`), else a
     subagent by the Agent call's own id."""
@@ -73,16 +70,6 @@ def _worker_link(call: ToolCall) -> str:
 
 def _background_handles(output: str) -> list[str]:
     return [*_BACKGROUND_ID.findall(output), *_BACKGROUND_FILE.findall(output)]
-
-
-def _inherited_reason(call: ToolCall, background: dict[str, str | None]) -> str | None:
-    """A call that reads background output inherits the withholding of the call that started it; an unknown origin is
-    withheld, since the output could be anything."""
-    flat = json.dumps(call.input, default=str)
-    reasons = [reason for handle, reason in background.items() if handle in flat]
-    if reasons:
-        return next((reason for reason in reasons if reason), None)
-    return "background output of unknown origin" if call.name in _BACKGROUND_READERS else None
 
 
 def _classify(text: str, record: dict[str, object], in_subagent: bool) -> tuple[str, str, str] | None:
@@ -115,8 +102,8 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
     unit = Unit(id=path.stem, harness=HARNESS, kind=kind, title=title, session_id=session_id, path=str(path),  # type: ignore[arg-type]
                 parent_tool_use_id=parent_tool_use_id)
     pending: dict[str, ToolCall] = {}
-    # Background work (a task id, its output file) mapped to the withholding reason of the call that started it.
-    background: dict[str, str | None] = {}
+    # Background work (a task id, its output file) carries the withholding of the call that started it.
+    background = Provenance()
     counted: set[str] = set()
     turn: Turn | None = None
     # Each transcript is judged by its own repository: inside this one its branch counts; elsewhere (a teammate or
@@ -171,7 +158,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
                     tool_input = block.get("input") if isinstance(block.get("input"), dict) else {}
                     call = ToolCall(id=str(block.get("id", "")), name=str(block.get("name", "")), input=tool_input,  # type: ignore[arg-type]
                                     timestamp=timestamp)
-                    call.withheld = withheld_reason(call.name, call.input) or _inherited_reason(call, background)
+                    call.withheld = withheld_reason(call.name, call.input) or background.inherited(call)
                     call.links_to = _worker_link(call)
                     pending[call.id] = call
                     current(timestamp, branch).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
@@ -187,8 +174,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
                     if call:
                         call.output = _tool_output(block.get("content"))
                         call.is_error = bool(block.get("is_error"))
-                        for handle in _background_handles(call.output):
-                            background[handle] = call.withheld
+                        background.record(_background_handles(call.output), call.withheld)
                 elif block.get("type") == "text":
                     texts.append(str(block.get("text", "")))
                 elif block.get("type") == "image":
@@ -207,6 +193,7 @@ def parse_unit(path: Path, kind: str, title: str, context: RepoContext, parent_t
         unit.evidence.append("mentions the branch or PR")
     if any(turn.branch == context.branch for turn in unit.turns) and context.branch:
         unit.evidence.append(f"ran on branch {context.branch}")
+    unit.branch_counts = context.in_repo(unit.cwd)
     return unit
 
 
