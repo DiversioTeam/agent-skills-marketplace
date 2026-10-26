@@ -1292,6 +1292,57 @@ class CodexReviewFindingsTests(unittest.TestCase):
         pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
         self.assertNotIn("staging-cell-line", pages[0])
 
+    def test_shorthand_and_untraceable_polls_stay_withheld(self):
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "function_call", "name": "exec_command", "call_id": "p1", "arguments": json.dumps({"cmd": "ssh staging 'tail -f app.log'"})}, 2),
+                _codex("response_item", {"type": "function_call_output", "call_id": "p1", "output": "Process running with session ID 12345"}, 3),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "p2",
+                                         "input": 'const session_id = 12345;\ntext(await tools.write_stdin({session_id, chars: ""}));'}, 4),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "p2", "output": "private-" + "staging-poll-" + "sentinel"}, 5),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "p3",
+                                         "input": "await tools.exec_command({cmd: \"ssh staging 'tail -f app.log'\", yield_time_ms: 1000})"}, 6),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "p3", "output": "Script running with cell ID 17"}, 7),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "p4",
+                                         "input": 'const cell_id = "17";\ntext(await functions.wait({cell_id}));'}, 8),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "p4", "output": "private-" + "staging-cell-" + "sentinel"}, 9),
+                # A poll whose handle is computed, or names a terminal no recorded call opened, may be reading anything.
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "p5", "input": "text(await tools.write_stdin(args));"}, 10),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "p5", "output": "private-" + "computed-poll-" + "sentinel"}, 11),
+                _codex("response_item", {"type": "function_call", "name": "write_stdin", "call_id": "p6", "arguments": json.dumps({"session_id": 999, "chars": ""})}, 12),
+                _codex("response_item", {"type": "function_call_output", "call_id": "p6", "output": "private-" + "unknown-terminal-" + "sentinel"}, 13),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool],
+                         ["prod or staging data access"] * 4 + ["polling output of unknown origin"] * 2)
+        pages, _ = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")
+        for sentinel in ("staging-poll", "staging-cell", "computed-poll", "unknown-terminal"):
+            self.assertNotIn(f"private-{sentinel}-sentinel", pages[0])
+
+    def test_rollouts_in_another_repository_need_the_pr_not_just_a_shared_branch_name(self):
+        import argparse
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+
+            def rollout(thread, cwd, repository, prompt):
+                meta = {"id": thread, "cwd": cwd, "git": {"branch": "main", "repository_url": f"git@github.com:{repository}.git"}}
+                path = day / f"rollout-2026-10-23T11-00-00-{thread}.jsonl"
+                path.write_text("\n".join(json.dumps(record) for record in [
+                    _codex("session_meta", meta, 0),
+                    _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": prompt}]}, 1)]) + "\n")
+                return path
+
+            rollout("other", "/work/other", "DiversioTeam/other", "Implement feature/demo-transcripts in this other repository: private-" + "other-repo-" + "sentinel")
+            linked = rollout("coordinator", "/work/coordinator", "DiversioTeam/other", "Coordinate https://github.com/DiversioTeam/demo/pull/7")
+            here = rollout("here", "/work/demo", "DiversioTeam/demo", "Continue feature/demo-transcripts here")
+            self.assertEqual(sorted(path.name for path in codex_sessions.find_sessions(demo_context(), Path(directory))), sorted([linked.name, here.name]))
+            args = argparse.Namespace(projects_root=empty, pi_root=empty, codex_root=directory, session=None, exclude=None, whole=None)
+            units = agent_session.load_units(demo_context(), args)
+        page = "".join(render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")[0])
+        self.assertIn("Coordinate https://github.com/DiversioTeam/demo/pull/7", page)
+        self.assertIn("Continue feature/demo-transcripts here", page)
+        self.assertNotIn("private-other-repo-sentinel", page)
+
     def test_children_older_than_a_week_before_the_leads_last_write_stay_attached(self):
         import os, time
         with tempfile.TemporaryDirectory() as directory:

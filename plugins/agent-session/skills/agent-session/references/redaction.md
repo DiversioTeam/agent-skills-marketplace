@@ -30,7 +30,9 @@ The tool call still shows its input; the output is replaced with a reason.
   whether a file tool or a shell command (`cat`, `source`, `cp`) touches them.
 - **background output:** `TaskOutput`, `BashOutput` and reads of a background
   task's output file inherit the withholding of the call that started the task;
-  output from a task of unknown origin is withheld.
+  output from a task of unknown origin is withheld. Codex `write_stdin` and
+  `wait` polls inherit from the call that opened their terminal or cell; a poll
+  whose handle cannot be traced to one is withheld.
 - **command prints credentials:** `env`, `printenv`, `op read|inject|run`,
   `security find-*-password`, `gh auth token`, `aws configure export-credentials`,
   `kubectl get secret`, `cat .env`, and similar.

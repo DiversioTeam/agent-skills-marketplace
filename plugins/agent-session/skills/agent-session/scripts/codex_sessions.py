@@ -34,11 +34,20 @@ _NESTED_COMMAND = re.compile(r"""\b(?:cmd|command)\s*["']?\s*:\s*("(?:[^"\\]|\\.
 _NESTED_TOOL = re.compile(r"""\btools(?:\.([A-Za-z_]\w*)|\[\s*["']([^"']+)["']\s*\])\s*\(""")
 _PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (\S+)", re.MULTILINE)
 _TERMINAL = re.compile(r"session ID:?\s*(\d+)", re.IGNORECASE)
-# A terminal session id however the call spells it: {"session_id": 1}, {session_id: 1}, "session_id" : "1".
-_TERMINAL_REF = re.compile(r"""session_id["']?\s*:\s*["']?(\d+)""")
+# A terminal session id however the call spells it: {"session_id": 1}, {session_id: 1}, "session_id" : "1", or a variable
+# for shorthand ({session_id}): const session_id = 1.
+_TERMINAL_REF = re.compile(r"""session_id["']?\s*[:=]\s*["']?(\d+)""")
 # A code-mode script that yields leaves a cell that `wait({cell_id})` resumes; its output inherits the same way.
 _CELL = re.compile(r"cell ID:?\s*([\w-]+)", re.IGNORECASE)
-_CELL_REF = re.compile(r"""cell_id["']?\s*:\s*["']?([\w-]+)""")
+_CELL_REF = re.compile(r"""cell_id["']?\s*[:=]\s*["']?([\w-]+)""")
+# Calls that read more output from a terminal or cell another call left running.
+_POLLS = {"write_stdin", "wait"}
+_NESTED_POLL = re.compile(r"""\b(?:tools|functions)(?:\.\s*(?:write_stdin|wait)|\[\s*["'](?:write_stdin|wait)["']\s*\])\s*\(""")
+
+
+def _polls(call: ToolCall) -> bool:
+    code = call.input.get("input")
+    return call.name.split("__")[-1] in _POLLS or isinstance(code, str) and bool(_NESTED_POLL.search(code))
 
 
 def _terminal_refs(arguments: dict) -> list[str]:
@@ -201,6 +210,16 @@ def _call(payload: dict, timestamp: str) -> ToolCall:
     return call
 
 
+def _here(meta: dict, context: RepoContext) -> bool:
+    """Whether a rollout worked in this repository: its recorded repository, or else its directory. Only there does the
+    branch name tie it to this work; elsewhere only the PR does (a branch name is shared by every repository with a
+    branch of that name)."""
+    git = meta.get("git") if isinstance(meta.get("git"), dict) else {}
+    if git.get("repository_url"):
+        return parse_repo_slug(str(git["repository_url"])) == context.repo_slug
+    return context.in_repo(str(meta.get("cwd") or ""))
+
+
 def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Unit:
     records = _records(path)
     meta = _meta(path)
@@ -212,7 +231,7 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
     on_branch = (git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug) \
         or context.in_worktree_on_branch(unit.cwd)
     start = int(meta.get("subagent_history_start_ordinal") or 0) if kind == "subagent" else 0
-    markers = context.evidence_pattern()
+    markers = context.evidence_pattern(branch=_here(meta, context))
     pending: dict[str, ToolCall] = {}
     # A long-running exec_command leaves a terminal session that write_stdin polls; the polls inherit its withholding.
     terminals: dict[str, str | None] = {}
@@ -260,8 +279,12 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
                 current(timestamp).items.append(Item(kind="assistant", text=text, timestamp=timestamp))
             elif item_type in _CALLS:
                 call = _call(payload, timestamp)
-                polled = [terminals[handle] for handle in _terminal_refs(call.input) if handle in terminals]
+                handles = _terminal_refs(call.input)
+                polled = [terminals[handle] for handle in handles if handle in terminals]
                 call.withheld = call.withheld or next((reason for reason in polled if reason), None)
+                # A poll whose terminal or cell cannot be traced to the call that opened it may be reading anything.
+                if not call.withheld and _polls(call) and (not handles or any(handle not in terminals for handle in handles)):
+                    call.withheld = "polling output of unknown origin"
                 pending[call.id] = call
                 current(timestamp).items.append(Item(kind="tool", tool=call, timestamp=timestamp))
             elif item_type in _OUTPUTS:
@@ -292,11 +315,11 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
 
 
 def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
-    """Top-level rollouts since the branch started that ran on the branch (git metadata or worktree) or mention it."""
+    """Top-level rollouts since the branch started that ran on the branch (git metadata or worktree), mention it while in
+    this repository, or mention the PR."""
     root = root or sessions_root()
     if not root.is_dir():
         return []
-    pattern = context.evidence_pattern()
     found = []
     for path in root.glob("*/*/*/*.jsonl"):
         if not is_recent(path, context.since):
@@ -305,6 +328,7 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
         git = meta.get("git") if isinstance(meta.get("git"), dict) else {}
         matched = (git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug) \
             or context.in_worktree_on_branch(str(meta.get("cwd") or ""))
+        pattern = context.evidence_pattern(branch=_here(meta, context))
         if not matched and pattern:
             try:
                 with path.open(encoding="utf-8", errors="replace") as handle:

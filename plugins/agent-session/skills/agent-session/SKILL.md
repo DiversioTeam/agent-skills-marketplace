@@ -104,8 +104,9 @@ improve.
   PR from anywhere. The `agent-session` Pi package guards PR
   create and edit like the Claude Code hook.
 - **Codex:** rollouts in `$CODEX_HOME/sessions/` (default `~/.codex`), matched
-  by the `git.branch` and repository Codex records, or a worktree on the
-  branch, or a mention. Subagent rollouts attach to their parent thread, from
+  by the `git.branch` and repository Codex records, a worktree on the branch,
+  a mention of the branch in a rollout of this repository, or a mention of the
+  PR from anywhere. Subagent rollouts attach to their parent thread, from
   where their own work starts. Reasoning is encrypted and never shown.
   `python3 "$S" install-codex-hook` adds the same PR guard to Codex's
   `hooks.json` (Codex asks the developer to trust it).
