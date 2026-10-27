@@ -431,6 +431,13 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
 The installer does not overwrite existing skill directories. Remove or move an
 existing copy before reinstalling it.
 
+After installing `agent-session`, add its PR guard to Codex once (Codex asks you
+to trust the hook on next start):
+
+```bash
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/agent-session/scripts/agent_session.py" install-codex-hook
+```
+
 Codex console example for one skill:
 
 ```text

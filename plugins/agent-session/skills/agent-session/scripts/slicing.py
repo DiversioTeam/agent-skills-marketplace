@@ -76,6 +76,24 @@ def _related_items(turn: Turn, keys: set[str], pattern) -> list[Item]:
     return kept
 
 
+# Evidence of an intermediate agent: it did not work on the branch itself, but a subagent it started did.
+DELEGATED = "its subagent worked on the branch"
+
+
+def _trim_to_workers(unit: Unit, keys: set[str], pattern) -> None:
+    kept: list[Turn] = []
+    for turn in unit.turns:
+        if turn.evidence:
+            kept.append(turn)
+            continue
+        items = _related_items(turn, keys, pattern)
+        if items:
+            turn.items = items
+            kept.append(turn)
+    unit.omitted_turns += len(unit.turns) - len(kept)
+    unit.turns = kept
+
+
 def slice_to_work(unit: Unit, context: RepoContext, whole: bool) -> None:
     """Keep the parts of `unit` (a top-level session) that belong to this PR's work; mutate it in place."""
     if whole:
@@ -115,6 +133,11 @@ def slice_to_work(unit: Unit, context: RepoContext, whole: bool) -> None:
     unit.omitted_turns = len(unit.turns) - len(kept)
     unit.turns = kept
     unit.teammates = [teammate for teammate in unit.teammates if teammate in workers]
+    # An intermediate agent kept only because something it started did the work is trimmed like a lead: its turns
+    # that spawned or messaged those workers stay, its unrelated work goes.
+    for teammate in unit.teammates:
+        if teammate.evidence and all(evidence == DELEGATED for evidence in teammate.evidence):
+            _trim_to_workers(teammate, keys, context.evidence_pattern(branch=teammate.branch_counts))
     if keys and (sliced or unit.omitted_turns) and not any(turn.branch == context.branch for turn in kept):
         unit.title = f"{unit.title}: only the parts about this work"
     if kept and unit.omitted_turns:

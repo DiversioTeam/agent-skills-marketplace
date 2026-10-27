@@ -18,7 +18,7 @@ from pathlib import Path
 
 from provenance import Provenance
 from redaction import withheld_reason
-from repo_context import RepoContext
+from repo_context import RepoContext, is_recent
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Pi"
@@ -109,12 +109,14 @@ def _active_path(entries: list[dict]) -> tuple[list[dict], int]:
     return path, len(tree) - len(path)
 
 
-def parse_session(path: Path, context: RepoContext, entries: list[dict] | None = None, kind: str = "session", title: str = "") -> Unit:
-    """A Pi session file, or (with `entries`) a pi-subagents child transcript already converted to entries."""
+def parse_session(path: Path, context: RepoContext, entries: list[dict] | None = None, kind: str = "session", title: str = "",
+                  harness: str = HARNESS) -> Unit:
+    """A Pi-format session file (Pi's own, or a Courage export with its own harness label), or (with `entries`) a
+    pi-subagents child transcript already converted to entries."""
     entries = _entries(path) if entries is None else entries
     header = next((entry for entry in entries if entry.get("type") == "session"), {})
     session_id = str(header.get("id") or path.stem)
-    unit = Unit(id=path.stem, harness=HARNESS, kind=kind, title=title or f"Pi session {session_id[:8]}", session_id=session_id,  # type: ignore[arg-type]
+    unit = Unit(id=path.stem, harness=harness, kind=kind, title=title or f"{harness} session {session_id[:8]}", session_id=session_id,  # type: ignore[arg-type]
                 path=str(path), cwd=str(header.get("cwd", "")))
     active, abandoned = _active_path(entries)
     unit.branch_counts = context.in_repo(unit.cwd)
@@ -292,9 +294,9 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
         return []
     found = []
     for path in root.glob("*/*.jsonl"):
+        if not is_recent(path, context.since):
+            continue
         try:
-            if path.stat().st_mtime < context.since:
-                continue
             with path.open(encoding="utf-8", errors="replace") as handle:
                 first = handle.readline()
                 header = json.loads(first) if first.strip() else {}

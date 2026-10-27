@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check  # noqa: E402
 import claude_code  # noqa: E402
+import codex_sessions  # noqa: E402
 import pi_sessions  # noqa: E402
 import pr_body  # noqa: E402
 import slicing  # noqa: E402
@@ -96,6 +97,22 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
                 turn.branch = context.branch
         _select_turns(unit, context, unit.id in whole or unit.session_id in whole)
         unit.teammates = [mate for mate in unit.teammates if mate.id not in excluded]
+        if unit.turns or unit.teammates:
+            units.append(unit)
+    codex_root = Path(args.codex_root).expanduser() if getattr(args, "codex_root", None) else None
+    codex_paths = codex_sessions.find_sessions(context, codex_root)
+    if wanted:
+        root = codex_root or codex_sessions.sessions_root()
+        extra = [path for path in root.glob("*/*/*/*.jsonl") if any(path.stem.endswith(item) for item in wanted)] if root.is_dir() else []
+        codex_paths = sorted({*codex_paths, *extra}, key=lambda path: path.stat().st_mtime)
+    for path in codex_paths:
+        if any(path.stem.endswith(item) for item in excluded):
+            continue
+        unit = codex_sessions.load_session(path, context, codex_root)
+        # A rollout on the branch is the work (its turns carry the branch); a lead keeps only its turns about the
+        # subagent that did the work.
+        _select_turns(unit, context, any(path.stem.endswith(item) for item in whole))
+        unit.teammates = [mate for mate in unit.teammates if not any(mate.id.endswith(item) for item in excluded)]
         if unit.turns or unit.teammates:
             units.append(unit)
     return units
@@ -518,6 +535,66 @@ def cmd_install_shim(args: argparse.Namespace) -> int:
     on_path = str(target.parent) in os.environ.get("PATH", "").split(os.pathsep)
     if not on_path and not args.quiet:
         print(f"Add {target.parent} to PATH so local-ci can run `agent-session check`.")
+def cmd_render_export(args: argparse.Namespace) -> int:
+    """Render Pi-format session exports (Courage's conversations) for a repo, branch, and HEAD, without discovery.
+
+    Prints {"names": [...], "files": [...]} as JSON. The caller uploads the pages; Courage redacts them again first.
+    """
+    context = RepoContext(root=Path("."), branch=args.branch, repo_slug=args.repo_slug, pr=args.pr, head=args.head,
+                          base=args.base or "", commits=args.commit or [])
+    units = [pi_sessions.parse_session(Path(file), context, harness=args.harness, title=f"{args.harness} conversation {index + 1}"
+                                       if len(args.file) > 1 else f"{args.harness} conversation") for index, file in enumerate(args.file)]
+    units = [unit for unit in units if unit.turns]
+    if not units:
+        print(json.dumps({"names": [], "files": []}))
+        return 1
+    now = datetime.now(timezone.utc)
+    expires = (now + timedelta(days=args.retention_days)).strftime("%Y-%m-%d")
+    generated = now.strftime("%Y-%m-%d %H:%M UTC")
+    # The caller's exact secret values (Courage's known secrets), one per line in a private file, redact before rendering.
+    known: tuple[str, ...] = ()
+    if args.known_secrets_file:
+        values = Path(args.known_secrets_file).read_text(encoding="utf-8").splitlines()
+        known = tuple(sorted({value for value in values if len(value) >= 8}, key=len, reverse=True))
+    pages, _ = build_pages(context, units, Redactor(known_secrets=known), expires, generated)
+    names = publisher.build_names(context.repo_name, context.branch, len(pages), context.head, now)
+    pages, _ = build_pages(context, units, Redactor(known_secrets=known), expires, generated, names)
+    out = Path(args.out).expanduser()
+    out.mkdir(parents=True, exist_ok=True)
+    files = []
+    for name, html_text in zip(names, pages):
+        (out / name).write_text(html_text, encoding="utf-8")
+        files.append(str(out / name))
+    print(json.dumps({"names": names, "files": files}))
+    return 0
+
+
+def cmd_install_codex_hook(args: argparse.Namespace) -> int:
+    """Add the PR guard to Codex's hooks.json (Codex asks the developer to trust it on next start). Idempotent."""
+    home = Path(args.codex_home or os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+    path = home / "hooks.json"
+    hook = Path(__file__).resolve().parent / "check_pr_hook.py"
+    command = f"python3 {shlex.quote(str(hook))}"
+    try:
+        config = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except json.JSONDecodeError:
+        print(f"{path} is not valid JSON; fix it, then run install-codex-hook again.")
+        return 1
+    hooks = config.setdefault("hooks", {})
+    entries = hooks.setdefault("PreToolUse", [])
+    cmd_install_shim(argparse.Namespace(bin_dir=args.bin_dir, quiet=True))
+    if any(hook_entry.get("command") == command for entry in entries for hook_entry in entry.get("hooks", [])):
+        print(f"The agent-session PR guard is already in {path}.")
+        return 0
+    entries.append({"hooks": [{"type": "command", "command": command, "timeout": 15}]})
+    # The `agent-session` command (local-ci's step) is installed now and refreshed at every session start.
+    shim = f"python3 {shlex.quote(str(Path(__file__).resolve()))} install-shim --quiet"
+    starts = hooks.setdefault("SessionStart", [])
+    if not any(hook_entry.get("command") == shim for entry in starts for hook_entry in entry.get("hooks", [])):
+        starts.append({"hooks": [{"type": "command", "command": shim, "timeout": 15}]})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    print(f"Added the agent-session PR guard to {path}. Codex asks you to trust it the next time it starts.")
     return 0
 
 
@@ -542,6 +619,7 @@ def parser() -> argparse.ArgumentParser:
         sub.add_argument("--whole", action="append", help="Include every turn of this session, not only the matching ones.")
         sub.add_argument("--projects-root", help="Claude Code projects folder (default: ~/.claude/projects).")
         sub.add_argument("--pi-root", help="Pi sessions folder (default: ~/.pi/agent/sessions).")
+        sub.add_argument("--codex-root", help="Codex sessions folder (default: $CODEX_HOME/sessions or ~/.codex/sessions).")
         sub.add_argument("--out", help="Where previews go (default: ~/.agent/sessions/<repo>-<branch>).")
 
     find = commands.add_parser("find", help="List the sessions behind this branch or PR.")
@@ -600,6 +678,26 @@ def parser() -> argparse.ArgumentParser:
     body_check = commands.add_parser("check-body", help="Exit 1 unless the body has a session link or a declaration.")
     body_check.add_argument("body_file")
     body_check.set_defaults(run=cmd_check_body)
+
+    export = commands.add_parser("render-export", help="Render Pi-format conversation exports (Courage) for a repo, branch, and HEAD.")
+    export.add_argument("--file", action="append", required=True)
+    export.add_argument("--harness", default="Courage")
+    export.add_argument("--repo-slug", required=True)
+    export.add_argument("--branch", required=True)
+    export.add_argument("--head", required=True)
+    export.add_argument("--base")
+    export.add_argument("--commit", action="append")
+    export.add_argument("--pr", type=int)
+    export.add_argument("--out", required=True)
+    export.add_argument("--retention-days", type=int, default=DEFAULT_RETENTION_DAYS)
+    export.add_argument("--known-secrets-file", help="Exact secret values to redact, one per line (a private file the caller deletes).")
+    export.set_defaults(run=cmd_render_export)
+
+    codex_hook = commands.add_parser("install-codex-hook", help="Add the PR guard to Codex's hooks.json.")
+    codex_hook.add_argument("--codex-home", help="Codex's home (default: $CODEX_HOME or ~/.codex).")
+    codex_hook.add_argument("--bin-dir", default="~/.local/bin", help="Where the agent-session command goes.")
+    codex_hook.set_defaults(run=cmd_install_codex_hook)
+
     return root
 
 

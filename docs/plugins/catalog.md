@@ -304,8 +304,8 @@ when command files change.
   - Claude install: `claude plugin install agent-session@diversiotech`
   - Skill path: `plugins/agent-session/skills/agent-session`
   - Slash command: `/agent-session:share`
-  - Sessions read: Claude Code and Pi (the `agent-session` Pi package guards
-    PR create and edit); Codex next.
+  - Sessions read: Claude Code, Pi (the `agent-session` Pi package guards PR
+    create and edit), and Codex (`install-codex-hook` adds the guard to Codex).
 
 - `browser-walkthrough-recording`
   - Purpose: real browser walkthroughs with readable captions, highlights,

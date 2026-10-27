@@ -16,7 +16,7 @@ from pathlib import Path
 
 from provenance import Provenance
 from redaction import withheld_reason
-from repo_context import RepoContext
+from repo_context import RepoContext, is_recent
 from session_model import Item, Tokens, ToolCall, Turn, Unit
 
 HARNESS = "Claude Code"
@@ -251,10 +251,7 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
         if not project.is_dir():
             continue
         for path in project.glob("*.jsonl"):
-            try:
-                if path.stat().st_mtime < context.since:
-                    continue
-            except OSError:
+            if not is_recent(path, context.since):
                 continue
             # Each file by its own repository: a lead elsewhere whose worker ran here is found through the worker.
             files = [path, *sorted((path.with_suffix("") / "subagents").glob("agent-*.jsonl"))]
