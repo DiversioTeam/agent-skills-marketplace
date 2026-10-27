@@ -26,11 +26,20 @@ def is_recent(path: Path, since: float) -> bool:
         if path.stat().st_mtime < since:
             return False
         with path.open("rb") as handle:
-            handle.seek(0, 2)
-            handle.seek(max(handle.tell() - 65536, 0))
-            lines = handle.read().splitlines()
+            end = handle.seek(0, 2)
+            # Read back until the final record is whole: a tail that starts inside a large record has lost its timestamp.
+            window = 65536
+            while True:
+                start = max(end - window, 0)
+                handle.seek(start)
+                lines = handle.read().rstrip(b"\n").split(b"\n")
+                if start == 0 or len(lines) > 1:
+                    break
+                window *= 4
     except OSError:
         return False
+    if start > 0:
+        lines = lines[1:]  # the first line begins mid-record
     for line in reversed(lines):
         match = re.search(rb'"timestamp"\s*:\s*"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', line)
         if match:

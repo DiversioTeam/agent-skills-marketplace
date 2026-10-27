@@ -1446,6 +1446,51 @@ class CodexReviewFindingsTests(unittest.TestCase):
         self.assertNotIn("private-foreign-later-prompt", page)
         self.assertNotIn("private-foreign-later-reply", page)
 
+    def test_wrapped_patches_to_paths_with_spaces_are_credential_files(self):
+        patch = "*** Begin Patch\n*** Update File: /work/my repo/.env\n@@\n-NOTE=private-" + "credential-old-" + "sentinel\n+NOTE=private-" + "credential-new-" + "sentinel\n*** End Patch"
+        with tempfile.TemporaryDirectory() as directory:
+            unit = self._rollout(directory, [
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "p1", "input": f"await tools.apply_patch({json.dumps(patch)});"}, 2),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "p1", "output": "private-" + "patch-output-" + "sentinel"}, 3),
+                _codex("response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "p2",
+                                         "input": 'await tools.apply_patch("*** Begin Patch\\n*** Update File: /work/my repo/notes.md\\n+hello\\n*** End Patch");'}, 4),
+                _codex("response_item", {"type": "custom_tool_call_output", "call_id": "p2", "output": "Done"}, 5),
+            ])
+        self.assertEqual([item.tool.withheld for turn in unit.turns for item in turn.items if item.tool], ["credential file", None])
+        page = render_html.build_pages(demo_context(), [unit], redaction.Redactor(), "2027-10-23", "now")[0][0]
+        for sentinel in ("private-credential-old-sentinel", "private-credential-new-sentinel", "private-patch-output-sentinel"):
+            self.assertNotIn(sentinel, page)
+
+    def test_a_separate_repository_nested_in_the_worktree_is_not_this_work(self):
+        import argparse
+        context = demo_context()
+        context.worktree_branches = {"/tmp/demo-repo": "feature/demo-transcripts"}
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as empty:
+            day = Path(directory) / "2026" / "10" / "23"
+            day.mkdir(parents=True)
+
+            def rollout(thread, cwd, git, prompts):
+                meta = {"id": thread, "cwd": cwd, **({"git": git} if git else {})}
+                path = day / f"rollout-2026-10-23T11-00-00-{thread}.jsonl"
+                path.write_text("\n".join(json.dumps(record) for record in [_codex("session_meta", meta, 0), *(
+                    _codex("response_item", {"type": "message", "role": "user", "content": [{"type": "input_text", "text": prompt}]}, ordinal)
+                    for ordinal, prompt in enumerate(prompts, 1))]) + "\n")
+                return path
+
+            other = {"branch": "main", "repository_url": "git@github.com:DiversioTeam/other.git"}
+            rollout("nested", "/tmp/demo-repo/backend", other, ["private-" + "nested-foreign-" + "sentinel"])
+            linked = rollout("linked", "/tmp/demo-repo/backend", other, ["Coordinate https://github.com/DiversioTeam/demo/pull/7", "private-" + "nested-later-" + "prompt"])
+            local = rollout("local", "/tmp/demo-repo/src", None, ["Work in the checkout"])
+            same = rollout("same", "/tmp/demo-repo", {"branch": "main", "repository_url": "git@github.com:DiversioTeam/demo.git"}, ["Same repository, cwd only"])
+            self.assertEqual(sorted(path.name for path in codex_sessions.find_sessions(context, Path(directory))), sorted([linked.name, local.name, same.name]))
+            args = argparse.Namespace(projects_root=empty, pi_root=empty, codex_root=directory, session=None, exclude=None, whole=None)
+            units = agent_session.load_units(context, args)
+        page = "".join(render_html.build_pages(context, units, redaction.Redactor(), "2027-10-23", "now")[0])
+        for kept in ("Coordinate https://github.com/DiversioTeam/demo/pull/7", "Work in the checkout", "Same repository, cwd only"):
+            self.assertIn(kept, page)
+        self.assertNotIn("private-nested-foreign-sentinel", page)
+        self.assertNotIn("private-nested-later-prompt", page)
+
     def test_children_older_than_a_week_before_the_leads_last_write_stay_attached(self):
         import os, time
         with tempfile.TemporaryDirectory() as directory:
@@ -1583,6 +1628,19 @@ class CodexReviewFindingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "my body.md").write_text("No agent session: hand edited\n")
             self.assertEqual(run(["gh", "pr", "create", "--repo", "DiversioTeam/demo", "--body-file", "my body.md"], directory), 0)
+class FreshnessTests(unittest.TestCase):
+    def test_a_large_final_record_keeps_its_timestamp(self):
+        since = 1792713600  # 2026-10-23 UTC
+        for stamp, recent in (("2026-10-01T09:00:00Z", False), ("2026-10-24T09:00:00Z", True)):
+            with self.subTest(stamp=stamp), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "rollout.jsonl"
+                records = [_codex("session_meta", {"id": "old"}, 0, stamp),
+                           _codex("response_item", {"type": "function_call_output", "call_id": "o1", "output": "x" * 100_000}, 1, stamp)]
+                path.write_text("\n".join(json.dumps(record) for record in records) + "\n")
+                os.utime(path, (since + 86400, since + 86400))  # copied recently
+                self.assertEqual(repo_context.is_recent(path, since), recent)
+
+
 class CourageExportTests(unittest.TestCase):
     def test_render_export_labels_courage_and_names_the_head(self):
         import contextlib, io

@@ -32,7 +32,8 @@ _CONTEXT_BLOCK = re.compile(r"^\s*<(?P<tag>" + "|".join(re.escape(tag) for tag i
 _NESTED_COMMAND = re.compile(r"""\b(?:cmd|command)\s*["']?\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)""")
 # Code mode calls other tools too: tools.mcp__postgres__query({...}), tools["apply_patch"]("...").
 _NESTED_TOOL = re.compile(r"""\btools(?:\.([A-Za-z_]\w*)|\[\s*["']([^"']+)["']\s*\])\s*\(""")
-_PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (\S+)", re.MULTILINE)
+# The whole header line is the path: directories may contain spaces (/work/my repo/.env).
+_PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (.+?)[ \t]*$", re.MULTILINE)
 _TERMINAL = re.compile(r"session ID:?\s*(\d+)", re.IGNORECASE)
 # A terminal session id however the call spells it: {"session_id": 1}, {session_id: 1}, "session_id" : "1", or a variable
 # for shorthand ({session_id}): const session_id = 1.
@@ -238,6 +239,16 @@ def _here(meta: dict, context: RepoContext) -> bool:
     return context.in_repo(str(meta.get("cwd") or ""))
 
 
+def _on_branch(meta: dict, context: RepoContext) -> bool:
+    """Whether a rollout ran on this branch: its recorded git metadata says so, or it ran in a worktree on the branch. The
+    directory only counts when the rollout's recorded repository is this one: a separate repository nested inside the
+    worktree is not this work."""
+    git = meta.get("git") if isinstance(meta.get("git"), dict) else {}
+    if git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug:
+        return True
+    return context.in_worktree_on_branch(str(meta.get("cwd") or "")) and _here(meta, context)
+
+
 def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Unit:
     records = _records(path)
     meta = _meta(path)
@@ -245,9 +256,7 @@ def parse_session(path: Path, context: RepoContext, kind: str = "session") -> Un
     title = (f"Codex subagent: {meta.get('agent_nickname') or thread[:8]}" + (f" ({meta['agent_role']})" if meta.get("agent_role") else "")
              if kind == "subagent" else f"Codex session {thread[:8]}")
     unit = Unit(id=path.stem, harness=HARNESS, kind=kind, title=title, session_id=thread, path=str(path), cwd=str(meta.get("cwd", "")))  # type: ignore[arg-type]
-    git = meta.get("git") if isinstance(meta.get("git"), dict) else {}
-    on_branch = (git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug) \
-        or context.in_worktree_on_branch(unit.cwd)
+    on_branch = _on_branch(meta, context)
     start = int(meta.get("subagent_history_start_ordinal") or 0) if kind == "subagent" else 0
     unit.branch_counts = _here(meta, context)
     markers = context.evidence_pattern(branch=unit.branch_counts)
@@ -344,9 +353,7 @@ def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
         if not is_recent(path, context.since):
             continue
         meta = _meta(path)
-        git = meta.get("git") if isinstance(meta.get("git"), dict) else {}
-        matched = (git.get("branch") == context.branch and parse_repo_slug(str(git.get("repository_url", ""))) == context.repo_slug) \
-            or context.in_worktree_on_branch(str(meta.get("cwd") or ""))
+        matched = _on_branch(meta, context)
         pattern = context.evidence_pattern(branch=_here(meta, context))
         if not matched and pattern:
             try:
