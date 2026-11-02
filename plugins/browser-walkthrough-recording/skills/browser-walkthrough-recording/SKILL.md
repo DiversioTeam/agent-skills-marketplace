@@ -87,14 +87,24 @@ For a standalone scratch project, after agreeing to dependency installation:
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/browser-walkthrough.XXXXXX")"
 cd "$SCRATCH"
 npm init -y
-npm install --save-exact playwright
-npx playwright install chromium
+npm install --save-exact playwright@1.64.1
+# Always: recordVideo needs Playwright's own FFmpeg, even with installed Chrome.
+./node_modules/.bin/playwright install ffmpeg
+# Only if Google Chrome is not installed: the bundled Chromium for this exact version.
+./node_modules/.bin/playwright install chromium
 # Copy capture-template.cjs here as capture.cjs, then adapt its flow.
 APP_URL='http://localhost:8000' node capture.cjs "$SCRATCH/run-01"
 ```
 
-Keep the resulting lockfile with the reusable script. Reuse an existing browser
-installation rather than downloading another version when compatible. The
+Pin an explicit Playwright version and run its local binary. Never use bare
+`npx playwright` or `@latest`: outside a project they download and run whatever
+was published last. Keep the resulting lockfile with the reusable script.
+
+Launch through the template's `launch_browser`. Playwright disables Chromium's
+sandbox by default (`chromiumSandbox: false`); the helper turns it on and prefers
+installed Chrome (`channel: 'chrome'`), whose security updates usually arrive
+before Playwright's bundled Chromium. It falls back to the bundled Chromium,
+still sandboxed, only when Chrome is absent. Never pass `--no-sandbox`. The
 example accepts loopback/`.localhost` HTTP URLs only, disables service workers,
 and guards HTTP requests before loading responses. It refuses **all redirects**,
 including local ones: use the verified final URL directly, and adapt flows that

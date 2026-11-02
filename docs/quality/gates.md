@@ -33,9 +33,10 @@ before running the suite. The release-scope tests alone use only Python and Git.
 checks URL/pacing rules and encoder failure/overwrite behavior. Real encode tests
 require FFmpeg/ffprobe and skip explicitly when absent. For the browser helpers,
 run `node tests/browser-walkthrough.cjs` with Playwright available (set `NODE_PATH`
-to an existing scratch project's `node_modules` if needed) and its Chromium
-installed. This uses synthetic local content and checks caption/highlight cleanup,
-clean screenshots, zoom reset, invalid inputs, and refusal of local/external HTTP
+to an existing scratch project's `node_modules` if needed) and Google Chrome, or
+Playwright's Chromium, installed. It launches through `launch_browser`, so the
+Chromium sandbox stays on. This uses synthetic local content and checks
+caption/highlight cleanup, clean screenshots, zoom reset, invalid inputs, and refusal of local/external HTTP
 redirects and external navigation before contacting the destination. Neither test replaces visual
 review of a finished product video.
 

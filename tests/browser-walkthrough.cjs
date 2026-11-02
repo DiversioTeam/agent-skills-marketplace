@@ -9,7 +9,7 @@ const helpers = require('../plugins/browser-walkthrough-recording/skills/browser
 
 (async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'walkthrough-test-'));
-  const browser = await chromium.launch();
+  const browser = await helpers.launch_browser(chromium);
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.setContent('<body style="margin:40px"><h1>Fictional demo</h1><button>Save demo</button></body>');
