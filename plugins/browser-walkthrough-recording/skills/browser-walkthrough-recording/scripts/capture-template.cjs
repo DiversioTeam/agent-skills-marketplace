@@ -114,13 +114,27 @@ async function build_screenshot(page, filename, locator) {
   else await page.screenshot(options);
 }
 
+// Playwright turns Chromium's sandbox off unless asked (chromiumSandbox defaults to
+// false), so a hostile page would only need one renderer bug. Keep the sandbox on, and
+// prefer installed Chrome: it gets Chrome's security fixes before Playwright's bundle.
+async function launch_browser(chromium, options = {}) {
+  const sandboxed = { ...options, chromiumSandbox: true };
+  try {
+    return await chromium.launch({ ...sandboxed, channel: 'chrome' });
+  } catch (error) {
+    if (!/Chromium distribution 'chrome' is not found/.test(error.message)) throw error;
+    console.error('Google Chrome not found; using Playwright\'s bundled Chromium with the sandbox on.');
+    return chromium.launch(sandboxed);
+  }
+}
+
 async function build_example_recording(output_directory, address) {
   const local_address = validate_local_url(address);
   // An existing directory is refused before launching a browser or writing media.
   fs.mkdirSync(output_directory);
   fs.mkdirSync(path.join(output_directory, 'shots'));
   const { chromium } = require('playwright');
-  const browser = await chromium.launch();
+  const browser = await launch_browser(chromium);
   try {
     const context = await browser.newContext({
       viewport, serviceWorkers: 'block',
@@ -152,7 +166,7 @@ async function build_example_recording(output_directory, address) {
 
 module.exports = {
   validate_local_url, add_local_request_guard, get_caption_duration, add_caption, add_highlight,
-  remove_highlight, add_zoom, remove_zoom, build_screenshot, build_example_recording,
+  remove_highlight, add_zoom, remove_zoom, build_screenshot, launch_browser, build_example_recording,
 };
 
 if (require.main === module) {

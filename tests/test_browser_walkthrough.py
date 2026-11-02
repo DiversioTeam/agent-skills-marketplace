@@ -30,6 +30,34 @@ assert.equal(helpers.get_caption_duration('word '.repeat(20)), 7000);
             check=True,
         )
 
+    def test_browser_launch_keeps_the_sandbox_on(self):
+        subprocess.run(
+            ["node", "-e", """
+const assert = require('node:assert/strict');
+const helpers = require(process.argv[1]);
+function fake(failure) {
+  const calls = [];
+  return { calls, async launch(options) {
+    calls.push(options);
+    if (options.channel === 'chrome' && failure) throw new Error(failure);
+    return 'browser';
+  } };
+}
+(async () => {
+  const chrome = fake();
+  assert.equal(await helpers.launch_browser(chrome, { chromiumSandbox: false }), 'browser');
+  assert.deepEqual(chrome.calls, [{ chromiumSandbox: true, channel: 'chrome' }]);
+  const bundled = fake("browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome");
+  assert.equal(await helpers.launch_browser(bundled), 'browser');
+  assert.deepEqual(bundled.calls, [{ chromiumSandbox: true, channel: 'chrome' }, { chromiumSandbox: true }]);
+  const broken = fake('Failed to launch: sandbox unavailable');
+  await assert.rejects(helpers.launch_browser(broken), /sandbox unavailable/);
+  assert.equal(broken.calls.length, 1);
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+""", str(SCRIPTS / "capture-template.cjs")],
+            check=True,
+        )
+
     def test_missing_encoder_tools_have_actionable_errors(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "input.webm"
