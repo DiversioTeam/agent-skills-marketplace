@@ -88,6 +88,8 @@ SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/browser-walkthrough.XXXXXX")"
 cd "$SCRATCH"
 npm init -y
 npm install --save-exact playwright@1.64.1
+# Always: recordVideo needs Playwright's own FFmpeg, even with installed Chrome.
+./node_modules/.bin/playwright install ffmpeg
 # Only if Google Chrome is not installed: the bundled Chromium for this exact version.
 ./node_modules/.bin/playwright install chromium
 # Copy capture-template.cjs here as capture.cjs, then adapt its flow.
