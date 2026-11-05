@@ -47,7 +47,7 @@
       "category": "Process",
       "title": "Backend Release Manager",
       "description": "Django4Lyfe releases with captured-SHA scope, verified PR inclusion, a staged releases/* candidate, production deploys of the staged tree, exact-commit publication, and hotfix-only sync back to dev.",
-      "version": "v0.5.0",
+      "version": "v0.5.1",
       "skills": [
         {
           "name": "release-manager",

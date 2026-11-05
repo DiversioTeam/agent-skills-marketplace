@@ -60,6 +60,11 @@ minimums do not replace the target repository's Python requirements.
   gate with a missing binary is a blocker, not permission to skip it.
 - Detect `scripts/deploy/trigger_validated_backend_deploy.sh`. If absent, use
   only the documented repo-local validation/deploy path; otherwise stop.
+- Detect the new flow: `git show origin/dev:scripts/deploy/release_candidate.py`
+  (and on `origin/master` before `publish`). Until it exists there
+  (Django4Lyfe#3603), the repository still runs promotion PRs into `release`
+  and this version of the skill does not apply: stop, say so, and follow the
+  repository's own docs or backend-release 0.4.2. Never mix the two flows.
 - Set `SKILL_DIR` to the absolute directory containing this loaded SKILL.md.
   Require its `scripts/get_release_scope.py`; stop if installation is incomplete.
 
