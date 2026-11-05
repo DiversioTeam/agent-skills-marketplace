@@ -61,7 +61,7 @@ Before giving a full review, this Skill should gather:
 - The **branch name**.
 - The **PR title** and **PR description** (or the planned ones).
 - The **base branch** (what the PR targets: `dev`, a direct parent stack
-  branch, `release`, `master`, etc.).
+  branch, `master`, etc.).
 - Whether the PR:
   - Includes Django model changes.
   - Adds, modifies, or deletes migrations.
@@ -189,21 +189,23 @@ Confirm the base branch matches the project's release workflow:
     infer it from branch names.
   - Preserve the chain with `gh stack submit` or the equivalent GitHub stack
     update instead of manually flattening every PR onto `dev`.
-- **Staging promotion**:
-  - Base branch should be `release`.
-  - A PR from `dev` → `release` is a **promotion PR** — merging moves the
-    candidate to `release`; staging deploy then happens from the exact
-    `origin/release` head via repo-local local-ci / deploy helper steps.
-- **Hotfix** that must bypass the current `release` contents:
-  - Base branch should be `master`.
-- **Production release**:
-  - `release` → `master` after staging validation; production deploy then runs
-    from the exact `origin/master` head, not from PR merge itself.
+- **Release candidate** (`backend-release` skill):
+  - Head `releases/YYYY.MM.DD[-N]`, cut from `master` with a `--no-ff` merge
+    of a `dev` commit plus the version bump; base `master`.
+  - Staging deploys that branch's exact head through the repo deploy helper;
+    production later deploys the merge commit only if its tree equals the
+    staged head's tree. Never commit fixes on the release branch: fix on `dev`
+    and re-cut.
+- **Hotfix** only when `dev` holds work that cannot ship:
+  - Head `hotfix/<slug>` from `master`; base `master`. It skips staging, so it
+    still needs normal review and local-ci, then a `master` → `dev` sync PR.
+- There is no `release` branch and no `dev` → `release` promotion PR. A PR
+  targeting `release` is stale: retarget it.
 
 If a PR targets the wrong base branch:
 
 - Emit `[BLOCKING]` and recommend the correct base, explaining whether the
-  change belongs in `dev`, `release`, or should be a `master` hotfix.
+  change belongs in `dev` or should be a `master` hotfix.
 
 If the repo’s harness docs specify a different default (e.g. custom long-lived
 branches in `AGENTS.md` or a linked workflow doc), follow that instead.

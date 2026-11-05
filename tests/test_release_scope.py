@@ -64,24 +64,24 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
-    def test_late_release_commits_remain_pending_and_publication_uses_merged_sha(self):
+    def test_late_dev_commits_remain_pending_and_publication_uses_merged_sha(self):
         base_sha = self.get_git_output("rev-parse", "master")
-        self.get_git_output("checkout", "-b", "release")
+        self.get_git_output("checkout", "-b", "dev")
         candidate_sha = self.add_commit("early-change")
-        captured_scope = self.get_scope("master", "release")
+        captured_scope = self.get_scope("master", "dev")
         self.assertEqual(captured_scope["source_only_commits"], [candidate_sha])
 
         self.get_git_output("checkout", "-b", "candidate", base_sha)
         self.get_git_output(
             "merge", "--no-ff", candidate_sha, "-m", "Capture candidate"
         )
-        self.get_git_output("checkout", "release")
+        self.get_git_output("checkout", "dev")
         late_sha = self.add_commit("late-change-before-production-merge")
         self.get_git_output("checkout", "master")
         self.get_git_output("merge", "--no-ff", "candidate", "-m", "Release PR merge")
         release_commit_sha = self.get_git_output("rev-parse", "HEAD")
         self.assertEqual(
-            self.get_scope("master", "release")["source_only_commits"], [late_sha]
+            self.get_scope("master", "dev")["source_only_commits"], [late_sha]
         )
         self.assertEqual(self.get_scope(base_sha, candidate_sha), captured_scope)
 
@@ -105,10 +105,10 @@ class ReleaseScopeTests(unittest.TestCase):
         self.get_git_output(
             "clone", "--no-local", str(self.repository), str(other_repository)
         )
-        self.get_git_output("-C", str(other_repository), "branch", "release")
-        self.get_git_output("checkout", "-b", "release")
+        self.get_git_output("-C", str(other_repository), "branch", "dev")
+        self.get_git_output("checkout", "-b", "dev")
         self.add_commit("only-in-intended-checkout")
-        expected_scope = self.get_scope("master", "release")
+        expected_scope = self.get_scope("master", "dev")
 
         for overrides in [
             {"GIT_DIR": str(other_repository / ".git")},
@@ -120,7 +120,7 @@ class ReleaseScopeTests(unittest.TestCase):
         ]:
             with self.subTest(overrides=overrides):
                 result = self.get_scope_result(
-                    "master", "release", {**self.environment, **overrides}
+                    "master", "dev", {**self.environment, **overrides}
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(json.loads(result.stdout), expected_scope)
@@ -128,20 +128,33 @@ class ReleaseScopeTests(unittest.TestCase):
     def test_tree_and_ancestry_evidence_do_not_claim_patch_novelty(self):
         base_sha = self.get_git_output("rev-parse", "HEAD")
         self.assertFalse(self.get_scope(base_sha, base_sha)["tree_changed"])
-        self.get_git_output("checkout", "-b", "release")
+        self.get_git_output("checkout", "-b", "dev")
         feature_sha = self.add_commit("feature")
         self.get_git_output("checkout", "master")
         self.add_commit("temporary-master-change")
         self.get_git_output("revert", "--no-edit", "HEAD")
         self.get_git_output("cherry-pick", feature_sha)
-        scope = self.get_scope("master", "release")
+        scope = self.get_scope("master", "dev")
         self.assertFalse(scope["tree_changed"])
         self.assertEqual(scope["source_only_commits"], [feature_sha])
-        self.get_git_output("checkout", "release")
+        self.get_git_output("checkout", "dev")
         self.get_git_output("revert", "--no-edit", feature_sha)
-        reverted_scope = self.get_scope(base_sha, "release")
+        reverted_scope = self.get_scope(base_sha, "dev")
         self.assertFalse(reverted_scope["tree_changed"])
         self.assertEqual(len(reverted_scope["source_only_commits"]), 2)
+
+    def test_hotfix_scope_is_master_to_hotfix_and_excludes_unshippable_dev(self):
+        base_sha = self.get_git_output("rev-parse", "master")
+        self.get_git_output("checkout", "-b", "dev")
+        unshippable_sha = self.add_commit("unshippable-dev-work")
+        self.get_git_output("checkout", "-b", "hotfix/fix", base_sha)
+        fix_sha = self.add_commit("hotfix-change")
+        bump_sha = self.add_commit("version-bump")
+        scope = self.get_scope(base_sha, "hotfix/fix")
+        self.assertTrue(scope["tree_changed"])
+        self.assertEqual(scope["source_only_commits"], [fix_sha, bump_sha])
+        self.assertNotIn(unshippable_sha, scope["source_only_commits"])
+        self.assertIn(unshippable_sha, self.get_scope("master", "dev")["source_only_commits"])
 
     def test_incomplete_or_invalid_history_fails_without_scope_output(self):
         for invalid_revision in ["does-not-exist", "--all"]:

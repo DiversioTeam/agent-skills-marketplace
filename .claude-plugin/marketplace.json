@@ -70,7 +70,7 @@
     {
       "name": "backend-pr-workflow",
       "description": "Diversio backend PR workflow plugin that follows repo-local and stacked PR docs, GitHub issue linkage, local-ci-aware release semantics, safe migrations, and downtime-safe schema changes.",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "author": {
         "name": "Diversio Devs"
       },
@@ -201,8 +201,8 @@
     },
     {
       "name": "backend-release",
-      "description": "Manages Django4Lyfe releases with captured-SHA scope, verified PR inclusion, exact-head validation, authorized deployment, exact-commit publication, and post-release branch sync.",
-      "version": "0.4.2",
+      "description": "Manages Django4Lyfe releases with captured-SHA scope, verified PR inclusion, a releases/* candidate staged at its exact head, production deploys of the staged tree, exact-commit publication, and master-to-dev sync after hotfixes.",
+      "version": "0.5.0",
       "author": {
         "name": "Diversio Devs"
       },
@@ -246,7 +246,7 @@
     {
       "name": "agent-session",
       "description": "Attach the redacted agent session transcript (prompts, replies, tool calls, subagents) to every Diversio PR via Internal Share, with a hook that blocks PR bodies without one.",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "author": {
         "name": "Diversio Devs"
       },

@@ -96,10 +96,10 @@ Finalize and ship the work:
    Reuse local evidence only when code, configuration, environment, and required
    commit identity still match. Return PR URL, head SHA, results, and blockers.
 
-For separately authorized backend deployments, PR-head local-ci is only a
-preflight. Follow the release skill's exact clean `origin/release` or
-`origin/master` validation and deploy contract. A helper's existence or a green
-preflight does not authorize invoking it.
+For separately authorized backend deployments, follow the release skill:
+local-ci runs once per `releases/*` candidate inside the staging deploy helper,
+and production reuses it by tree. A helper's existence or a green run does not
+authorize invoking it.
 
 Include all files required for the requested change without sweeping unrelated
 cleanup into it. A ship request does not override explicit no-commit/no-push

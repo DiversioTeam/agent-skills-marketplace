@@ -1,7 +1,7 @@
 {
   "name": "backend-release",
-  "version": "0.4.2",
-  "description": "Manages Django4Lyfe releases with captured-SHA scope, verified PR inclusion, exact-head validation, authorized deployment, exact-commit publication, and post-release branch sync.",
+  "version": "0.5.0",
+  "description": "Manages Django4Lyfe releases with captured-SHA scope, verified PR inclusion, a releases/* candidate staged at its exact head, production deploys of the staged tree, exact-commit publication, and master-to-dev sync after hotfixes.",
   "author": {
     "name": "Diversio Devs"
   }
