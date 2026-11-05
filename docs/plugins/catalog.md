@@ -80,8 +80,8 @@ when command files change.
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /
     `ci_fetch_job_logs` only when the current harness exposes those tools.
     In Django4Lyfe-style backend release flows, PR-head local-ci is treated as
-    a preflight; exact merged-head validation still happens on clean
-    `origin/release` / `origin/master` checkouts.
+    a preflight; exact-head validation still happens on clean checkouts of
+    the `releases/*` candidate head (staging) and `origin/master` (production).
 - `image-router` (pi package)
   - Purpose: routes image inputs through a vision-capable model when the
     active model cannot see images, including pasted screenshots, `@path`
@@ -244,10 +244,11 @@ when command files change.
     `/backend-atomic-commit:atomic-commit`, `/backend-atomic-commit:commit`
 - `backend-pr-workflow`
   - Purpose: backend PR workflow for GitHub stacked feature PRs and the
-    dev→release→master branch model (standalone and bottom feature PRs target
-    dev, higher layers target their direct parent, and promotion/release PR heads can run local-ci
-    preflight parity, and release/master deploys use local-ci plus the
-    validated deploy helper instead of auto-deploying on PR merge), GitHub
+    dev → `releases/*` → master branch model (standalone and bottom feature PRs
+    target dev, higher layers target their direct parent, release PR heads can
+    run local-ci preflight parity, and staging/production deploys of the
+    exact `releases/*` and `master` heads use local-ci plus the validated
+    deploy helper instead of auto-deploying on PR merge), GitHub
     issue linkage, Django migration safety, and downtime-safe schema changes.
   - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
@@ -258,10 +259,11 @@ when command files change.
   - Skill path: `plugins/process-code-review/skills/process-code-review`
   - Slash commands: `/process-code-review:process-review`
 - `backend-release`
-  - Purpose: Django4Lyfe two-phase releases with captured base/source/head
-    SHAs, verified PR attribution (not timestamp cutoffs), exact-head local-ci,
-    authorized deployment, date-based versions, exact-commit publication, and
-    authorized three-branch sync. A missing scope helper or ambiguous legacy
+  - Purpose: Django4Lyfe releases with captured base/source/head SHAs, a
+    `releases/*` candidate staged at its exact head, verified PR attribution
+    (not timestamp cutoffs), exact-head local-ci, production deploys whose
+    tree equals the staged tree, date-based versions, exact-commit
+    publication, and a `master → dev` sync after hotfixes only. A missing scope helper or ambiguous legacy
     inclusion blocks final notes rather than silently widening the release.
   - Claude install: `claude plugin install backend-release@diversiotech`
   - Skill path: `plugins/backend-release/skills/release-manager`

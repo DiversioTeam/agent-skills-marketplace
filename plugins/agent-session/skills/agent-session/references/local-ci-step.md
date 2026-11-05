@@ -28,8 +28,9 @@ github_context = "local/agent-session"
   (`CLAUDE_CODE_REMOTE` set), HEAD on an integration branch (`main`, `master`,
   `dev`, `release`, `release/...`, etc.), or a detached HEAD an `origin`
   integration branch already contains (deploy triggers, release candidates).
-- After a successful PR lookup, it also skips a promotion/release PR from
-  `promote/`, `releases/`, etc. into an integration branch, or a bot's PR.
+- After a successful PR lookup, it also skips a release PR from `releases/`
+  (or an older `promote/` branch) into an integration branch, or a bot's PR.
+  This covers local-ci on a backend `releases/*` candidate head before staging.
 
 Output starts with `agent-session: ok|skipped|missing|stale|unlinked|unverified` and,
 on failure, gives the `fix:` command. Agents act on that line.

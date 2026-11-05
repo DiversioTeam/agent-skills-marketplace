@@ -33,7 +33,7 @@
       "category": "Process",
       "title": "Backend PR Workflow",
       "description": "PR workflow for Django/Optimo repos: branch naming, stacked PR bases, GitHub issue linkage, safe Django migrations, and downtime-safe schema changes.",
-      "version": "v0.1.10",
+      "version": "v0.1.12",
       "skills": [
         {
           "name": "backend-pr-workflow",
@@ -46,12 +46,12 @@
       "name": "backend-release",
       "category": "Process",
       "title": "Backend Release Manager",
-      "description": "Django4Lyfe releases with captured-SHA scope, verified PR inclusion, exact-head validation, authorized deployment, exact-commit publication, and three-branch sync.",
-      "version": "v0.4.1",
+      "description": "Django4Lyfe releases with captured-SHA scope, verified PR inclusion, a staged releases/* candidate, production deploys of the staged tree, exact-commit publication, and hotfix-only sync back to dev.",
+      "version": "v0.5.0",
       "skills": [
         {
           "name": "release-manager",
-          "description": "Prepare Django4Lyfe promotions and releases, validate deploy candidates, or publish an authorized release."
+          "description": "Prepare Django4Lyfe release candidates, stage them, validate deploy targets, or publish an authorized release."
         }
       ],
       "commands": ["check", "create", "publish"]
@@ -163,7 +163,7 @@
       "category": "Process",
       "title": "Agent Session Transcripts",
       "description": "Attach the redacted agent session behind every PR: prompts, replies, tool calls, and subagents, published to Internal Share.",
-      "version": "v0.4.1",
+      "version": "v0.4.2",
       "skills": [
         {
           "name": "agent-session",
@@ -336,7 +336,7 @@
       "name": "dev-workflow",
       "title": "Dev Workflow",
       "description": "Daily developer workflow for pi: plan review, self-review, standards, CI, PR feedback, releases, Crafting sandboxes, docs, and shipping. 16 core prompts plus help, run, prompts, and flow.",
-      "version": "v0.0.9"
+      "version": "v0.0.10"
     },
     {
       "name": "skills-bridge",

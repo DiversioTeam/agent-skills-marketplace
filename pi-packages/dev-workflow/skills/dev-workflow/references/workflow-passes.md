@@ -97,8 +97,8 @@ Finalize and ship the work:
    commit identity still match. Return PR URL, head SHA, results, and blockers.
 
 For separately authorized backend deployments, PR-head local-ci is only a
-preflight. Follow the release skill's exact clean `origin/release` or
-`origin/master` validation and deploy contract. A helper's existence or a green
+preflight. Follow the release skill's exact clean `releases/*` candidate head
+(staging) or `origin/master` (production) validation and deploy contract. A helper's existence or a green
 preflight does not authorize invoking it.
 
 Include all files required for the requested change without sweeping unrelated

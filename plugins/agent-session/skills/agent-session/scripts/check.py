@@ -7,7 +7,7 @@ With an open PR its body is authoritative; without one, the local record (store.
 
 local-ci also runs where no transcript belongs, and there the check passes as `skipped`: a cloud session (no developer
 login to publish with), HEAD on an integration branch (main, master, dev, release*, ...) or already merged into one
-(deploy triggers and release candidates), a promotion or release PR between integration branches, and a bot's PR.
+(deploy triggers), a release or promotion PR into an integration branch (e.g. releases/... into master), and a bot's PR.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ LINK = re.compile(r"https://internal-share\.diversio\.com/(session-[A-Za-z0-9._%
 COVERED_HEAD = re.compile(r"-h([0-9a-f]{12})-")
 # Branches work is merged into, not done on: a default branch, or a release branch.
 INTEGRATION = re.compile(r"^(?:main|master|dev|develop|development|staging|production|trunk|release(?:[/_.-].*)?)$")
-# Branches release flows open promotion PRs from (backend-release: promote/YYYY.MM.DD, releases/...).
+# Branches release flows open release PRs from (backend-release: releases/YYYY.MM.DD; older promote/... branches).
 PROMOTION = re.compile(r"^(?:promote|promotion|releases?)[/_.-]")
 DECLARATION = re.compile(r"^\s*(?:[-*]\s*)?No agent session:\s*\S.{2,}$", re.IGNORECASE | re.MULTILINE)
 

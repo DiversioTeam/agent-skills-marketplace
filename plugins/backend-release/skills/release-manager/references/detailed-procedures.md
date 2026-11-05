@@ -1,6 +1,6 @@
 # Release Manager — Detailed Procedures
 
-Read SKILL.md for modes, permissions, gates, and merge-back requirements.
+Read SKILL.md for modes, permissions, gates, staging, and hotfix sync.
 [Captured release scope](release-scope.md) owns inclusion evidence and candidate
 SHA capture; do not derive release notes from a merge-date cutoff.
 
@@ -13,15 +13,15 @@ SHA capture; do not derive release notes from a merge-date cutoff.
 | Third of day | `2026.01.21-3` | `Release 3: 21st January 2026` | `Release 3: January 21st 2026` |
 | Hotfix | `2026.01.21` or next daily suffix | `Hotfix Release: 21st January 2026` | `Hotfix Release: January 21st 2026` |
 
-Promotions use `Promotion: 21st January 2026` and branches `promote/YYYY.MM.DD[-N]`.
-Production candidates use `releases/YYYY.MM.DD[-N]`. Check today's date and
+Release candidates use `releases/YYYY.MM.DD[-N]`; hotfixes use `hotfix/<slug>`.
+There are no promotion PRs or `promote/*` branches any more. Check today's date and
 existing versions/releases rather than copying example dates. Edit the project
 version specifically; do not broadly replace every `version` key in TOML. Run
 `uv lock` after the edit and commit `pyproject.toml` and `uv.lock` together.
 
 ## PR body contract
 
-Both promotion and production PRs record the captured scope and verified URLs:
+Release PRs record the captured scope, verified URLs, and staging evidence:
 
 ```markdown
 ## Captured scope
@@ -38,11 +38,13 @@ Both promotion and production PRs record the captured scope and verified URLs:
 - Conflict adjustments: <reviewed changes, or none>
 - Scope ambiguities: <unverified entries, or none after reconciliation>
 - Exact-head checks: <links/results; preflight is not post-merge proof>
+- Staging: <pipeline link and staged head SHA, or not staged yet>
 - Deployment: not performed by PR creation/merge
 ```
 
-Reconcile every ambiguous item before finalizing notes. Preserve promotion
-container URLs and identify their underlying features without double-counting.
+Reconcile every ambiguous item before finalizing notes. Older history contains
+promotion containers (`promote/*` into `release`); identify their underlying
+features without double-counting.
 After candidate edits, update the head SHA and rerun checks. After merge, append
 the actual merge SHA and separate validation/deployment/publication evidence.
 
@@ -133,30 +135,30 @@ test "$(git rev-parse --verify 'FETCH_HEAD^{commit}')" = "$RELEASE_COMMIT_SHA"
 ```
 
 Check the tag/version, publication state, and notes. Report the release URL and
-verified tag commit separately from deployment. Then follow the authorized
-`master → release → dev` sync in SKILL.md, respecting branch protections and
-intervening changes. A published release does not imply that sync succeeded.
+verified tag commit separately from deployment. A normal release needs no
+back-merge. After a hotfix, follow the authorized `master → dev` sync PR in
+SKILL.md; a published release does not imply that sync succeeded.
 
 ## Full end-to-end example
 
-For an illustrative feature PR #2607 and production PR #2608:
+For an illustrative feature PR #2607 and release PR #2608:
 
-1. Capture `release`/`dev`, attribute #2607, create `promote/YYYY.MM.DD` from
-   the captured base and merge the captured source. Record/check the head.
-2. After authorized merge, validate the exact current `release` head and, with
-   deployment authorization, trigger staging via the repo helper. Verify staging.
-3. Capture `master`/`release` afresh; do not use the staging or production PR's
-   merge timestamp. Create `releases/YYYY.MM.DD` from the captured base/source.
-4. Bump the project version, run `uv lock`, review the final diff and candidate
-   SHA, run required preflights, and open the production PR with scope evidence.
-5. After #2608 merges using a merge commit, take its `mergeCommit.oid` as
-   `RELEASE_COMMIT_SHA`. Exact-head validation and any authorized production
-   deployment follow the target-head guard in SKILL.md.
-6. Run the publication checks above: read the version from that SHA, inspect
+1. #2607 merges to `dev` after review. Capture `master`/`dev`, attribute
+   #2607, cut `releases/YYYY.MM.DD` from the captured base with a `--no-ff`
+   merge of the captured source, bump the version, `uv lock`, and record the
+   candidate head. Open #2608 to `master` with the scope evidence.
+2. With staging authorization, run the trigger helper from a clean checkout of
+   the exact candidate head. It checks the candidate shape and local-ci, then
+   deploys staging. Test there. A fix means a new `dev` PR and a re-cut `-2`.
+3. After the go-ahead, #2608 merges with a merge commit. Take its
+   `mergeCommit.oid` as `RELEASE_COMMIT_SHA`.
+4. With production authorization, run the helper from the exact current
+   `master` head. It refuses unless that merge's tree equals the staged head's
+   tree and the staged head has a successful staging deploy status.
+5. Run the publication checks above: read the version from that SHA, inspect
    existing tags/releases, and create/verify the tag at that SHA. A newer
    `master` tip never changes #2608's publication target.
-7. Complete authorized merge-back into both `release` and `dev`, or explicitly
-   report the remaining sync work. Keep deployment and publication outcomes separate.
+6. No back-merge. Only a hotfix release ends with a `master → dev` sync PR.
 
 ## Error recovery
 
@@ -170,7 +172,7 @@ git checkout --theirs uv.lock
 uv lock
 git add uv.lock
 # Stage reviewed code resolutions explicitly, then complete the merge.
-git commit -m "Merge captured source into release candidate"
+git commit -m "Merge captured dev into release candidate"
 ```
 
 Use `--theirs` only for the regenerable lock file, not a blanket code resolution.

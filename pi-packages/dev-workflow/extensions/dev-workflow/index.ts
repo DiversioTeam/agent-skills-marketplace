@@ -292,7 +292,7 @@ Safety rules:
 
 Important context:
 - Use the backend-release / release-manager skill for the backend release workflow.
-- If backend exposes .local-ci.toml and local-ci is on PATH, a PR-head local-ci run is only a preflight; exact origin/release / origin/master validation still happens on the clean merged branch head.
+- If backend exposes .local-ci.toml and local-ci is on PATH, a PR-head local-ci run is only a preflight; exact validation still happens on a clean checkout of the releases/* candidate head (staging) or the merged origin/master head (production).
 - If that backend preflight fails, stop and dig into it before calling the release ready.
 - If backend exposes scripts/deploy/trigger_validated_backend_deploy.sh, that helper is the backend deploy trigger; PR merges alone do not deploy.
 - For frontend, optimo-frontend, and design-system, first read and follow each repo's own guidelines if available (AGENTS.md, CLAUDE.md, README, CONTRIBUTING, release docs, package scripts, or repo-local docs).
