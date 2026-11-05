@@ -143,6 +143,19 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertFalse(reverted_scope["tree_changed"])
         self.assertEqual(len(reverted_scope["source_only_commits"]), 2)
 
+    def test_hotfix_scope_is_master_to_hotfix_and_excludes_unshippable_dev(self):
+        base_sha = self.get_git_output("rev-parse", "master")
+        self.get_git_output("checkout", "-b", "dev")
+        unshippable_sha = self.add_commit("unshippable-dev-work")
+        self.get_git_output("checkout", "-b", "hotfix/fix", base_sha)
+        fix_sha = self.add_commit("hotfix-change")
+        bump_sha = self.add_commit("version-bump")
+        scope = self.get_scope(base_sha, "hotfix/fix")
+        self.assertTrue(scope["tree_changed"])
+        self.assertEqual(scope["source_only_commits"], [fix_sha, bump_sha])
+        self.assertNotIn(unshippable_sha, scope["source_only_commits"])
+        self.assertIn(unshippable_sha, self.get_scope("master", "dev")["source_only_commits"])
+
     def test_incomplete_or_invalid_history_fails_without_scope_output(self):
         for invalid_revision in ["does-not-exist", "--all"]:
             result = self.get_scope_result(invalid_revision, "master")

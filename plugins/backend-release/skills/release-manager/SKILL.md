@@ -39,9 +39,8 @@ its own single run. Only a `--hotfix` production deploy runs local-ci on
   `master`, and, only when authorized, stage its exact head.
 - `publish PR_NUMBER`: after an authorized merge, deploy production (only when
   authorized) and publish the release at the PR's exact merge commit.
-- `--hotfix`: a `hotfix/*` PR merged straight to `master` because `dev` cannot
-  ship. Same scope and gates; production deploy uses the helper's `--hotfix`
-  (no staged-tree check), then `master` is synced back to `dev`.
+- `--hotfix`: the [hotfix lane](#hotfix-lane---hotfix) for when `dev` holds
+  work that cannot ship. Scope is `master..hotfix/*`, never `dev`.
 - `--dry-run`: read-only inspection only; disclose cached-ref freshness. Do not
   fetch, edit, push, publish, or deploy.
 
@@ -108,12 +107,20 @@ for versions, titles, notes format, and conflict recovery.
 
 ## Stage the candidate (authorized only)
 
-From a clean checkout at the exact pushed `releases/*` head (verify it equals
-`origin/releases/...` and `CANDIDATE_HEAD_SHA`):
+Run from a clean checkout **on the named release branch**, not a detached
+HEAD: local-ci's agent-session step recognizes the release PR by branch name,
+and a detached, not-yet-merged candidate fails it. Use the checkout that
+created the branch if it is clean, or a fresh worktree tracking the remote
+branch (if the local branch exists elsewhere, use that checkout instead):
 
 ```bash
-git worktree add --detach /path/to/clean-backend-staging "$CANDIDATE_HEAD_SHA"
+BRANCH=releases/YYYY.MM.DD[-N]
+git fetch origin "$BRANCH"
+git worktree add --track -b "$BRANCH" /path/to/clean-backend-staging "origin/$BRANCH"
 cd /path/to/clean-backend-staging
+test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD_SHA"
+test "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$BRANCH")"
+test -z "$(git status --porcelain)"
 scripts/deploy/trigger_validated_backend_deploy.sh
 ```
 
@@ -183,6 +190,29 @@ that it skipped staging.
 
 Report validation, deployment, and GitHub publication as separate outcomes,
 each with its SHA and evidence.
+
+## Hotfix lane (`--hotfix`)
+
+Only when `dev` holds work that cannot ship. The scope is the hotfix alone:
+
+```bash
+git fetch origin master
+BASE_SHA=$(git rev-parse origin/master)
+git checkout -b hotfix/<slug> "$BASE_SHA"
+# Commit the fix, then bump the version (YYYY.MM.DD[-N]) and uv lock.
+git push -u origin hotfix/<slug>
+python3 "$SKILL_DIR/scripts/get_release_scope.py" "$BASE_SHA" "origin/hotfix/<slug>"
+gh pr create --base master --title "Hotfix Release: DDth Month YYYY" --body-file /path/to/hotfix-notes.md
+```
+
+- Scope is `master..hotfix/<slug>`: only the fix and the version bump. Attribute
+  it as in [release scope](references/release-scope.md); do not capture `dev`.
+- Unlike a release PR, a hotfix PR adds new code: it needs normal review
+  including little-person, and local-ci on its PR head (on the named branch).
+- After an authorized merge (merge commit), deploy with
+  `scripts/deploy/trigger_validated_backend_deploy.sh --hotfix` from the exact
+  `master` head (it runs local-ci there; no staging), publish as below, then
+  open the `master → dev` sync PR. Report that staging was skipped.
 
 ## Sync after a hotfix only
 

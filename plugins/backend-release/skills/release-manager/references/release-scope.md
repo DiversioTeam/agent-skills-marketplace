@@ -29,7 +29,8 @@ git diff --stat "$BASE_SHA" "$SOURCE_SHA"
 Run the commands with fail-fast shell behavior (`set -euo pipefail`) or check
 each status before continuing. Set `SOURCE_REF` to a full SHA when releasing an
 older `dev` commit; it must be an ancestor of `origin/dev` (check with
-`git merge-base --is-ancestor`). The helper is read-only and accepts both refs
+`git merge-base --is-ancestor`). A hotfix uses its own scope,
+`master..hotfix/<slug>`, and never captures `dev` (see the SKILL.md hotfix lane). The helper is read-only and accepts both refs
 and full SHAs. All Git subprocesses ignore inherited `GIT_*` environment
 overrides so scope comes from the current checkout. It rejects shallow or
 unrelated histories and invalid refs.
