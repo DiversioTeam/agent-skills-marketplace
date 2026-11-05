@@ -320,11 +320,10 @@ The `dev-workflow` package provides `/workflow:*` commands,
 `dev-workflow` and `ci` skills, XDG/project prompt config, and a bundled
 `agents/workflow-pipeline.chain.md` file for pi-subagents. When `local-ci` is
 on PATH and repo root contains `.local-ci.toml`, its ship/release prompts treat
-local-ci as the repo-owned validation path. In Django4Lyfe-style backend
-release flows, PR-head local-ci is a preflight that should be investigated if
-it fails; exact-head validation still happens on clean checkouts of the
-`releases/*` candidate head (staging) and `origin/master` (production), with
-`scripts/deploy/trigger_validated_backend_deploy.sh` preferred when present.
+local-ci as the repo-owned validation path. In Django4Lyfe backend releases,
+local-ci runs once per `releases/*` candidate inside
+`scripts/deploy/trigger_validated_backend_deploy.sh` (staging), and production
+reuses that result by tree; no extra runs on the release PR or `master`.
 If your pi-subagents setup only scans `.pi/agents/`, copy that chain file there
 manually.
 

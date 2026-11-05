@@ -37,7 +37,7 @@ Release PRs record the captured scope, verified URLs, and staging evidence:
 - Direct commits: <SHAs and explanations, or none>
 - Conflict adjustments: <reviewed changes, or none>
 - Scope ambiguities: <unverified entries, or none after reconciliation>
-- Exact-head checks: <links/results; preflight is not post-merge proof>
+- local-ci: <`release: local-ci tree` status and run id from the staging helper; one run per candidate>
 - Staging: <pipeline link and staged head SHA, or not staged yet>
 - Deployment: not performed by PR creation/merge
 ```
@@ -148,7 +148,8 @@ For an illustrative feature PR #2607 and release PR #2608:
    merge of the captured source, bump the version, `uv lock`, and record the
    candidate head. Open #2608 to `master` with the scope evidence.
 2. With staging authorization, run the trigger helper from a clean checkout of
-   the exact candidate head. It checks the candidate shape and local-ci, then
+   the exact candidate head. It checks the candidate shape, runs local-ci once
+   for that tree, then
    deploys staging. Test there. A fix means a new `dev` PR and a re-cut `-2`.
 3. After the go-ahead, #2608 merges with a merge commit. Take its
    `mergeCommit.oid` as `RELEASE_COMMIT_SHA`.

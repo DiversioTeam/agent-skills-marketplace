@@ -79,9 +79,9 @@ when command files change.
   - Recommended companion package: `ci-status` for `/ci`, `/ci-detail`, and
     `/ci-logs`; workflow prompts fall back to `get_ci_status` /
     `ci_fetch_job_logs` only when the current harness exposes those tools.
-    In Django4Lyfe-style backend release flows, PR-head local-ci is treated as
-    a preflight; exact-head validation still happens on clean checkouts of
-    the `releases/*` candidate head (staging) and `origin/master` (production).
+    In Django4Lyfe backend releases, local-ci runs once per `releases/*`
+    candidate inside the staging deploy helper and production reuses it by
+    tree.
 - `image-router` (pi package)
   - Purpose: routes image inputs through a vision-capable model when the
     active model cannot see images, including pasted screenshots, `@path`
@@ -245,10 +245,9 @@ when command files change.
 - `backend-pr-workflow`
   - Purpose: backend PR workflow for GitHub stacked feature PRs and the
     dev → `releases/*` → master branch model (standalone and bottom feature PRs
-    target dev, higher layers target their direct parent, release PR heads can
-    run local-ci preflight parity, and staging/production deploys of the
-    exact `releases/*` and `master` heads use local-ci plus the validated
-    deploy helper instead of auto-deploying on PR merge), GitHub
+    target dev, higher layers target their direct parent, local-ci runs once
+    per `releases/*` candidate inside the validated staging deploy helper and
+    production reuses it by tree, and PR merges never auto-deploy), GitHub
     issue linkage, Django migration safety, and downtime-safe schema changes.
   - Claude install: `claude plugin install backend-pr-workflow@diversiotech`
   - Skill path: `plugins/backend-pr-workflow/skills/backend-pr-workflow`
@@ -261,8 +260,8 @@ when command files change.
 - `backend-release`
   - Purpose: Django4Lyfe releases with captured base/source/head SHAs, a
     `releases/*` candidate staged at its exact head, verified PR attribution
-    (not timestamp cutoffs), exact-head local-ci, production deploys whose
-    tree equals the staged tree, date-based versions, exact-commit
+    (not timestamp cutoffs), one local-ci run per candidate reused by tree,
+    production deploys whose tree equals the staged tree, date-based versions, exact-commit
     publication, and a `master → dev` sync after hotfixes only. A missing scope helper or ambiguous legacy
     inclusion blocks final notes rather than silently widening the release.
   - Claude install: `claude plugin install backend-release@diversiotech`

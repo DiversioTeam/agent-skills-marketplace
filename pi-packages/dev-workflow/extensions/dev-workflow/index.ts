@@ -223,7 +223,7 @@ When changing AGENTS.md or repository harness docs, use the repo-docs-generator 
 5. Use the PR description writer to create or update the identified PR from the actual pushed diff and observed results. Link related issues and follow repo-local base/draft conventions; do not create a duplicate PR.
 6. After the final push and PR creation/update, inspect required CI for the exact remote PR head. Earlier green results do not prove this head passed. Investigate failures, repeat authorized fix/check/commit/push steps as needed, and recheck the new head. Pending, missing, or undiscoverable required checks mean readiness is pending or unknown, not green. Report the PR URL, head SHA, checks, and remaining blockers.
 
-A PR-head local-ci run is only a preflight for a backend deployment. Follow the release skill's exact clean merged-head contract only with separate deploy authorization; a helper's existence or green preflight does not authorize invoking it.`,
+A feature PR-head local-ci run does not validate a backend deployment. Backend releases follow the release skill's one-run-per-candidate contract, only with separate deploy authorization; a helper's existence or green preflight does not authorize invoking it.`,
   },
   {
     code: "workflow.pr-review-comments",
@@ -292,8 +292,8 @@ Safety rules:
 
 Important context:
 - Use the backend-release / release-manager skill for the backend release workflow.
-- If backend exposes .local-ci.toml and local-ci is on PATH, a PR-head local-ci run is only a preflight; exact validation still happens on a clean checkout of the releases/* candidate head (staging) or the merged origin/master head (production).
-- If that backend preflight fails, stop and dig into it before calling the release ready.
+- If backend exposes .local-ci.toml and local-ci is on PATH, local-ci runs once per release candidate, inside the staging deploy helper on the releases/* head; production reuses it by tree. Do not run local-ci by hand on the release branch, its PR or master.
+- If that one run fails, stop and dig into it before calling the release ready.
 - If backend exposes scripts/deploy/trigger_validated_backend_deploy.sh, that helper is the backend deploy trigger; PR merges alone do not deploy.
 - For frontend, optimo-frontend, and design-system, first read and follow each repo's own guidelines if available (AGENTS.md, CLAUDE.md, README, CONTRIBUTING, release docs, package scripts, or repo-local docs).
 - These repos may have different base branches, release branches, versioning rules, build steps, and PR body expectations.

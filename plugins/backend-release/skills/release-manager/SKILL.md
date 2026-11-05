@@ -14,14 +14,21 @@ precedence.
 ```text
 feature PRs -> dev                                  (validation only, no deploy)
 releases/YYYY.MM.DD[-N] = master + --no-ff merge of a chosen dev SHA + version bump
-exact releases/* head -> trigger helper (candidate check + local-ci) -> staging
+exact releases/* head -> trigger helper (candidate check + the ONE local-ci run) -> staging
 release PR releases/* -> master   (merge commit, never squash; tree == staged tree)
-exact master head -> trigger helper (staged-tree check + local-ci) -> production
+exact master head -> trigger helper (staged-tree + recorded local-ci check, no run) -> production
 release PR merge commit -> matching version tag -> GitHub release
 ```
 
 There is no `release` branch and no promotion PR. The release branch is the
 staging candidate: what staging ran is exactly what production gets.
+
+**local-ci runs once per candidate**, inside the staging deploy helper, and is
+reused for every commit with the same tree. Never run local-ci by hand on a
+`releases/*` branch, its PR, or `master`: the PR head is the staged commit,
+and production reuses the result by tree. A changed candidate (new `-N`) gets
+its own single run. Only a `--hotfix` production deploy runs local-ci on
+`master`.
 
 ## Modes and permissions
 
@@ -110,17 +117,24 @@ cd /path/to/clean-backend-staging
 scripts/deploy/trigger_validated_backend_deploy.sh
 ```
 
-The helper checks the candidate shape, runs local-ci on that exact head, then
-triggers CircleCI `staging_deploy` on the branch. A successful
-`ci/circleci: Staging: Deploy App` status on the head is the staging evidence
-production will require. Watch the pipeline to the end; test on staging. Any
-new candidate commit invalidates that evidence.
+The helper checks the candidate shape, then runs local-ci only if this tree
+has no recorded pass. It refuses the result if HEAD, the tree or the worktree
+changed during the run, verifies the required statuses, and posts a
+`release: local-ci tree` status (`local-ci passed on tree <tree sha>`) on the
+head. Re-staging the same head reuses it. It then triggers CircleCI
+`staging_deploy` on the branch. That status plus a successful
+`ci/circleci: Staging: Deploy App` on the head are the evidence production
+requires. Watch the pipeline to the end; test on staging. Any new candidate
+commit invalidates that evidence. `python -m scripts.deploy.release_candidate
+validated|record` reads and posts the status.
+
+The checkout-unchanged guard covers local-ci-runner#11 (a run can report on a
+checkout that changed under it) until that is fixed; never bypass it.
 
 ## Pre-release gates
 
-Run repository-required checks and inspect CI for the exact candidate head.
-Do not call a failed preflight ready. After merge, validate the exact target
-head again rather than reusing candidate-branch results.
+Inspect the candidate's required checks; do not call a failed run ready. Do
+not add local-ci runs beyond the helper's one per candidate.
 
 1. Run `./.security/ruff_pr_diff.sh`; use `.bin/ruff format <file>` to fix
    formatting if the repo supplies these wrappers. Missing required wrappers
@@ -158,9 +172,11 @@ scripts/deploy/trigger_validated_backend_deploy.sh            # release
 scripts/deploy/trigger_validated_backend_deploy.sh --hotfix   # hotfix PR only
 ```
 
-Without `--hotfix`, the helper requires the head to be a merge commit whose
-tree equals its second parent (the staged release head) and that parent to
-carry a successful `ci/circleci: Staging: Deploy App` status. If it refuses,
+Without `--hotfix`, the helper runs no local-ci. It requires the head to be a
+merge commit whose tree equals its second parent (the staged release head),
+and that parent to carry a successful `ci/circleci: Staging: Deploy App`
+status and a `release: local-ci tree` status for that same tree. With
+`--hotfix` it runs local-ci on the exact `master` head. If it refuses,
 do not work around it: the merge differs from what staging ran, so re-cut and
 re-stage. Use `--hotfix` only for a merged `hotfix/*` PR, and say in the report
 that it skipped staging.

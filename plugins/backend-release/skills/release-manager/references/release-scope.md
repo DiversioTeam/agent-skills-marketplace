@@ -96,10 +96,10 @@ git diff --stat "$BASE_SHA" "$CANDIDATE_HEAD_SHA"
 ```
 
 Review conflict resolutions and the final diff; ancestry does not prove every
-source patch survived a manual resolution. Record the head SHA and check CI
-for that exact head. Any new candidate commit requires refreshed review and
-checks. If the target advances, reassess the new target/candidate combination
-before merging; do not imply the earlier preflight validated it.
+source patch survived a manual resolution. Record the head SHA; its one
+local-ci run happens in the staging deploy helper. Any new candidate commit is
+a new candidate (`-N+1`) with its own review and run. If `master` advances
+before merging, re-cut: the old candidate's evidence does not cover it.
 
 After the PR merges, take `RELEASE_COMMIT_SHA` from **that PR's** `mergeCommit.oid`.
 Read its version from that commit and tag that commit, even if `master` advances

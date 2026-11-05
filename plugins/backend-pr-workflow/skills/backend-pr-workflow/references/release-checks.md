@@ -15,19 +15,21 @@ For normal deployments, check that:
   `Release: 21st January 2026`, and **lists every included PR**.
 - Staging deploys the exact candidate head:
   - If the validated deploy helper exists, run it from a clean checkout of
-    that head; it checks the candidate shape, runs local-ci, then triggers the
-    staging deploy.
-  - Otherwise, validate the exact head with local-ci and follow the repo-local
-    deploy path.
-  - A local-ci run on the PR head is a preflight; if it fails, stop and dig
-    into the harness/code instead of treating it as a footnote.
+    that head; it checks the candidate shape, runs local-ci once for that
+    tree (reused on re-staging), then triggers the staging deploy.
+  - Otherwise, validate the exact head with local-ci once and follow the
+    repo-local deploy path.
+  - No extra local-ci runs on the release PR or `master`: the PR head is the
+    staged commit and production reuses the result by tree. If the run fails,
+    stop and dig into the harness/code instead of treating it as a footnote.
   - A fix found on staging goes to `dev` through a reviewed PR; the candidate
     is then re-cut (`-N+1`) and re-staged. Commits pushed straight onto a
     `releases/*` branch are `[BLOCKING]`.
 - After the release PR merges (merge commit, never squash):
-  - Run the deploy helper from the clean exact `origin/master` head. It
-    refuses unless the merge commit's tree equals the staged head's tree and
-    that head has a successful staging deploy.
+  - Run the deploy helper from the clean exact `origin/master` head. It runs
+    no local-ci and refuses unless the merge commit's tree equals the staged
+    head's tree and that head has a successful staging deploy and local-ci
+    status for the same tree.
   - Create the GitHub Release at the release PR's merge commit.
   - No back-merge is needed for a normal release.
 
