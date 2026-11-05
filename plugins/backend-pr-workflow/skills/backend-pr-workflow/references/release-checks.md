@@ -28,8 +28,9 @@ For normal deployments, check that:
 - After the release PR merges (merge commit, never squash):
   - Run the deploy helper from the clean exact `origin/master` head. It runs
     no local-ci and refuses unless the merge commit's tree equals the staged
-    head's tree and that head has a successful staging deploy and local-ci
-    status for the same tree.
+    head's tree and that head shows the whole staging rollout succeeded
+    (`Staging: Deploy App` and `Staging: Start Sleep Timer`, i.e. app and
+    cron) and a local-ci status for the same tree.
   - Create the GitHub Release at the release PR's merge commit.
   - No back-merge is needed for a normal release.
 

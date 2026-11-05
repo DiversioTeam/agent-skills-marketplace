@@ -129,9 +129,11 @@ has no recorded pass. It refuses the result if HEAD, the tree or the worktree
 changed during the run, verifies the required statuses, and posts a
 `release: local-ci tree` status (`local-ci passed on tree <tree sha>`) on the
 head. Re-staging the same head reuses it. It then triggers CircleCI
-`staging_deploy` on the branch. That status plus a successful
-`ci/circleci: Staging: Deploy App` on the head are the evidence production
-requires. Watch the pipeline to the end; test on staging. Any new candidate
+`staging_deploy` on the branch. Production requires that status plus the
+**whole** staging rollout on the head, cron services included: both
+`ci/circleci: Staging: Deploy App` and `ci/circleci: Staging: Start Sleep Timer`
+(the workflow's last job, after both cron rollouts) must be `success`. Watch
+the pipeline to the end; test on staging. Any new candidate
 commit invalidates that evidence. `python -m scripts.deploy.release_candidate
 validated|record` reads and posts the status.
 
@@ -181,8 +183,9 @@ scripts/deploy/trigger_validated_backend_deploy.sh --hotfix   # hotfix PR only
 
 Without `--hotfix`, the helper runs no local-ci. It requires the head to be a
 merge commit whose tree equals its second parent (the staged release head),
-and that parent to carry a successful `ci/circleci: Staging: Deploy App`
-status and a `release: local-ci tree` status for that same tree. With
+and that parent to carry `success` for both `ci/circleci: Staging: Deploy App`
+and `ci/circleci: Staging: Start Sleep Timer` (the full staging rollout,
+including cron) and a `release: local-ci tree` status for that same tree. With
 `--hotfix` it runs local-ci on the exact `master` head. If it refuses,
 do not work around it: the merge differs from what staging ran, so re-cut and
 re-stage. Use `--hotfix` only for a merged `hotfix/*` PR, and say in the report

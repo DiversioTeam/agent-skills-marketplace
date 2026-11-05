@@ -155,7 +155,9 @@ For an illustrative feature PR #2607 and release PR #2608:
    `mergeCommit.oid` as `RELEASE_COMMIT_SHA`.
 4. With production authorization, run the helper from the exact current
    `master` head. It refuses unless that merge's tree equals the staged head's
-   tree and the staged head has a successful staging deploy status.
+   tree, the staged head's whole staging rollout succeeded (`Staging: Deploy
+   App` and `Staging: Start Sleep Timer`, cron included), and its
+   `release: local-ci tree` status matches that tree.
 5. Run the publication checks above: read the version from that SHA, inspect
    existing tags/releases, and create/verify the tag at that SHA. A newer
    `master` tip never changes #2608's publication target.
