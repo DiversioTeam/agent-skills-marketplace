@@ -4,7 +4,9 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 SCRIPTS = Path(__file__).parents[1] / "plugins" / "agent-session" / "skills" / "agent-session" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -19,6 +21,8 @@ publish = importlib.import_module("publish")
 redaction = importlib.import_module("redaction")
 render_html = importlib.import_module("render_html")
 repo_context = importlib.import_module("repo_context")
+# The fixtures' clock: a day after their records (2026-10-23), for code that measures "recent" from now.
+FIXTURE_NOW = datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc).timestamp()
 store = importlib.import_module("store")
 check = importlib.import_module("check")
 slicing = importlib.import_module("slicing")
@@ -1956,6 +1960,9 @@ class ShareTests(unittest.TestCase):
             mock.patch.object(publish, "delete", side_effect=lambda name: self.deleted.append(name) or True),
             mock.patch.object(agent_session, "_find_pr", return_value=7),
             mock.patch.object(agent_session, "_update_pr_body", side_effect=lambda context, pr, section: self.bodies.append((pr, section)) or True),
+            # The branch has no commits, so the lookback falls back to "14 days before now": pin now to the fixtures'
+            # day (2026-10-23) so the sessions stay in range whatever today's date is.
+            mock.patch.object(repo_context, "time", SimpleNamespace(time=lambda: FIXTURE_NOW)),
         ]
         for patch in patches:
             patch.start()
