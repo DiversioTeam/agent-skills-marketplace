@@ -66,8 +66,8 @@ Design points:
 - Allow-list entries match the **bare command**: tell the agent to run each
   allowed script from the repo root as its own command (no `cd …;`, no pipe),
   or it stops for approval.
-- Do not trust a CLI's status command's exit code (`cs login --status` exits
-  0 when signed out); grep its output.
+- Do not trust a CLI's status command's exit code (one sandbox CLI's `login --status`
+  exited 0 when signed out); grep its output.
 
 Repo hooks **do not run in multi-repo Claude sessions**. Codex has no
 equivalent hook; use its setup and maintenance scripts (see

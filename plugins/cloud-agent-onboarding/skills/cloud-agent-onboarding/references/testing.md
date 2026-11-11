@@ -71,7 +71,7 @@ For anything that failed, a diagnosis prompt: exact error text; the tool's
 own log for that run (secrets redacted, lines cut to 200 chars); proxy
 variable **names**; certificate issuers through the proxy; WebSocket and
 HTTP/2 behaviour; any proxy docs inside the VM. "Report plainly; don't change
-any files." This is how the `cs exec` 403 was traced to a CLI that bypassed
+any files." This is how a sandbox CLI's 403 was traced to the CLI bypassing
 `HTTPS_PROXY`; reproduce locally through a logging proxy, then fix.
 
 ### 5. Fix and retest

@@ -92,8 +92,8 @@ keep production deploys in CI with their own token.
 
 | | Default | Alternatives |
 | --- | --- | --- |
-| Remote sandboxes | Crafting (`cs` CLI): templates with a database, shared dev snapshots, per-sandbox URLs | Coder, Gitpod, GitHub Codespaces, ephemeral Kubernetes namespaces, a shared staging stack |
-| How the session reaches it | A service-account login token as an environment variable; the SessionStart hook logs in; a relay because the CLI bypasses `HTTPS_PROXY` | Whatever the provider's CLI needs. Check: does login happen in the VM (variable plus hook) or is it a static header (network secret)? Does the CLI honour `HTTPS_PROXY`? Does each login register keys you must prune? |
+| Remote sandboxes | None from the session: people see a running copy with data through a separate preview service with its own sign-in, outside the cloud environment | Coder, Gitpod, GitHub Codespaces, ephemeral Kubernetes namespaces, a shared staging stack, a CLI-driven sandbox provider (case study 2) |
+| How the session reaches it | It does not; no sandbox credential lives in the environment | Whatever the provider's CLI needs. Check: does login happen in the VM (variable plus hook) or is it a static header (network secret)? Does the CLI honour `HTTPS_PROXY`? Does each login register keys you must prune? |
 | Without any of these | | Fixtures, SQLite or in-memory fakes; the preinstalled PostgreSQL and Redis in Claude's image (installed, not running) |
 
 ## Checks

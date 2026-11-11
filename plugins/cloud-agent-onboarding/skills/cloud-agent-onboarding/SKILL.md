@@ -13,13 +13,11 @@ work. Also use to audit or repair an existing cloud setup, or to learn the
 platform facts before advising on one.
 
 Not for: running a single cloud session for a task (just do the task), CI/CD
-pipelines, or remote-sandbox operations on their own (in this marketplace,
-`crafting-sandboxes`).
+pipelines, or remote-sandbox operations on their own.
 
 The knowledge here comes from four real projects done in October 2026
 (see [case studies](references/case-studies.md)). It names the providers we
-use by default (GitHub, 1Password, Cloudflare, Crafting, our own check
-runner) and, for each, what changes with another one
+use by default (GitHub, 1Password, Cloudflare, our own check runner) and, for each, what changes with another one
 ([providers](references/providers.md)). Use it as is with those defaults, or
 swap any block. Platform facts drift fast:
 re-read the official pages in [platforms](references/platforms.md) at the

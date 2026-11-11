@@ -42,8 +42,13 @@ with a database, debugs, changes code, shows screenshots and saves a draft
 PR.
 
 **Shape:** a parent repo whose product repos are submodules; a sandbox
-provider (Crafting) reached through a CLI that logs in inside the VM; sandbox
+provider reached through a CLI that logs in inside the VM; sandbox
 workloads on their own hosts.
+
+**Since (November 2026):** the sandbox provider was retired. The project now
+uses the cloud agent's own environment with no sandbox login, and people see
+a running copy through a separate preview service with its own sign-in. The
+build and lessons below still apply to any CLI-driven sandbox provider.
 
 **Built:**
 - Two environments, identical except a variable naming the product and
