@@ -67,10 +67,6 @@ Create a bot or service account with the **narrowest role the system
 offers**. If the system cannot scope it, write the limits into the repo skill
 and record the risk for the owner.
 
-```bash
-cs org service-account create claude-cloud --display-name "Claude cloud"   # Crafting example
-```
-
 Every PR a cloud session opens is authored by the GitHub user connected to
 the vendor account, whoever typed the request. Say so in the people guide.
 
@@ -158,15 +154,15 @@ HOME=$H <cli> whoami
 HOME=$H <cli> logout; rm -rf "$H"
 ```
 
-**If the CLI only takes the token as an argument** (Crafting's `cs login -t`
-did, as of 2026-10-17), don't run the proof on your laptop. Run it in a
+**If the CLI only takes the token as an argument** (case study 2's sandbox
+CLI did, as of 2026-10-17), don't run the proof on your laptop. Run it in a
 throwaway cloud probe session instead: there the token is already an
 environment variable every user of the environment can read, so passing it as
 an argument inside that VM adds no new exposure, and nothing touches your
 machine. Record the limitation in the change record, and ask the vendor for a
 stdin or environment-variable option.
 
-This is where you learn what the login really does. `cs login -t` swapped the
+This is where you learn what the login really does. That CLI's login swapped the
 token for an 8-day session **and registered an SSH key** on the account,
 which is why it had to be a variable plus a hook, not a network secret.
 

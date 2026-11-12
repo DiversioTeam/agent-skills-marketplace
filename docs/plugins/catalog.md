@@ -53,7 +53,7 @@ when command files change.
   - Chain path: `pi-packages/dev-workflow/agents/workflow-pipeline.chain.md`
   - Slash commands: `/workflow:plan`, `/workflow:self`, `/workflow:standards`,
     `/workflow:ci`, `/workflow:docs`, `/workflow:ship`,
-    `/workflow:pr-review-comments`, `/workflow:release-prs`, `/workflow:crafting`,
+    `/workflow:pr-review-comments`, `/workflow:release-prs`,
     `/workflow:context`, `/workflow:handoff`, `/workflow:onboard`,
     `/workflow:scout`, `/workflow:oracle`, `/workflow:reviewer`,
     `/workflow:parallel`, `/workflow:help`, `/workflow:flow`, `/workflow:run`,
@@ -186,9 +186,8 @@ when command files change.
     `clickup-ticket`, `github-ticket`, `repo-docs-generator`,
     `visual-explainer`, `dependabot-remediation`, `terraform-atomic-commit`,
     `terraform-pr-workflow`, `login-cta-attribution-skill`,
-    `monolith-review-orchestrator`, `frontend`, `crafting-sandboxes`,
-    `cloud-agent-onboarding`, `browser-walkthrough-recording`, `agent-session`
-    (25 total).
+    `monolith-review-orchestrator`, `frontend`, `cloud-agent-onboarding`,
+    `browser-walkthrough-recording`, `agent-session` (24 total).
   - Context: Pi includes skill names, descriptions, and file locations at
     startup; full SKILL.md instructions load on demand.
 - `monolith-review-orchestrator`
@@ -369,15 +368,6 @@ when command files change.
 
 ## Operations And Implementation
 
-- `crafting-sandboxes`
-  - Purpose: create, inspect, or update Crafting instances with current template
-    discovery, branch overrides, frontend DS consumption, snapshot safety, and
-    separate endpoint/authenticated readiness evidence.
-  - Claude install: `claude plugin install crafting-sandboxes@diversiotech`
-  - Skill path: `plugins/crafting-sandboxes/skills/crafting-sandboxes`
-  - Slash command: `/crafting-sandboxes:sandbox`
-  - Pi workflow command: `/workflow:crafting` (loads this skill; standalone
-    `dev-workflow` users must also load it or enable `skills-bridge`).
 - `cloud-agent-onboarding`
   - Purpose: make a repository work in hosted cloud coding agents (Claude Code
     on the web, Codex cloud): assessment, credentials and network secrets,

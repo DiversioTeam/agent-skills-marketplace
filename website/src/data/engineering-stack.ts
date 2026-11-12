@@ -105,7 +105,6 @@ export const engineeringStack: EngineeringStackLayer[] = [
       { name: "Zed", logoSrc: "/logos/stack/zed.png", logoAlt: "Zed logo" },
       { name: "Pi", logoSrc: "/logos/stack/pi.svg", logoAlt: "Pi logo", wide: true },
       { name: "Docker", logoSrc: "/logos/stack/docker.png", logoAlt: "Docker logo" },
-      { name: "sandboxes.cloud", logoSrc: "/logos/stack/sandboxes.svg", logoAlt: "sandboxes.cloud logo" },
       { name: "ngrok", logoSrc: "/logos/stack/ngrok.png", logoAlt: "ngrok logo" },
     ],
     supportingTools: ["Ghostty", "tmux", "nvm"],

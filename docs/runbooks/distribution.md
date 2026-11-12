@@ -44,7 +44,6 @@ claude plugin uninstall visual-explainer@visual-explainer-marketplace
 ```bash
 PLUGINS=(
   browser-walkthrough-recording
-  crafting-sandboxes
   cloud-agent-onboarding
   monolith-review-orchestrator
   monty-code-review
@@ -89,7 +88,6 @@ Then uninstall the user-scoped copies:
 ```bash
 PLUGINS=(
   browser-walkthrough-recording
-  crafting-sandboxes
   cloud-agent-onboarding
   monolith-review-orchestrator
   monty-code-review
@@ -132,6 +130,9 @@ Troubleshooting:
 - If a plugin is disabled, re-enable it before uninstalling.
 - If cleanup is still required, inspect the repo-local `.claude/` directory and
   your user-level Claude Code config location before deleting anything.
+- Retired plugins are no longer in the marketplace and stay installed until you
+  remove them: `crafting-sandboxes` (Crafting was retired in November 2026)
+  goes with `claude plugin uninstall crafting-sandboxes@diversiotech`.
 
 ## Pi Package Installation
 
@@ -338,14 +339,6 @@ Do not combine a fixed native marketplace manifest with the bridge and expect
 checkout overrides to win same-name collisions. See the package README for
 precedence, compatibility, and offline discovery tests.
 
-`/workflow:crafting <task>` delegates to the marketplace `crafting-sandboxes`
-skill. The root install includes `skills-bridge`, but the bridge exposes skills
-only when Pi starts inside a matching marketplace/monolith checkout or an
-explicit root is configured. With standalone `dev-workflow`, also load
-`plugins/crafting-sandboxes/skills/crafting-sandboxes` through Pi skill settings
-or `--skill <path>`, or install and configure `skills-bridge`. The Crafting `cs`
-CLI and organization authentication are separate prerequisites.
-
 The PR description writer prefers
 [tldraw offline](https://tldraw.notion.site/User-manual-tldraw-offline-39a3e4c324c080e7b2eacc5afd078e85)
 for editable diagrams and rendered PR assets. Install/open the desktop app and
@@ -401,7 +394,6 @@ python3 "$CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-g
   --ref main \
   --path \
     plugins/browser-walkthrough-recording/skills/browser-walkthrough-recording \
-    plugins/crafting-sandboxes/skills/crafting-sandboxes \
     plugins/cloud-agent-onboarding/skills/cloud-agent-onboarding \
     plugins/monolith-review-orchestrator/skills/monolith-review-orchestrator \
     plugins/monty-code-review/skills/monty-code-review \
@@ -465,7 +457,6 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 SKILLS=(
   browser-walkthrough-recording
-  crafting-sandboxes
   cloud-agent-onboarding
   monolith-review-orchestrator
   monty-code-review

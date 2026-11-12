@@ -93,8 +93,8 @@ When the CI provider exposes artifacts:
 
 ### Local preview / sandbox validation
 
-Use the detected target from the digest. Do not assume Crafting, Vercel
-previews, or localhost without evidence.
+Use the detected target from the digest. Do not assume Vercel
+previews, a Courage preview, or localhost without evidence.
 
 If the preview target requires secrets, auth, or environment variables that
 are not available, ask for the missing values explicitly.

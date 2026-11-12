@@ -127,8 +127,8 @@ a remote sandbox) behind access control, pointed at staging or mock data.
 ## Running copies with data (remote sandboxes)
 
 When people need "what an HR admin sees", a static page is not enough. The
-remote-sandbox project used Crafting sandboxes through a CLI: create a test copy with a
-database, sync code into it, sign in with synthetic users, screenshot,
+remote-sandbox project (case study 2) used a sandbox provider through a CLI: create a
+test copy with a database, sync code into it, sign in with synthetic users, screenshot,
 delete. Rules that carried over:
 
 - Ask once which data to start with, recommending the newest shared dev

@@ -206,7 +206,6 @@ Stack logos live in `public/logos/stack/`.
 | `ghostty.png` | `https://ghostty.org/favicon-32.png` | favicon-grade fallback |
 | `pi.svg` | `https://pi.dev/logo.svg` | official Pi logo |
 | `docker.png` | `https://www.docker.com/app/uploads/2024/02/cropped-docker-logo-favicon-192x192.png` | icon-grade fallback |
-| `sandboxes.svg` | `https://sandboxes.cloud/icon.svg` | official icon |
 | `ngrok.png` | `https://ngrok.com/assets/apple-touch-icon.png` | icon-grade fallback |
 | `cmux.png` | `https://cmux.com/logo.png` | official cmux logo |
 

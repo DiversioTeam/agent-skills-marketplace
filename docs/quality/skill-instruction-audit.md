@@ -25,7 +25,6 @@ is added to every skill.
 | bruno-api | Default to documentation in the response; ask only for ambiguous endpoint scope or consequential output layout. |
 | clickup-ticket | Route to the requested command; preserve interactive creation versus quick defaults and read-only inspection. |
 | code-review-digest-writer | Derive clear reporting dates; retain evidence, partial-data labeling, and docs-only scope. |
-| crafting-sandboxes | Retain live discovery, ownership, data-replacement consent, and readiness evidence. |
 | dependabot-remediation | Output follows the requested mode, without fabricated execution/release sections; retain wave and closure gates. |
 | frontend | Load only applicable lane references; preserve digest freshness, ephemeral fallback, and refresh-only persistence. |
 | github-ticket | Route command modes separately; preserve repository routing, project fields, and partial-success reporting. |

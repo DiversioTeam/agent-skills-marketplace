@@ -75,7 +75,7 @@ Do not silently write digest files outside of `/frontend:refresh-digest`.
 ### 4. Anti-assumptions
 
 Do not assume: `yarn`, `dev` / `main`, React Query, axios, styled-components,
-Playwright, CloudFlare / Crafting, Sentry, or Mixpanel. Use what the digest or
+Playwright, CloudFlare, Sentry, or Mixpanel. Use what the digest or
 inline detection finds.
 
 ## Detection Workflow

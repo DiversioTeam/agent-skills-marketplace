@@ -14,7 +14,7 @@ Possible combinations:
 - internal preview/sandbox tooling
 - other CI or deploy setups
 
-Do not assume CloudFlare Pages or Crafting.
+Do not assume CloudFlare Pages.
 
 ### 2. Route the request
 

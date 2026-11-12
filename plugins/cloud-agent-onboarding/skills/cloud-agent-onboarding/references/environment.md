@@ -28,11 +28,9 @@ and read every save back.
 Examples of allow-lists:
 
 ```
-# Remote sandboxes (Crafting: API, workloads, product URLs, CLI downloads)
-sandboxes.cloud
-*.sandboxes.cloud
-*.sandboxes.run
-storage.googleapis.com
+# A remote-sandbox provider (its API, workload and product URLs, CLI downloads)
+api.<sandbox-vendor>.com
+*.<sandbox-vendor-workloads>.com
 # Cloudflare previews
 api.cloudflare.com
 # Tool downloads in setup (GitHub release assets, Node)

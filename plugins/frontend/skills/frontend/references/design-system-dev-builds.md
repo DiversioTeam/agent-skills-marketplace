@@ -14,7 +14,7 @@ For other repositories, discover their publisher and branch policy rather than a
   prerelease. Missing exports, inaccessible artifacts and source-only aliases are still real findings.
 - Record DS SHA, exact package version, consumer SHA and tests/preview. Keep parallel features isolated; do not pin a
   moving dev tag, bulk-upgrade unrelated consumers or assume a submodule pointer changes installed packages.
-- Verify consumption on each machine, including dev-center and Crafting. A green Storybook or correct DS checkout
+- Verify consumption on each machine, including dev-center and Courage previews. A green Storybook or correct DS checkout
   does not prove which bundle the frontend loads. Dev publishing builds/packs but does not replace required tests.
 - Follow the task's publication authority. An authorized dev-publish loop does not need renewed approval for each
   iteration; a read-only/review/docs-only request is not permission to publish, push or mutate a shared sandbox.

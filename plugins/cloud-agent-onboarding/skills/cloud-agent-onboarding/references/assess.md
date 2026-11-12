@@ -74,20 +74,10 @@ environment:
 Before creating anything, learn what is there and what could leak. For any
 provider, list: org settings (with secret-looking lines filtered out),
 existing non-human accounts, templates or project definitions, running
-resources and who owns them, and data snapshots. Example with Crafting's
-`cs` CLI:
-
-```bash
-cs org show -o yaml | grep -viE 'token|secret|key'   # settings without secret-looking lines
-cs org service-account list                          # existing non-human accounts
-cs template list -o yaml                             # what products exist
-cs sandbox list                                      # who has what running
-cs snapshot list -o json                             # which data copies exist
-```
-
-The same questions for others: `gh api orgs/<org>/installations`, `vercel
-project ls`, `coder templates list`, the cloud console's IAM and secrets
-pages.
+resources and who owns them, and data snapshots. Filter secret-looking lines
+out of anything you print (`grep -viE 'token|secret|key'`). Examples:
+`gh api orgs/<org>/installations`, `vercel project ls`, `coder templates
+list`, the cloud console's IAM and secrets pages.
 
 What to look for, and what each finding changes:
 
