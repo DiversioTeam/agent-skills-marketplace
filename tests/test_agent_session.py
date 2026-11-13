@@ -1873,6 +1873,27 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNone(check_pr_hook.decide("gh pr edit 7 --repo DiversioTeam/demo --title ';' --body 'No agent session: manual hotfix'", cwd))
         self.assertIsNone(check_pr_hook.decide("gh pr edit 7 --repo DiversioTeam/demo --add-label ';'", cwd))
 
+    def test_hook_applies_only_state_changes_that_surely_ran(self):
+        cwd = Path("/nonexistent")
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "good.md").write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            Path(directory, "bad.md").write_text("Summary only\n", encoding="utf-8")
+            good, bad = Path(directory, "good.md"), Path(directory, "bad.md")
+            create = 'gh pr create --repo DiversioTeam/demo --body-file "$F"'
+            # Changes that ran whenever the create runs.
+            for command in (f"F={good}; {create}", f"F={good} && {create}", f"false && F={good} && {create}",
+                            f"F={bad}; F={good}; {create}", f"cd {directory} && gh pr create --repo DiversioTeam/demo --body-file good.md"):
+                self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+            # Changes the shell may have skipped, or made in another process, do not count.
+            for command in (f"F={bad}; false && F={good}; {create}", f"F={bad}; true || F={good}; {create}",
+                            f"F={bad}; false || F={good} && {create}", f"F={bad}; (F={good}); {create}",
+                            f"F={bad}; echo x | F={good}; {create}", f"F={bad}; F={good} & {create}",
+                            f"F={bad}; {{ F={good}; }}; {create}",
+                            f"false && cd {directory}; gh pr create --repo DiversioTeam/demo --body-file good.md",
+                            f"(cd {directory}); gh pr create --repo DiversioTeam/demo --body-file good.md",
+                            f"cd $SOMEWHERE && gh pr create --repo DiversioTeam/demo --body-file {good.name}"):
+                self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+
     def test_hook_runs_substitutions_in_unquoted_heredocs(self):
         cwd = Path("/nonexistent")
         # An unquoted delimiter makes Bash run `$(...)` and backticks in the heredoc body.

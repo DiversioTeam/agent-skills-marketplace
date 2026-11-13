@@ -39,8 +39,8 @@ MESSAGE = (
 )
 UNREADABLE = (
     "The agent-session hook could not read the PR body {what} ({why}), so it cannot see the agent session line. "
-    "Write the body to a file in an earlier command, then pass that file's literal path (or a variable assigned earlier "
-    "in the same command line). "
+    "Write the body to a file in an earlier command, then pass that file's literal path (or a variable assigned at the "
+    "start of the command line, as in `F=/path/body.md; ...`). "
 )
 UNPARSED = "The agent-session hook could not split this command line into words, so it could not read the PR body. "
 
@@ -66,11 +66,15 @@ class Unreadable(Exception):
 
 
 class Command:
-    """One simple command: its words, and the bodies of unquoted heredocs fed to it (which Bash expands)."""
+    """One simple command: its words, the bodies of unquoted heredocs fed to it (which Bash expands), the control
+    operators before and after it, and how many parentheses (subshells) it sits in."""
 
-    def __init__(self) -> None:
+    def __init__(self, before: str = "", depth: int = 0) -> None:
         self.words: list[list[tuple[str, str]]] = []
         self.expanded_heredocs: list[str] = []
+        self.before = before
+        self.after = ""
+        self.depth = depth
 
 
 def _substitution_end(text: str, start: int) -> int:
@@ -127,6 +131,7 @@ def _substitutions(text: str) -> list[str]:
 def _lex(text: str) -> list[Command]:
     """The command line as Bash splits it into simple commands and words. Raises ValueError when it cannot."""
     commands = [Command()]
+    depth = 0
     parts: list[tuple[str, str]] = []
     started = False
     redirect_pending = False  # the next word is a redirection target (or heredoc delimiter), not an argument
@@ -221,7 +226,12 @@ def _lex(text: str) -> list[Command]:
                     operator = "<<-"
             index += len(operator)
             if set(operator) <= SEPARATOR_CHARS:
-                commands.append(Command())
+                depth += {"(": 1, ")": -1}.get(operator, 0)
+                if commands[-1].words or commands[-1].expanded_heredocs:
+                    commands[-1].after = operator
+                # An empty command between operators (`a; (b)`) passes on the earlier operator.
+                before = operator if commands[-1].words or operator not in "()" else commands[-1].before
+                commands.append(Command(before, depth))
             elif operator in ("<<", "<<-"):
                 heredoc_next = operator
             else:
@@ -265,7 +275,10 @@ def _read(path: str, cwd: Path, what: str) -> str:
     if path == "-" or path.startswith("/dev/"):
         raise Unreadable(UNREADABLE.format(what=what, why="it comes from standard input"))
     if UNKNOWN in path:
-        raise Unreadable(UNREADABLE.format(what=what, why=f"`{_shown(path)}` uses a variable or command output not set earlier in the command"))
+        raise Unreadable(UNREADABLE.format(what=what, why=f"`{_shown(path)}` uses a variable or command output not set earlier in the command, or set only "
+                                                       "where it may not run: after `cmd &&` or `||`, in a pipeline, subshell, `{ }` group or the background"))
+    if UNKNOWN in str(cwd / Path(path).expanduser()):
+        raise Unreadable(UNREADABLE.format(what=what, why=f"`{path}` is relative to a directory the hook cannot follow"))
     try:
         return (cwd / Path(path).expanduser()).read_text(encoding="utf-8")
     except OSError as error:
@@ -372,8 +385,8 @@ def _api_bodies(args: list[str], cwd: Path) -> list[str] | None:
 
 
 def _is_diversio(text: str, cwd: Path) -> bool:
-    if "diversioteam/" in text.lower():
-        return True
+    if "diversioteam/" in text.lower() or UNKNOWN in str(cwd):
+        return True  # a directory the hook cannot follow might be a DiversioTeam checkout
     completed = subprocess.run(["git", "-C", str(cwd), "remote", "get-url", "origin"], capture_output=True, text=True, check=False, timeout=10)
     return "diversioteam/" in completed.stdout.lower()
 
@@ -432,24 +445,64 @@ def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None
         reason = decide(inner, cwd)
         if reason:
             return reason
-    variables: dict[str, str] = {}
+    # Shell state (variables, the working directory) a later command can rely on. `certain` holds changes that ran
+    # whenever a later command runs; `chained` holds changes made after the start of an `a && b && ...` list, which
+    # are certain only for the rest of that `&&` chain. Changes the hook cannot be sure ran in this shell (after `||`,
+    # in a pipeline, a subshell, a `{ }` group or the background) become UNKNOWN, so reads that depend on them block.
+    certain: dict[str, str] = {}
+    chained: dict[str, str] = {}
+    unknown_cwd = Path(UNKNOWN + "cd")
+    certain_cwd, chained_cwd = cwd, None
+
+    def forget_chain() -> None:
+        nonlocal chained_cwd, certain_cwd
+        for name in chained:
+            certain[name] = UNKNOWN + "$" + name
+        chained.clear()
+        if chained_cwd is not None:
+            certain_cwd, chained_cwd = unknown_cwd, None
+
     for simple in commands:
+        if simple.before != "&&":
+            forget_chain()
+        starts_list = simple.before in ("", ";", "\n", ")", "&")
+        # After `a || ...` the change may be skipped while a later `&& b` still runs, so it is not certain either.
+        isolated = (simple.depth > 0 or simple.before == "||" or "|" in simple.before + simple.after
+                    or simple.after == "&")
+        variables = {**certain, **chained}
+        cwd = chained_cwd or certain_cwd
         words = [_value(parts, variables) for parts in simple.words]
+        if words and words[0] == "{":
+            words, isolated = words[1:], True
         if not words:
             continue
-        names = [NAME.match(parts[0][1]) if parts and parts[0][0] == "plain" else None for parts in simple.words]
+        names = [NAME.match(parts[0][1]) if parts and parts[0][0] == "plain" else None for parts in simple.words[-len(words):]]
+        changes: dict[str, str] = {}
         if words[0] == "export" or all(names):
             # `NAME=value` alone sets a shell variable for the rest of the line.
-            for word, name in zip(words, names):
-                if name:
-                    variables[name.group("name")] = word.split("=", 1)[1]
+            changes = {name.group("name"): word.split("=", 1)[1] for word, name in zip(words, names) if name}
+        elif words[0] in ("cd", "pushd", "popd"):
+            target = words[1] if len(words) == 2 and words[0] != "popd" and words[1] != "-" else UNKNOWN
+            changes = {"": target}
+        for name, value in changes.items():
+            if name == "":
+                value = unknown_cwd if isolated or UNKNOWN in value else cwd / Path(value).expanduser()
+            elif isolated:
+                value = UNKNOWN + "$" + name
+            if starts_list or isolated:
+                if name == "":
+                    certain_cwd = value
+                else:
+                    certain[name] = value
+            elif name == "":
+                chained_cwd = value
+            else:
+                chained[name] = value
+        if changes:
             continue
         while names and names[0]:
             words, names = words[1:], names[1:]  # `NAME=value gh ...` sets the variable for gh only.
         if not words:
-            continue
-        if words[0] == "cd" and len(words) == 2 and UNKNOWN not in words[1]:
-            cwd = cwd / Path(words[1]).expanduser()
             continue
         if len(words) >= 3 and Path(words[0]).name in ("sh", "bash", "zsh") and words[1] in ("-c", "-lc"):
             reason = decide(words[2], cwd)

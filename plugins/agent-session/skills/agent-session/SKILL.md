@@ -24,7 +24,8 @@ body flag, and `gh api` PR creates or body updates. Review comments, replies,
 reviews and issue comments pass. It splits and quotes the command line as Bash
 does, checks `$(...)` and backticks (also in unquoted heredocs) as commands,
 and reads `--body-file` paths after applying `NAME=value` and `cd` from
-earlier in the same command line. It blocks, with
+earlier in the same command line (only where they surely ran: not after
+`cmd &&` across a `;`, after `||`, or in a pipeline or subshell). It blocks, with
 the reason, a body it cannot read (an unset variable, a missing file, stdin):
 write the body file first, then pass its path.
 
