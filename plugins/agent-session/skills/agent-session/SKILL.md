@@ -19,6 +19,17 @@ per repository, not automatic. The plugin's Claude Code hook blocks
 `gh pr create` and body edits without a link or declaration. Never work
 around either check; never fake a link.
 
+The hook fails closed. By default, any `gh pr create|edit` or
+`gh api … repos/O/R/pulls` with a body in the command text needs the line. It is
+more precise only for command lines it fully models. Those are plain commands
+joined by `;`, `&&`, `||` or `|`, using `NAME=value` and `cd`, with `gh` first
+(or behind `env`/`timeout`) and a literal `gh api` method. There, review
+comments, replies, reviews and issue comments pass, quoted text and prose are
+not commands, and `--body-file "$F"` is read when `F` was surely set. Anything
+else (`$(...)`, `bash -c`, `eval`, `declare`/`unset`, `{ }`, subshells) gets
+the basic rule, and the block says why: run the gh command on its own, with
+literal paths.
+
 The `agent-session` command (a shim in `~/.local/bin`, installed and kept
 current by the plugin's SessionStart hook, the Pi extension, or
 `install-codex-hook`; by hand: `python3 <skill>/scripts/agent_session.py

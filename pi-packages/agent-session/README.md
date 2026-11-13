@@ -2,7 +2,9 @@
 
 The Pi side of the [`agent-session`](../../plugins/agent-session/skills/agent-session/SKILL.md)
 skill. Before Pi's `bash` tool runs `gh pr create`, `gh pr edit --body…`, or
-`gh api …/pulls` with a body in a DiversioTeam repository, it checks that the
+a `gh api` PR create or body update in a DiversioTeam repository (every
+`gh api` call goes to the hook script, which skips review comments, replies and
+issue comments), it checks that the
 body links an agent session transcript
 (`internal-share.diversio.com/session-…html`) or says
 `No agent session: <reason>`. Otherwise the call is blocked, and the reason

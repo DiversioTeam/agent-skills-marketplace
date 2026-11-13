@@ -31,6 +31,12 @@ test('blocks PR bodies without a transcript and passes the rest', () => {
   assert.equal(extension.decide('git status', '/tmp', hook), undefined);
 });
 
+test('passes review replies and checks PR updates whose path is in a variable', () => {
+  assert.equal(extension.decide("gh api -X POST repos/DiversioTeam/demo/pulls/7/comments/42/replies -f body='Fixed'", '/tmp', hook), undefined);
+  const blocked = extension.decide("R=repos/DiversioTeam/demo/pulls/7\ngh api -X PATCH $R -f body='rewritten'", '/tmp', hook);
+  assert.equal(blocked?.block, true);
+});
+
 test('a missing guard blocks only PR commands', () => {
   assert.equal(extension.decide('git push', '/tmp', undefined), undefined);
   assert.match(extension.decide("gh pr create --repo DiversioTeam/demo --body x", '/tmp', undefined).reason, /cannot find check_pr_hook.py/);

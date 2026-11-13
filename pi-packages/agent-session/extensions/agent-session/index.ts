@@ -6,11 +6,13 @@ import { fileURLToPath } from "node:url";
 
 // The agent-session PR guard for Pi: the same check as the Claude Code plugin's PreToolUse hook
 // (plugins/agent-session/skills/agent-session/scripts/check_pr_hook.py), run before Pi's bash tool executes
-// `gh pr create`, `gh pr edit --body…`, or `gh api …/pulls` with a body in a DiversioTeam repo. A PR body without an
-// agent session transcript link or a "No agent session: <reason>" line is blocked with the fix. local-ci's agent-session
-// check stays the gate; this is the early feedback.
+// `gh pr create`, `gh pr edit --body…`, or a `gh api` PR create or body update in a DiversioTeam repo. A PR body without
+// an agent session transcript link or a "No agent session: <reason>" line is blocked with the fix. local-ci's
+// agent-session check stays the gate; this is the early feedback.
 
-const PR_COMMAND = /\bgh\s+(?:pr\s+(?:create|edit)|api\b[^\n]*\/pulls\b)/;
+// A cheap pre-filter only: the hook script decides. Any `gh api` goes to it, because the endpoint may be in a variable
+// (`R=repos/O/R/pulls/7; gh api -X PATCH $R ...`).
+const PR_COMMAND = /\bgh\s+(?:pr\s+(?:create|edit)|api\b)/;
 
 // The hook script ships in the same marketplace checkout; AGENT_SESSION_CLI points elsewhere when installed apart.
 export function findHook(environment: NodeJS.ProcessEnv = process.env, here = dirname(fileURLToPath(import.meta.url))): string | undefined {
