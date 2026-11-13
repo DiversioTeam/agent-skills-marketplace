@@ -1768,6 +1768,41 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNone(check_pr_hook.decide("git status", cwd))
         self.assertIsNotNone(check_pr_hook.decide("gh api repos/DiversioTeam/demo/pulls -X POST -f title=T -f body=hello", cwd))
 
+    def test_hook_blocks_pr_description_writes_through_the_api(self):
+        cwd = Path("/nonexistent")
+        self.assertIsNotNone(check_pr_hook.decide("gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=rewritten", cwd))
+        self.assertIsNotNone(check_pr_hook.decide("gh api --method PATCH 'repos/DiversioTeam/demo/pulls/7' -F body=@body.md", cwd))
+        self.assertIsNotNone(check_pr_hook.decide("gh api /repos/DiversioTeam/demo/pulls --method POST -f head=x -f base=main -f body=hi", cwd))
+        self.assertIsNotNone(check_pr_hook.decide("gh api repos/{owner}/{repo}/pulls/7 -X PATCH --raw-field body=x # DiversioTeam/demo", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body='See {self.LINK}'", cwd))
+        # A script fed to a shell still runs its commands.
+        self.assertIsNotNone(check_pr_hook.decide("bash <<'EOF'\ngh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x\nEOF", cwd))
+
+    def test_hook_allows_review_comments_replies_and_reviews(self):
+        cwd = Path("/nonexistent")
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        self.assertIsNone(check_pr_hook.decide(f"gh api {pulls}/comments/123/replies -F body=@reply.md", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"gh api -X POST {pulls}/comments -f body=Nit -f commit_id=abc -f path=a.py -F line=3", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"gh api --method POST {pulls}/reviews -f event=COMMENT -f body='Looks good'", cwd))
+        self.assertIsNone(check_pr_hook.decide("gh api -X PATCH repos/DiversioTeam/demo/pulls/comments/123 -f body=edited", cwd))
+
+    def test_hook_ignores_pr_commands_inside_a_heredoc_written_to_a_file(self):
+        cwd = Path("/nonexistent")
+        script = ("cat > /tmp/reply.sh <<'EOF'\n"
+                  "gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x\n"
+                  "gh pr create --repo DiversioTeam/demo --body x\n"
+                  "EOF\nchmod +x /tmp/reply.sh")
+        self.assertIsNone(check_pr_hook.decide(script, cwd))
+        self.assertIsNone(check_pr_hook.decide(
+            "tee reply.py <<EOF >/dev/null\nos.system('gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x')\nEOF", cwd))
+        # Heredoc text a shell or interpreter reads may run gh, so it is still checked.
+        piped = "cat <<'EOF' | bash\ngh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x\nEOF"
+        self.assertIsNotNone(check_pr_hook.decide(piped, cwd))
+        python = "python3 - <<'EOF'\nos.system('gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x')\nEOF"
+        self.assertIsNotNone(check_pr_hook.decide(python, cwd))
+        # The command that consumes the heredoc is still checked.
+        self.assertIsNotNone(check_pr_hook.decide("gh pr create --repo DiversioTeam/demo --body-file - <<'EOF'\nSummary only\nEOF", cwd))
+
     def test_hook_reads_body_files(self):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "body.md").write_text(f"## Agent sessions\n\n- {self.LINK}\n", encoding="utf-8")
