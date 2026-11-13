@@ -19,6 +19,13 @@ per repository, not automatic. The plugin's Claude Code hook blocks
 `gh pr create` and body edits without a link or declaration. Never work
 around either check; never fake a link.
 
+The hook checks only PR body writes: `gh pr create`, `gh pr edit` with a
+body flag, and `gh api` PR creates or body updates. Review comments, replies,
+reviews and issue comments pass. It reads `--body-file` paths after applying
+`NAME=value` and `cd` from earlier in the same command line. It blocks, with
+the reason, a body it cannot read (an unset variable, a missing file, stdin):
+write the body file first, then pass its path.
+
 The `agent-session` command (a shim in `~/.local/bin`, installed and kept
 current by the plugin's SessionStart hook, the Pi extension, or
 `install-codex-hook`; by hand: `python3 <skill>/scripts/agent_session.py
