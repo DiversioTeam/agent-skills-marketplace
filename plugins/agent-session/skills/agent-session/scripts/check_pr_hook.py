@@ -4,14 +4,22 @@
 Reads the hook payload on stdin. Exit 0 allows the call; exit 2 blocks it and shows stderr to the model. local-ci's
 agent-session check (required `local/verify`) is the real gate; this gives the agent the feedback before the PR exists.
 
-Only PR body writes are checked: `gh pr create`, `gh pr edit` with a body flag, `gh api` POST to `repos/O/R/pulls`
-and `gh api` PATCH to `repos/O/R/pulls/N` with a body. Review comments, replies, reviews and issue comments are not
-PR bodies. The command line is split the way Bash splits it: quoting is kept, so `$NAME` is expanded only where Bash
-would expand it (unquoted or in double quotes), and a quoted `;` is an argument, not an operator. `NAME=value`
-assignments and `cd` earlier in the same command line are applied, so `F=/tmp/body.md; gh pr create --body-file "$F"`
-reads /tmp/body.md. Command substitutions (`$(...)`, backticks, including those in unquoted heredocs) are checked as
-command lines of their own. A body the hook cannot read (an unknown variable, a missing file, stdin) is blocked with
-that reason rather than allowed, and so is a PR command in a line the hook cannot split.
+The hook fails closed. Its baseline is the original rule (`_main_rule`): any `gh pr create|edit` or `gh api ...
+repos/O/R/pulls` with a body in the command text is checked. It is more precise only for command lines it fully
+models (`_modeled`):
+- simple commands joined by `;`, `&&`, `||`, `|` or newlines, with redirections to literal targets and heredocs;
+- plain `NAME=value` (also after `export`) and `cd`, outside pipelines;
+- `gh` first in its simple command, or behind `env`, `timeout`, `command`, `nice`, `nohup` or `time`;
+- for `gh api`, a literal method (`-X`/`--method`) and an endpoint the hook can resolve.
+Quoting is kept, so `$NAME` expands only where Bash expands it, and quoted heredocs and prose that only mentions
+`gh pr create` are not commands. In a modeled line only real PR body writes are checked: `gh pr create`, `gh pr edit`
+with a body flag, a `gh api` POST to `repos/O/R/pulls` and a PATCH to `repos/O/R/pulls/N` with a body, so review
+comments, replies, reviews and issue comments pass. Variables and `cd` are applied only where they surely ran, and a
+body the hook cannot read (an unknown variable, a missing file, stdin) is blocked with that reason.
+
+Anything else (command substitution outside a quoted heredoc or single quotes, `bash -c`, `eval`, `declare`, `unset`,
+`read`, `local`, `{ }` groups, subshells, background jobs, an unknown method, anything the lexer is unsure of) falls
+back to the original rule, and a block says why so the agent can simplify the command.
 """
 
 from __future__ import annotations
@@ -42,7 +50,26 @@ UNREADABLE = (
     "Write the body to a file in an earlier command, then pass that file's literal path (or a variable assigned at the "
     "start of the command line, as in `F=/path/body.md; ...`). "
 )
-UNPARSED = "The agent-session hook could not split this command line into words, so it could not read the PR body. "
+UNMODELED = (
+    "The agent-session hook cannot follow this command line exactly ({why}), so it applied its basic rule, which "
+    "treats any PR command in the text as a PR body write. To let it read the body, run the gh command on its own: "
+    "literal paths or `NAME=value` set at the start of the line, no `$(...)`, `bash -c`, `eval` or `{{ }}`. "
+)
+BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
+WRAPPERS = frozenset({"env", "timeout", "command", "nice", "nohup", "time"})
+# Commands that change shell state in ways the hook does not follow, or run text as commands.
+UNMODELED_COMMANDS = frozenset({
+    "eval", "declare", "typeset", "local", "readonly", "unset", "read", "readarray", "mapfile", "source", ".", "exec",
+    "set", "shift", "let", "getopts", "pushd", "popd", "alias", "xargs", "parallel", "trap", "builtin", "coproc",
+    "select", "for", "while", "until", "if", "case", "function", "then", "do", "else", "elif", "fi", "done", "esac",
+    "[[", "((", "!", "{", "}", "sudo", "doas", "watch", "script",
+})
+SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish"})
+METHODS = frozenset({"GET", "POST", "PATCH", "PUT", "DELETE", "HEAD"})
+# Operators a modeled line may use: list and pipeline separators, redirections and heredocs.
+MODELED_OPERATORS = frozenset({";", "\n", "&&", "||", "|", "|&", ">", ">>", ">|", "<", ">&", "&>", "&>>", "<<", "<<-",
+                               "<<<"})
+STATE_WORD = re.compile(r"^[A-Za-z_]\w*(?:\[[^\]]*\])?\+?=")
 
 # Marks text Bash would only know at run time (an unset variable, a command substitution's output).
 UNKNOWN = "\x00"
@@ -65,12 +92,17 @@ class Unreadable(Exception):
     """A PR body the hook cannot read; the message says which and why."""
 
 
+class Unmodeled(Exception):
+    """A command line outside the subset the hook models exactly; the message says what is outside it."""
+
+
 class Command:
     """One simple command: its words, the bodies of unquoted heredocs fed to it (which Bash expands), the control
     operators before and after it, and how many parentheses (subshells) it sits in."""
 
     def __init__(self, before: str = "", depth: int = 0) -> None:
         self.words: list[list[tuple[str, str]]] = []
+        self.redirects: list[list[tuple[str, str]]] = []  # redirection targets, which Bash expands too
         self.expanded_heredocs: list[str] = []
         self.before = before
         self.after = ""
@@ -102,35 +134,11 @@ def _substitution_end(text: str, start: int) -> int:
     raise ValueError("unclosed command substitution")
 
 
-def _substitutions(text: str) -> list[str]:
-    """The command lines inside `$(...)` and backticks in text Bash expands."""
-    found = []
-    index = 0
-    while index < len(text):
-        if text.startswith("$(", index):
-            try:
-                end = _substitution_end(text, index + 1)
-                found.append(text[index + 2:end - 1])
-            except ValueError:
-                # Quotes inside a substitution in double quotes (`"$(cat <<'EOF' ... it's ... )"`) defeat the scan;
-                # take the rest of the text, as a whole command line.
-                end = len(text)
-                found.append(text[index + 2:].rstrip().removesuffix(")"))
-            index = end
-        elif text[index] == "`":
-            end = text.find("`", index + 1)
-            if end == -1:
-                raise ValueError("unclosed backtick")
-            found.append(text[index + 1:end])
-            index = end + 1
-        else:
-            index += 1
-    return found
-
-
-def _lex(text: str) -> list[Command]:
-    """The command line as Bash splits it into simple commands and words. Raises ValueError when it cannot."""
+def _lex(text: str) -> tuple[list[Command], set[str]]:
+    """The command line as Bash splits it into simple commands and words, and the operators it uses. Raises
+    ValueError when it cannot."""
     commands = [Command()]
+    operators: set[str] = set()
     depth = 0
     parts: list[tuple[str, str]] = []
     started = False
@@ -154,7 +162,9 @@ def _lex(text: str) -> list[Command]:
             delimiter = "".join(piece for _, piece in parts)
             pending.append((heredoc_next == "<<-", delimiter, all(kind == "plain" for kind, _ in parts)))
             heredoc_next = None
-        elif not redirect_pending:
+        elif redirect_pending:
+            commands[-1].redirects.append(parts)
+        else:
             commands[-1].words.append(parts)
         redirect_pending = False
         parts, started = [], False
@@ -225,6 +235,7 @@ def _lex(text: str) -> list[Command]:
                 if operator == "<<" and text.startswith("-", end):
                     operator = "<<-"
             index += len(operator)
+            operators.add(operator)
             if set(operator) <= SEPARATOR_CHARS:
                 depth += {"(": 1, ")": -1}.get(operator, 0)
                 if commands[-1].words or commands[-1].expanded_heredocs:
@@ -253,7 +264,9 @@ def _lex(text: str) -> list[Command]:
             add("plain", char)
             index += 1
     flush()
-    return [command for command in commands if command.words or command.expanded_heredocs]
+    if heredoc_next or redirect_pending:
+        raise ValueError("a redirection without a target")
+    return [command for command in commands if command.words or command.redirects or command.expanded_heredocs], operators
 
 
 def _value(parts: list[tuple[str, str]], variables: dict[str, str]) -> str:
@@ -360,6 +373,10 @@ def _api_bodies(args: list[str], cwd: Path) -> list[str] | None:
         elif not token.startswith("-") and endpoint is None:
             endpoint = token
         index += 1
+    if method is not None and method not in METHODS:
+        raise Unmodeled(f"the gh api method `{_shown(method)}` is not a literal HTTP method")
+    if endpoint is not None and UNKNOWN in endpoint:
+        raise Unmodeled(f"the gh api endpoint `{_shown(endpoint)}` uses a value the hook cannot resolve")
     match = PR_ENDPOINT.match(_endpoint_path(endpoint or ""))
     if not match:
         return None
@@ -391,22 +408,47 @@ def _is_diversio(text: str, cwd: Path) -> bool:
     return "diversioteam/" in completed.stdout.lower()
 
 
-def _fallback(command: str, cwd: Path) -> str | None:
-    """A command line that cannot be split: block anything that looks like a PR body write, as before."""
-    if not PR_COMMAND.search(command) and not API_COMMAND.search(command):
-        return None
-    if not _is_diversio(command, cwd):
-        return None
-    return UNPARSED + MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
+def _wrapper_prefix(words: list[str]) -> bool:
+    """Whether these words before `gh` are only supported wrappers with their options: `env [-i] [NAME=value]...`,
+    `timeout [-s SIG] 60`, `command`, `nice [-n 10]`, `nohup`, `time`."""
+    index = 0
+    while index < len(words):
+        name = Path(words[index]).name
+        if name not in WRAPPERS or UNKNOWN in words[index]:
+            return False
+        index += 1
+        while index < len(words) and Path(words[index]).name not in WRAPPERS:
+            word = words[index]
+            if UNKNOWN in word:
+                return False
+            if name == "env" and (NAME.match(word) or word in ("-i", "-")):
+                index += 1
+            elif name == "timeout" and word in ("-s", "--signal", "-k", "--kill-after") and index + 1 < len(words):
+                index += 2
+            elif name == "timeout" and (re.fullmatch(r"\d+(?:\.\d+)?[smhd]?", word) or word in ("--foreground", "--preserve-status")):
+                index += 1
+            elif name == "nice" and word == "-n" and index + 1 < len(words):
+                index += 2
+            elif name in ("command", "time") and word in ("-p",):
+                index += 1
+            else:
+                return False
+    return True
 
 
 def _check(words: list[str], command: str, cwd: Path) -> str | None:
-    """The reason to block one simple command's expanded words, or None."""
-    # `gh` may follow a wrapper (`env`, `timeout 60`, `command`), so look for it among the words. A word that only
-    # mentions gh (a `python3 -c` script, an echo'd string) is one word, not `gh` followed by `pr`.
+    """The reason to block one simple command's expanded words, or None. Raises Unmodeled when `gh pr|api` appears
+    somewhere other than first or behind a supported wrapper."""
+    if Path(words[0]).name in UNMODELED_COMMANDS or (words[0] == "printf" and "-v" in words):
+        raise Unmodeled(f"it uses `{_shown(words[0])}`")
+    if any(Path(word).name in SHELLS for word in words):
+        raise Unmodeled("it runs a shell (`bash -c` and the like)")
+    # A word that only mentions gh (a `python3 -c` script, an echo'd string) is one word, not `gh` followed by `pr`.
     start = next((index for index, word in enumerate(words[:-1]) if Path(word).name == "gh" and words[index + 1] in ("pr", "api")), None)
     if start is None:
         return None
+    if not _wrapper_prefix(words[:start]):
+        raise Unmodeled(f"gh runs behind `{_shown(' '.join(words[:start]))}`")
     words = words[start:]
     try:
         if words[1] == "pr" and len(words) > 2 and words[2] in ("create", "edit"):
@@ -426,29 +468,79 @@ def _check(words: list[str], command: str, cwd: Path) -> str | None:
     return None
 
 
-def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
-    """The reason to block, or None to allow. `argv` is the command as an argument list, when the tool sent one."""
-    # A transcript link anywhere in the command (a heredoc writing the body file, say) is enough.
-    if LINK.search(command):
-        return None
+def _main_bodies(command: str, cwd: Path, argv: list[str] | None = None) -> list[str]:
+    """The original rule's body texts: inline `--body`/`-b` values, `body=` API fields and `--body-file` contents."""
     if argv is not None:
-        return _check(argv, command, cwd)
+        tokens = argv
+    else:
+        try:
+            tokens = shlex.split(command, posix=True)
+        except ValueError:
+            return []
+    texts = []
+    for index, token in enumerate(tokens):
+        following = tokens[index + 1] if index + 1 < len(tokens) else None
+        if token in ("--body", "-b") and following is not None:
+            texts.append(following)
+        elif token.startswith("--body="):
+            texts.append(token.split("=", 1)[1])
+        elif token.startswith("body=") and index and tokens[index - 1] in ("-f", "-F", "--field", "--raw-field"):
+            texts.append(token.split("=", 1)[1])
+        file = following if token in ("--body-file", "-F") and following and not following.startswith("body=") else (
+            token.split("=", 1)[1] if token.startswith("--body-file=") else None)
+        if file and file != "-":
+            try:
+                texts.append((cwd / file).expanduser().read_text(encoding="utf-8"))
+            except OSError:
+                pass
+    return texts
+
+
+def _main_rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
+    """The original (0.4.2) rule, unchanged: the baseline for any command line the hook does not model exactly."""
+    match = PR_COMMAND.search(command)
+    api = API_COMMAND.search(command)
+    if not match and not api:
+        return None
+    if api and not re.search(r"(?:-X|--method)\s*(?:POST|PATCH)|-f\s+body=|-F\s+body=|--field\s+body=|--raw-field\s+body=", command):
+        return None
+    if match and match.group("verb") == "edit" and not any(re.search(rf"(?:^|\s){re.escape(flag)}(?:[\s=]|$)", command) for flag in BODY_FLAGS):
+        return None
+    if api and not re.search(r"\bbody\b", command):
+        return None
+    if not _is_diversio(command, cwd):
+        return None
+    # A heredoc body (`--body "$(cat <<'EOF' ...)"`) arrives as one token holding the text, so its lines are checked too.
+    if LINK.search(command) or any(has_transcript(text) for text in _main_bodies(command, cwd, argv)):
+        return None
+    return MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
+
+
+def _substituted(parts: list[tuple[str, str]]) -> bool:
+    """Whether Bash would run a command substitution while expanding this word."""
+    return any(kind != "literal" and ("$(" in piece or "`" in piece) for kind, piece in parts)
+
+
+def _modeled(command: str, cwd: Path) -> str | None:
+    """The decision for a command line the hook models exactly. Raises Unmodeled when the line is outside that subset
+    (see the module docstring)."""
     try:
-        commands = _lex(command)
-        nested = [[inner for kind, piece in parts if kind != "literal" for inner in _substitutions(piece)]
-                  for simple in commands for parts in simple.words]
-        nested += [_substitutions(body) for simple in commands for body in simple.expanded_heredocs]
-    except ValueError:
-        return _fallback(command, cwd)
-    # Command substitutions (`URL="$(gh pr create ...)"`, `$(...)` in an unquoted heredoc) run as command lines.
-    for inner in (inner for group in nested for inner in group):
-        reason = decide(inner, cwd)
-        if reason:
-            return reason
+        commands, operators = _lex(command)
+    except ValueError as error:
+        raise Unmodeled(f"it could not split the line: {error}") from None
+    unsupported = sorted(operators - MODELED_OPERATORS)
+    if unsupported:
+        raise Unmodeled("it uses " + ", ".join(f"`{operator}`" for operator in unsupported).replace("\n", "a newline"))
+    for simple in commands:
+        if any(_substituted(parts) for parts in simple.words + simple.redirects):
+            raise Unmodeled("it uses a command substitution, `$(...)` or backticks")
+        if any("$(" in body or "`" in body for body in simple.expanded_heredocs):
+            raise Unmodeled("an unquoted heredoc runs a command substitution")
+
     # Shell state (variables, the working directory) a later command can rely on. `certain` holds changes that ran
     # whenever a later command runs; `chained` holds changes made after the start of an `a && b && ...` list, which
-    # are certain only for the rest of that `&&` chain. Changes the hook cannot be sure ran in this shell (after `||`,
-    # in a pipeline, a subshell, a `{ }` group or the background) become UNKNOWN, so reads that depend on them block.
+    # are certain only for the rest of that `&&` chain. A change after `||` becomes UNKNOWN, so reads that depend on
+    # it block.
     certain: dict[str, str] = {}
     chained: dict[str, str] = {}
     unknown_cwd = Path(UNKNOWN + "cd")
@@ -465,54 +557,68 @@ def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None
     for simple in commands:
         if simple.before != "&&":
             forget_chain()
-        starts_list = simple.before in ("", ";", "\n", ")", "&")
-        # After `a || ...` the change may be skipped while a later `&& b` still runs, so it is not certain either.
-        isolated = (simple.depth > 0 or simple.before == "||" or "|" in simple.before + simple.after
-                    or simple.after == "&")
+        if not simple.words:
+            continue
+        starts_list = simple.before in ("", ";", "\n")
+        in_pipeline = simple.before in ("|", "|&") or simple.after in ("|", "|&")
         variables = {**certain, **chained}
         cwd = chained_cwd or certain_cwd
         words = [_value(parts, variables) for parts in simple.words]
-        if words and words[0] == "{":
-            words, isolated = words[1:], True
-        if not words:
-            continue
-        names = [NAME.match(parts[0][1]) if parts and parts[0][0] == "plain" else None for parts in simple.words[-len(words):]]
+        names = [NAME.match(parts[0][1]) if parts and parts[0][0] == "plain" else None for parts in simple.words]
+        prefix = 0
+        while prefix < len(words) and names[prefix]:
+            prefix += 1
+        # `NAME+=value` or `NAME[i]=value` where an assignment would go.
+        if prefix < len(words) and simple.words[prefix] and simple.words[prefix][0][0] == "plain" \
+                and STATE_WORD.match(simple.words[prefix][0][1]):
+            raise Unmodeled("it uses an assignment form other than `NAME=value`")
+        rest = words[prefix:]
         changes: dict[str, str] = {}
-        if words[0] == "export" or all(names):
-            # `NAME=value` alone sets a shell variable for the rest of the line.
-            changes = {name.group("name"): word.split("=", 1)[1] for word, name in zip(words, names) if name}
-        elif words[0] in ("cd", "pushd", "popd"):
-            target = words[1] if len(words) == 2 and words[0] != "popd" and words[1] != "-" else UNKNOWN
-            changes = {"": target}
-        for name, value in changes.items():
-            if name == "":
-                value = unknown_cwd if isolated or UNKNOWN in value else cwd / Path(value).expanduser()
-            elif isolated:
-                value = UNKNOWN + "$" + name
-            if starts_list or isolated:
-                if name == "":
-                    certain_cwd = value
-                else:
-                    certain[name] = value
-            elif name == "":
-                chained_cwd = value
-            else:
-                chained[name] = value
+        if not rest or rest[0] == "export":
+            exported = simple.words[prefix + 1:] if rest else []
+            if any(not (parts and parts[0][0] == "plain" and NAME.match(parts[0][1])) for parts in exported):
+                raise Unmodeled("`export` is used with something other than `NAME=value`")
+            changes = {match.group("name"): word.split("=", 1)[1]
+                       for word, match in zip(words, (NAME.match(parts[0][1]) if parts and parts[0][0] == "plain" else None
+                                                       for parts in simple.words)) if match}
+        elif rest[0] == "cd":
+            changes = {"": rest[1] if len(rest) == 2 and rest[1] != "-" else UNKNOWN}
         if changes:
+            if in_pipeline:
+                raise Unmodeled("it changes a variable or the directory inside a pipeline")
+            for name, value in changes.items():
+                if name == "":
+                    value = unknown_cwd if UNKNOWN in value else cwd / Path(value).expanduser()
+                elif simple.before == "||":
+                    value = UNKNOWN + "$" + name  # skipped whenever the command before `||` succeeds
+                if name == "" and simple.before == "||":
+                    value = unknown_cwd
+                if starts_list or simple.before == "||":
+                    if name == "":
+                        certain_cwd = value
+                    else:
+                        certain[name] = value
+                elif name == "":
+                    chained_cwd = value
+                else:
+                    chained[name] = value
             continue
-        while names and names[0]:
-            words, names = words[1:], names[1:]  # `NAME=value gh ...` sets the variable for gh only.
-        if not words:
-            continue
-        if len(words) >= 3 and Path(words[0]).name in ("sh", "bash", "zsh") and words[1] in ("-c", "-lc"):
-            reason = decide(words[2], cwd)
-            if reason:
-                return reason
-            continue
-        reason = _check(words, command, cwd)
+        reason = _check(rest, command, cwd)
         if reason:
             return reason
     return None
+
+
+def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
+    """The reason to block, or None to allow. `argv` is the command as an argument list, when the tool sent one."""
+    # A transcript link anywhere in the command (a heredoc writing the body file, say) is enough.
+    if LINK.search(command):
+        return None
+    try:
+        return _check(argv, command, cwd) if argv is not None else _modeled(command, cwd)
+    except Unmodeled as error:
+        reason = _main_rule(command, cwd, argv)
+        return UNMODELED.format(why=str(error)) + reason if reason else None
 
 
 def main() -> int:

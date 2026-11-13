@@ -1834,7 +1834,7 @@ class PrBodyAndHookTests(unittest.TestCase):
             self.assertIn("This PR needs", check_pr_hook.decide(f"S={directory}; gh pr create --repo DiversioTeam/demo --body-file $S/plain.md", cwd))
             for command, why in (
                 ('gh pr create --repo DiversioTeam/demo --body-file "$UNSET_BODY"', "not set earlier"),
-                ("F=$(mktemp); gh pr create --repo DiversioTeam/demo --body-file $F", "not set earlier"),
+                ("F=$(mktemp); gh pr create --repo DiversioTeam/demo --body-file $F", "command substitution"),
                 (f"S={directory}; gh pr create --repo DiversioTeam/demo --body-file $S/missing.md", "missing.md"),
                 ("gh pr create --repo DiversioTeam/demo --body-file - < body.md", "standard input"),
             ):
@@ -1849,7 +1849,11 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNotNone(check_pr_hook.decide("R=repos/DiversioTeam/demo/pulls/7\ngh api -X PATCH $R -f body='rewritten'", cwd))
         self.assertIsNone(check_pr_hook.decide("R=repos/DiversioTeam/demo/pulls/7/comments\ngh api -X POST $R/42/replies -f body='Fixed'", cwd))
         self.assertIsNone(check_pr_hook.decide(
-            "CID=$(gh api repos/DiversioTeam/demo/pulls/7/comments -q 'last | .id') && gh api repos/DiversioTeam/demo/pulls/7/comments/$CID/replies -f body='Fixed'", cwd))
+            "CID=4567 && gh api repos/DiversioTeam/demo/pulls/7/comments/$CID/replies -f body='Fixed'", cwd))
+        # A command substitution is outside the modeled subset, so the original rule applies, and says why.
+        reason = check_pr_hook.decide(
+            "CID=$(gh api repos/DiversioTeam/demo/pulls/7/comments -q 'last | .id') && gh api repos/DiversioTeam/demo/pulls/7/comments/$CID/replies -f body='Fixed'", cwd)
+        self.assertIn("command substitution", reason)
 
     def test_hook_expands_variables_only_where_bash_does(self):
         cwd = Path("/nonexistent")
@@ -1893,6 +1897,113 @@ class PrBodyAndHookTests(unittest.TestCase):
                             f"(cd {directory}); gh pr create --repo DiversioTeam/demo --body-file good.md",
                             f"cd $SOMEWHERE && gh pr create --repo DiversioTeam/demo --body-file {good.name}"):
                 self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+
+    def test_hook_falls_back_for_substitutions_in_redirections(self):
+        cwd = Path("/nonexistent")
+        self.assertIsNotNone(check_pr_hook.decide('echo hi > "$(gh pr create --repo DiversioTeam/demo --body x)"', cwd))
+        self.assertIsNotNone(check_pr_hook.decide("cat < `gh pr edit 7 --repo DiversioTeam/demo --body x`", cwd))
+        self.assertIsNone(check_pr_hook.decide("gh pr edit 7 --repo DiversioTeam/demo --body 'No agent session: manual hotfix' > /dev/null 2>&1", cwd))
+
+    def test_hook_falls_back_for_shells_behind_wrappers(self):
+        cwd = Path("/nonexistent")
+        for command in ("timeout 60 bash -c 'gh pr create --repo DiversioTeam/demo --body x'",
+                        "env GH_PROMPT_DISABLED=1 sh -c 'gh pr edit 7 --repo DiversioTeam/demo --body x'",
+                        "nice -n 5 zsh -lc 'gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x'"):
+            reason = check_pr_hook.decide(command, cwd)
+            self.assertIsNotNone(reason, command)
+            self.assertIn("runs a shell", reason)
+        self.assertIsNone(check_pr_hook.decide("timeout 60 gh pr create --repo DiversioTeam/demo --body 'No agent session: manual hotfix'", cwd))
+        self.assertIsNone(check_pr_hook.decide("env GH_PROMPT_DISABLED=1 gh pr create --repo DiversioTeam/demo --body 'No agent session: manual hotfix'", cwd))
+
+    def test_hook_falls_back_when_declare_or_unset_changes_a_variable(self):
+        cwd = Path("/nonexistent")
+        with tempfile.TemporaryDirectory() as directory:
+            good, bad = Path(directory, "good.md"), Path(directory, "bad.md")
+            good.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            bad.write_text("Summary only\n", encoding="utf-8")
+            create = 'gh pr create --repo DiversioTeam/demo --body-file "$F"'
+            for command in (f"F={good}; declare F={bad}; {create}", f"F={good}; unset F; {create}",
+                            f"F={good}; read F < list.txt; {create}", f"F={good}; local F={bad}; {create}",
+                            f"F={good}; F+=.bak; {create}", f"F={good}; eval F={bad}; {create}"):
+                reason = check_pr_hook.decide(command, cwd)
+                self.assertIsNotNone(reason, command)
+                self.assertIn("cannot follow this command line", reason)
+            self.assertIsNone(check_pr_hook.decide(f"F={bad}; F={good}; {create}", cwd))
+
+    def test_hook_falls_back_for_unknown_api_methods(self):
+        cwd = Path("/nonexistent")
+        for command in ('gh api -X "$M" repos/DiversioTeam/demo/pulls/7 -f body=x',
+                        "gh api --method=$M repos/DiversioTeam/demo/pulls/7 -f body=x",
+                        "gh api -X FETCH repos/DiversioTeam/demo/pulls/7 -f body=x"):
+            reason = check_pr_hook.decide(command, cwd)
+            self.assertIsNotNone(reason, command)
+            self.assertIn("method", reason)
+        self.assertIsNone(check_pr_hook.decide("M=PATCH; gh api -X \"$M\" repos/DiversioTeam/demo/pulls/7 -f body='No agent session: manual hotfix'", cwd))
+        self.assertIsNone(check_pr_hook.decide("M=GET; gh api -X \"$M\" repos/DiversioTeam/demo/pulls/7 --jq .body", cwd))
+        self.assertIsNotNone(check_pr_hook.decide("M=PATCH; gh api -X \"$M\" repos/DiversioTeam/demo/pulls/7 -f body=x", cwd))
+
+    def test_hook_falls_back_for_brace_groups(self):
+        cwd = Path("/nonexistent")
+        with tempfile.TemporaryDirectory() as directory:
+            good, bad = Path(directory, "good.md"), Path(directory, "bad.md")
+            good.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            bad.write_text("Summary only\n", encoding="utf-8")
+            create = 'gh pr create --repo DiversioTeam/demo --body-file "$F"'
+            for command in (f"F={bad}; false && {{ true; F={good}; }}; {create}", f"F={bad}; {{ F={good}; }}; {create}"):
+                reason = check_pr_hook.decide(command, cwd)
+                self.assertIsNotNone(reason, command)
+                self.assertIn("`{`", reason)
+            self.assertIsNone(check_pr_hook.decide(f"F={bad}; false || F={good}; F={good}; {create}", cwd))
+
+    def test_hook_blocks_whatever_the_original_rule_blocks_outside_the_modeled_subset(self):
+        cwd = Path("/nonexistent")
+        with tempfile.TemporaryDirectory() as directory:
+            good = Path(directory, "good.md")
+            good.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            repo = "--repo DiversioTeam/demo"
+            # (command, allowed by the modeled subset). Every row is blocked by the original rule.
+            table = [
+                # Modeled, and not a PR body write that lacks the line: allowed.
+                ("gh api -X POST repos/DiversioTeam/Django4Lyfe/pulls/3665/comments/4567931298/replies -f body='Fixed'", True),
+                ("gh api -X POST repos/DiversioTeam/demo/pulls/7/reviews -f event=COMMENT -f body='Looks fine'", True),
+                (f'F={good}; gh pr create {repo} --body-file "$F"', True),
+                (f'F={good} && gh pr edit 7 {repo} --body-file "$F" 2>&1 | tail -1', True),
+                (f"python3 -c \"print('gh pr create {repo} --body x')\"", True),
+                (f"python3 - <<'EOF'\nprint('gh pr create {repo} --body x')\nEOF", True),
+                (f"git commit -m 'Explain gh pr edit 7 {repo} --body x'", True),
+                # Modeled PR body writes without the line: blocked.
+                (f"gh pr create {repo} --body x", False),
+                (f"gh pr edit 7 {repo} --body x", False),
+                (f"gh pr edit 7 {repo} --body ';'", False),
+                ("gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x", False),
+                ("gh api -X PATCH https://api.github.com/repos/DiversioTeam/demo/pulls/7 -f body=x", False),
+                (f"BODY='No agent session: x'; gh pr edit 7 {repo} --body '$BODY'", False),
+                # Outside the modeled subset: the original rule.
+                (f'URL="$(gh pr create {repo} --body x)"', False),
+                (f"cat <<EOF\n$(gh pr create {repo} --body x)\nEOF", False),
+                (f'echo hi > "$(gh pr create {repo} --body x)"', False),
+                (f"bash -c 'gh pr create {repo} --body x'", False),
+                (f"timeout 60 bash -c 'gh pr create {repo} --body x'", False),
+                (f"eval 'gh pr create {repo} --body x'", False),
+                (f"sudo gh pr create {repo} --body x", False),
+                (f"echo gh pr create {repo} --body x", False),
+                (f"echo 7 | xargs gh pr edit {repo} --body x", False),
+                (f"(gh pr create {repo} --body x)", False),
+                (f"{{ gh pr create {repo} --body x; }}", False),
+                (f"gh pr create {repo} --body x &", False),
+                ('gh api -X "$M" repos/DiversioTeam/demo/pulls/7 -f body=x', False),
+                (f'F={good}; unset F; gh pr create {repo} --body-file "$F"', False),
+                (f'F={good}; declare F=/tmp/x; gh pr create {repo} --body-file "$F"', False),
+                (f'F={good}; false && {{ true; F={good}; }}; gh pr create {repo} --body-file "$F"', False),
+                (f"gh pr create {repo} --body 'unclosed", False),
+            ]
+            for command, allowed in table:
+                self.assertIsNotNone(check_pr_hook._main_rule(command, cwd), f"the original rule allows: {command}")
+                decision = check_pr_hook.decide(command, cwd)
+                if allowed:
+                    self.assertIsNone(decision, command)
+                else:
+                    self.assertIsNotNone(decision, command)
 
     def test_hook_runs_substitutions_in_unquoted_heredocs(self):
         cwd = Path("/nonexistent")

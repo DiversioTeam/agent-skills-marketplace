@@ -300,9 +300,10 @@ when command files change.
     lead's spawn, messages and prompts about it.
     Ships a Claude Code `PreToolUse` hook that
     blocks `gh pr create` and body edits without a link or a
-    `No agent session: <reason>` declaration. Review comments, replies and
-    issue comments are not PR bodies and pass; a body file it cannot read is
-    blocked with the reason.
+    `No agent session: <reason>` declaration. It fails closed: only command
+    lines it fully models (plain commands, `NAME=value`, `cd`, `gh` first)
+    get the precise check, where review comments, replies and issue comments
+    pass; anything else gets the basic rule, with the reason.
   - Claude install: `claude plugin install agent-session@diversiotech`
   - Skill path: `plugins/agent-session/skills/agent-session`
   - Slash command: `/agent-session:share`

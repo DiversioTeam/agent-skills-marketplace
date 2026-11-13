@@ -19,15 +19,16 @@ per repository, not automatic. The plugin's Claude Code hook blocks
 `gh pr create` and body edits without a link or declaration. Never work
 around either check; never fake a link.
 
-The hook checks only PR body writes: `gh pr create`, `gh pr edit` with a
-body flag, and `gh api` PR creates or body updates. Review comments, replies,
-reviews and issue comments pass. It splits and quotes the command line as Bash
-does, checks `$(...)` and backticks (also in unquoted heredocs) as commands,
-and reads `--body-file` paths after applying `NAME=value` and `cd` from
-earlier in the same command line (only where they surely ran: not after
-`cmd &&` across a `;`, after `||`, or in a pipeline or subshell). It blocks, with
-the reason, a body it cannot read (an unset variable, a missing file, stdin):
-write the body file first, then pass its path.
+The hook fails closed. By default, any `gh pr create|edit` or
+`gh api … repos/O/R/pulls` with a body in the command text needs the line. It is
+more precise only for command lines it fully models. Those are plain commands
+joined by `;`, `&&`, `||` or `|`, using `NAME=value` and `cd`, with `gh` first
+(or behind `env`/`timeout`) and a literal `gh api` method. There, review
+comments, replies, reviews and issue comments pass, quoted text and prose are
+not commands, and `--body-file "$F"` is read when `F` was surely set. Anything
+else (`$(...)`, `bash -c`, `eval`, `declare`/`unset`, `{ }`, subshells) gets
+the basic rule, and the block says why: run the gh command on its own, with
+literal paths.
 
 The `agent-session` command (a shim in `~/.local/bin`, installed and kept
 current by the plugin's SessionStart hook, the Pi extension, or
