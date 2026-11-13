@@ -1833,8 +1833,8 @@ class PrBodyAndHookTests(unittest.TestCase):
             # Still blocked: a resolved file without the line, and any body the hook cannot read.
             self.assertIn("This PR needs", check_pr_hook.decide(f"S={directory}; gh pr create --repo DiversioTeam/demo --body-file $S/plain.md", cwd))
             for command, why in (
-                ('gh pr create --repo DiversioTeam/demo --body-file "$UNSET_BODY"', "variable not set earlier"),
-                ("F=$(mktemp); gh pr create --repo DiversioTeam/demo --body-file $F", "variable not set earlier"),
+                ('gh pr create --repo DiversioTeam/demo --body-file "$UNSET_BODY"', "not set earlier"),
+                ("F=$(mktemp); gh pr create --repo DiversioTeam/demo --body-file $F", "not set earlier"),
                 (f"S={directory}; gh pr create --repo DiversioTeam/demo --body-file $S/missing.md", "missing.md"),
                 ("gh pr create --repo DiversioTeam/demo --body-file - < body.md", "standard input"),
             ):
@@ -1850,6 +1850,52 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNone(check_pr_hook.decide("R=repos/DiversioTeam/demo/pulls/7/comments\ngh api -X POST $R/42/replies -f body='Fixed'", cwd))
         self.assertIsNone(check_pr_hook.decide(
             "CID=$(gh api repos/DiversioTeam/demo/pulls/7/comments -q 'last | .id') && gh api repos/DiversioTeam/demo/pulls/7/comments/$CID/replies -f body='Fixed'", cwd))
+
+    def test_hook_expands_variables_only_where_bash_does(self):
+        cwd = Path("/nonexistent")
+        declared = "BODY='No agent session: manual hotfix'; "
+        # Bash expands unquoted and double-quoted variables, and sends single-quoted or escaped ones literally.
+        for command in (declared + 'gh pr edit 7 --repo DiversioTeam/demo --body "$BODY"',
+                        declared + "gh pr edit 7 --repo DiversioTeam/demo --body $BODY",
+                        declared + 'gh pr edit 7 --repo DiversioTeam/demo --body "${BODY}"'):
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        for command in (declared + "gh pr edit 7 --repo DiversioTeam/demo --body '$BODY'",
+                        declared + "gh pr edit 7 --repo DiversioTeam/demo --body \\$BODY",
+                        declared + 'gh pr edit 7 --repo DiversioTeam/demo --body "\\$BODY"'):
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "body.md").write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            self.assertIsNone(check_pr_hook.decide(f'D={directory}; gh pr create --repo DiversioTeam/demo --body-file "$D/body.md"', cwd))
+            self.assertIsNotNone(check_pr_hook.decide(f"D={directory}; gh pr create --repo DiversioTeam/demo --body-file '$D/body.md'", cwd))
+        # A quoted `;` or `|` is an argument, not an operator.
+        self.assertIsNotNone(check_pr_hook.decide("gh pr edit 7 --repo DiversioTeam/demo --body ';'", cwd))
+        self.assertIsNotNone(check_pr_hook.decide('gh pr edit 7 --repo DiversioTeam/demo --body "|"', cwd))
+        self.assertIsNone(check_pr_hook.decide("gh pr edit 7 --repo DiversioTeam/demo --title ';' --body 'No agent session: manual hotfix'", cwd))
+        self.assertIsNone(check_pr_hook.decide("gh pr edit 7 --repo DiversioTeam/demo --add-label ';'", cwd))
+
+    def test_hook_runs_substitutions_in_unquoted_heredocs(self):
+        cwd = Path("/nonexistent")
+        # An unquoted delimiter makes Bash run `$(...)` and backticks in the heredoc body.
+        for command in ("cat <<EOF\n$(gh pr create --repo DiversioTeam/demo --body x)\nEOF",
+                        "cat <<-EOF\n\t`gh pr edit 7 --repo DiversioTeam/demo --body x`\n\tEOF",
+                        "cat > notes.md <<EOF\nURL: $(gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x)\nEOF\necho done"):
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+        # A quoted delimiter keeps the body literal.
+        for delimiter in ("'EOF'", '"EOF"', "\\EOF"):
+            command = f"cat <<{delimiter}\n$(gh pr create --repo DiversioTeam/demo --body x)\nEOF"
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        self.assertIsNone(check_pr_hook.decide("cat <<EOF\n$(date) and gh pr create in plain text\nEOF", cwd))
+
+    def test_hook_reads_absolute_api_urls(self):
+        cwd = Path("/nonexistent")
+        for command in ("gh api -X PATCH https://api.github.com/repos/DiversioTeam/demo/pulls/7 -f body='rewritten'",
+                        "gh api https://api.github.com/repos/DiversioTeam/demo/pulls -f title=T -f head=x -f base=main -f body=x",
+                        "gh api -X PATCH https://github.example.com/api/v3/repos/DiversioTeam/demo/pulls/7 -f body=x"):
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+        for command in ("gh api -X POST https://api.github.com/repos/DiversioTeam/demo/pulls/7/comments/42/replies -f body='Fixed'",
+                        "gh api -X PATCH https://api.github.com/repos/DiversioTeam/demo/pulls/7 -f body='No agent session: manual hotfix'",
+                        "gh api -X PATCH https://api.github.com/repos/someone/else/pulls/7 -f body=x"):
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
 
     def test_hook_ignores_pr_commands_mentioned_in_text(self):
         cwd = Path("/nonexistent")
