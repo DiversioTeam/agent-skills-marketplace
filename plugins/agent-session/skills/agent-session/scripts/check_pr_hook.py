@@ -5,21 +5,21 @@ Reads the hook payload on stdin. Exit 0 allows the call; exit 2 blocks it and sh
 agent-session check (required `local/verify`) is the real gate; this gives the agent the feedback before the PR exists.
 
 The hook fails closed. Its baseline is the original rule (`_main_rule`): any `gh pr create|edit` or `gh api ...
-repos/O/R/pulls` with a body in the command text is checked. It is more precise only for command lines it fully
-models (`_modeled`):
-- simple commands joined by `;`, `&&`, `||`, `|` or newlines, with redirections to literal targets and heredocs;
-- plain `NAME=value` (also after `export`) and `cd`, outside pipelines;
-- `gh` first in its simple command, or behind `env`, `timeout`, `command`, `nice`, `nohup` or `time`;
-- for `gh api`, a literal method (`-X`/`--method`) and an endpoint the hook can resolve.
-Quoting is kept, so `$NAME` expands only where Bash expands it, and quoted heredocs and prose that only mentions
-`gh pr create` are not commands. In a modeled line only real PR body writes are checked: `gh pr create`, `gh pr edit`
-with a body flag, a `gh api` POST to `repos/O/R/pulls` and a PATCH to `repos/O/R/pulls/N` with a body, so review
-comments, replies, reviews and issue comments pass. Variables and `cd` are applied only where they surely ran, and a
-body the hook cannot read (an unknown variable, a missing file, stdin) is blocked with that reason.
+repos/O/R/pulls` with a body in the command text is checked. It is more precise only for command lines inside a strict
+whitelist (`_modeled`), where every word and command is one of:
+- simple commands joined by `;`, `&&`, `||`, `|` or newlines, with redirections and heredocs;
+- an assignment `NAME=<literal>` as a command of its own (no `$`, backtick, glob or brace characters);
+- a word that is a literal, or exactly `$NAME`, `${NAME}` or `"$NAME"` with a known value without whitespace;
+  unquoted text has no `{ } * ? [ ~ $` or backticks, and nothing is joined to a variable;
+- `cd` to a literal absolute path without `..` and without redirections, which holds only for the rest of its `&&`
+  chain (a relative body path is resolved against it only there);
+- `gh` first, or behind `env`, `timeout`, `command`, `nice`, `nohup` or `time`, with a literal `gh api` method.
+There, quoted heredocs and prose that only mentions `gh pr create` are not commands, and only real PR body writes are
+checked: `gh pr create`, `gh pr edit` with a body flag, a `gh api` POST to `repos/O/R/pulls` and a PATCH to
+`repos/O/R/pulls/N` with a body. Review comments, replies, reviews and issue comments pass, and a body the hook cannot
+read (a missing file, stdin) is blocked with that reason.
 
-Anything else (command substitution outside a quoted heredoc or single quotes, `bash -c`, `eval`, `declare`, `unset`,
-`read`, `local`, `{ }` groups, subshells, background jobs, an unknown method, anything the lexer is unsure of) falls
-back to the original rule, and a block says why so the agent can simplify the command.
+Anything else falls back to the original rule, and a block says why so the agent can simplify the command.
 """
 
 from __future__ import annotations
@@ -53,13 +53,14 @@ UNREADABLE = (
 UNMODELED = (
     "The agent-session hook cannot follow this command line exactly ({why}), so it applied its basic rule, which "
     "treats any PR command in the text as a PR body write. To let it read the body, run the gh command on its own: "
-    "literal paths or `NAME=value` set at the start of the line, no `$(...)`, `bash -c`, `eval` or `{{ }}`. "
+    "a literal path, or `F=/abs/path; ... \"$F\"` with nothing joined to the variable; `cd /abs/dir && ...`; no "
+    "`$(...)`, globs, braces, `bash -c`, `eval` or `export`. "
 )
 BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
 WRAPPERS = frozenset({"env", "timeout", "command", "nice", "nohup", "time"})
 # Commands that change shell state in ways the hook does not follow, or run text as commands.
 UNMODELED_COMMANDS = frozenset({
-    "eval", "declare", "typeset", "local", "readonly", "unset", "read", "readarray", "mapfile", "source", ".", "exec",
+    "eval", "declare", "typeset", "local", "readonly", "export", "wait", "unset", "read", "readarray", "mapfile", "source", ".", "exec",
     "set", "shift", "let", "getopts", "pushd", "popd", "alias", "xargs", "parallel", "trap", "builtin", "coproc",
     "select", "for", "while", "until", "if", "case", "function", "then", "do", "else", "elif", "fi", "done", "esac",
     "[[", "((", "!", "{", "}", "sudo", "doas", "watch", "script",
@@ -69,13 +70,11 @@ METHODS = frozenset({"GET", "POST", "PATCH", "PUT", "DELETE", "HEAD"})
 # Operators a modeled line may use: list and pipeline separators, redirections and heredocs.
 MODELED_OPERATORS = frozenset({";", "\n", "&&", "||", "|", "|&", ">", ">>", ">|", "<", ">&", "&>", "&>>", "<<", "<<-",
                                "<<<"})
-STATE_WORD = re.compile(r"^[A-Za-z_]\w*(?:\[[^\]]*\])?\+?=")
 
 # Marks text Bash would only know at run time (an unset variable, a command substitution's output).
 UNKNOWN = "\x00"
 OPERATOR_CHARS = ";&|()<>\n"
 SEPARATOR_CHARS = frozenset(";&|()\n")
-EXPANSION = re.compile(r"\$(?:\{(?P<braced>[^}]*)\}|(?P<plain>[A-Za-z_]\w*)|(?P<special>[0-9@*#?$!-])|(?P<substitution>\())|`")
 NAME = re.compile(r"^(?P<name>[A-Za-z_]\w*)=")
 # `repos/{owner}/{repo}/pulls` creates a PR; `repos/{owner}/{repo}/pulls/N` updates one. Anything longer
 # (`pulls/N/comments`, `pulls/N/reviews`, `pulls/comments/N/replies`, `pulls/N/requested_reviewers`) is not a PR body.
@@ -146,13 +145,17 @@ def _lex(text: str) -> tuple[list[Command], set[str]]:
     heredoc_next = None  # "<<" or "<<-" when the next word is a heredoc delimiter
     pending: list[tuple[bool, str, bool]] = []  # (strip tabs, delimiter, expanded) heredocs read at the next newline
 
+    region = 0  # each quoted region (and each run of unquoted text) is its own part, so `"$F""ILE"` stays two parts
+    part_region = -1
+
     def add(kind: str, piece: str) -> None:
-        nonlocal started
+        nonlocal started, part_region
         started = True
-        if parts and parts[-1][0] == kind:
+        if parts and parts[-1][0] == kind and part_region == region:
             parts[-1] = (kind, parts[-1][1] + piece)
         else:
             parts.append((kind, piece))
+            part_region = region
 
     def flush() -> None:
         nonlocal parts, started, redirect_pending, heredoc_next
@@ -179,24 +182,30 @@ def _lex(text: str) -> tuple[list[Command], set[str]]:
             if text.startswith("\\\n", index):
                 index += 2
             else:
+                region += 1
                 add("literal", text[index + 1:index + 2] or "\\")
+                region += 1
                 index += 2
         elif char == "'":
             end = text.find("'", index + 1)
             if end == -1:
                 raise ValueError("unclosed single quote")
+            region += 1
             add("literal", text[index + 1:end])
+            region += 1
             started = True
             index = end + 1
         elif char == '"':
             index += 1
             started = True
+            region += 1
             while True:
                 if index >= size:
                     raise ValueError("unclosed double quote")
                 char = text[index]
                 if char == '"':
                     index += 1
+                    region += 1
                     break
                 if char == "\\" and index + 1 < size:
                     escaped = text[index + 1]
@@ -276,43 +285,42 @@ def _lex(text: str) -> tuple[list[Command], set[str]]:
     return [command for command in commands if command.words or command.redirects or command.expanded_heredocs], operators
 
 
-def _value(parts: list[tuple[str, str]], variables: dict[str, str]) -> str:
-    """A word's value after Bash's expansion: known variables replaced; unknown ones and command substitutions
-    marked UNKNOWN. Literal parts stay as written."""
-    def expand(match: re.Match[str]) -> str:
-        name = match.group("braced") if match.group("braced") is not None else match.group("plain")
-        if name is not None and name in variables:
-            return variables[name]
-        return UNKNOWN + match.group(0)
-    return "".join(piece if kind == "literal" else EXPANSION.sub(expand, piece) for kind, piece in parts)
+PLAIN_EXPANDING = frozenset("{}*?[~$`")
+VARIABLE_WORD = re.compile(r"\$(?:\{(?P<braced>[A-Za-z_]\w*)\}|(?P<plain>[A-Za-z_]\w*))")
 
 
-def _splits(parts: list[tuple[str, str]], variables: dict[str, str]) -> str | None:
-    """An unquoted expansion in this word whose result Bash would field-split or drop (unknown, empty, or holding
-    whitespace), so the word may not be one argument; None when every unquoted expansion stays one argument."""
+def _literal(parts: list[tuple[str, str]]) -> str:
+    """The value of a word Bash does not expand at all, or Unmodeled: unquoted text without `{ } * ? [ ~ $` or
+    backticks, single-quoted or escaped text, and double-quoted text without `$` or backticks."""
     for kind, piece in parts:
-        if kind != "plain":
-            continue
-        for match in EXPANSION.finditer(piece):
-            name = match.group("braced") if match.group("braced") is not None else match.group("plain")
-            value = variables.get(name) if name is not None else None
-            if value is None or value == "" or UNKNOWN in value or any(char in value for char in " \t\n"):
-                return match.group(0)
-    return None
+        if kind == "plain" and PLAIN_EXPANDING & set(piece):
+            raise Unmodeled(f"the unquoted `{piece}` may be expanded by the shell")
+        if kind == "double" and ("$" in piece or "`" in piece):
+            raise Unmodeled(f"the double-quoted `{piece}` is not exactly one variable")
+    return "".join(piece for _, piece in parts)
 
 
-def _shown(text: str) -> str:
-    return text.replace(UNKNOWN, "")
+def _word(parts: list[tuple[str, str]], variables: dict[str, str]) -> str:
+    """A word's value, when it is a literal or exactly `$NAME`, `${NAME}` or `"$NAME"` with a known value without
+    whitespace. Raises Unmodeled for anything else."""
+    if len(parts) == 1 and parts[0][0] in ("plain", "double"):
+        match = VARIABLE_WORD.fullmatch(parts[0][1])
+        if match:
+            name = match.group("braced") or match.group("plain")
+            value = variables.get(name)
+            if value is None:
+                raise Unmodeled(f"`${name}` is not set to a literal earlier in the line (or may not have been)")
+            if not value or any(char in value for char in " \t\n"):
+                raise Unmodeled(f"`${name}` is empty or holds whitespace")
+            return value
+    return _literal(parts)
 
 
 def _read(path: str, cwd: Path, what: str) -> str:
     if path == "-" or path.startswith("/dev/"):
         raise Unreadable(UNREADABLE.format(what=what, why="it comes from standard input"))
-    if UNKNOWN in path:
-        raise Unreadable(UNREADABLE.format(what=what, why=f"`{_shown(path)}` uses a variable or command output not set earlier in the command, or set only "
-                                                       "where it may not run: after `cmd &&` or `||`, in a pipeline, subshell, `{ }` group or the background"))
     if UNKNOWN in str(cwd / Path(path).expanduser()):
-        raise Unreadable(UNREADABLE.format(what=what, why=f"`{path}` is relative to a directory the hook cannot follow"))
+        raise Unmodeled(f"the relative body path `{path}` follows a `cd` the hook does not follow")
     try:
         return (cwd / Path(path).expanduser()).read_text(encoding="utf-8")
     except OSError as error:
@@ -346,7 +354,7 @@ def _short_options(args: list[str], values: frozenset[str], flags: frozenset[str
             elif all(letter in flags for letter in token[1:]):
                 normalized += [f"-{letter}" for letter in token[1:]]
             else:
-                raise Unmodeled(f"the short-option form `{_shown(token)}` is not one the hook follows")
+                raise Unmodeled(f"the short-option form `{token}` is not one the hook follows")
         else:
             normalized.append(token)
         index += 1
@@ -429,9 +437,7 @@ def _api_bodies(args: list[str], cwd: Path) -> list[str] | None:
             endpoint = token
         index += 1
     if method is not None and method not in METHODS:
-        raise Unmodeled(f"the gh api method `{_shown(method)}` is not a literal HTTP method")
-    if endpoint is not None and UNKNOWN in endpoint:
-        raise Unmodeled(f"the gh api endpoint `{_shown(endpoint)}` uses a value the hook cannot resolve")
+        raise Unmodeled(f"the gh api method `{method}` is not a literal HTTP method")
     match = PR_ENDPOINT.match(_endpoint_path(endpoint or ""))
     if not match:
         return None
@@ -469,13 +475,11 @@ def _wrapper_prefix(words: list[str]) -> bool:
     index = 0
     while index < len(words):
         name = Path(words[index]).name
-        if name not in WRAPPERS or UNKNOWN in words[index]:
+        if name not in WRAPPERS:
             return False
         index += 1
         while index < len(words) and Path(words[index]).name not in WRAPPERS:
             word = words[index]
-            if UNKNOWN in word:
-                return False
             if name == "env" and (NAME.match(word) or word in ("-i", "-")):
                 index += 1
             elif name == "timeout" and word in ("-s", "--signal", "-k", "--kill-after") and index + 1 < len(words):
@@ -495,7 +499,7 @@ def _check(words: list[str], command: str, cwd: Path) -> str | None:
     """The reason to block one simple command's expanded words, or None. Raises Unmodeled when `gh pr|api` appears
     somewhere other than first or behind a supported wrapper."""
     if Path(words[0]).name in UNMODELED_COMMANDS or (words[0] == "printf" and "-v" in words):
-        raise Unmodeled(f"it uses `{_shown(words[0])}`")
+        raise Unmodeled(f"it uses `{words[0]}`")
     if any(Path(word).name in SHELLS for word in words):
         raise Unmodeled("it runs a shell (`bash -c` and the like)")
     # A word that only mentions gh (a `python3 -c` script, an echo'd string) is one word, not `gh` followed by `pr`.
@@ -503,7 +507,7 @@ def _check(words: list[str], command: str, cwd: Path) -> str | None:
     if start is None:
         return None
     if not _wrapper_prefix(words[:start]):
-        raise Unmodeled(f"gh runs behind `{_shown(' '.join(words[:start]))}`")
+        raise Unmodeled(f"gh runs behind `{' '.join(words[:start])}`")
     words = words[start:]
     try:
         if words[1] == "pr" and len(words) > 2 and words[2] in ("create", "edit"):
@@ -571,14 +575,12 @@ def _main_rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | 
     return MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
 
 
-def _substituted(parts: list[tuple[str, str]]) -> bool:
-    """Whether Bash would run a command substitution while expanding this word."""
-    return any(kind != "literal" and ("$(" in piece or "`" in piece) for kind, piece in parts)
+ASSIGNMENT_LIKE = re.compile(r"^[A-Za-z_]\w*(?:\[[^\]]*\])?\+?=")
 
 
 def _modeled(command: str, cwd: Path) -> str | None:
-    """The decision for a command line the hook models exactly. Raises Unmodeled when the line is outside that subset
-    (see the module docstring)."""
+    """The decision for a command line inside the hook's whitelist (see the module docstring). Raises Unmodeled
+    for anything outside it."""
     try:
         commands, operators = _lex(command)
     except ValueError as error:
@@ -586,85 +588,58 @@ def _modeled(command: str, cwd: Path) -> str | None:
     unsupported = sorted(operators - MODELED_OPERATORS)
     if unsupported:
         raise Unmodeled("it uses " + ", ".join(f"`{operator}`" for operator in unsupported).replace("\n", "a newline"))
-    for simple in commands:
-        if any(_substituted(parts) for parts in simple.words + simple.redirects):
-            raise Unmodeled("it uses a command substitution, `$(...)` or backticks")
-        if any("$(" in body or "`" in body for body in simple.expanded_heredocs):
-            raise Unmodeled("an unquoted heredoc runs a command substitution")
+    if any("$(" in body or "`" in body for simple in commands for body in simple.expanded_heredocs):
+        raise Unmodeled("an unquoted heredoc runs a command substitution")
 
-    # Shell state (variables, the working directory) a later command can rely on. `certain` holds changes that ran
-    # whenever a later command runs; `chained` holds changes made after the start of an `a && b && ...` list, which
-    # are certain only for the rest of that `&&` chain. A change after `||` becomes UNKNOWN, so reads that depend on
-    # it block.
+    # Variables hold only literal values. `certain` ones hold for the rest of the line; `chained` ones, set after
+    # `cmd &&`, only for the rest of that `&&` chain. Any other change makes the variable unknown, and using an
+    # unknown variable is outside the whitelist. A `cd` can fail, so it only ever holds for the rest of its `&&` chain.
     certain: dict[str, str] = {}
     chained: dict[str, str] = {}
     unknown_cwd = Path(UNKNOWN + "cd")
     certain_cwd, chained_cwd = cwd, None
 
-    def forget_chain() -> None:
-        nonlocal chained_cwd, certain_cwd
-        for name in chained:
-            certain[name] = UNKNOWN + "$" + name
-        chained.clear()
-        if chained_cwd is not None:
-            certain_cwd, chained_cwd = unknown_cwd, None
-
     for simple in commands:
         if simple.before != "&&":
-            forget_chain()
-        if not simple.words:
-            continue
-        starts_list = simple.before in ("", ";", "\n")
-        in_pipeline = simple.before in ("|", "|&") or simple.after in ("|", "|&")
+            for name in chained:
+                certain.pop(name, None)
+            chained.clear()
+            if chained_cwd is not None:
+                certain_cwd, chained_cwd = unknown_cwd, None
         variables = {**certain, **chained}
         cwd = chained_cwd or certain_cwd
-        words = [_value(parts, variables) for parts in simple.words]
-        names = [NAME.match(parts[0][1]) if parts and parts[0][0] == "plain" else None for parts in simple.words]
-        prefix = 0
-        while prefix < len(words) and names[prefix]:
-            prefix += 1
-        # `NAME+=value` or `NAME[i]=value` where an assignment would go.
-        if prefix < len(words) and simple.words[prefix] and simple.words[prefix][0][0] == "plain" \
-                and STATE_WORD.match(simple.words[prefix][0][1]):
-            raise Unmodeled("it uses an assignment form other than `NAME=value`")
-        rest = words[prefix:]
-        if rest and rest[0] != "export":
-            # Assignment values are not field-split, but command arguments are.
-            for parts in simple.words[prefix:]:
-                split = _splits(parts, variables)
-                if split:
-                    raise Unmodeled(f"the unquoted `{split}` may become several arguments or none; quote it")
-        changes: dict[str, str] = {}
-        if not rest or rest[0] == "export":
-            exported = simple.words[prefix + 1:] if rest else []
-            if any(not (parts and parts[0][0] == "plain" and NAME.match(parts[0][1])) for parts in exported):
-                raise Unmodeled("`export` is used with something other than `NAME=value`")
-            changes = {match.group("name"): word.split("=", 1)[1]
-                       for word, match in zip(words, (NAME.match(parts[0][1]) if parts and parts[0][0] == "plain" else None
-                                                       for parts in simple.words)) if match}
-        elif rest[0] == "cd":
-            changes = {"": rest[1] if len(rest) == 2 and rest[1] != "-" else UNKNOWN}
-        if changes:
-            if in_pipeline:
-                raise Unmodeled("it changes a variable or the directory inside a pipeline")
-            for name, value in changes.items():
-                if name == "":
-                    value = unknown_cwd if UNKNOWN in value else cwd / Path(value).expanduser()
-                elif simple.before == "||":
-                    value = UNKNOWN + "$" + name  # skipped whenever the command before `||` succeeds
-                if name == "" and simple.before == "||":
-                    value = unknown_cwd
-                if starts_list or simple.before == "||":
-                    if name == "":
-                        certain_cwd = value
-                    else:
-                        certain[name] = value
-                elif name == "":
-                    chained_cwd = value
-                else:
-                    chained[name] = value
+        for parts in simple.redirects:
+            _literal(parts)
+        if not simple.words:
             continue
-        reason = _check(rest, command, cwd)
+        in_pipeline = simple.before in ("|", "|&") or simple.after in ("|", "|&")
+        first = simple.words[0]
+        if first and first[0][0] == "plain" and ASSIGNMENT_LIKE.match(first[0][1]):
+            match = NAME.match(first[0][1])
+            if not match or len(simple.words) > 1 or in_pipeline:
+                raise Unmodeled("an assignment is not a single `NAME=literal` command of its own")
+            name = match.group("name")
+            value = _literal([("plain", first[0][1][match.end():]), *first[1:]])
+            if simple.before in ("", ";", "\n"):
+                certain[name] = value
+            elif simple.before == "&&":
+                chained[name] = value
+            else:  # after `||` it runs only when the command before failed
+                certain.pop(name, None)
+            continue
+        words = [_word(parts, variables) for parts in simple.words]
+        if words[0] == "cd":
+            target = words[1] if len(words) == 2 else ""
+            whitelisted = (target.startswith("/") and ".." not in Path(target).parts and not simple.redirects
+                           and not simple.expanded_heredocs and not in_pipeline and simple.before in ("", ";", "\n", "&&"))
+            if whitelisted and simple.before != "&&":
+                certain_cwd, chained_cwd = cwd, Path(target)
+            elif whitelisted:
+                chained_cwd = Path(target)
+            else:
+                certain_cwd, chained_cwd = unknown_cwd, None
+            continue
+        reason = _check(words, command, cwd)
         if reason:
             return reason
     return None

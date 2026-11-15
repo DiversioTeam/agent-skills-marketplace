@@ -21,12 +21,13 @@ around either check; never fake a link.
 
 The hook fails closed. By default, any `gh pr create|edit` or
 `gh api … repos/O/R/pulls` with a body in the command text needs the line. It is
-more precise only for command lines it fully models. Those are plain commands
-joined by `;`, `&&`, `||` or `|`, using `NAME=value` and `cd`, with `gh` first
-(or behind `env`/`timeout`) and a literal `gh api` method. There, review
-comments, replies, reviews and issue comments pass, quoted text and prose are
-not commands, and `--body-file "$F"` is read when `F` was surely set. Anything
-else (`$(...)`, `bash -c`, `eval`, `declare`/`unset`, `{ }`, subshells) gets
+more precise only inside a strict whitelist: plain commands joined by `;`,
+`&&`, `||` or `|`; `NAME=/literal` as its own command; words that are literals
+or exactly `"$NAME"`; `cd /absolute/dir &&`; and `gh` first (or behind
+`env`/`timeout`) with a literal `gh api` method. There, review comments,
+replies, reviews and issue comments pass, quoted text and prose are not
+commands, and `F=/abs/body.md; … --body-file "$F"` is read. Anything else
+(`$(...)`, `$S/x.md`, globs, braces, `bash -c`, `eval`, `export`, `{ }`) gets
 the basic rule, and the block says why: run the gh command on its own, with
 literal paths.
 

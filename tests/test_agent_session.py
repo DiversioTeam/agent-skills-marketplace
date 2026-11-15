@@ -1820,9 +1820,9 @@ class PrBodyAndHookTests(unittest.TestCase):
             cwd = Path("/nonexistent")
             allowed = [
                 f'F={declared}; gh pr create --repo DiversioTeam/demo --title T --body-file "$F"',
-                f"S={directory} && gh pr edit 7 -R DiversioTeam/demo --body-file $S/body.md",
-                f'S="{directory}"\nB=${{S}}/body.md\ngh pr edit 7 -R DiversioTeam/demo --body-file "$B" 2>&1 | tail -1',
-                f"export S={directory}; gh pr edit 7 -R DiversioTeam/demo --body-file=$S/body.md >/dev/null && echo ok",
+                f"F={declared} && gh pr edit 7 -R DiversioTeam/demo --body-file $F",
+                f'B="{declared}"\ngh pr edit 7 -R DiversioTeam/demo --body-file "${{B}}" 2>&1 | tail -1',
+                f"gh pr edit 7 -R DiversioTeam/demo --body-file {declared} | tail -1",
                 f"cd {directory} && gh pr edit 7 -R DiversioTeam/demo --body-file body.md",
                 # A heredoc earlier in the line, with an apostrophe the old whole-line split could not parse.
                 f"B={declared}; python3 - \"$B\" <<'EOF'\nprint(\"the candidate's notes\")\nEOF\ngh pr edit 7 -R DiversioTeam/demo --body-file $B",
@@ -1831,12 +1831,16 @@ class PrBodyAndHookTests(unittest.TestCase):
             for command in allowed:
                 self.assertIsNone(check_pr_hook.decide(command, cwd), command)
             # Still blocked: a resolved file without the line, and any body the hook cannot read.
-            self.assertIn("This PR needs", check_pr_hook.decide(f"S={directory}; gh pr create --repo DiversioTeam/demo --body-file $S/plain.md", cwd))
+            self.assertIn("This PR needs", check_pr_hook.decide(f"F={directory}/plain.md; gh pr create --repo DiversioTeam/demo --body-file $F", cwd))
             for command, why in (
-                ('gh pr create --repo DiversioTeam/demo --body-file "$UNSET_BODY"', "not set earlier"),
-                ("F=$(mktemp); gh pr create --repo DiversioTeam/demo --body-file $F", "command substitution"),
-                (f"S={directory}; gh pr create --repo DiversioTeam/demo --body-file $S/missing.md", "missing.md"),
+                ('gh pr create --repo DiversioTeam/demo --body-file "$UNSET_BODY"', "not set to a literal"),
+                ("F=$(mktemp); gh pr create --repo DiversioTeam/demo --body-file $F", "may be expanded"),
+                (f"F={directory}/missing.md; gh pr create --repo DiversioTeam/demo --body-file $F", "missing.md"),
                 ("gh pr create --repo DiversioTeam/demo --body-file - < body.md", "standard input"),
+                # A variable joined with other text is outside the whitelist, and the basic rule cannot read it.
+                (f"S={directory} && gh pr edit 7 -R DiversioTeam/demo --body-file $S/body.md", "may be expanded"),
+                (f'S={directory}; gh pr edit 7 -R DiversioTeam/demo --body-file "$S/body.md"', "not exactly one variable"),
+                (f"export S={directory}; gh pr edit 7 -R DiversioTeam/demo --body-file=$S/body.md", "export"),
             ):
                 reason = check_pr_hook.decide(command, cwd)
                 self.assertIsNotNone(reason, command)
@@ -1847,31 +1851,31 @@ class PrBodyAndHookTests(unittest.TestCase):
         cwd = Path("/nonexistent")
         # A PR body update through a variable path passed unchecked before; a reply through one is still allowed.
         self.assertIsNotNone(check_pr_hook.decide("R=repos/DiversioTeam/demo/pulls/7\ngh api -X PATCH $R -f body='rewritten'", cwd))
-        self.assertIsNone(check_pr_hook.decide("R=repos/DiversioTeam/demo/pulls/7/comments\ngh api -X POST $R/42/replies -f body='Fixed'", cwd))
-        self.assertIsNone(check_pr_hook.decide(
+        self.assertIsNone(check_pr_hook.decide("R=repos/DiversioTeam/demo/pulls/7/comments/42/replies\ngh api -X POST $R -f body='Fixed'", cwd))
+        # A variable joined with other text is outside the whitelist; the basic rule then blocks the reply.
+        self.assertIn("may be expanded", check_pr_hook.decide(
             "CID=4567 && gh api repos/DiversioTeam/demo/pulls/7/comments/$CID/replies -f body='Fixed'", cwd))
         # A command substitution is outside the modeled subset, so the original rule applies, and says why.
         reason = check_pr_hook.decide(
             "CID=$(gh api repos/DiversioTeam/demo/pulls/7/comments -q 'last | .id') && gh api repos/DiversioTeam/demo/pulls/7/comments/$CID/replies -f body='Fixed'", cwd)
-        self.assertIn("command substitution", reason)
+        self.assertIn("may be expanded by the shell", reason)
 
     def test_hook_expands_variables_only_where_bash_does(self):
         cwd = Path("/nonexistent")
         declared = "BODY='No agent session: manual hotfix'; "
-        # Bash expands unquoted and double-quoted variables, and sends single-quoted or escaped ones literally.
+        # A variable holding whitespace is outside the whitelist, so the basic rule applies, which cannot see the
+        # value. Single-quoted or escaped `$BODY` is sent literally.
         for command in (declared + 'gh pr edit 7 --repo DiversioTeam/demo --body "$BODY"',
-                        declared + 'gh pr edit 7 --repo DiversioTeam/demo --body "${BODY}"'):
-            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
-        # Unquoted, Bash splits the value, so the body is just "No".
-        for command in (declared + "gh pr edit 7 --repo DiversioTeam/demo --body $BODY",
+                        declared + 'gh pr edit 7 --repo DiversioTeam/demo --body "${BODY}"',
+                        declared + "gh pr edit 7 --repo DiversioTeam/demo --body $BODY",
                         declared + "gh pr edit 7 --repo DiversioTeam/demo --body '$BODY'",
                         declared + "gh pr edit 7 --repo DiversioTeam/demo --body \\$BODY",
                         declared + 'gh pr edit 7 --repo DiversioTeam/demo --body "\\$BODY"'):
             self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "body.md").write_text("No agent session: manual hotfix\n", encoding="utf-8")
-            self.assertIsNone(check_pr_hook.decide(f'D={directory}; gh pr create --repo DiversioTeam/demo --body-file "$D/body.md"', cwd))
-            self.assertIsNotNone(check_pr_hook.decide(f"D={directory}; gh pr create --repo DiversioTeam/demo --body-file '$D/body.md'", cwd))
+            self.assertIsNone(check_pr_hook.decide(f'D={directory}/body.md; gh pr create --repo DiversioTeam/demo --body-file "$D"', cwd))
+            self.assertIsNotNone(check_pr_hook.decide(f"D={directory}/body.md; gh pr create --repo DiversioTeam/demo --body-file '$D'", cwd))
         # A quoted `;` or `|` is an argument, not an operator.
         self.assertIsNotNone(check_pr_hook.decide("gh pr edit 7 --repo DiversioTeam/demo --body ';'", cwd))
         self.assertIsNotNone(check_pr_hook.decide('gh pr edit 7 --repo DiversioTeam/demo --body "|"', cwd))
@@ -1965,11 +1969,10 @@ class PrBodyAndHookTests(unittest.TestCase):
                         "E=; gh api -X PATCH repos/DiversioTeam/demo/pulls/7 $E -f body=x"):
             reason = check_pr_hook.decide(command, cwd)
             self.assertIsNotNone(reason, command)
-            self.assertIn("several arguments or none", reason)
-        # Quoted, the same value is one argument: here a title, so the edit writes no body.
-        self.assertIsNone(check_pr_hook.decide("ARGS='--repo DiversioTeam/demo --body rewritten'; gh pr edit 7 --title \"$ARGS\"", cwd))
+            self.assertIn("cannot follow this command line", reason)
+        # A known variable without whitespace is one argument.
         self.assertIsNone(check_pr_hook.decide("R=DiversioTeam/demo; gh pr edit 7 --repo $R --add-label bug", cwd))
-        self.assertIsNone(check_pr_hook.decide("B='No agent session: manual hotfix'; gh pr edit 7 --repo DiversioTeam/demo --body \"$B\"", cwd))
+        self.assertIsNone(check_pr_hook.decide('R=DiversioTeam/demo; gh pr edit 7 --repo "$R" --add-label bug', cwd))
 
     def test_hook_drops_redirection_descriptor_numbers(self):
         cwd = Path("/nonexistent")
@@ -2002,6 +2005,86 @@ class PrBodyAndHookTests(unittest.TestCase):
             Path(directory, "body.md").write_text("No agent session: manual hotfix\n", encoding="utf-8")
             self.assertIsNone(check_pr_hook.decide(f"gh pr create --repo DiversioTeam/demo -F={directory}/body.md", cwd))
             self.assertIsNotNone(check_pr_hook.decide("gh pr create --repo DiversioTeam/demo -F=missing.md", cwd))
+
+    def test_hook_falls_back_for_dependent_assignments(self):
+        cwd = Path("/nonexistent")
+        with tempfile.TemporaryDirectory() as directory:
+            good, bad = Path(directory, "good.md"), Path(directory, "bad.md")
+            good.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            bad.write_text("Summary only\n", encoding="utf-8")
+            create = 'gh pr create --repo DiversioTeam/demo --body-file "$G"'
+            # Bash evaluates `F=bad G=$F` left to right, so G is bad.md; one literal assignment per command only.
+            for command in (f"F={good}; F={bad} G=$F; {create}", f"F={good}; G=$F; {create}", f'F={good}; G="$F"; {create}'):
+                reason = check_pr_hook.decide(command, cwd)
+                self.assertIsNotNone(reason, command)
+                self.assertIn("cannot follow this command line", reason)
+            self.assertIsNone(check_pr_hook.decide(f"F={bad}; G={good}; {create}", cwd))
+
+    def test_hook_keeps_adjacent_quote_regions_apart(self):
+        cwd = Path("/nonexistent")
+        with tempfile.TemporaryDirectory() as directory:
+            good = Path(directory, "good.md")
+            good.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            Path(directory, "badILE").write_text("Summary only\n", encoding="utf-8")
+            setup = f"F={directory}/bad; FILE={good}; gh pr create --repo DiversioTeam/demo --body-file "
+            # `"$F""ILE"` is $F followed by ILE, not $FILE; so is `"${F}ILE"`. Neither is exactly one variable.
+            for word in ('"$F""ILE"', '"${F}ILE"', '"$F"ILE', '$F"ILE"'):
+                reason = check_pr_hook.decide(setup + word, cwd)
+                self.assertIsNotNone(reason, word)
+                self.assertIn("cannot follow this command line", reason)
+            self.assertIsNone(check_pr_hook.decide(setup + '"$FILE"', cwd))
+
+    def test_hook_falls_back_for_brace_and_glob_expansion(self):
+        cwd = Path("/nonexistent")
+        for command in ("gh api -X PATCH repos/DiversioTeam/demo/pulls/{7..7} -f body=x",
+                        "gh api -X PATCH repos/DiversioTeam/demo/pulls/[7] -f body=x",
+                        "gh api -X PATCH repos/DiversioTeam/demo/pulls/? -f body=x",
+                        "gh api -X PATCH repos/DiversioTeam/demo/pulls/* -f body=x",
+                        "gh api -X PATCH ~/repos/DiversioTeam/demo/pulls/7 -f body=x"):
+            reason = check_pr_hook.decide(command, cwd)
+            self.assertIsNotNone(reason, command)
+            self.assertIn("may be expanded by the shell", reason)
+        # Quoted, the pattern is sent literally: not a PR endpoint.
+        self.assertIsNone(check_pr_hook.decide("gh api -X PATCH 'repos/DiversioTeam/demo/pulls/{7..7}' -f body=x", cwd))
+        self.assertIsNone(check_pr_hook.decide('gh api -X PATCH "repos/DiversioTeam/demo/pulls/[7]" -f body=x', cwd))
+
+    def test_hook_trusts_only_a_literal_absolute_cd(self):
+        with tempfile.TemporaryDirectory() as directory:
+            start, elsewhere = Path(directory, "start"), Path(directory, "elsewhere")
+            Path(elsewhere, "sub").mkdir(parents=True)
+            start.mkdir()
+            Path(start, "body.md").write_text("Summary only\n", encoding="utf-8")
+            Path(elsewhere, "body.md").write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            Path(start, "link").symlink_to(Path(elsewhere, "sub"))
+            create = "gh pr create --repo DiversioTeam/demo --body-file body.md"
+            # Each of these may leave Bash in `start`, whose body.md has no line.
+            for command in (f"cd link/..; {create}", f"cd link/.. && {create}", f"cd {start}/link/.. && {create}",
+                            f"cd {elsewhere} > missing/out; {create}", f"cd {elsewhere} > missing/out && {create}",
+                            f"cd {elsewhere}; {create}", f"false || cd {elsewhere} && {create}", f"cd elsewhere && {create}"):
+                reason = check_pr_hook.decide(command, start)
+                self.assertIsNotNone(reason, command)
+                self.assertIn("cannot follow this command line", reason)
+            self.assertIsNone(check_pr_hook.decide(f"cd {elsewhere} && {create}", start))
+            self.assertIsNone(check_pr_hook.decide(f"cd {elsewhere} && {create} | tail -1", start))
+            self.assertIsNone(check_pr_hook.decide(f"cd {start} && gh pr create --repo DiversioTeam/demo --body-file {elsewhere}/body.md", start))
+
+    def test_hook_passes_the_everyday_agent_forms(self):
+        cwd = Path("/nonexistent")
+        with tempfile.TemporaryDirectory() as directory:
+            body = Path(directory, "body.md")
+            body.write_text("## Agent sessions\n\nNo agent session: manual hotfix\n", encoding="utf-8")
+            for command in (
+                f'F={body}; gh pr create --repo DiversioTeam/demo --base main --head x --title "A title" --body-file "$F"',
+                f"gh pr edit 7 -R DiversioTeam/demo --body-file {body} | tail -1",
+                f"gh pr edit 7 -R DiversioTeam/demo --body-file {body} 2>&1 | tail -1",
+                f"cd {directory} && gh pr edit 7 -R DiversioTeam/demo --body-file body.md >/dev/null && echo edited",
+                "gh api -X POST repos/DiversioTeam/demo/pulls/7/comments/42/replies -f body='Fixed in abc123: it is quoted.' --jq .html_url",
+                "gh api -X POST repos/DiversioTeam/demo/pulls/7/requested_reviewers -f 'reviewers[]=little-person' --jq '[.requested_reviewers[].login]'",
+                f"timeout 60 gh pr create --repo DiversioTeam/demo --body-file {body}",
+                "python3 - <<'EOF'\nprint('gh pr create --repo DiversioTeam/demo --body x')\nEOF",
+                "git commit -m 'Explain gh pr edit 7 --repo DiversioTeam/demo --body x in the docs'",
+            ):
+                self.assertIsNone(check_pr_hook.decide(command, cwd), command)
 
     def test_hook_blocks_whatever_the_original_rule_blocks_outside_the_modeled_subset(self):
         cwd = Path("/nonexistent")
@@ -2048,6 +2131,11 @@ class PrBodyAndHookTests(unittest.TestCase):
                 ("gh api 2>/dev/null -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=rewritten", False),
                 ("gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f=body=rewritten", False),
                 (f"gh pr edit 7 {repo} -b=rewritten", False),
+                (f'F={good}; F=/tmp/bad.md G=$F; gh pr create {repo} --body-file "$G"', False),
+                (f'F=/tmp/bad; FILE={good}; gh pr create {repo} --body-file "$F""ILE"', False),
+                ("gh api -X PATCH repos/DiversioTeam/demo/pulls/{7..7} -f body=x", False),
+                (f"cd link/..; gh pr create {repo} --body-file body.md", False),
+                (f"cd /tmp > missing/out; gh pr create {repo} --body-file body.md", False),
             ]
             for command, allowed in table:
                 self.assertIsNotNone(check_pr_hook._main_rule(command, cwd), f"the original rule allows: {command}")
