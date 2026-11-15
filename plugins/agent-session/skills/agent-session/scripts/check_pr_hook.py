@@ -222,6 +222,13 @@ def _lex(text: str) -> tuple[list[Command], set[str]]:
             end = text.find("\n", index)
             index = size if end == -1 else end
         elif char in OPERATOR_CHARS:
+            if char in "<>" and len(parts) == 1 and parts[0][0] == "plain":
+                # An unquoted number right before `<`/`>` (`2>/dev/null`) is the redirection's descriptor, not an
+                # argument; Bash removes it. A `{name}>` descriptor variable is not modeled.
+                if parts[0][1].isdigit():
+                    parts, started = [], False
+                elif re.fullmatch(r"\{\w+\}", parts[0][1]):
+                    raise ValueError("a {name} redirection descriptor")
             flush()
             if char == "\n":
                 operator = "\n"
@@ -280,6 +287,20 @@ def _value(parts: list[tuple[str, str]], variables: dict[str, str]) -> str:
     return "".join(piece if kind == "literal" else EXPANSION.sub(expand, piece) for kind, piece in parts)
 
 
+def _splits(parts: list[tuple[str, str]], variables: dict[str, str]) -> str | None:
+    """An unquoted expansion in this word whose result Bash would field-split or drop (unknown, empty, or holding
+    whitespace), so the word may not be one argument; None when every unquoted expansion stays one argument."""
+    for kind, piece in parts:
+        if kind != "plain":
+            continue
+        for match in EXPANSION.finditer(piece):
+            name = match.group("braced") if match.group("braced") is not None else match.group("plain")
+            value = variables.get(name) if name is not None else None
+            if value is None or value == "" or UNKNOWN in value or any(char in value for char in " \t\n"):
+                return match.group(0)
+    return None
+
+
 def _shown(text: str) -> str:
     return text.replace(UNKNOWN, "")
 
@@ -296,6 +317,40 @@ def _read(path: str, cwd: Path, what: str) -> str:
         return (cwd / Path(path).expanduser()).read_text(encoding="utf-8")
     except OSError as error:
         raise Unreadable(UNREADABLE.format(what=what, why=f"`{path}`: {error.strerror or error}")) from None
+
+
+# Short options gh takes with a value, and those that take none, per lane. gh (pflag) also accepts the value attached:
+# `-bTEXT`, `-b=TEXT`, `-XPATCH`, `-f=body=x`.
+PR_SHORT_VALUES, PR_SHORT_FLAGS = frozenset("aBbFHlmprRTt"), frozenset("dfw")
+API_SHORT_VALUES, API_SHORT_FLAGS = frozenset("XfFHpqt"), frozenset("i")
+LONG_VALUES = frozenset({"--body", "--body-file", "--title", "--base", "--head", "--repo", "--label", "--assignee",
+                         "--milestone", "--project", "--reviewer", "--template", "--method", "--field", "--raw-field",
+                         "--header", "--jq", "--input", "--preview", "--hostname", "--cache"})
+
+
+def _short_options(args: list[str], values: frozenset[str], flags: frozenset[str]) -> list[str]:
+    """The arguments with attached short-option values split off (`-b=TEXT` -> `-b`, `TEXT`). Raises Unmodeled for
+    short-option forms the hook does not follow, such as several options combined with one that takes a value."""
+    normalized: list[str] = []
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in LONG_VALUES or (len(token) == 2 and token[0] == "-" and token[1] in values):
+            normalized += args[index:index + 2]  # the next word is this option's value, even if it starts with `-`
+            index += 2
+            continue
+        if token.startswith("-") and not token.startswith("--") and len(token) > 2:
+            if token[1] in values:
+                value = token[2:]
+                normalized += [token[:2], value[1:] if value.startswith("=") else value]
+            elif all(letter in flags for letter in token[1:]):
+                normalized += [f"-{letter}" for letter in token[1:]]
+            else:
+                raise Unmodeled(f"the short-option form `{_shown(token)}` is not one the hook follows")
+        else:
+            normalized.append(token)
+        index += 1
+    return normalized
 
 
 def _pr_bodies(verb: str, args: list[str], cwd: Path) -> list[str] | None:
@@ -452,9 +507,9 @@ def _check(words: list[str], command: str, cwd: Path) -> str | None:
     words = words[start:]
     try:
         if words[1] == "pr" and len(words) > 2 and words[2] in ("create", "edit"):
-            bodies = _pr_bodies(words[2], words[3:], cwd)
+            bodies = _pr_bodies(words[2], _short_options(words[3:], PR_SHORT_VALUES, PR_SHORT_FLAGS), cwd)
         elif words[1] == "api":
-            bodies = _api_bodies(words[2:], cwd)
+            bodies = _api_bodies(_short_options(words[2:], API_SHORT_VALUES, API_SHORT_FLAGS), cwd)
         else:
             return None
     except Unreadable as error:
@@ -573,6 +628,12 @@ def _modeled(command: str, cwd: Path) -> str | None:
                 and STATE_WORD.match(simple.words[prefix][0][1]):
             raise Unmodeled("it uses an assignment form other than `NAME=value`")
         rest = words[prefix:]
+        if rest and rest[0] != "export":
+            # Assignment values are not field-split, but command arguments are.
+            for parts in simple.words[prefix:]:
+                split = _splits(parts, variables)
+                if split:
+                    raise Unmodeled(f"the unquoted `{split}` may become several arguments or none; quote it")
         changes: dict[str, str] = {}
         if not rest or rest[0] == "export":
             exported = simple.words[prefix + 1:] if rest else []
