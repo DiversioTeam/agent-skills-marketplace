@@ -13,6 +13,9 @@ import { fileURLToPath } from "node:url";
 // A cheap pre-filter only: the hook script decides. Any `gh api` goes to it, because the endpoint may be in a variable
 // (`R=repos/O/R/pulls/7; gh api -X PATCH $R ...`).
 const PR_COMMAND = /\bgh\s+(?:pr\s+(?:create|edit)|api\b)/;
+// Without the hook script nothing can classify the call, so only commands that may touch a PR are blocked: the
+// 0.1.0 pre-filter. `gh api user` and other unrelated reads stay usable.
+const MAYBE_PR_COMMAND = /\bgh\s+(?:pr\s+(?:create|edit)|api\b[^\n]*\/pulls\b)/;
 
 // The hook script ships in the same marketplace checkout; AGENT_SESSION_CLI points elsewhere when installed apart.
 export function findHook(environment: NodeJS.ProcessEnv = process.env, here = dirname(fileURLToPath(import.meta.url))): string | undefined {
@@ -28,6 +31,7 @@ export type Decision = { block: true; reason: string } | undefined;
 export function decide(command: string, cwd: string, hook: string | undefined, run = spawnSync): Decision {
   if (!PR_COMMAND.test(command)) return undefined;
   if (!hook) {
+    if (!MAYBE_PR_COMMAND.test(command)) return undefined;
     return { block: true, reason: "agent-session: the PR guard cannot find check_pr_hook.py. Install the agent-session skill " +
       "(or set AGENT_SESSION_CLI), then run its share command before creating or editing the PR." };
   }

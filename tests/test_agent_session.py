@@ -1873,8 +1873,6 @@ class PrBodyAndHookTests(unittest.TestCase):
                 f'B="{declared}"\ngh pr edit 7 -R DiversioTeam/demo --body-file "${{B}}" 2>&1 | tail -1',
                 f"gh pr edit 7 -R DiversioTeam/demo --body-file {declared} | tail -1",
                 f"cd {directory} && gh pr edit 7 -R DiversioTeam/demo --body-file body.md",
-                # A heredoc earlier in the line, with an apostrophe the old whole-line split could not parse.
-                f"B={declared}; python3 - \"$B\" <<'EOF'\nprint(\"the candidate's notes\")\nEOF\ngh pr edit 7 -R DiversioTeam/demo --body-file $B",
                 f"gh pr edit 7 -R DiversioTeam/demo --body-file {declared} >/dev/null && gh pr edit 7 -R DiversioTeam/demo --add-reviewer little-person",
             ]
             for command in allowed:
@@ -2109,6 +2107,63 @@ class PrBodyAndHookTests(unittest.TestCase):
                 self.assertIn("glob character", reason)
             # Quoted, the value is the literal file name.
             self.assertIsNone(check_pr_hook.decide("F='[b].md'; gh pr create --repo DiversioTeam/demo --body-file \"$F\"", Path(directory)))
+
+    def test_hook_falls_back_for_a_continued_and_or_pipe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            good, bad = Path(directory, "good.md"), Path(directory, "bad.md")
+            good.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            bad.write_text("Summary only\n", encoding="utf-8")
+            create = 'gh pr create --repo DiversioTeam/demo --body-file "$F"'
+            # Bash skips `F=good` (the newline continues the `&&`), so gh reads bad.md.
+            for operator in ("&&", "||", "|"):
+                command = f"F={bad}; false {operator}\nF={good}\n{create}"
+                reason = check_pr_hook.decide(command, Path(directory))
+                self.assertIsNotNone(reason, command)
+                self.assertIn("continues", reason)
+            self.assertIsNone(check_pr_hook.decide(f"F={bad}; false\nF={good}\n{create}", Path(directory)))
+
+    def test_hook_does_not_read_a_body_file_another_command_may_rewrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            body = Path(directory, "body.md")
+            create = f"gh pr create --repo DiversioTeam/demo --body-file {body}"
+            # On disk the body declares; the command replaces it first, so the hook cannot trust what it reads now.
+            body.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            for command in (f"printf 'Summary only\\n' > {body}; {create}",
+                            f"cp {directory}/other.md {body} && {create}",
+                            f"python3 -c 'open(\"{body}\", \"w\").write(\"x\")'; {create}",
+                            f"> {body}; {create}",
+                            f"{create} > {body}",
+                            f"{create} | tee {body}"):
+                reason = check_pr_hook.decide(command, Path(directory))
+                self.assertIsNotNone(reason, command)
+                self.assertIn("rewrite", reason)
+            # The other direction: the file on disk has no line yet, the command writes one. Bash would pass; the hook
+            # cannot know which file gh reads, so it blocks rather than reading the old one.
+            body.write_text("Summary only\n", encoding="utf-8")
+            reason = check_pr_hook.decide(f"printf 'No agent session: manual hotfix\\n' > {body}; {create}", Path(directory))
+            self.assertIn("may rewrite", reason)
+            self.assertIn("python3", check_pr_hook.decide(f"B={body}; python3 - \"$B\" <<'EOF'\nprint(1)\nEOF\n{create}", Path(directory)))
+            # Commands that write nothing, and read-only pipeline consumers, keep the exact check.
+            body.write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            for command in (f"echo start; {create}", f"true && {create}", f"{create} | tail -1", f"{create} 2>&1 | jq -r .url"):
+                self.assertIsNone(check_pr_hook.decide(command, Path(directory)), command)
+
+    def test_hook_reads_a_quoted_tilde_as_a_literal_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "~").mkdir()
+            Path(directory, "~", "notes.md").write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            self.assertIsNone(check_pr_hook.decide("gh pr create --repo DiversioTeam/demo --body-file '~/notes.md'", Path(directory)))
+
+    def test_hook_takes_the_whole_api_body_from_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "title.json").write_text(json.dumps({"title": "Better title"}), encoding="utf-8")
+            Path(directory, "plain.json").write_text(json.dumps({"title": "T", "head": "x", "base": "main"}), encoding="utf-8")
+            cwd = Path(directory)
+            # With --input, gh sends `-f` fields as query parameters: the body is the file alone.
+            self.assertIsNone(check_pr_hook.decide(
+                "gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=rewritten --input title.json", cwd))
+            self.assertIn("This PR needs", check_pr_hook.decide(
+                "gh api -X POST repos/DiversioTeam/demo/pulls -f 'body=No agent session: manual hotfix' --input plain.json", cwd))
 
     def test_hook_trusts_only_a_literal_absolute_cd(self):
         with tempfile.TemporaryDirectory() as directory:

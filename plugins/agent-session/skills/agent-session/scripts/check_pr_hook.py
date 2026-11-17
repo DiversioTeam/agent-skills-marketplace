@@ -7,7 +7,8 @@ agent-session check (required `local/verify`) is the real gate; this gives the a
 The hook fails closed. Its baseline is the original rule (`_main_rule`): any `gh pr create|edit` or `gh api ...
 repos/O/R/pulls` with a body in the command text is checked. It is more precise only for command lines inside a strict
 whitelist (`_modeled`), where every word and command is one of:
-- simple commands joined by `;`, `&&`, `||`, `|` or newlines, with redirections and heredocs;
+- simple commands joined by `;`, `&&`, `||`, `|` or newlines, with redirections and heredocs (a newline right
+  after `&&`, `||` or `|` is not modeled);
 - an assignment `NAME=<literal>` as a command of its own (no `$`, backtick, glob or brace characters);
 - a word that is a literal, or exactly `$NAME`, `${NAME}` or `"$NAME"` with a known value without whitespace
   (and, unquoted, without glob characters);
@@ -18,7 +19,10 @@ whitelist (`_modeled`), where every word and command is one of:
 There, quoted heredocs and prose that only mentions `gh pr create` are not commands, and only real PR body writes are
 checked: `gh pr create`, `gh pr edit` with a body flag, a `gh api` POST to `repos/O/R/pulls` and a PATCH to
 `repos/O/R/pulls/N` with a body. Review comments, replies, reviews and issue comments pass, and a body the hook cannot
-read (a missing file, stdin) is blocked with that reason.
+read (a missing file, stdin) is blocked with that reason. So is a body file another command on the line may rewrite
+first (anything before gh but an assignment, `cd`, `true`, `false`, `:`, `echo` or `pwd`; a pipeline peer other than a
+read-only filter; gh's own redirection to it), because the file on disk may not be what gh reads. With `--input`, the
+input file alone is the API request body.
 
 Anything else falls back to the original rule, and a block says why so the agent can simplify the command.
 """
@@ -254,6 +258,10 @@ def _lex(text: str) -> tuple[list[Command], set[str]]:
             index += len(operator)
             operators.add(operator)
             if set(operator) <= SEPARATOR_CHARS:
+                last = commands[-1]
+                if operator == "\n" and not last.words and not last.redirects and last.before in ("&&", "||", "|", "|&"):
+                    # `false &&` then a newline: the next line still belongs to the `&&`. Not modeled.
+                    raise ValueError(f"a newline continues the `{last.before}` before it")
                 depth += {"(": 1, ")": -1}.get(operator, 0)
                 if commands[-1].words or commands[-1].expanded_heredocs:
                     commands[-1].after = operator
@@ -322,13 +330,31 @@ def _word(parts: list[tuple[str, str]], variables: dict[str, str]) -> str:
     return _literal(parts)
 
 
-def _read(path: str, cwd: Path, what: str) -> str:
+class Files:
+    """What else on the command line could change a body file before gh reads it."""
+
+    def __init__(self, writer: str | None = None, targets: frozenset[Path] = frozenset()) -> None:
+        self.writer = writer  # an earlier (or same-pipeline) command that may write files
+        self.targets = targets  # paths the gh command's own redirections write
+
+
+TRUSTED = Files()
+
+
+def _read(path: str, cwd: Path, what: str, guard: Files = TRUSTED) -> str:
     if path == "-" or path.startswith("/dev/"):
         raise Unreadable(UNREADABLE.format(what=what, why="it comes from standard input"))
-    if UNKNOWN in str(cwd / Path(path).expanduser()):
+    # The path is already what Bash passes: an unquoted `~` falls back earlier, and a quoted one is a literal name.
+    target = cwd / path
+    if UNKNOWN in str(target):
         raise Unmodeled(f"the relative body path `{path}` follows a `cd` the hook does not follow")
+    # The file on disk now may not be what gh reads, and the 0.4.2 rule would read the same stale file, so block.
+    if guard.writer:
+        raise Unreadable(UNREADABLE.format(what=what, why=f"`{guard.writer}` runs before or beside gh and may rewrite `{path}`"))
+    if target in guard.targets:
+        raise Unreadable(UNREADABLE.format(what=what, why=f"a redirection on the gh command rewrites `{path}`"))
     try:
-        return (cwd / Path(path).expanduser()).read_text(encoding="utf-8")
+        return target.read_text(encoding="utf-8")
     except OSError as error:
         raise Unreadable(UNREADABLE.format(what=what, why=f"`{path}`: {error.strerror or error}")) from None
 
@@ -367,7 +393,7 @@ def _short_options(args: list[str], values: frozenset[str], flags: frozenset[str
     return normalized
 
 
-def _pr_bodies(verb: str, args: list[str], cwd: Path) -> list[str] | None:
+def _pr_bodies(verb: str, args: list[str], cwd: Path, guard: Files = TRUSTED) -> list[str] | None:
     """The bodies a `gh pr create|edit` passes, or None when it writes no body (an edit without a body flag)."""
     texts: list[str] = []
     files: list[str] = []
@@ -389,7 +415,7 @@ def _pr_bodies(verb: str, args: list[str], cwd: Path) -> list[str] | None:
     problem = None
     for file in files:
         try:
-            texts.append(_read(file, cwd, "file"))
+            texts.append(_read(file, cwd, "file", guard))
         except Unreadable as error:
             problem = problem or error
     if problem and not any(has_transcript(text) for text in texts):
@@ -407,7 +433,7 @@ def _endpoint_path(endpoint: str) -> str:
     return path + (f"?{url.query}" if url.query else "")
 
 
-def _api_bodies(args: list[str], cwd: Path) -> list[str] | None:
+def _api_bodies(args: list[str], cwd: Path, guard: Files = TRUSTED) -> list[str] | None:
     """The body a `gh api` call writes to a PR (create or update), or None when it does not write a PR body."""
     method = None
     endpoint = None
@@ -453,9 +479,11 @@ def _api_bodies(args: list[str], cwd: Path) -> list[str] | None:
         return None
     if input_file is not None:
         try:
-            data = json.loads(_read(input_file, cwd, "input file"))
+            data = json.loads(_read(input_file, cwd, "input file", guard))
         except ValueError:
             raise Unreadable(UNREADABLE.format(what="input file", why=f"`{input_file}` is not JSON")) from None
+        # With `--input`, the file is the whole request body; gh sends `-f/-F` fields as URL query parameters.
+        fields = {}
         if isinstance(data, dict) and isinstance(data.get("body"), str):
             fields["body"] = data["body"]
             raw_fields.add("body")
@@ -464,7 +492,7 @@ def _api_bodies(args: list[str], cwd: Path) -> list[str] | None:
         return [] if creates else None
     body = fields["body"]
     if "body" not in raw_fields and body.startswith("@"):
-        body = _read(body[1:], cwd, "file")
+        body = _read(body[1:], cwd, "file", guard)
     return [body]
 
 
@@ -501,7 +529,7 @@ def _wrapper_prefix(words: list[str]) -> bool:
     return True
 
 
-def _check(words: list[str], command: str, cwd: Path) -> str | None:
+def _check(words: list[str], command: str, cwd: Path, guard: Files = TRUSTED) -> str | None:
     """The reason to block one simple command's expanded words, or None. Raises Unmodeled when `gh pr|api` appears
     somewhere other than first or behind a supported wrapper."""
     if Path(words[0]).name in UNMODELED_COMMANDS or (words[0] == "printf" and "-v" in words):
@@ -517,9 +545,9 @@ def _check(words: list[str], command: str, cwd: Path) -> str | None:
     words = words[start:]
     try:
         if words[1] == "pr" and len(words) > 2 and words[2] in ("create", "edit"):
-            bodies = _pr_bodies(words[2], _short_options(words[3:], PR_SHORT_VALUES, PR_SHORT_FLAGS), cwd)
+            bodies = _pr_bodies(words[2], _short_options(words[3:], PR_SHORT_VALUES, PR_SHORT_FLAGS), cwd, guard)
         elif words[1] == "api":
-            bodies = _api_bodies(_short_options(words[2:], API_SHORT_VALUES, API_SHORT_FLAGS), cwd)
+            bodies = _api_bodies(_short_options(words[2:], API_SHORT_VALUES, API_SHORT_FLAGS), cwd, guard)
         else:
             return None
     except Unreadable as error:
@@ -604,8 +632,11 @@ def _modeled(command: str, cwd: Path) -> str | None:
     chained: dict[str, str] = {}
     unknown_cwd = Path(UNKNOWN + "cd")
     certain_cwd, chained_cwd = cwd, None
+    # The first earlier command other than an assignment or `cd`: it may rewrite a body file before gh reads it,
+    # so after it a body file is not read (the 0.4.2 rule applies).
+    writer: str | None = None
 
-    for simple in commands:
+    for position, simple in enumerate(commands):
         if simple.before != "&&":
             for name in chained:
                 certain.pop(name, None)
@@ -617,6 +648,8 @@ def _modeled(command: str, cwd: Path) -> str | None:
         for parts in simple.redirects:
             _literal(parts)
         if not simple.words:
+            if simple.redirects:
+                writer = writer or "a redirection"  # `> body.md` on its own truncates the file
             continue
         in_pipeline = simple.before in ("|", "|&") or simple.after in ("|", "|&")
         first = simple.words[0]
@@ -645,9 +678,30 @@ def _modeled(command: str, cwd: Path) -> str | None:
             else:
                 certain_cwd, chained_cwd = unknown_cwd, None
             continue
-        reason = _check(words, command, cwd)
+        reason = _check(words, command, cwd, Files(writer or _pipeline_writer(commands, position, variables),
+                                                   frozenset(cwd / _literal(parts) for parts in simple.redirects)))
         if reason:
             return reason
+        if words[0] not in NO_WRITES or simple.redirects or simple.expanded_heredocs:
+            writer = writer or words[0]
+    return None
+
+
+# Commands that write no files (without a redirection), so a body file read after them is current.
+NO_WRITES = frozenset({"true", "false", ":", "echo", "pwd"})
+# Pipeline consumers that only read their input and write nothing but their output.
+READ_ONLY_FILTERS = frozenset({"tail", "head", "grep", "jq", "wc", "cat", "sort", "uniq", "cut"})
+
+
+def _pipeline_writer(commands: list[Command], position: int, variables: dict[str, str]) -> str | None:
+    """A command later in the same pipeline that runs beside gh and may write files, or None."""
+    index = position
+    while commands[index].after in ("|", "|&") and index + 1 < len(commands):
+        index += 1
+        peer = commands[index]
+        name = Path(_word(peer.words[0], variables)).name if peer.words else ""
+        if name not in READ_ONLY_FILTERS or peer.redirects:
+            return name or "a redirection"
     return None
 
 

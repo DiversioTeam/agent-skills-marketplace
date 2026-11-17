@@ -40,6 +40,10 @@ test('passes review replies and checks PR updates whose path is in a variable', 
 test('a missing guard blocks only PR commands', () => {
   assert.equal(extension.decide('git push', '/tmp', undefined), undefined);
   assert.match(extension.decide("gh pr create --repo DiversioTeam/demo --body x", '/tmp', undefined).reason, /cannot find check_pr_hook.py/);
+  assert.match(extension.decide("gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x", '/tmp', undefined).reason, /cannot find check_pr_hook.py/);
+  // Unrelated API reads stay usable without the helper.
+  assert.equal(extension.decide('gh api user --jq .login', '/tmp', undefined), undefined);
+  assert.equal(extension.decide('gh api repos/DiversioTeam/demo/issues/7/comments', '/tmp', undefined), undefined);
 });
 
 test('registers a tool_call guard for bash only', async () => {
