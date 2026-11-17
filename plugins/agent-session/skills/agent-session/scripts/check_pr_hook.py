@@ -19,13 +19,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pr_body import LINK, has_transcript  # noqa: E402
 
 PR_COMMAND = re.compile(r"\bgh\s+pr\s+(?P<verb>create|edit)\b")
-# Only the PR resource itself (`repos/O/R/pulls` to create, `repos/O/R/pulls/N` to update) carries the description.
-# Review comments, replies and reviews live under deeper paths (`pulls/N/comments`, `pulls/N/reviews`) and have their own `body`.
-API_COMMAND = re.compile(r"\bgh\s+api\b[^\n]*\brepos/[^/\s]+/[^/\s]+/pulls(?:/\d+)?(?=$|[\s\"'?#])")
-HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_][\w-]*)\1")
-DATA_SINK = re.compile(r"(?:^|[;&|(]|\$\()\s*(?:\S*/)?(?:cat|tee)\b[^;&|()]*$")
-PIPE_TO_SHELL = re.compile(r"\|\s*(?:\S*/)?(?:sh|bash|zsh|dash)\b")
+API_COMMAND = re.compile(r"\bgh\s+api\b[^\n]*\brepos/[^/\s]+/[^/\s]+/pulls\b")
 BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
+# The one shape the hook allows before its rule: a single `gh api` call to a review sub-resource of a PR, whose
+# `body` is review text, not the PR description. A command with any shell operator, redirection, substitution or
+# variable is not this shape, so it always gets the rule below.
+REVIEW_ENDPOINT = re.compile(
+    r"^(?:https://api\.github\.com/)?repos/[^/]+/[^/]+/pulls/(?:"
+    r"[0-9]+/(?:comments(?:/[0-9]+/replies)?|reviews(?:/[0-9]+(?:/events|/comments)?)?|requested_reviewers)"
+    r"|comments/[0-9]+)$"
+)
+NOT_SIMPLE = (";", "&", "|", "\n", "\r", "$", "`", "<", ">")
+API_VALUE_FLAGS = frozenset({"-X", "--method", "-f", "-F", "--field", "--raw-field", "-H", "--header", "-q", "--jq",
+                             "-t", "--template", "--input", "-p", "--preview", "--hostname", "--cache"})
+REPLY_HINT = (
+    " A review reply or comment passes only as a single `gh api` command with a literal endpoint and no shell "
+    "operators, `$` or backticks anywhere: put the text in a file and pass `-F body=@/path/reply.md`."
+)
+# Without `$`, backticks or operators, a word is only unquoted text, '...', "..." and backslash escapes. A regex
+# scan keeps this linear: shlex takes seconds on a long reply body, and the hook runs before every Bash call.
+WORD = re.compile(r"""(?:[^\s'"\\]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+""", re.DOTALL)
+PART = re.compile(r"""'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)|([^\s'"\\]+)""", re.DOTALL)
+SPACE = re.compile(r"[ \t]*")
 MESSAGE = (
     "This PR needs its agent session transcript. Run the agent-session skill "
     "(`agent-session share`, or `python3 {script} share`; on a first publish review the preview with the developer, then add `--yes`). "
@@ -63,25 +78,6 @@ def _bodies(command: str, cwd: Path, argv: list[str] | None = None) -> list[str]
     return texts
 
 
-def _without_heredoc_text(command: str) -> str:
-    """The command without the text of heredocs that `cat` or `tee` only copy (a script or body being written to a file).
-    Text any other command reads (a shell, `python3 -`) may still run `gh`, so it stays."""
-    kept, terminators = [], []
-    for line in command.split("\n"):
-        if terminators:
-            delimiter, data = terminators[0]
-            if line.strip() == delimiter:
-                terminators.pop(0)
-            elif not data:
-                kept.append(line)
-            continue
-        kept.append(line)
-        for heredoc in HEREDOC.finditer(line):
-            data = bool(DATA_SINK.search(line[: heredoc.start()])) and not PIPE_TO_SHELL.search(line[heredoc.end():])
-            terminators.append((heredoc.group(2), data))
-    return "\n".join(kept)
-
-
 def _is_diversio(command: str, cwd: Path) -> bool:
     if "DiversioTeam/" in command or "diversioteam/" in command.lower():
         return True
@@ -89,18 +85,67 @@ def _is_diversio(command: str, cwd: Path) -> bool:
     return "diversioteam/" in completed.stdout.lower()
 
 
+def _words(command: str) -> list[str] | None:
+    """The command's words as Bash passes them, or None if a quote is unbalanced."""
+    words = []
+    index = SPACE.match(command).end()
+    while index < len(command):
+        match = WORD.match(command, index)
+        if not match:
+            return None
+        pieces = []
+        for single, double, escaped, plain in PART.findall(match.group()):
+            if double:
+                pieces.append(re.sub(r'\\([\\"])', r"\1", double))
+            else:
+                pieces.append(single or escaped or plain)
+        words.append("".join(pieces))
+        index = SPACE.match(command, match.end()).end()
+    return words
+
+
+def _review_call(command: str) -> bool:
+    """Whether the command is exactly one `gh api` call to a PR review sub-resource: replies, review comments,
+    reviews and requested reviewers. Its only positional argument is that literal endpoint."""
+    if not command.startswith("gh api ") or any(char in command for char in NOT_SIMPLE):
+        return False
+    tokens = _words(command)
+    if tokens is None:
+        return False
+    positional = []
+    index = 2
+    while index < len(tokens):
+        token = tokens[index]
+        if token in API_VALUE_FLAGS:
+            index += 2  # the flag's value
+            continue
+        if not token.startswith("-"):
+            positional.append(token)
+        index += 1
+    return len(positional) == 1 and bool(REVIEW_ENDPOINT.match(positional[0]))
+
+
 def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
     """The reason to block, or None to allow. `argv` is the command as an argument list, when the tool sent one."""
-    runs = _without_heredoc_text(command)
-    match = PR_COMMAND.search(runs)
-    api = API_COMMAND.search(runs)
+    if _review_call(command):
+        return None
+    reason = _rule(command, cwd, argv)
+    if reason and API_COMMAND.search(command) and re.search(r"/pulls/[^/\s]+/", command):
+        reason += REPLY_HINT
+    return reason
+
+
+def _rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
+    """The 0.4.2 rule, unchanged."""
+    match = PR_COMMAND.search(command)
+    api = API_COMMAND.search(command)
     if not match and not api:
         return None
-    if api and not re.search(r"(?:-X|--method)\s*(?:POST|PATCH)|-f\s+body=|-F\s+body=|--field\s+body=|--raw-field\s+body=", runs):
+    if api and not re.search(r"(?:-X|--method)\s*(?:POST|PATCH)|-f\s+body=|-F\s+body=|--field\s+body=|--raw-field\s+body=", command):
         return None
-    if match and match.group("verb") == "edit" and not any(re.search(rf"(?:^|\s){re.escape(flag)}(?:[\s=]|$)", runs) for flag in BODY_FLAGS):
+    if match and match.group("verb") == "edit" and not any(re.search(rf"(?:^|\s){re.escape(flag)}(?:[\s=]|$)", command) for flag in BODY_FLAGS):
         return None
-    if api and not re.search(r"\bbody\b", runs):
+    if api and not re.search(r"\bbody\b", command):
         return None
     if not _is_diversio(command, cwd):
         return None
