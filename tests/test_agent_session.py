@@ -1830,10 +1830,24 @@ class PrBodyAndHookTests(unittest.TestCase):
             f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=little-person'",
             "gh api -X PATCH repos/DiversioTeam/demo/pulls/comments/123 -f body=edited",
             f"gh api -XPOST https://api.github.com/{pulls}/comments/123/replies -F body=@/tmp/reply.md",
+            # Equivalent spellings: gh strips a leading slash, and the shell ignores extra blanks.
+            f"gh api /{pulls}/comments/123/replies -f body=ok",
+            f"  gh\tapi {pulls}/comments/123/replies -f body=ok",
         ]
         for command in allowed:
             self.assertIsNone(check_pr_hook.decide(command, cwd), command)
-        self.assertIsNone(check_pr_hook.decide("", cwd, ["gh", "api", f"{pulls}/comments/123/replies", "-f", "body=Fixed it"]))
+
+    def test_hook_entry_point_allows_a_review_reply_sent_as_argv(self):
+        import subprocess
+        hook = Path(check_pr_hook.__file__)
+        argv = ["gh", "api", "-X", "POST", "repos/DiversioTeam/demo/pulls/7/comments/123/replies", "-f", "body=Fixed it"]
+        result = subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": argv}, "cwd": "/tmp"}),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv[4] = "repos/DiversioTeam/demo/pulls/7"
+        result = subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": argv}, "cwd": "/tmp"}),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
 
     def test_hook_applies_the_original_rule_to_everything_else(self):
         cwd = Path("/nonexistent")
@@ -1859,6 +1873,9 @@ class PrBodyAndHookTests(unittest.TestCase):
             f"gh api {pulls}/comments/$CID/replies -f body=ok",
             f"cat <<'EOF' | gh api -X PATCH {pulls} --input -\n{{\"body\": \"x\"}}\nEOF",
             f"gh api {pulls}/comments/1/replies -f body=ok > /tmp/out <<EOF.JSON\nx\nEOF.JSON\ngh pr create --repo DiversioTeam/demo --body x",
+            # gh expands placeholders, and a branch name may hold `/`, `?` or `#`: only literal names qualify.
+            "gh api -X PATCH repos/DiversioTeam/{branch}/pulls/7/comments -f body=x",
+            "gh api -X PATCH repos/{owner}/{repo}/pulls/7/comments/1/replies -f body=x  # DiversioTeam/demo",
             # Two endpoints, or a longer path, are not one review call.
             f"gh api {pulls}/comments {pulls} -X PATCH -f body=x",
             f"gh api {pulls}/comments/1/replies/extra -f body=x",

@@ -25,7 +25,9 @@ BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
 # `body` is review text, not the PR description. A command with any shell operator, redirection, substitution or
 # variable is not this shape, so it always gets the rule below.
 REVIEW_ENDPOINT = re.compile(
-    r"^(?:https://api\.github\.com/)?repos/[^/]+/[^/]+/pulls/(?:"
+    # Literal owner and repository names only: gh expands `{owner}`, `{repo}` and `{branch}` placeholders, and a branch
+    # name can hold `/`, `?` or `#`, so a placeholder could turn a review path into the PR itself.
+    r"^(?:https://api\.github\.com/|/)?repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pulls/(?:"
     r"[0-9]+/(?:comments(?:/[0-9]+/replies)?|reviews(?:/[0-9]+(?:/events|/comments)?)?|requested_reviewers)"
     r"|comments/[0-9]+)$"
 )
@@ -41,6 +43,7 @@ REPLY_HINT = (
 WORD = re.compile(r"""(?:[^\s'"\\]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+""", re.DOTALL)
 PART = re.compile(r"""'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)|([^\s'"\\]+)""", re.DOTALL)
 SPACE = re.compile(r"[ \t]*")
+GH_API_START = re.compile(r"[ \t]*gh[ \t]+api[ \t]")
 MESSAGE = (
     "This PR needs its agent session transcript. Run the agent-session skill "
     "(`agent-session share`, or `python3 {script} share`; on a first publish review the preview with the developer, then add `--yes`). "
@@ -107,10 +110,10 @@ def _words(command: str) -> list[str] | None:
 def _review_call(command: str) -> bool:
     """Whether the command is exactly one `gh api` call to a PR review sub-resource: replies, review comments,
     reviews and requested reviewers. Its only positional argument is that literal endpoint."""
-    if not command.startswith("gh api ") or any(char in command for char in NOT_SIMPLE):
+    if not GH_API_START.match(command) or any(char in command for char in NOT_SIMPLE):
         return False
     tokens = _words(command)
-    if tokens is None:
+    if tokens is None or tokens[:2] != ["gh", "api"]:
         return False
     positional = []
     index = 2
