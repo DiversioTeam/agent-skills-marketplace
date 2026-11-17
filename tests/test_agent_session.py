@@ -175,6 +175,42 @@ class ClaudeCodeTests(unittest.TestCase):
         # m1 spans three records but is counted once.
         self.assertEqual(unit.tokens.output, 5 * 6)
 
+    def _load_selected(self, *selected, exclude=None):
+        import argparse
+        with tempfile.TemporaryDirectory() as empty:
+            args = argparse.Namespace(projects_root=str(self.root), pi_root=empty, codex_root=empty,
+                                      session=list(selected), exclude=exclude, whole=None)
+            return agent_session.load_units(demo_context(), args)
+
+    def test_excluding_a_selected_worker_never_brings_its_lead_back(self):
+        # The lead ran in this checkout, so it would be found on its own without the selection.
+        self.directory.cleanup()
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.main = build_store(self.root, cwd="/tmp/demo-repo")
+        for excluded in ("amate-1", "agent-amate-1"):
+            with self.subTest(excluded=excluded):
+                self.assertEqual(self._load_selected("amate-1", exclude=[excluded]), [])
+
+    def test_selecting_a_teammate_renders_it_alone_without_its_lead(self):
+        for selected in ("amate-1", "agent-amate-1"):
+            with self.subTest(selected=selected):
+                units = self._load_selected(selected)
+                self.assertEqual([(unit.title, unit.kind) for unit in units], [("Teammate: renderer", "teammate")])
+                pages, _ = render_html.build_pages(demo_context(), units, redaction.Redactor(), "2027-10-23", "now")
+                self.assertIn("Build the renderer", pages[0])
+                self.assertNotIn("Add the transcript feature", pages[0])
+                self.assertNotIn("Earlier unrelated work", pages[0])
+
+    def test_selecting_a_subagent_renders_it_alone(self):
+        [unit] = self._load_selected("a1")
+        self.assertEqual((unit.title, unit.kind), ("Subagent: Explore the store", "subagent"))
+        self.assertEqual([turn.text for turn in unit.turns if turn.text][:1], ["Look around"])
+
+    def test_selecting_the_lead_too_keeps_the_whole_session(self):
+        units = self._load_selected("agent-amate-1", self.main.stem)
+        self.assertEqual(sorted(unit.kind for unit in units), ["session", "teammate"])
+
     def test_rendered_page_is_redacted_escaped_and_script_free(self):
         unit = claude_code.load_session(self.main, demo_context())
         agent_session._select_turns(unit, demo_context(), whole=False)
