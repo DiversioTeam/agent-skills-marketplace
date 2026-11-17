@@ -2257,6 +2257,19 @@ class PrBodyAndHookTests(unittest.TestCase):
         ]
         for command in mentioned:
             self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        # The 0.4.2 hook blocked these two edits while this fix was written: quoted heredocs that edit local files and
+        # only quote PR commands in their text.
+        edits = [
+            "python3 - <<'PY'\nfrom pathlib import Path\np = Path('check_pr_hook.py')\nnew = '''\n"
+            "        # `gh pr create --repo DiversioTeam/demo -F FILE` names a body file; `gh api -F key=value` is a field.\n'''\n"
+            "p.write_text(p.read_text() + new)\nPY\ngrep -n API_FIELD check_pr_hook.py",
+            "cd /tmp && python3 - <<'PY'\ns = open('body-old.md').read()\ns += \"\"\"blocked forms: "
+            "`gh api repos/DiversioTeam/demo/pulls -f title=x -f body=y`, `python3 - <<'EOF'`\n\"\"\"\n"
+            "open('body.md', 'w').write(s)\nPY\ngrep -c 'No agent session:' body.md",
+        ]
+        for command in edits:
+            self.assertIsNotNone(check_pr_hook._main_rule(command, cwd), command)
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
         # Real invocations behind wrappers, substitutions and shells are still checked.
         for command in (
             'URL="$(gh pr create --repo DiversioTeam/demo --title T --body x)"',
