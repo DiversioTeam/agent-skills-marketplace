@@ -245,12 +245,16 @@ def load_session(main_path: Path, context: RepoContext) -> Unit:
     return unit
 
 
+def is_worker_named(path: Path, ids: set[str]) -> bool:
+    """Whether a subagent or teammate file is one of these ids, with or without its ``agent-`` prefix."""
+    return path.stem in ids or path.stem.removeprefix("agent-") in ids
+
+
 def find_workers(root: Path, ids: set[str]) -> list[Path]:
     """Subagent and teammate files named by id, with or without their ``agent-`` prefix."""
     if not root.is_dir() or not ids:
         return []
-    return sorted(path for path in root.glob("*/*/subagents/agent-*.jsonl")
-                  if path.stem in ids or path.stem.removeprefix("agent-") in ids)
+    return sorted(path for path in root.glob("*/*/subagents/agent-*.jsonl") if is_worker_named(path, ids))
 
 
 def lead_session_id(worker_path: Path) -> str:

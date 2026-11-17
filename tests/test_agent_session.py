@@ -175,12 +175,22 @@ class ClaudeCodeTests(unittest.TestCase):
         # m1 spans three records but is counted once.
         self.assertEqual(unit.tokens.output, 5 * 6)
 
-    def _load_selected(self, *selected):
+    def _load_selected(self, *selected, exclude=None):
         import argparse
         with tempfile.TemporaryDirectory() as empty:
             args = argparse.Namespace(projects_root=str(self.root), pi_root=empty, codex_root=empty,
-                                      session=list(selected), exclude=None, whole=None)
+                                      session=list(selected), exclude=exclude, whole=None)
             return agent_session.load_units(demo_context(), args)
+
+    def test_excluding_a_selected_worker_never_brings_its_lead_back(self):
+        # The lead ran in this checkout, so it would be found on its own without the selection.
+        self.directory.cleanup()
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.main = build_store(self.root, cwd="/tmp/demo-repo")
+        for excluded in ("amate-1", "agent-amate-1"):
+            with self.subTest(excluded=excluded):
+                self.assertEqual(self._load_selected("amate-1", exclude=[excluded]), [])
 
     def test_selecting_a_teammate_renders_it_alone_without_its_lead(self):
         for selected in ("amate-1", "agent-amate-1"):

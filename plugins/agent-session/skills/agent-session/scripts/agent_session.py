@@ -70,20 +70,23 @@ def load_units(context: RepoContext, args: argparse.Namespace) -> list[Unit]:
     whole = set(args.whole or []) | wanted
     paths = claude_code.find_sessions(context, claude_root)
     workers: list[Path] = []
+    selected_workers: list[Path] = []
     if wanted:
         root = claude_root or claude_code.projects_root()
         extra = [path for project in root.iterdir() if project.is_dir() for path in project.glob("*.jsonl") if path.stem in wanted] if root.is_dir() else []
         paths = sorted({*paths, *extra}, key=lambda path: path.stat().st_mtime)
-        workers = [path for path in claude_code.find_workers(root, wanted) if path.stem not in excluded]
-    # A subagent or teammate asked for by id is published on its own; its lead stays out unless asked for too.
-    leads_left_out = {claude_code.lead_session_id(path) for path in workers} - wanted
+        selected_workers = claude_code.find_workers(root, wanted)
+        workers = [path for path in selected_workers if not claude_code.is_worker_named(path, excluded)]
+    # A subagent or teammate asked for by id is published on its own; its lead stays out unless asked for too,
+    # also when that worker is then excluded, so excluding it never brings the lead back.
+    leads_left_out = {claude_code.lead_session_id(path) for path in selected_workers} - wanted
     units = []
     for path in paths:
         if path.stem in excluded or path.stem in leads_left_out:
             continue
         unit = claude_code.load_session(path, context)
         _select_turns(unit, context, unit.id in whole)
-        unit.teammates = [mate for mate in unit.teammates if mate.id not in excluded]
+        unit.teammates = [mate for mate in unit.teammates if not claude_code.is_worker_named(Path(mate.path), excluded)]
         if unit.turns or unit.teammates:
             units.append(unit)
     for path in workers:
