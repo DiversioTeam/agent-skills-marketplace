@@ -206,24 +206,32 @@ def _meta(path: Path) -> dict[str, object]:
         return {}
 
 
+def _parse_worker(path: Path, context: RepoContext) -> Unit:
+    """A subagent or teammate file as its own unit; its meta says which and names it."""
+    meta = _meta(path)
+    tool_use_id = str(meta.get("toolUseId", ""))
+    if meta.get("taskKind") == "in_process_teammate" or not tool_use_id:
+        name = str(meta.get("name") or meta.get("description") or path.stem)
+        teammate = parse_unit(path, "teammate", f"Teammate: {name}", context)
+        teammate.worker_key = str(meta.get("name") or "")
+        return teammate
+    title = f"Subagent: {meta.get('description') or meta.get('agentType') or path.stem}"
+    subagent = parse_unit(path, "subagent", title, context, tool_use_id)
+    subagent.worker_key = tool_use_id
+    return subagent
+
+
 def load_session(main_path: Path, context: RepoContext) -> Unit:
     """A session's main thread with its subagents nested at their call sites and its teammates attached."""
     unit = parse_unit(main_path, "session", f"Session {main_path.stem[:8]}", context)
     subagent_dir = main_path.with_suffix("") / "subagents"
     subagents: list[Unit] = []
     for path in sorted(subagent_dir.glob("agent-*.jsonl")) if subagent_dir.is_dir() else []:
-        meta = _meta(path)
-        tool_use_id = str(meta.get("toolUseId", ""))
-        if meta.get("taskKind") == "in_process_teammate" or not tool_use_id:
-            name = str(meta.get("name") or meta.get("description") or path.stem)
-            teammate = parse_unit(path, "teammate", f"Teammate: {name}", context)
-            teammate.worker_key = str(meta.get("name") or "")
-            unit.teammates.append(teammate)
-            continue
-        title = f"Subagent: {meta.get('description') or meta.get('agentType') or path.stem}"
-        subagent = parse_unit(path, "subagent", title, context, tool_use_id)
-        subagent.worker_key = tool_use_id
-        subagents.append(subagent)
+        worker = _parse_worker(path, context)
+        if worker.kind == "teammate":
+            unit.teammates.append(worker)
+        else:
+            subagents.append(worker)
     # Every Agent call in the session, its teammates and its subagents (a subagent's own Agent calls start nested
     # subagents in the same folder), so each subagent attaches to its caller wherever that is.
     calls = {item.tool.id: item.tool for owner in [unit, *unit.teammates, *subagents] for turn in owner.turns
@@ -235,6 +243,43 @@ def load_session(main_path: Path, context: RepoContext) -> Unit:
         else:
             unit.teammates.append(subagent)
     return unit
+
+
+def is_worker_named(path: Path, ids: set[str]) -> bool:
+    """Whether a subagent or teammate file is one of these ids, with or without its ``agent-`` prefix."""
+    return path.stem in ids or path.stem.removeprefix("agent-") in ids
+
+
+def find_workers(root: Path, ids: set[str]) -> list[Path]:
+    """Subagent and teammate files named by id, with or without their ``agent-`` prefix."""
+    if not root.is_dir() or not ids:
+        return []
+    return sorted(path for path in root.glob("*/*/subagents/agent-*.jsonl") if is_worker_named(path, ids))
+
+
+def lead_session_id(worker_path: Path) -> str:
+    """The id of the session a subagent or teammate file belongs to."""
+    return worker_path.parent.parent.name
+
+
+def load_worker(path: Path, context: RepoContext) -> Unit:
+    """One subagent or teammate on its own: its turns, and the subagents it started nested at their calls.
+
+    Never any of its lead session's turns, so a worker's transcript can be published without its lead's.
+    """
+    worker = _parse_worker(path, context)
+    siblings = [sibling for sibling in sorted(path.parent.glob("agent-*.jsonl")) if sibling != path]
+    owners = [worker]
+    while owners:
+        calls = {item.tool.id: item.tool for owner in owners for turn in owner.turns for item in turn.items if item.tool}
+        owners = []
+        for sibling in list(siblings):
+            caller = calls.get(str(_meta(sibling).get("toolUseId", "")))
+            if caller is not None and caller.subagent is None:
+                caller.subagent = _parse_worker(sibling, context)
+                owners.append(caller.subagent)
+                siblings.remove(sibling)
+    return worker
 
 
 def find_sessions(context: RepoContext, root: Path | None = None) -> list[Path]:
