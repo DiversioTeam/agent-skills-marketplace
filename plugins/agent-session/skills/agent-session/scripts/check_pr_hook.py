@@ -9,7 +9,8 @@ repos/O/R/pulls` with a body in the command text is checked. It is more precise 
 whitelist (`_modeled`), where every word and command is one of:
 - simple commands joined by `;`, `&&`, `||`, `|` or newlines, with redirections and heredocs;
 - an assignment `NAME=<literal>` as a command of its own (no `$`, backtick, glob or brace characters);
-- a word that is a literal, or exactly `$NAME`, `${NAME}` or `"$NAME"` with a known value without whitespace;
+- a word that is a literal, or exactly `$NAME`, `${NAME}` or `"$NAME"` with a known value without whitespace
+  (and, unquoted, without glob characters);
   unquoted text has no `{ } * ? [ ~ $` or backticks, and nothing is joined to a variable;
 - `cd` to a literal absolute path without `..` and without redirections, which holds only for the rest of its `&&`
   chain (a relative body path is resolved against it only there);
@@ -286,6 +287,7 @@ def _lex(text: str) -> tuple[list[Command], set[str]]:
 
 
 PLAIN_EXPANDING = frozenset("{}*?[~$`")
+GLOB_CHARS = frozenset("*?[")
 VARIABLE_WORD = re.compile(r"\$(?:\{(?P<braced>[A-Za-z_]\w*)\}|(?P<plain>[A-Za-z_]\w*))")
 
 
@@ -312,6 +314,10 @@ def _word(parts: list[tuple[str, str]], variables: dict[str, str]) -> str:
                 raise Unmodeled(f"`${name}` is not set to a literal earlier in the line (or may not have been)")
             if not value or any(char in value for char in " \t\n"):
                 raise Unmodeled(f"`${name}` is empty or holds whitespace")
+            # Unquoted, Bash also expands a value's glob characters against the filesystem (`F='[b].md'; $F` may
+            # name b.md); quoted, the value is literal.
+            if parts[0][0] == "plain" and GLOB_CHARS & set(value):
+                raise Unmodeled(f"the unquoted `${name}` holds a glob character the shell may expand")
             return value
     return _literal(parts)
 

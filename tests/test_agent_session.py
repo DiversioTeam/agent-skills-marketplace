@@ -1823,6 +1823,10 @@ class PrBodyAndHookTests(unittest.TestCase):
             "gh api -X POST repos/DiversioTeam/demo/pulls/7/requested_reviewers -f 'reviewers[]=little-person'",
             "gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f title='Better title'",
             "gh api repos/DiversioTeam/demo/pulls/7 --jq .body",
+            # From #128: a reply body read from a file, and an edit of one review comment by its id.
+            "gh api repos/DiversioTeam/demo/pulls/7/comments/123/replies -F body=@reply.md",
+            "gh api -X PATCH repos/DiversioTeam/demo/pulls/comments/123 -f body=edited",
+            "gh api https://api.github.com/repos/DiversioTeam/demo/pulls/7/comments/123/replies -f body=done",
         ]
         for command in allowed:
             self.assertIsNone(check_pr_hook.decide(command, cwd), command)
@@ -1831,6 +1835,15 @@ class PrBodyAndHookTests(unittest.TestCase):
             "gh api --method=PATCH /repos/DiversioTeam/demo/pulls/7 -F body=rewritten",
             "gh api repos/DiversioTeam/demo/pulls -f title=T -f head=x -f base=main",
             "gh api repos/DiversioTeam/demo/pulls/7/comments --jq .; gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x",
+            # From #128: create and update forms, including a body file and owner/repo placeholders.
+            "gh api repos/DiversioTeam/demo/pulls -f title=x -f body=y",
+            "gh api /repos/DiversioTeam/demo/pulls --method POST -f head=x -f base=main -f body=hi",
+            "gh api --method PATCH 'repos/DiversioTeam/demo/pulls/7' -F body=@body.md",
+            "gh api repos/{owner}/{repo}/pulls/7 -X PATCH --raw-field body=x  # DiversioTeam/demo",
+            "pr=7; gh api -X PATCH repos/DiversioTeam/demo/pulls/$pr -f body=rewritten",
+            "pr=7; gh api -X PATCH repos/DiversioTeam/demo/pulls/${pr} -f body=rewritten",
+            'pr=7; gh api -X PATCH "repos/DiversioTeam/demo/pulls/$pr" -f body=rewritten',
+            "cat <<'EOF' | gh api --method PATCH repos/DiversioTeam/demo/pulls/7 --input -\n{\"body\": \"rewritten\"}\nEOF",
         ]
         for command in blocked:
             self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
@@ -2084,6 +2097,19 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNone(check_pr_hook.decide("gh api -X PATCH 'repos/DiversioTeam/demo/pulls/{7..7}' -f body=x", cwd))
         self.assertIsNone(check_pr_hook.decide('gh api -X PATCH "repos/DiversioTeam/demo/pulls/[7]" -f body=x', cwd))
 
+    def test_hook_falls_back_for_glob_characters_in_unquoted_variables(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # Bash expands an unquoted `$F` holding `[b].md` to b.md, whose body has no line.
+            Path(directory, "[b].md").write_text("No agent session: manual hotfix\n", encoding="utf-8")
+            Path(directory, "b.md").write_text("Summary only\n", encoding="utf-8")
+            for value in ("'[b].md'", "'?.md'", "'*.md'"):
+                command = f"F={value}; gh pr create --repo DiversioTeam/demo --body-file $F"
+                reason = check_pr_hook.decide(command, Path(directory))
+                self.assertIsNotNone(reason, command)
+                self.assertIn("glob character", reason)
+            # Quoted, the value is the literal file name.
+            self.assertIsNone(check_pr_hook.decide("F='[b].md'; gh pr create --repo DiversioTeam/demo --body-file \"$F\"", Path(directory)))
+
     def test_hook_trusts_only_a_literal_absolute_cd(self):
         with tempfile.TemporaryDirectory() as directory:
             start, elsewhere = Path(directory, "start"), Path(directory, "elsewhere")
@@ -2193,6 +2219,21 @@ class PrBodyAndHookTests(unittest.TestCase):
             command = f"cat <<{delimiter}\n$(gh pr create --repo DiversioTeam/demo --body x)\nEOF"
             self.assertIsNone(check_pr_hook.decide(command, cwd), command)
         self.assertIsNone(check_pr_hook.decide("cat <<EOF\n$(date) and gh pr create in plain text\nEOF", cwd))
+
+    def test_hook_checks_commands_after_and_around_heredocs(self):
+        # From #128's review: a heredoc ends only at its whole delimiter, so a PR write after it is still checked.
+        cwd = Path("/nonexistent")
+        create = "gh pr create --repo DiversioTeam/demo --title T --body summary"
+        for command in (f"cat > result <<EOF.JSON\ninert\nEOF.JSON\n{create}",
+                        f"cat > result <<'EO'F\ninert\nEOF\n{create}",
+                        "cat <<'EOF' | bash\ngh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x\nEOF",
+                        "gh pr create --repo DiversioTeam/demo --body-file - <<'EOF'\nSummary only\nEOF"):
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+        # Writing a script or notes that mention PR commands to a file runs none of them.
+        for command in ("cat > /tmp/reply.sh <<'EOF'\ngh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x\n"
+                        "gh pr create --repo DiversioTeam/demo --body x\nEOF\nchmod +x /tmp/reply.sh",
+                        "tee reply.py <<EOF >/dev/null\nos.system('gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x')\nEOF"):
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
 
     def test_hook_reads_absolute_api_urls(self):
         cwd = Path("/nonexistent")
