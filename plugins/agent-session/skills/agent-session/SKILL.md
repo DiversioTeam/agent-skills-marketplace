@@ -65,6 +65,10 @@ commit you are about to push: the transcript records the commits it covers
    and Codex sessions that ran on this branch, linked this PR, or mention the branch or
    PR URL, with their subagents and teammates. Add a missing one with `--session ID`, drop one with
    `--exclude ID`, keep a whole session with `--whole ID` (on `share` too).
+   `--session` with a subagent or teammate id (the `agent-<id>` file under
+   a session's `subagents/`, with or without `agent-`) publishes that worker
+   alone, with the subagents it started, and leaves its lead session out
+   unless the lead's own id is also given.
 2. **Share.** `python3 "$S" share [--pr N] --open` finds the PR with `gh`
    when `--pr` is omitted, writes the preview to
    `~/.agent/sessions/<repo>-<branch>/`, and prints coverage and a redaction
