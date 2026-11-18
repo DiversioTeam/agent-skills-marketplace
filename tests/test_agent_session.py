@@ -1804,6 +1804,98 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNone(check_pr_hook.decide("git status", cwd))
         self.assertIsNotNone(check_pr_hook.decide("gh api repos/DiversioTeam/demo/pulls -X POST -f title=T -f body=hello", cwd))
 
+    def test_hook_blocks_pr_description_writes_through_the_api(self):
+        cwd = Path("/nonexistent")
+        self.assertIsNotNone(check_pr_hook.decide("gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=rewritten", cwd))
+        self.assertIsNotNone(check_pr_hook.decide("gh api --method PATCH 'repos/DiversioTeam/demo/pulls/7' -F body=@body.md", cwd))
+        self.assertIsNotNone(check_pr_hook.decide("gh api /repos/DiversioTeam/demo/pulls --method POST -f head=x -f base=main -f body=hi", cwd))
+        self.assertIsNotNone(check_pr_hook.decide("gh api repos/{owner}/{repo}/pulls/7 -X PATCH --raw-field body=x # DiversioTeam/demo", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body='See {self.LINK}'", cwd))
+        # A script fed to a shell still runs its commands.
+        self.assertIsNotNone(check_pr_hook.decide("bash <<'EOF'\ngh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x\nEOF", cwd))
+
+    def test_hook_allows_single_review_subresource_calls(self):
+        cwd = Path("/nonexistent")
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        allowed = [
+            # The reply blocked on courage#323: a review thread reply, not the PR description.
+            "gh api repos/DiversioTeam/courage/pulls/323/comments/4604072600/replies -f body=\"Fixed in d8fcc11. Thanks.\"",
+            f"gh api {pulls}/comments/123/replies -F body=@reply.md",
+            f"gh api {pulls}/comments/123/replies --raw-field body='Fixed it' --jq .html_url",
+            f"gh api -X POST {pulls}/comments -f body=Nit -f commit_id=abc -f path=a.py -F line=3",
+            f"gh api {pulls}/comments --paginate",
+            f"gh api --method POST {pulls}/reviews -f event=COMMENT -f body='Looks good'",
+            f"gh api {pulls}/reviews/55/events -X POST -f event=APPROVE -f body=ok",
+            f"gh api {pulls}/reviews/55/comments",
+            f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=little-person'",
+            "gh api -X PATCH repos/DiversioTeam/demo/pulls/comments/123 -f body=edited",
+            f"gh api -XPOST https://api.github.com/{pulls}/comments/123/replies -F body=@/tmp/reply.md",
+            # Equivalent spellings: gh strips a leading slash, and the shell ignores extra blanks.
+            f"gh api /{pulls}/comments/123/replies -f body=ok",
+            f"  gh\tapi {pulls}/comments/123/replies -f body=ok",
+        ]
+        for command in allowed:
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+
+    def test_hook_entry_point_allows_a_review_reply_sent_as_argv(self):
+        import subprocess
+        hook = Path(check_pr_hook.__file__)
+        argv = ["gh", "api", "-X", "POST", "repos/DiversioTeam/demo/pulls/7/comments/123/replies", "-f", "body=Fixed it"]
+        result = subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": argv}, "cwd": "/tmp"}),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv[4] = "repos/DiversioTeam/demo/pulls/7"
+        result = subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": argv}, "cwd": "/tmp"}),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+
+    def test_hook_applies_the_original_rule_to_everything_else(self):
+        cwd = Path("/nonexistent")
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        blocked = [
+            # PR description creates and updates.
+            "gh pr create --repo DiversioTeam/demo --title T --body x",
+            "gh pr edit 7 --repo DiversioTeam/demo --body x",
+            f"gh api -X PATCH {pulls} -f body=rewritten",
+            "gh api repos/DiversioTeam/demo/pulls -f title=x -f body=y",
+            # An allowed call joined with a PR description write, in every way a shell can join them.
+            f"gh api {pulls}/comments/1/replies -f body=ok; gh api -X PATCH {pulls} -f body=x",
+            f"gh api {pulls}/comments/1/replies -f body=ok && gh pr edit 7 --repo DiversioTeam/demo --body x",
+            f"gh api {pulls}/comments/1/replies -f body=ok || gh pr edit 7 --repo DiversioTeam/demo --body x",
+            f"gh api {pulls}/comments/1/replies -f body=ok | gh pr edit 7 --repo DiversioTeam/demo --body-file -",
+            f"gh api {pulls}/comments/1/replies -f body=ok & gh pr edit 7 --repo DiversioTeam/demo --body x",
+            f"gh api {pulls}/comments/1/replies -f body=ok\ngh pr edit 7 --repo DiversioTeam/demo --body x",
+            f"gh api {pulls}/comments/1/replies -f body=\"$(gh pr edit 7 --repo DiversioTeam/demo --body x)\"",
+            f"gh api {pulls}/comments/1/replies -f body=`gh pr edit 7 --repo DiversioTeam/demo --body x`",
+            # A variable PR number, a heredoc and a redirection never qualify.
+            "pr=7; gh api -X PATCH repos/DiversioTeam/demo/pulls/$pr -f body=rewritten",
+            "gh api -X PATCH repos/DiversioTeam/demo/pulls/${PR} -f body=rewritten",
+            f"gh api {pulls}/comments/$CID/replies -f body=ok",
+            f"cat <<'EOF' | gh api -X PATCH {pulls} --input -\n{{\"body\": \"x\"}}\nEOF",
+            f"gh api {pulls}/comments/1/replies -f body=ok > /tmp/out <<EOF.JSON\nx\nEOF.JSON\ngh pr create --repo DiversioTeam/demo --body x",
+            # gh expands placeholders, and a branch name may hold `/`, `?` or `#`: only literal names qualify.
+            "gh api -X PATCH repos/DiversioTeam/{branch}/pulls/7/comments -f body=x",
+            "gh api -X PATCH repos/{owner}/{repo}/pulls/7/comments/1/replies -f body=x  # DiversioTeam/demo",
+            # Two endpoints, or a longer path, are not one review call.
+            f"gh api {pulls}/comments {pulls} -X PATCH -f body=x",
+            f"gh api {pulls}/comments/1/replies/extra -f body=x",
+        ]
+        for command in blocked:
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+
+    def test_hook_suggests_a_body_file_for_replies_it_cannot_read(self):
+        reason = check_pr_hook.decide("gh api repos/DiversioTeam/demo/pulls/7/comments/1/replies -f body='Fixed in `abc123`'", Path("/nonexistent"))
+        self.assertIn("-F body=@/path/reply.md", reason)
+        self.assertIsNone(check_pr_hook.decide("gh api repos/DiversioTeam/demo/pulls/7/comments/1/replies -F body=@/tmp/reply.md", Path("/nonexistent")))
+
+    def test_hook_check_stays_fast_on_long_arguments(self):
+        import time
+        body = "word " * 200_000  # about 1 MB of reply text
+        started = time.perf_counter()
+        for command in (f"gh api repos/DiversioTeam/demo/pulls/7/comments/1/replies -f body='{body}'", f"git commit -m '{body}'"):
+            check_pr_hook.decide(command, Path("/nonexistent"))
+        self.assertLess(time.perf_counter() - started, 2.0)
+
     def test_hook_reads_body_files(self):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "body.md").write_text(f"## Agent sessions\n\n- {self.LINK}\n", encoding="utf-8")

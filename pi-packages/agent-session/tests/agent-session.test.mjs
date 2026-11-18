@@ -29,6 +29,10 @@ test('blocks PR bodies without a transcript and passes the rest', () => {
   assert.equal(extension.decide("gh pr create --repo DiversioTeam/demo --body 'No agent session: manual hotfix'", '/tmp', hook), undefined);
   assert.equal(extension.decide('gh pr edit 7 --repo DiversioTeam/demo --add-label bug', '/tmp', hook), undefined);
   assert.equal(extension.decide('git status', '/tmp', hook), undefined);
+  // A single review reply call is not a PR body write; the same reply joined to a body edit still is.
+  const reply = 'gh api repos/DiversioTeam/demo/pulls/7/comments/123/replies -f body=Fixed';
+  assert.equal(extension.decide(reply, '/tmp', hook), undefined);
+  assert.equal(extension.decide(`${reply} && gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x`, '/tmp', hook)?.block, true);
 });
 
 test('a missing guard blocks only PR commands', () => {

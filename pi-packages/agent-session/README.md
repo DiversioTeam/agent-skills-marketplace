@@ -6,7 +6,10 @@ skill. Before Pi's `bash` tool runs `gh pr create`, `gh pr edit --body…`, or
 body links an agent session transcript
 (`internal-share.diversio.com/session-…html`) or says
 `No agent session: <reason>`. Otherwise the call is blocked, and the reason
-tells the agent to run the skill's `share` command.
+tells the agent to run the skill's `share` command. A single `gh api` call to a
+review sub-resource with a literal endpoint (`…/pulls/N/comments/ID/replies`,
+`…/pulls/N/comments`, `…/pulls/N/reviews`, `…/pulls/N/requested_reviewers`,
+`…/pulls/comments/ID`) and no shell operators, `$` or backticks passes.
 
 It runs the same `check_pr_hook.py` as the Claude Code plugin's hook, found in
 this marketplace checkout or beside `$AGENT_SESSION_CLI`. local-ci's
