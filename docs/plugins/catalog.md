@@ -361,7 +361,10 @@ when command files change.
     Canonicalize edits the requested path; `--dry-run` remains proposal-only.
 - `visual-explainer`
   - Purpose: clear HTML explainers for plans, changes, diagrams, audits, and
-    updates, with optional Diversio Internal Share publishing.
+    updates, with optional Diversio Internal Share publishing. Pages lead with
+    the answer and next step, draw diagrams as inline SVG, and must pass
+    `scripts/check_page.py` (the readable-page standard Courage also enforces)
+    before they are published.
   - Claude install: `claude plugin install visual-explainer@diversiotech`
   - Skill path: `plugins/visual-explainer/skills/visual-explainer`
   - Slash commands: `/visual-explainer:explain`

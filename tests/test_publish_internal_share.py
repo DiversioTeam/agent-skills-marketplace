@@ -26,7 +26,7 @@ class PublishInternalShareTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.html_path = Path(self.temp_dir.name) / "explainer.html"
-        self.html_path.write_text("<html><body>test</body></html>", encoding="utf-8")
+        self.html_path.write_text((SCRIPT_PATH.parents[1] / "templates" / "diagram.html").read_text(encoding="utf-8"), encoding="utf-8")
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -64,6 +64,55 @@ class PublishInternalShareTests(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertEqual(events, ["authenticate", "upload"])
+
+    def test_the_checked_copy_is_the_one_uploaded(self) -> None:
+        passing = self.html_path.read_text(encoding="utf-8")
+        uploaded = []
+
+        def authenticate(_: str) -> None:
+            # Someone saves an unfinished revision while the browser sign-in is open.
+            self.html_path.write_text("<p>unfinished revision</p>", encoding="utf-8")
+
+        def upload(_: str, staged: Path, __: str) -> str:
+            uploaded.append(staged.read_text(encoding="utf-8"))
+            return "https://internal-share.diversio.com/shared-explainer.html"
+
+        args = argparse.Namespace(html_path=str(self.html_path), title="Shared explainer", open_url=False)
+        with (
+            mock.patch.object(publisher, "parse_args", return_value=args),
+            mock.patch.object(publisher.shutil, "which", return_value="cloudflared"),
+            mock.patch.object(publisher, "authenticate", side_effect=authenticate),
+            mock.patch.object(publisher, "upload", side_effect=upload),
+            mock.patch("builtins.print"),
+        ):
+            self.assertEqual(publisher.main(), 0)
+        self.assertEqual(uploaded, [passing])
+
+    def test_a_missing_page_checker_is_a_clear_message(self) -> None:
+        with mock.patch.object(publisher, "__file__", str(Path(self.temp_dir.name) / "publish_internal_share.py")):
+            with self.assertRaises(publisher.PublishError) as raised:
+                publisher.load_page_checker()
+        self.assertIn("reinstall the visual-explainer plugin", str(raised.exception))
+
+    def test_main_refuses_a_page_below_the_standard_before_signing_in(self) -> None:
+        self.html_path.write_text("<html><body><h2>Details</h2><p>test</p></body></html>", encoding="utf-8")
+        args = argparse.Namespace(html_path=str(self.html_path), title="Shared explainer", open_url=False)
+        printed = []
+        with (
+            mock.patch.object(publisher, "parse_args", return_value=args),
+            mock.patch.object(publisher, "authenticate") as authenticate,
+            mock.patch.object(publisher, "upload") as upload,
+            mock.patch("builtins.print", side_effect=lambda *values, **_: printed.append(" ".join(map(str, values)))),
+        ):
+            result = publisher.main()
+
+        self.assertEqual(result, 1)
+        authenticate.assert_not_called()
+        upload.assert_not_called()
+        output = "\n".join(printed)
+        self.assertIn("The page was not uploaded", output)
+        self.assertIn("Start with the answer", output)
+        self.assertIn("prefers-color-scheme: dark", output)
 
     def test_authenticate_uses_quiet_login_and_inherits_output(self) -> None:
         completed = subprocess.CompletedProcess([], 0)

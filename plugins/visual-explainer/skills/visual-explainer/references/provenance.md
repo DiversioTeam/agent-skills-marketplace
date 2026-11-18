@@ -13,7 +13,6 @@ Copied or adapted upstream assets in this skill:
 - `references/slide-patterns.md`
 - `templates/architecture.html`
 - `templates/data-table.html`
-- `templates/mermaid-flowchart.html`
 - `templates/slide-deck.html`
 
 Diversio-specific additions in this repo include:
@@ -21,7 +20,8 @@ Diversio-specific additions in this repo include:
 - the repo-native `SKILL.md`
 - the interactive `/visual-explainer:explain` command wrapper
 - `references/page-basics.md`, `references/tables.md`, and
-  `references/mermaid.md`
+  `references/diagrams.md`
+- `templates/diagram.html` and `scripts/check_page.py`
 - the default explainer workflow and Internal Share publishing guidance
 - marketplace metadata and installation docs
 

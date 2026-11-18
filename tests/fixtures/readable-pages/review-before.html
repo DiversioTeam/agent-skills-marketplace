@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billing PR #48: retry race verified</title>
+<style>
+:root { color-scheme: light dark;
+  --bg: #f6f6f3; --surface: #ffffff; --text: #1d1d1f; --muted: #5f6368; --border: #e2e2dc; --accent: #5a3fd0; --accent-soft: #efebff;
+  --code-bg: #f1f1ec; --row-alt: #fafaf7;
+  --ok: #1a7f37; --ok-soft: #e8f6ec; --warn: #8a5a00; --warn-soft: #fff6dc; --bad: #c62828; --bad-soft: #fdecec; --info: #0b62c4; --info-soft: #e8f1fc; }
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #121316; --surface: #1b1c20; --text: #ececee; --muted: #a2a6ad; --border: #30323a; --accent: #a993ff; --accent-soft: #2a2442;
+  --code-bg: #24262c; --row-alt: #1f2025;
+  --ok: #5cc97b; --ok-soft: #1b2e22; --warn: #e8b84a; --warn-soft: #33290f; --bad: #ff7b72; --bad-soft: #3a1d1d; --info: #6cb0ff; --info-soft: #172a40; } }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.6;
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 880px; margin: 0 auto; padding: 32px 20px 48px; }
+.report-head { border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 24px; }
+.report-head .eyebrow { color: var(--accent); font-weight: 600; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+h1 { font-size: clamp(26px, 5vw, 34px); line-height: 1.2; margin: 6px 0 8px; }
+.meta { color: var(--muted); font-size: 14px; }
+h2 { font-size: 22px; line-height: 1.3; margin: 36px 0 12px; padding-top: 8px; }
+h3 { font-size: 18px; margin: 28px 0 8px; }
+h4, h5, h6 { font-size: 16px; margin: 20px 0 6px; }
+p, ul, ol { margin: 0 0 14px; }
+li { margin: 4px 0; }
+a { color: var(--accent); text-underline-offset: 2px; }
+strong { font-weight: 650; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 32px 0; }
+img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); }
+code { font: 0.9em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 2px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 0 0 16px; }
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+.summary { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; padding: 16px 20px; margin: 0 0 24px; }
+.summary > :last-child { margin-bottom: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 24px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.stat .value { font-size: 28px; font-weight: 700; line-height: 1.1; }
+.stat .label { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.stat.ok .value { color: var(--ok); } .stat.warn .value { color: var(--warn); } .stat.bad .value { color: var(--bad); }
+.table-wrap { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-weight: 600; background: var(--accent-soft); white-space: nowrap; }
+tbody tr:nth-child(even) { background: var(--row-alt); }
+tbody tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; overflow-wrap: normal; }
+blockquote, .callout { margin: 0 0 16px; padding: 12px 16px; border-radius: 10px; border-left: 4px solid var(--info); background: var(--info-soft); }
+blockquote > :last-child, .callout > :last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; margin-bottom: 4px; }
+.callout.ok { border-color: var(--ok); background: var(--ok-soft); }
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.callout.bad { border-color: var(--bad); background: var(--bad-soft); }
+.badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.badge.ok { background: var(--ok-soft); color: var(--ok); } .badge.warn { background: var(--warn-soft); color: var(--warn); } .badge.bad { background: var(--bad-soft); color: var(--bad); }
+.toc { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 -20px 24px; padding: 10px 20px;
+  background: var(--bg); border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+.toc a { flex: none; font-size: 13px; padding: 4px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); text-decoration: none; color: var(--text); }
+.toc a:hover, .toc a:focus-visible { border-color: var(--accent); color: var(--accent); }
+h2[id], h3[id] { scroll-margin-top: 64px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.bar-col { min-width: 150px; }
+.bar-cell { display: flex; align-items: center; gap: 8px; }
+.bar-track { flex: 1 1 auto; max-width: 160px; min-width: 60px; height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.bar-track.bar-none { background: none; }
+.bar-fill { display: block; height: 100%; width: var(--bar); background: var(--accent); border-radius: 4px; }
+.bar-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+figure.chart { margin: 0 0 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+figure.chart svg { display: block; width: 100%; max-width: 400px; height: auto; overflow: visible; }
+.chart-title { font-size: 15px; font-weight: 650; fill: var(--text); }
+.chart-label { font-size: 13px; fill: var(--text); }
+.chart-value { font-size: 13px; font-weight: 600; fill: var(--text); font-variant-numeric: tabular-nums; }
+details.evidence { margin: 0 0 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px 16px; }
+details.evidence > summary { cursor: pointer; font-weight: 600; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+@media (max-width: 600px) {
+  table.stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
+  table.stack tr { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  table.stack tbody tr:last-child { border-bottom: 0; }
+  table.stack td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 3px 0; border: 0; text-align: right; white-space: normal; }
+  table.stack td:first-child { display: block; font-weight: 650; text-align: left; padding-bottom: 6px; }
+  table.stack td[data-label]::before { content: attr(data-label); color: var(--muted); text-align: left; font-weight: 400; }
+  table.stack td.bar-col .bar-cell { flex: 1 1 auto; justify-content: flex-end; max-width: 60%; }
+}
+@media (max-width: 600px) { main { padding: 20px 16px 36px; } .toc { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 20px; padding: 8px 16px; } h2 { font-size: 20px; } .stat .value { font-size: 24px; } }
+@media print { body { background: #fff; } .table-wrap { overflow: visible; } .toc { display: none; } }
+</style>
+</head>
+<body>
+<main>
+<header class="report-head">
+<div class="eyebrow">Internal</div>
+<h1>Billing PR #48: retry race verified</h1>
+<div class="meta">11 March 2026</div>
+</header>
+<p>No new findings at <code>8c41f07a9d2e6b5c3f1e0d9a8b7c6d5e4f3a2b1c</code>. The double-charge race identified in the previous review is addressed. The earlier refund rounding fix remains intact. Nothing merged or deployed.</p>
+<h2 id="what-changed-and-why-it-works">What changed and why it works</h2>
+<p>Every charge attempt now takes the invoice's idempotency key before the first network call. The retry worker checks the stored attempt state before charging again. A webhook that arrives late is matched to the attempt and dropped if it is already settled.</p>
+<h2 id="verification">Verification</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody><tr><td><code>make test</code></td><td>Passed on the exact review head. Run <code>20260311T091532Z-4be1c2d7</code>.</td></tr>
+<tr><td>Tests</td><td>All 842 passed.</td></tr>
+<tr><td>New retry regressions</td><td>All six passed.</td></tr>
+</tbody></table></div>
+<h2 id="review-scope">Review scope</h2>
+<p>Reassessment from prior reviewed head <code>2f9e8d7c6b5a49382716f5e4d3c2b1a098f7e6d5</code> to <code>8c41f07a9d2e6b5c3f1e0d9a8b7c6d5e4f3a2b1c</code>.</p>
+<ul>
+<li>Policy root: default branch <code>main</code> at <code>a1b2c3d4e5f60718293a4b5c6d7e8f9012345678</code>.</li>
+<li>Merge base remains <code>0123456789abcdef0123456789abcdef01234567</code>.</li>
+<li>Checked out in <code>/home/runner/work/billing/billing</code>.</li>
+</ul>
+<h2 id="limits">Limits</h2>
+<p>No live payment provider calls were made.</p>
+
+<footer>Shared by the explainer on 11 March 2026.</footer>
+</main>
+</body>
+</html>

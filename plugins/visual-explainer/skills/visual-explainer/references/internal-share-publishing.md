@@ -12,7 +12,11 @@ first.
 - The uploader can delete a file from the browser UI for 24 hours.
 
 The helper adds a timestamp and short random suffix to avoid filename
-collisions.
+collisions. Before signing in, it runs `scripts/check_page.py` on the page and
+refuses to upload one that fails, listing what to fix. Fix the page and run the
+helper again; there is no override. It checks and uploads the same staged copy,
+so an edit made during sign-in is not uploaded unchecked. Pass `--slides` for a
+slide deck, which is checked with the slide rules.
 
 ## Prerequisite
 

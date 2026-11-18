@@ -7,7 +7,7 @@
 <!--
   Reference template for the visual-explainer skill: slide decks.
   Midnight Editorial preset — deep navy, serif display, warm gold accents.
-  Distinctly different from the terracotta (architecture), teal (mermaid),
+  Distinctly different from the terracotta (architecture), teal (diagram),
   and rose (data-table) templates so agents absorb variety.
   Key patterns demonstrated:
   - All 10 slide types in a cohesive narrative
@@ -17,21 +17,18 @@
   - Decorative SVG accents (corner marks, quote mark, divider)
   - Typography scale: 120px display → 48px heading → 22px body → 14px label
   - Compositional variety: centered, left-heavy, split, full-bleed
-  - Mermaid at presentation scale (18px labels, 2px edges, 8 nodes)
+  - An inline SVG flow at presentation scale (16px labels, direct labels, one highlighted box)
   - Dark-first with light mode via prefers-color-scheme
   - Responsive height breakpoints for projection and small viewports
   - Nav chrome with backdrop blur for mixed-background visibility
-  - Event delegation: Mermaid zoom and table scroll don't trigger slide nav
+  - Event delegation: diagram zoom and table scroll don't trigger slide nav
   - prefers-reduced-motion respected
 -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   /* ============ THEME: Midnight Editorial ============ */
   :root {
-    --font-body: 'Instrument Serif', Georgia, serif;
-    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --font-body: Georgia, serif;
+    --font-mono: 'SF Mono', Consolas, monospace;
     --bg: #0f1729;
     --surface: #162040;
     --surface2: #1d2b52;
@@ -173,7 +170,7 @@
   .deck-hints {
     position: fixed; bottom: clamp(12px, 2vh, 24px); left: 50%;
     transform: translateX(-50%); font-family: var(--font-mono);
-    font-size: 11px; color: var(--text-dim); opacity: 0.6; z-index: 100;
+    font-size: 12px; color: var(--text-dim); opacity: 0.6; z-index: 100;
     transition: opacity 0.5s ease; white-space: nowrap;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
@@ -213,7 +210,7 @@
 
   .slide__label {
     font-family: var(--font-mono);
-    font-size: clamp(10px, 1.2vw, 13px);
+    font-size: clamp(12px, 1.2vw, 13px);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1.5px;
@@ -322,7 +319,12 @@
   }
   .slide--diagram .slide__heading { margin-bottom: clamp(8px, 1.5vh, 20px); }
 
-  .mermaid-wrap {
+  .flow { width: 100%; height: auto; }
+  .flow__box rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  .flow__box--key rect { stroke: var(--accent); stroke-width: 2.5; }
+  .flow__box text { fill: var(--text); font-size: 16px; text-anchor: middle; font-family: var(--font-body); }
+  .flow__arrow { stroke: var(--text-dim); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+  .diagram-wrap {
     position: relative;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -337,8 +339,8 @@
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }
-  .mermaid-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
-  .mermaid-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .diagram-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+  .diagram-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 
 
@@ -356,24 +358,10 @@
     transition: background 0.15s, color 0.15s;
   }
   .zoom-controls button:hover { background: var(--border); color: var(--text); }
-  .mermaid-wrap { cursor: grab; }
-  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .diagram-wrap { cursor: grab; }
+  .diagram-wrap.is-panning { cursor: grabbing; user-select: none; }
 
-  .mermaid .nodeLabel { color: var(--text) !important; }
-  .mermaid .edgeLabel { color: var(--text-dim) !important; background-color: var(--bg) !important; }
-  .mermaid .edgeLabel rect { fill: var(--bg) !important; }
-  .slide--diagram .mermaid svg {
-    width: 100% !important;
-    height: auto !important;
-    max-width: 100% !important;
-  }
 
-  .slide--diagram .mermaid .nodeLabel { font-size: 18px !important; }
-  .slide--diagram .mermaid .edgeLabel { font-family: var(--font-mono) !important; font-size: 14px !important; }
-  .slide--diagram .mermaid .node rect,
-  .slide--diagram .mermaid .node circle,
-  .slide--diagram .mermaid .node polygon { stroke-width: 2px; }
-  .slide--diagram .mermaid .edge-pattern-solid { stroke-width: 2px; }
 
   /* ============ SLIDE TYPE: DASHBOARD ============ */
   .slide--dashboard .slide__kpis {
@@ -402,7 +390,7 @@
 
   .slide__kpi-label {
     font-family: var(--font-mono);
-    font-size: clamp(9px, 1.2vw, 13px);
+    font-size: clamp(12px, 1.2vw, 14px);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1.5px;
@@ -434,7 +422,7 @@
   .data-table th {
     background: var(--surface2);
     font-family: var(--font-mono);
-    font-size: clamp(10px, 1.3vw, 14px);
+    font-size: clamp(12px, 1.3vw, 14px);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -478,7 +466,7 @@
     position: absolute;
     top: -12px; left: 24px;
     font-family: var(--font-mono);
-    font-size: 11px; font-weight: 600;
+    font-size: 12px; font-weight: 600;
     padding: 4px 12px; border-radius: 4px;
     background: var(--accent); color: var(--bg);
   }
@@ -520,7 +508,7 @@
 
   .slide--quote cite {
     font-family: var(--font-mono);
-    font-size: clamp(11px, 1.4vw, 14px);
+    font-size: clamp(12px, 1.4vw, 14px);
     font-style: normal;
     margin-top: clamp(16px, 3vh, 32px);
     display: block;
@@ -680,31 +668,27 @@
   <!-- SLIDE 6: DIAGRAM -->
   <section class="slide slide--diagram">
     <h2 class="slide__heading reveal">Request Flow</h2>
-    <div class="mermaid-wrap reveal">
+    <div class="diagram-wrap reveal">
       <div class="zoom-controls">
         <button onclick="zoomDiagram(this,1.2)" title="Zoom in">+</button>
         <button onclick="zoomDiagram(this,0.8)" title="Zoom out">&minus;</button>
         <button onclick="resetZoom(this)" title="Reset">&#8634;</button>
         <button onclick="openDiagramFullscreen(this)" title="Open full size in new tab">&#x26F6;</button>
       </div>
-      <pre class="mermaid">
-graph LR
-  Client["Client"] --> Edge["Edge Worker"]
-  Edge --> Auth["Auth Cache"]
-  Edge --> RL["Rate Limiter<br/>Durable Object"]
-  Edge --> Router["Route Resolver"]
-  Router --> API["API Service"]
-  Router --> Static["Static Assets"]
-  API --> DB["Database"]
-
-  classDef primary fill:#d4a73a22,stroke:#d4a73a,stroke-width:2px
-  classDef secondary fill:#60a5fa22,stroke:#60a5fa,stroke-width:2px
-  classDef storage fill:#4ade8022,stroke:#4ade80,stroke-width:2px
-
-  class Client,Edge primary
-  class Auth,RL,Router secondary
-  class API,Static,DB storage
-      </pre>
+      <svg class="flow" viewBox="0 0 760 220" role="img" aria-label="Client to edge worker, which checks the auth cache and rate limiter, then the route resolver sends requests to the API service and its database, or to static assets">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill: var(--text-dim)"></path></marker></defs>
+        <g class="flow__box"><rect x="10" y="85" width="110" height="50" rx="8"></rect><text x="65" y="115">Client</text></g>
+        <g class="flow__box flow__box--key"><rect x="170" y="85" width="130" height="50" rx="8"></rect><text x="235" y="115">Edge worker</text></g>
+        <g class="flow__box"><rect x="170" y="10" width="130" height="44" rx="8"></rect><text x="235" y="37">Auth cache</text></g>
+        <g class="flow__box"><rect x="170" y="166" width="130" height="44" rx="8"></rect><text x="235" y="193">Rate limiter</text></g>
+        <g class="flow__box"><rect x="350" y="85" width="140" height="50" rx="8"></rect><text x="420" y="115">Route resolver</text></g>
+        <g class="flow__box"><rect x="540" y="40" width="100" height="44" rx="8"></rect><text x="590" y="67">API</text></g>
+        <g class="flow__box"><rect x="540" y="136" width="100" height="44" rx="8"></rect><text x="590" y="163">Static assets</text></g>
+        <g class="flow__box"><rect x="670" y="40" width="80" height="44" rx="8"></rect><text x="710" y="67">Database</text></g>
+        <path class="flow__arrow" d="M120 110 H166"></path><path class="flow__arrow" d="M235 85 V58"></path><path class="flow__arrow" d="M235 135 V162"></path>
+        <path class="flow__arrow" d="M300 110 H346"></path><path class="flow__arrow" d="M490 100 L536 66"></path><path class="flow__arrow" d="M490 120 L536 154"></path>
+        <path class="flow__arrow" d="M640 62 H666"></path>
+      </svg>
     </div>
   </section>
 
@@ -796,34 +780,8 @@ graph LR
 </div><!-- /deck -->
 
 <script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-
-  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'base',
-    look: 'classic',
-    themeVariables: {
-      primaryColor: isDark ? '#1d2b52' : '#fef3e0',
-      primaryBorderColor: isDark ? '#d4a73a' : '#b8860b',
-      primaryTextColor: isDark ? '#e8e4d8' : '#1a1814',
-      secondaryColor: isDark ? '#162040' : '#eff6ff',
-      secondaryBorderColor: isDark ? '#60a5fa' : '#2563eb',
-      secondaryTextColor: isDark ? '#e8e4d8' : '#1a1814',
-      tertiaryColor: isDark ? '#0f2620' : '#f0fdf4',
-      tertiaryBorderColor: isDark ? '#4ade80' : '#16a34a',
-      tertiaryTextColor: isDark ? '#e8e4d8' : '#1a1814',
-      lineColor: isDark ? '#9a9484' : '#7a7468',
-      fontSize: '18px',
-      fontFamily: 'var(--font-body)',
-      noteBkgColor: isDark ? '#1d2b52' : '#fef3e0',
-      noteTextColor: isDark ? '#e8e4d8' : '#1a1814',
-      noteBorderColor: isDark ? '#d4a73a' : '#b8860b',
-    }
-  });
-
   function autoFit() {
-    document.querySelectorAll('.mermaid svg').forEach(function(svg) {
+    document.querySelectorAll('.diagram-wrap svg').forEach(function(svg) {
       svg.removeAttribute('height');
       svg.style.width = '100%';
       svg.style.maxWidth = '100%';
@@ -847,20 +805,18 @@ graph LR
     });
   }
 
-  mermaid.run().then(function() {
-    autoFit();
-    new SlideEngine();
-  });
+  autoFit();
+  new SlideEngine();
 </script>
 
 <script>
-  // Mermaid zoom controls + click-to-expand
+  // Diagram zoom controls + click-to-expand
   var INITIAL_ZOOM=1;
-  function zoomDiagram(b,f){var w=b.closest('.mermaid-wrap');var t=w.querySelector('.mermaid');var c=parseFloat(t.dataset.zoom||INITIAL_ZOOM);var n=Math.min(Math.max(c*f,0.5),5);t.dataset.zoom=n;t.style.zoom=n;}
-  function resetZoom(b){var w=b.closest('.mermaid-wrap');var t=w.querySelector('.mermaid');t.dataset.zoom=INITIAL_ZOOM;t.style.zoom=INITIAL_ZOOM;}
-  function openDiagramFullscreen(b){openMermaidInNewTab(b.closest('.mermaid-wrap'));}
-  function openMermaidInNewTab(w){var svg=w.querySelector('.mermaid svg');if(!svg)return;var clone=svg.cloneNode(true);clone.style.zoom='';clone.style.transform='';var styles=getComputedStyle(document.documentElement);var bg=styles.getPropertyValue('--bg').trim()||'#ffffff';var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Diagram</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:'+bg+';padding:40px;box-sizing:border-box}svg{max-width:100%;max-height:90vh;height:auto}</style></head><body>'+clone.outerHTML+'</body></html>';window.open(URL.createObjectURL(new Blob([html],{type:'text/html'})),'_blank');}
-  document.querySelectorAll('.mermaid-wrap').forEach(function(w){w.addEventListener('wheel',function(e){if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();var t=w.querySelector('.mermaid');var c=parseFloat(t.dataset.zoom||INITIAL_ZOOM);var f=e.deltaY<0?1.1:0.9;var n=Math.min(Math.max(c*f,0.5),5);t.dataset.zoom=n;t.style.zoom=n;},{passive:false});var sX,sY,sL,sT,sTime,didPan;w.addEventListener('mousedown',function(e){if(e.target.closest('.zoom-controls'))return;w.classList.add('is-panning');sX=e.clientX;sY=e.clientY;sL=w.scrollLeft;sT=w.scrollTop;sTime=Date.now();didPan=false;});window.addEventListener('mousemove',function(e){if(!w.classList.contains('is-panning'))return;var dx=e.clientX-sX,dy=e.clientY-sY;if(Math.abs(dx)>5||Math.abs(dy)>5)didPan=true;w.scrollLeft=sL-dx;w.scrollTop=sT-dy;});window.addEventListener('mouseup',function(){if(!w.classList.contains('is-panning'))return;w.classList.remove('is-panning');if(!didPan&&Date.now()-sTime<300)openMermaidInNewTab(w);});});
+  function zoomDiagram(b,f){var w=b.closest('.diagram-wrap');var t=w.querySelector('svg');var c=parseFloat(t.dataset.zoom||INITIAL_ZOOM);var n=Math.min(Math.max(c*f,0.5),5);t.dataset.zoom=n;t.style.zoom=n;}
+  function resetZoom(b){var w=b.closest('.diagram-wrap');var t=w.querySelector('svg');t.dataset.zoom=INITIAL_ZOOM;t.style.zoom=INITIAL_ZOOM;}
+  function openDiagramFullscreen(b){openDiagramInNewTab(b.closest('.diagram-wrap'));}
+  function openDiagramInNewTab(w){var svg=w.querySelector('svg');if(!svg)return;var clone=svg.cloneNode(true);clone.style.zoom='';clone.style.transform='';var styles=getComputedStyle(document.documentElement);var bg=styles.getPropertyValue('--bg').trim()||'#ffffff';var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Diagram</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:'+bg+';padding:40px;box-sizing:border-box}svg{max-width:100%;max-height:90vh;height:auto}</style></head><body>'+clone.outerHTML+'</body></html>';window.open(URL.createObjectURL(new Blob([html],{type:'text/html'})),'_blank');}
+  document.querySelectorAll('.diagram-wrap').forEach(function(w){w.addEventListener('wheel',function(e){if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();var t=w.querySelector('svg');var c=parseFloat(t.dataset.zoom||INITIAL_ZOOM);var f=e.deltaY<0?1.1:0.9;var n=Math.min(Math.max(c*f,0.5),5);t.dataset.zoom=n;t.style.zoom=n;},{passive:false});var sX,sY,sL,sT,sTime,didPan;w.addEventListener('mousedown',function(e){if(e.target.closest('.zoom-controls'))return;w.classList.add('is-panning');sX=e.clientX;sY=e.clientY;sL=w.scrollLeft;sT=w.scrollTop;sTime=Date.now();didPan=false;});window.addEventListener('mousemove',function(e){if(!w.classList.contains('is-panning'))return;var dx=e.clientX-sX,dy=e.clientY-sY;if(Math.abs(dx)>5||Math.abs(dy)>5)didPan=true;w.scrollLeft=sL-dx;w.scrollTop=sT-dy;});window.addEventListener('mouseup',function(){if(!w.classList.contains('is-panning'))return;w.classList.remove('is-panning');if(!didPan&&Date.now()-sTime<300)openDiagramInNewTab(w);});});
 
   // SlideEngine
   function SlideEngine(){
@@ -885,7 +841,7 @@ graph LR
   SlideEngine.prototype.bindEvents=function(){
     var self=this;
     document.addEventListener('keydown',function(e){
-      if(e.target.closest('.mermaid-wrap,.table-scroll,.code-scroll,input,textarea,[contenteditable]'))return;
+      if(e.target.closest('.diagram-wrap,.table-scroll,.code-scroll,input,textarea,[contenteditable]'))return;
       if(['ArrowDown','ArrowRight',' ','PageDown'].indexOf(e.key)>-1){e.preventDefault();self.next();}
       else if(['ArrowUp','ArrowLeft','PageUp'].indexOf(e.key)>-1){e.preventDefault();self.prev();}
       else if(e.key==='Home'){e.preventDefault();self.goTo(0);}
