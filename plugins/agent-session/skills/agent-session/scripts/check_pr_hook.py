@@ -50,6 +50,8 @@ GH_API_START = re.compile(r"[ \t]*gh[ \t]+api[ \t]")
 # A literal `cd DIR` or `pushd DIR`, which moves where a relative --body-file is read from.
 CD = re.compile(r"""(?:^|[;&|(\n])[ \t]*(?:cd|pushd)[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
                 r"""[ \t]*(?=$|[;&|)\n])""")
+# The `cd DIR &&` or `cd DIR;` steps a command starts with, one after another.
+LEADING_CD = re.compile(r"""[ \t]*cd[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)[ \t]*(?:&&|;)""")
 # A declaration that `printf` or `echo` writes to the body file earlier in the same command follows a quote or a `\n`.
 WRITTEN_DECLARATION = re.compile(r"""(?:^|['"]|\\n)[ \t]*(?:[-*][ \t]*)?No agent session:[ \t]*[^\s'"\\][^\n'"]{2,}""",
                                  re.MULTILINE | re.IGNORECASE)
@@ -98,7 +100,7 @@ def _bodies(command: str, cwd: Path, argv: list[str] | None = None,
             path = cwd / Path(file).expanduser()
             try:
                 texts.append(path.read_text(encoding="utf-8"))
-            except OSError:
+            except (OSError, ValueError):  # missing, or not UTF-8 (UnicodeDecodeError)
                 if unreadable is not None:
                     unreadable.append((file, path))
     return texts
@@ -114,6 +116,24 @@ def _directory(command: str, cwd: Path) -> Path:
             continue
         directory = directory / Path(words[0]).expanduser()
     return directory
+
+
+def _directories(command: str, cwd: Path) -> list[Path]:
+    """Where a relative body file may be read from, most likely first: after every literal `cd` before the gh call
+    (0.5.2), after only the leading `cd DIR &&` or `cd DIR;` steps of the command, and the session directory (0.5.1).
+    A shell scan cannot tell which `cd`s reach the call (subshells, comments, heredocs), so the hook accepts a body file
+    found in any of them rather than block a command an earlier version allows."""
+    leading, position = cwd, 0
+    while match := LEADING_CD.match(command, position):
+        words = _words(match.group("dir"))
+        if not words or len(words) != 1 or "$" in words[0] or "`" in words[0] or words[0] == "-":
+            break
+        leading, position = leading / Path(words[0]).expanduser(), match.end()
+    found: list[Path] = []
+    for directory in (_directory(command, cwd), leading, cwd):
+        if directory not in found:
+            found.append(directory)
+    return found
 
 
 def _is_diversio(command: str, cwd: Path) -> bool:
@@ -231,8 +251,12 @@ def _rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
     if LINK.search(command) or DECLARATION.search(command) or WRITTEN_DECLARATION.search(command[:first]):
         return None
     unreadable: list[tuple[str, Path]] = []
-    if any(has_transcript(text) for text in _bodies(command, directory, argv, unreadable)):
-        return None
+    for index, candidate in enumerate(_directories(command, cwd)):
+        missing: list[tuple[str, Path]] = []
+        if any(has_transcript(text) for text in _bodies(command, candidate, argv, missing)):
+            return None
+        if not index:
+            unreadable = missing  # report paths from the most likely directory
     if unreadable:
         name, path = unreadable[0]
         return UNREADABLE.format(name=name, path=path, cwd=cwd)
