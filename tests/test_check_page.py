@@ -163,7 +163,8 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertNotIn("visuals", rules(page(LEAD + "<p>The flowchart TD style is not used here.</p>")))
 
     def test_mermaid_source_in_any_visible_block_is_caught_but_not_in_hidden_ones(self) -> None:
-        self.assertIn("visuals", rules(page(LEAD + "<blockquote>Draft below.\nflowchart TD\n  A --&gt; B</blockquote>")))
+        self.assertIn("visuals", rules(page(LEAD + "<blockquote><p>Draft below.</p>\nflowchart TD\n  A --&gt; B</blockquote>")))
+        self.assertIn("visuals", rules(page(LEAD + "<blockquote>\nflowchart TD\n  A --&gt; B\n</blockquote>")))
         self.assertIn("visuals", rules(page(LEAD + "<section><p>Draft below.</p><p>graph LR A --&gt; B</p></section>")))
         self.assertNotIn("visuals", rules(page(LEAD + "<template><pre>flowchart TD\n A --&gt; B</pre></template>")))
         self.assertNotIn("visuals", rules(page(LEAD + "<div hidden><pre>flowchart TD\n A --&gt; B</pre></div>")))
@@ -228,6 +229,19 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertNotIn("navigation", rules(page(LEAD + '<nav class="toc"><a href="#a">First</a><a href="#b">Second</a></nav>' + two)))
         self.assertIn("navigation", rules(page(LEAD + '<nav class="toc"><a href="#a">First</a></nav>' + two)))
         self.assertIn("no sections. Split it into sections", " ".join(m for _, m in checker.check_page(page(LEAD + long))))
+
+    def test_a_summary_whose_answer_is_hidden_does_not_answer_first(self) -> None:
+        hidden = '<section class="summary"><p hidden>Both fixes are verified; nothing for you to do.</p></section><h2 id="m">Results</h2><p>Load fell.</p>'
+        self.assertIn("answer_first", rules(page(hidden)))
+        self.assertEqual(rules(page(hidden.replace(" hidden", ""))), [])
+
+    def test_a_commented_out_inline_width_is_not_read(self) -> None:
+        self.assertIn("type", rules(page(LEAD + '<div style="width: 900px">Wide</div>')))
+        self.assertNotIn("type", rules(page(LEAD + '<div style="/* width: 900px; */ max-width: 100%">Wide</div>')))
+
+    def test_a_source_line_break_inside_a_sentence_is_not_a_new_line(self) -> None:
+        self.assertNotIn("visuals", rules(page(LEAD + "<p>The diagram uses the\n<strong>flowchart TD</strong> layout from the guide.</p>")))
+        self.assertIn("visuals", rules(page(LEAD + "<pre>Draft:\nflowchart TD\n A --&gt; B</pre>")), "inside pre, source lines are lines")
 
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"

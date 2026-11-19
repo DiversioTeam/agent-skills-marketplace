@@ -136,7 +136,8 @@ def walk(node: Node):
 
 
 def text_of(node: Node, skip: set[str] = HIDDEN) -> str:
-    if node.name in skip:
+    # Reader text (any skip set) leaves out elements with the hidden attribute; skip=set() reads raw text (style, script).
+    if node.name in skip or (skip and "hidden" in node.attrs):
         return ""
     parts = [child if isinstance(child, str) else text_of(child, skip) for child in node.children]
     return (" " if node.name in BLOCK else "").join(parts)
@@ -146,11 +147,14 @@ def text_of(node: Node, skip: set[str] = HIDDEN) -> str:
 LINE_BLOCKS = BLOCK | {"pre", "figure", "figcaption", "dl", "details", "summary", "article", "aside", "nav", "h5", "h6", "address"}
 
 
-def visible_lines(node: Node) -> str:
-    """The text a reader sees, with a line break at every block edge; hidden elements (template, hidden attribute) are left out."""
+def visible_lines(node: Node, pre: bool = False) -> str:
+    """The text a reader sees, with a line break at every block edge; hidden elements (template, hidden attribute) are left out.
+    Outside <pre>, line breaks in the HTML source are only spaces to the reader, so they are collapsed."""
     if node.name in HIDDEN or "hidden" in node.attrs:
         return ""
-    parts = [child if isinstance(child, str) else visible_lines(child) for child in node.children]
+    pre = pre or node.name in {"pre", "textarea"}
+    parts = [(child if pre else re.sub(r"\s+", " ", child)) if isinstance(child, str) else visible_lines(child, pre)
+             for child in node.children]
     # Inline children run together (<strong> inside a sentence stays in the sentence); only a block starts a new line.
     text = "".join(parts)
     return f"\n{text}\n" if node.name in LINE_BLOCKS else text
@@ -588,7 +592,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         add("type", f"Body text is {size}px. Use at least 15px.")
     wide = [int(m.group(2)) for m in re.finditer(r"(?<![-\w])(min-)?width\s*:\s*(\d+)px", flat, re.I) if int(m.group(2)) > 480]
     for node in nodes:
-        wide += [int(m.group(2)) for m in re.finditer(r"(?<![-\w])(min-)?width\s*:\s*(\d+)px", node.attrs.get("style", ""), re.I)
+        wide += [int(m.group(2)) for m in re.finditer(r"(?<![-\w])(min-)?width\s*:\s*(\d+)px", strip_comments(node.attrs.get("style", "")), re.I)
                  if int(m.group(2)) > 480]
     if wide:
         add("type", f"A fixed width of {max(wide)}px overflows a phone. Use max-width, percentages or a grid that wraps.")
