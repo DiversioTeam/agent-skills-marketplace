@@ -124,9 +124,20 @@ def _writes_declaration(prefix: str, call: str) -> bool:
 def _directory(command: str, cwd: Path) -> Path:
     """Where the gh call runs: the session directory, changed by each literal `cd DIR` before the first gh call."""
     first = min([match.start() for match in (PR_COMMAND.search(command), API_COMMAND.search(command)) if match] or [0])
+    # A cd inside a subshell or `$(...)` that closes before the call does not move it.
+    changes = [(match.start("dir"), match.group("dir")) for match in CD.finditer(command, 0, first)]
+    levels: list[list[str]] = [[]]
+    for token in SEGMENT_TOKEN.finditer(command, 0, first):
+        while changes and changes[0][0] < token.end():
+            levels[-1].append(changes.pop(0)[1])
+        if token.group() in ("$(", "("):
+            levels.append([])
+        elif token.group() == ")" and len(levels) > 1:
+            levels.pop()
+    levels[-1] += [change for _, change in changes]
     directory = cwd
-    for match in CD.finditer(command, 0, first):
-        words = _words(match.group("dir"))
+    for change in (change for level in levels for change in level):
+        words = _words(change)
         if not words or len(words) != 1 or "$" in words[0] or "`" in words[0] or words[0] == "-":
             continue
         directory = directory / Path(words[0]).expanduser()
