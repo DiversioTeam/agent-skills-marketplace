@@ -47,7 +47,7 @@ working):
 
 ```bash
 NODE_VERSION=22.23.1
-PNPM_VERSION=10.34.4
+PNPM_VERSION=10.34.8
 if [ "$(/opt/node22/bin/node -v)" != "v${NODE_VERSION}" ]; then
   tarball="node-v${NODE_VERSION}-linux-x64.tar.xz"
   cd /tmp \
