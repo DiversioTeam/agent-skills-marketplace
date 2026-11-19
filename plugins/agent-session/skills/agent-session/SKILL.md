@@ -18,7 +18,8 @@ enabled it, local-ci runs `agent-session check` as a required step; rollout is
 per repository, not automatic. The plugin's Claude Code hook blocks
 `gh pr create` and body edits without a link or declaration. It judges each
 gh call in a chained command on its own: review replies, comments, reviewer
-requests and reads pass; for replies, put the text in a file and pass
+requests, reads, title-only API updates and command names quoted in a title
+pass; for replies, put the text in a file and pass
 `-F body=@/path/reply.md`, with a literal endpoint and no `$` or backticks.
 A relative `--body-file` resolves from the last `cd` before the call. Never
 work around either check; never fake a link.

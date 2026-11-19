@@ -1991,6 +1991,97 @@ class PrBodyAndHookTests(unittest.TestCase):
         self.assertIsNotNone(check_pr_hook.decide(
             "gh pr comment 7 --repo DiversioTeam/demo --body ok && gh pr edit 7 --repo DiversioTeam/demo --body rewritten", cwd))
 
+    def test_hook_treats_quoted_arguments_as_data_unless_a_shell_runs_them(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        body = "--body 'No agent session: typed by hand'"
+        allowed = [
+            # The false block from review: a compliant create whose title names the command.
+            f"gh pr create {repo} {body} --title 'Document gh pr create flags'",
+            f"gh pr create {repo} --title \"Explain gh pr edit 7 {repo} --body x\" {body}",
+            "git commit -m 'Match gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x on its own'",
+        ]
+        for command in allowed:
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        blocked = [
+            # A shell, eval or ssh runs its quoted argument, and a substitution runs inside double quotes.
+            f"bash -c 'gh pr create {repo} --body x'",
+            f"sudo sh -c \"cd /tmp && gh pr edit 7 {repo} --body x\"",
+            f"eval 'gh pr edit 7 {repo} --body x'",
+            f"echo \"Done: $(gh pr edit 7 {repo} --body x)\"",
+            f"gh pr create {repo} {body} --title 'Docs'; gh pr edit 7 {repo} --body x",
+        ]
+        for command in blocked:
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+
+    def test_hook_allows_api_updates_whose_json_file_has_no_body(self):
+        pulls = "repos/DiversioTeam/demo/pulls"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "title.json").write_text('{"title": "New title"}', encoding="utf-8")
+            Path(directory, "empty.json").write_text('{"title": "New title", "body": ""}', encoding="utf-8")
+            Path(directory, "create.json").write_text('{"title": "T", "head": "fix/x", "base": "main"}', encoding="utf-8")
+            cwd = Path(directory)
+            self.assertIsNone(check_pr_hook.decide(f"gh api -X PATCH {pulls}/7 --input title.json", cwd))
+            self.assertIsNone(check_pr_hook.decide(f"gh api --method=PATCH {pulls}/7 --input {directory}/title.json", cwd))
+            # An explicit body is still checked, and a create always needs the transcript.
+            self.assertIn("needs its agent session transcript", check_pr_hook.decide(f"gh api -X PATCH {pulls}/7 --input empty.json", cwd))
+            self.assertIn("needs its agent session transcript", check_pr_hook.decide(f"gh api -X POST {pulls} --input create.json", cwd))
+
+    def test_hook_reads_attached_and_separate_api_flag_values_alike(self):
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "plain.json").write_text('{"body": "Summary only"}', encoding="utf-8")
+            Path(directory, "linked.json").write_text(json.dumps({"body": f"See {self.LINK}"}), encoding="utf-8")
+            cwd = Path(directory)
+            for compliant, value in ((False, "rewritten"), (True, f"'See {self.LINK}'")):
+                for flags in (f"--raw-field body={value}", f"--raw-field=body={value}", f"-f body={value}", f"-fbody={value}",
+                              f"--field body={value}", f"--field=body={value}"):
+                    reason = check_pr_hook.decide(f"gh api -X PATCH {pulls} {flags}", cwd)
+                    self.assertEqual(reason is None, compliant, flags)
+            for compliant, name in ((False, "plain.json"), (True, "linked.json")):
+                for flags in (f"--input {name}", f"--input={name}"):
+                    reason = check_pr_hook.decide(f"gh api -X PATCH {pulls} {flags}", cwd)
+                    self.assertEqual(reason is None, compliant, flags)
+
+    def test_hook_ends_a_heredoc_only_at_its_exact_delimiter(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        # Bash keeps `EOF ` (a trailing blank) inside the heredoc, so the gh line after it is still data.
+        self.assertIsNone(check_pr_hook.decide(f"cat > notes.md <<'EOF'\nEOF \ngh pr create {repo} --body x\nEOF\ngit status", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"cat > notes.md <<-'EOF'\n\tEOF\t\ngh pr edit 7 {repo} --body x\n\tEOF\ngit status", cwd))
+        self.assertIsNotNone(check_pr_hook.decide(f"cat > notes.md <<'EOF'\nEOF \nEOF\ngh pr create {repo} --body x", cwd))
+
+    def test_hook_reads_a_declaration_only_from_the_body_the_call_sends(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        blocked = [
+            f"cat > notes.md <<'EOF'\nNo agent session: unrelated notes\nEOF\ngh pr create {repo} --title T --body bad",
+            f"cat > other.md <<'EOF'\nSee {self.LINK}\nEOF\ngh pr create {repo} --title T --body-file body.md",
+            f"printf 'No agent session: unrelated\\n' > other.md && gh pr create {repo} --title T --body-file body.md",
+        ]
+        for command in blocked:
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+        allowed = [
+            f"cat > notes.md <<'EOF'\nscratch\nEOF\ngh pr create {repo} --title T --body-file - <<'EOF'\nNo agent session: typed by hand\nEOF",
+            f"printf 'No agent session: typed by hand\\n' | gh pr edit 7 {repo} --body-file -",
+        ]
+        for command in allowed:
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+
+    def test_hook_ignores_a_cd_inside_a_finished_subshell(self):
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "sub").mkdir()
+            Path(directory, "sub", "body.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            Path(directory, "body.md").write_text("Summary only\n", encoding="utf-8")
+            cwd = Path(directory)
+            for command in (f"(cd sub && true); gh pr create {repo} --title T --body-file body.md",
+                            f"echo $(cd sub && pwd) && gh pr create {repo} --title T --body-file body.md"):
+                self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+            for command in (f"cd sub && (true) && gh pr create {repo} --title T --body-file body.md",
+                            f"(cd sub && gh pr create {repo} --title T --body-file body.md)"):
+                self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+
 
 if __name__ == "__main__":
     unittest.main()

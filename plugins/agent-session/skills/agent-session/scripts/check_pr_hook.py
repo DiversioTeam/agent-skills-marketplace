@@ -16,18 +16,28 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from pr_body import DECLARATION, LINK, has_transcript  # noqa: E402
 
-# A call starts at `gh pr create`, `gh pr edit` or `gh api` anywhere in the text, heredocs and substitutions included,
-# so a call inside a script fed to a shell still counts.
+# A call starts at `gh pr create`, `gh pr edit` or `gh api` where the shell runs it: substitutions, scripts fed to a
+# shell and quoted `bash -c` arguments count; a quoted argument such as a PR title or a data heredoc does not.
 GH_CALL = re.compile(r"\bgh[ \t]+(?:pr[ \t]+(?:create|edit)|api)\b")
-QUOTED_HEREDOC = re.compile(r"""<<(?P<dash>-?)[ \t]*(?:(['"])(?P<quoted>[^'"\s]+)\2|\\(?P<escaped>[A-Za-z0-9_]+))""")
+# A heredoc operator and its delimiter; `<<<` is a here-string, not a heredoc.
+HEREDOC = re.compile(r"""(?<!<)<<(?!<)(?P<dash>-?)[ \t]*(?:(['"])(?P<quoted>[^'"\s]+)\2|\\(?P<escaped>[A-Za-z0-9_.-]+)"""
+                     r"""|(?P<plain>[A-Za-z0-9_.-]+))""")
 # Commands whose heredoc is a script that runs, rather than data.
 SHELLS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "fish", "ssh", "sudo", "su", "env", "exec", "eval", "source", ".",
                     "xargs", "nohup", "time", "timeout", "command"})
+# Commands that run a quoted argument as shell code, and wrappers that run the command named after them.
+SCRIPT_RUNNERS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "fish", "ssh", "su", "eval"})
+WRAPPERS = frozenset({"sudo", "env", "exec", "nohup", "nice", "time", "timeout", "command", "xargs"})
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+# Runs of characters with no meaning to the quote scan, skipped in one step to keep it linear on long arguments.
+CODE_TEXT = re.compile(r"""[^\\'"$()`;&|\n]+""")
+EXPANDED_TEXT = re.compile(r"""[^\\"$`]+""")
 API_TARGET = re.compile(r"\brepos/[^/\s]+/[^/\s]+/pulls\b")
 # The shell pieces that decide where one simple command ends: quoted spans, escapes, `$(`, parentheses and operators.
 SEGMENT_TOKEN = re.compile(r"""'[^']*'?|"(?:[^"\\]|\\.)*"?|\\.|\$\(|`[^`]*`?|[^'"\\$`;&|\n()]+|.""", re.DOTALL)
@@ -126,51 +136,175 @@ def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None
     """The reason to block, or None to allow. `argv` is the command as an argument list, when the tool sent one."""
     if _review_call(command):
         return None
-    for prefix, tokens, text in _gh_calls(command, argv):
-        reason = _check_call(command, prefix, tokens, text, cwd)
+    if argv is not None and argv[:1] == ["gh"]:
+        return _check_call(Call(command, command, [], 0, len(command), argv, command), cwd)
+    for call in _gh_calls(command):
+        reason = _check_call(call, cwd)
         if reason:
             return reason
     return None
 
 
-def _gh_calls(command: str, argv: list[str] | None) -> list[tuple[str, list[str], str]]:
-    """Each gh call in the command as (the text before it, its words, its text), up to the operator that ends it."""
-    if argv is not None and argv[:1] == ["gh"]:
-        return [("", argv, command)]
+class Heredoc(NamedTuple):
+    operator: int  # where `<<` stands
+    newline: int  # the end of the line holding it
+    start: int  # the first character of the body
+    end: int  # the start of the delimiter line
+    after: int  # the end of the delimiter line
+    data: bool  # whether the body is text rather than a script that runs
+    quoted: bool  # whether Bash leaves the body unexpanded
+
+
+class Call(NamedTuple):
+    """One gh call: the whole command, that command with heredoc data blanked, its heredocs, where the call starts and
+    ends, its words, and its text."""
+
+    command: str
+    scanned: str
+    heredocs: list[Heredoc]
+    start: int
+    end: int
+    tokens: list[str]
+    text: str
+
+
+def _gh_calls(command: str) -> list[Call]:
+    """Each gh call that runs in the command, up to the operator that ends it."""
+    heredocs = _heredocs(command)
+    scanned = _without_heredoc_data(command, heredocs)
+    quoted = _quoted_data(scanned)
     calls = []
-    scanned = _without_data_heredocs(command)
     for match in GH_CALL.finditer(scanned):
-        text = scanned[match.start():_segment_end(scanned, match.start())]
+        if any(start <= match.start() < end for start, end in quoted):
+            continue  # text in a quoted argument, such as a PR title, runs nothing
+        end = _segment_end(scanned, match.start())
+        text = scanned[match.start():end]
         tokens = _words(text)
         if tokens is None:
             try:
                 tokens = shlex.split(text, posix=True)
             except ValueError:
                 tokens = text.split()
-        calls.append((scanned[:match.start()], tokens, text))
+        calls.append(Call(command, scanned, heredocs, match.start(), end, tokens, text))
     return calls
 
 
-def _without_data_heredocs(command: str) -> str:
-    """The command with the bodies of quoted heredocs (`<<'EOF'`, `<<"EOF"`, `<<\\EOF`) blanked, unless they feed a
-    shell. Bash expands nothing in such a body, so a script or notes file that mentions `gh pr create` runs nothing;
-    `bash <<'EOF'` still runs its lines, so those stay."""
-    pieces, position = [], 0
-    for match in QUOTED_HEREDOC.finditer(command):
-        if match.start() < position:
-            continue  # inside a body already blanked
+def _heredocs(command: str) -> list[Heredoc]:
+    """Every heredoc in the command. A body ends only at a line that is exactly its delimiter (after leading tabs for
+    `<<-`), as in Bash: `EOF ` with a trailing blank is still body text."""
+    found: list[Heredoc] = []
+    for match in HEREDOC.finditer(command):
+        if any(heredoc.data and heredoc.start <= match.start() < heredoc.after for heredoc in found):
+            continue  # text inside a body that is not a script
+        newline = command.find("\n", match.end())
+        if newline < 0:
+            continue
+        # A second heredoc on the same line starts after the first one's delimiter.
+        start = max([newline + 1] + [heredoc.after + 1 for heredoc in found if heredoc.newline == newline])
+        delimiter = match.group("quoted") or match.group("escaped") or match.group("plain")
+        tabs = r"\t*" if match.group("dash") else ""
+        last = re.compile(rf"^{tabs}{re.escape(delimiter)}$", re.MULTILINE).search(command, min(start, len(command)))
+        if not last and match.group("plain"):
+            continue  # likely a shift such as `$((1<<2))`; an unterminated heredoc would warn anyway
+        end, after = (last.start(), last.end()) if last else (len(command), len(command))
         line_start = command.rfind("\n", 0, match.start()) + 1
         words = re.split(r"[;&|(]", command[line_start:match.start()])[-1].split()
-        body_start = command.find("\n", match.end())
-        if not words or Path(words[0]).name in SHELLS or body_start < 0:
+        data = bool(words) and Path(words[0]).name not in SHELLS
+        found.append(Heredoc(match.start(), newline, start, end, after, data, match.group("plain") is None))
+    return found
+
+
+def _without_heredoc_data(command: str, heredocs: list[Heredoc]) -> str:
+    """The command with heredoc text blanked, keeping every offset. Bash runs nothing in a quoted heredoc (`<<'EOF'`,
+    `<<"EOF"`, `<<\\EOF`), and only the substitutions of an unquoted one, unless the heredoc feeds a shell, whose
+    lines all run."""
+    blank = list(command)
+    for heredoc in heredocs:
+        if not heredoc.data:
             continue
-        delimiter = match.group("quoted") or match.group("escaped")
-        tabs = r"\t*" if match.group("dash") else ""
-        end = re.compile(rf"^{tabs}{re.escape(delimiter)}[ \t]*$", re.MULTILINE).search(command, body_start + 1)
-        body_end = end.start() if end else len(command)
-        pieces += [command[position:body_start + 1], "\n" * command.count("\n", body_start + 1, body_end)]
-        position = body_end
-    return "".join(pieces) + command[position:]
+        if heredoc.quoted:
+            spans = [(heredoc.start, heredoc.end)]
+        else:
+            spans = []
+            _expanded(command[heredoc.start:heredoc.end], 0, None, spans)
+            spans = [(heredoc.start + start, heredoc.start + end) for start, end in spans]
+        for start, end in spans:
+            for index in range(start, end):
+                if blank[index] != "\n":
+                    blank[index] = " "
+    return "".join(blank)
+
+
+def _quoted_data(text: str) -> list[tuple[int, int]]:
+    """The quoted spans of `text` that are plain arguments: single-quoted text, and double-quoted text outside `$(...)`
+    and backticks. A quoted argument to a shell, `eval` or `ssh` is a script, so it is scanned as commands."""
+    spans: list[tuple[int, int]] = []
+    _code(text, 0, None, spans)
+    return spans
+
+
+def _code(text: str, index: int, close: str | None, spans: list[tuple[int, int]]) -> int:
+    """Scan shell code from `index` to `close` (`)`, a backtick or `"`, or the end), recording quoted data spans.
+    Returns the index after the closing character."""
+    segment = index
+    while index < len(text):
+        char = text[index]
+        if char == close:
+            return index + 1
+        if char == "\\":
+            index += 2
+        elif char == "'":
+            end = text.find("'", index + 1)
+            end = len(text) if end < 0 else end
+            if _runs_script(text, segment, index):
+                spans += [(index + 1 + start, index + 1 + stop) for start, stop in _quoted_data(text[index + 1:end])]
+            else:
+                spans.append((index, end + 1))
+            index = end + 1
+        elif char == '"':
+            script = _runs_script(text, segment, index)
+            index = (_code if script else _expanded)(text, index + 1, '"', spans)
+        elif text.startswith("$(", index):
+            index = _code(text, index + 2, ")", spans)
+        elif char in "(`":
+            index = _code(text, index + 1, ")" if char == "(" else "`", spans)
+        elif char in ";&|\n":
+            segment = index + 1
+            index += 1
+        else:
+            plain = CODE_TEXT.match(text, index)
+            index = plain.end() if plain else index + 1
+    return len(text)
+
+
+def _expanded(text: str, index: int, close: str | None, spans: list[tuple[int, int]]) -> int:
+    """Scan double-quoted or unquoted-heredoc text from `index` to `close`: data, except its substitutions."""
+    start = index
+    while index < len(text):
+        char = text[index]
+        if char == close:
+            spans.append((start, index + 1))
+            return index + 1
+        if char == "\\":
+            index += 2
+        elif text.startswith("$(", index) or char == "`":
+            spans.append((start, index))
+            index = _code(text, index + 2, ")", spans) if char == "$" else _code(text, index + 1, "`", spans)
+            start = index
+        else:
+            plain = EXPANDED_TEXT.match(text, index)
+            index = plain.end() if plain else index + 1
+    spans.append((start, len(text)))
+    return len(text)
+
+
+def _runs_script(text: str, segment: int, index: int) -> bool:
+    """Whether the simple command between `segment` and `index` runs its quoted argument as shell code."""
+    words = [Path(word).name for word in text[segment:index].split() if not ASSIGNMENT.match(word)]
+    if not words:
+        return False
+    # `sudo -u someone bash -c '...'`: a wrapper runs the command named after it.
+    return words[0] in SCRIPT_RUNNERS or (words[0] in WRAPPERS and any(word in SCRIPT_RUNNERS for word in words))
 
 
 def _segment_end(command: str, start: int) -> int:
@@ -189,45 +323,101 @@ def _segment_end(command: str, start: int) -> int:
     return len(command)
 
 
+def _segment_start(command: str, position: int) -> int:
+    """Where the simple command holding `position` starts: after the last `;`, `&`, `|`, newline or `(` before it
+    that is not inside a finished subshell or substitution."""
+    starts = [0]
+    for match in SEGMENT_TOKEN.finditer(command, 0, position):
+        token = match.group()
+        if token in ("$(", "("):
+            starts.append(match.end())
+        elif token == ")" and len(starts) > 1:
+            starts.pop()
+            starts[-1] = match.end()
+        elif token in (";", "&", "|", "\n"):
+            starts[-1] = match.end()
+    return starts[-1]
+
+
 def _directory(prefix: str, cwd: Path) -> Path:
-    """The directory a call runs in: the session's, changed by each literal `cd DIR` or `pushd DIR` before it."""
+    """The directory a call runs in: the session's, changed by each literal `cd DIR` or `pushd DIR` before it, except
+    one inside a subshell or substitution that has already closed."""
+    changes = sorted((match.start("dir"), match.group("dir")) for match in CD.finditer(prefix))
+    levels: list[list[str]] = [[]]
+    for match in SEGMENT_TOKEN.finditer(prefix):
+        while changes and changes[0][0] < match.end():
+            levels[-1].append(changes.pop(0)[1])
+        token = match.group()
+        if token in ("$(", "("):
+            levels.append([])
+        elif token == ")" and len(levels) > 1:
+            levels.pop()
+    levels[-1] += [change for _, change in changes]
     directory = cwd
-    for match in CD.finditer(prefix):
-        words = _words(match.group("dir"))
+    for change in (change for level in levels for change in level):
+        words = _words(change)
         if not words or len(words) != 1 or "$" in words[0] or "`" in words[0] or words[0] == "-":
             continue
         directory = directory / Path(words[0]).expanduser()
     return directory
 
 
-def _check_call(command: str, prefix: str, tokens: list[str], text: str, cwd: Path) -> str | None:
+def _source(call: Call, start: int, end: int, text: bool = True) -> str:
+    """The original text from `start` to `end` (unless `text` is off), followed by the bodies of the heredocs opened
+    there."""
+    bodies = [call.command[heredoc.start:heredoc.end] for heredoc in call.heredocs if start <= heredoc.operator < end]
+    return "\n".join([call.command[start:end]] * text + bodies)
+
+
+def _stdin(call: Call) -> str:
+    """What feeds the call's standard input: its own heredocs, and the command piped into it."""
+    own = _source(call, call.start, call.end, text=False)
+    before = call.scanned[:call.start].rstrip()
+    if before.endswith("|") and not before.endswith("||"):
+        pipe = len(before) - 1
+        own += "\n" + _source(call, _segment_start(call.scanned, pipe), pipe)
+    return own
+
+
+def _written(call: Call, name: str) -> str | None:
+    """The command that writes file `name` before the call (`> name`, `>> name` or `tee name`), with its heredocs, or
+    None if nothing does."""
+    quoted = rf"""(?:{re.escape(name)}|'{re.escape(name)}'|"{re.escape(name)}")"""
+    writes = list(re.finditer(rf"(?:>>?|\btee(?:\s+-a)?)\s*{quoted}(?=$|[\s;&|)])", call.scanned[:call.start]))
+    if not writes:
+        return None
+    start = _segment_start(call.scanned, writes[-1].start())
+    return _source(call, start, _segment_end(call.scanned, start))
+
+
+def _check_call(call: Call, cwd: Path) -> str | None:
     """The reason to block one gh call, or None. Only PR description writes need the transcript."""
+    tokens, method = call.tokens, None
     if tokens[:3] in (["gh", "pr", "create"], ["gh", "pr", "edit"]):
         inline, files = _pr_bodies(tokens)
         if tokens[2] == "edit" and not inline and not files:
             return None  # labels, reviewers or the title, not the body
-        api = False
     elif tokens[:2] == ["gh", "api"]:
-        if not API_TARGET.search(text) or _review_call(text, strict=False):
+        if not API_TARGET.search(call.text) or _review_call(call.text, strict=False):
             return None
-        method, inline, files, sends_body = _api_request(tokens, command)
+        method, inline, files, sends_body = _api_request(tokens, _stdin(call))
         if method == "GET" or not sends_body:
             return None
-        api = True
     else:
         return None
-    directory = _directory(prefix, cwd)
-    if not _is_diversio(command, directory):
+    directory = _directory(call.scanned[:call.start], cwd)
+    if not _is_diversio(call.command, directory):
         return None
-    # A heredoc body (`--body "$(cat <<'EOF' ...)"`, or `cat > f <<'EOF'` before the call) puts the body's lines in the
-    # command text itself, so a link or a declaration line there counts.
-    if LINK.search(command) or DECLARATION.search(command) or any(has_transcript(body) for body in inline):
+    # The call's own text holds an inline body, including a heredoc in `--body "$(cat <<'EOF' ...)"`.
+    own = _source(call, call.start, call.end)
+    if LINK.search(own) or DECLARATION.search(own) or any(has_transcript(body) for body in inline):
         return None
-    unreadable = []
+    unreadable, metadata = [], 0
     for name, is_json in files:
-        if name == "-" or _writes(prefix, name):
+        written = _stdin(call) if name == "-" else _written(call, name)
+        if written is not None:
             # Written or piped in by this same command, so the file on disk is not the body yet.
-            if WRITTEN_DECLARATION.search(prefix):
+            if has_transcript(written) or WRITTEN_DECLARATION.search(written):
                 return None
             continue
         path = directory / Path(name).expanduser()
@@ -236,13 +426,22 @@ def _check_call(command: str, prefix: str, tokens: list[str], text: str, cwd: Pa
         except OSError:
             unreadable.append((name, path))
             continue
-        if has_transcript(_json_body(content) if is_json else content):
+        if not is_json:
+            body = content
+        else:
+            body = _json_body(content)
+            if body is None and method == "PATCH":
+                metadata += 1  # a title, state or base change leaves the description alone
+                continue
+        if has_transcript(body or ""):
             return None
     if unreadable:
         name, path = unreadable[0]
         return UNREADABLE.format(name=name, path=path, cwd=cwd)
+    if files and metadata == len(files) and not inline:
+        return None
     reason = MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
-    if api and re.search(r"/pulls/[^/\s]+/", text):
+    if method and re.search(r"/pulls/[^/\s]+/", call.text):
         reason += REPLY_HINT
     return reason
 
@@ -263,12 +462,29 @@ def _pr_bodies(tokens: list[str]) -> tuple[list[str], list[tuple[str, bool]]]:
     return inline, files
 
 
-def _api_request(tokens: list[str], command: str) -> tuple[str, list[str], list[tuple[str, bool]], bool]:
-    """A `gh api` call's method, inline `body` values, body files and whether it sends a body. gh sends GET unless
+def _api_flags(tokens: list[str]) -> list[str]:
+    """The words of a `gh api` call with every attached flag value split off: `--raw-field=body=x` and `-fbody=x`
+    become `--raw-field body=x` and `-f body=x`, as gh reads them."""
+    words = []
+    for token in tokens:
+        long = re.match(r"(--[a-z-]+)=(.*)", token, re.DOTALL)
+        short = re.match(r"(-[A-Za-z])(.+)", token, re.DOTALL)
+        if long and long.group(1) in API_VALUE_FLAGS:
+            words += [long.group(1), long.group(2)]
+        elif short and short.group(1) in API_VALUE_FLAGS:
+            words += [short.group(1), short.group(2)]
+        else:
+            words.append(token)
+    return words
+
+
+def _api_request(tokens: list[str], stdin: str) -> tuple[str, list[str], list[tuple[str, bool]], bool]:
+    """A `gh api` call's method, inline `body` values, body files and whether it may send a body. gh sends GET unless
     told otherwise or given fields, then POST."""
     method, fields, sends_body = None, False, False
     inline: list[str] = []
     files: list[tuple[str, bool]] = []
+    tokens = _api_flags(tokens)
     index = 2
     while index < len(tokens):
         token = tokens[index]
@@ -276,8 +492,6 @@ def _api_request(tokens: list[str], command: str) -> tuple[str, list[str], list[
         step = 2
         if token in ("-X", "--method"):
             method = value.upper()
-        elif token.startswith("-X") or token.startswith("--method="):
-            method, step = token.removeprefix("-X").removeprefix("--method=").upper(), 1
         elif token in ("-f", "-F", "--field", "--raw-field"):
             fields = True
             if value.startswith("body="):
@@ -289,8 +503,8 @@ def _api_request(tokens: list[str], command: str) -> tuple[str, list[str], list[
                     inline.append(body)
         elif token == "--input":
             fields = True
-            # A request read from stdin is only known to hold a body when the command text says so.
-            if value != "-" or re.search(r"\bbody\b", command):
+            # A request read from stdin is only known to hold a body when what feeds it says so.
+            if value != "-" or re.search(r"\bbody\b", stdin):
                 sends_body = True
                 files.append((value, True))
         else:
@@ -299,19 +513,16 @@ def _api_request(tokens: list[str], command: str) -> tuple[str, list[str], list[
     return method or ("POST" if fields else "GET"), inline, files, sends_body
 
 
-def _json_body(content: str) -> str:
-    """The `body` of a JSON request file, or the whole text when it is not a JSON object."""
+def _json_body(content: str) -> str | None:
+    """The `body` of a JSON request file, None when the object has no `body` field, or the whole text when it is not a
+    JSON object."""
     try:
         data = json.loads(content)
     except ValueError:
         return content
-    return str(data.get("body") or "") if isinstance(data, dict) else content
-
-
-def _writes(prefix: str, name: str) -> bool:
-    """Whether the command writes file `name` before the call: `> name`, `>> name` or `tee name`."""
-    quoted = rf"""(?:{re.escape(name)}|'{re.escape(name)}'|"{re.escape(name)}")"""
-    return bool(re.search(rf"(?:>>?|\btee(?:\s+-a)?)\s*{quoted}(?=$|[\s;&|)])", prefix))
+    if not isinstance(data, dict):
+        return content
+    return str(data["body"] or "") if "body" in data else None
 
 
 def main() -> int:
