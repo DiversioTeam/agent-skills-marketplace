@@ -293,7 +293,7 @@
       "category": "Process",
       "title": "Cloud Agent Onboarding",
       "description": "Make a repository work in Claude Code on the web and Codex cloud: environments, network secrets, setup scripts, repo skills, cloud tests, and people guides.",
-      "version": "v0.1.1",
+      "version": "v0.1.2",
       "skills": [
         {
           "name": "cloud-agent-onboarding",
