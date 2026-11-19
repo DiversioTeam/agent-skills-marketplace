@@ -331,6 +331,16 @@ class ReviewFindingTests(unittest.TestCase):
                          "the parent of h2 + p is h2's parent")
         self.assertNotIn("type", rules(page(LEAD, head="<style>section { font-size: 24px } section > p { font-size: .75em }</style>")))
 
+    def test_the_doctype_may_follow_a_comment_but_must_come_first(self) -> None:
+        self.assertNotIn("basics", rules("<!-- Generated report -->\n" + page(LEAD)))
+        self.assertNotIn("basics", rules('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN">' + page(LEAD)[len("<!doctype html>"):]))
+        self.assertIn("basics", rules("<p>Draft</p>" + page(LEAD)), "a doctype after content does not count")
+
+    def test_a_data_script_is_not_read_for_imports(self) -> None:
+        self.assertNotIn("self_contained", rules(page(LEAD + '<script type="application/json">{"description":"import \'package\'"}</script>')))
+        self.assertIn("self_contained", rules(page(LEAD + "<script type=\"module\">import 'package'</script>")))
+        self.assertIn("self_contained", rules(page(LEAD + "<script>import('package')</script>")))
+
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
         messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))

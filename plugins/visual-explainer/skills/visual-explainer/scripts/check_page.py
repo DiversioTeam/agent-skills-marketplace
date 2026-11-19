@@ -56,6 +56,10 @@ SHORT_IDS = [
 NUMBER_CELL = re.compile(r"^\s*[-+−]?[$€£]?\s*\d[\d,]*(\.\d+)?\s*(%|ms|s|m|h|k|mb|gb|x)?\s*$", re.I)
 VISUAL_CLASS = re.compile(r"\b(stats?|bar|bars|chart|spark\w*|meter|timeline|diff|before-after|tile)\b")
 LOADING_RELS = re.compile(r"\b(stylesheet|preload|modulepreload|icon|apple-touch-icon|manifest)\b", re.I)
+# The doctype comes first; only whitespace and comments (a generated-file header) may precede it, as in Courage's gate.
+DOCTYPE = re.compile(r"^\ufeff?\s*(?:<!--[\s\S]*?-->\s*)*<!doctype\s+html(?=[\s>])", re.I)
+# Scripts the browser runs; a data block (type="application/json" and the like) is never read for imports.
+EXECUTABLE = re.compile(r"^\s*(module|(text|application)/(x-)?(java|ecma)script)?\s*$", re.I)
 MEDIA_SRC = {"img", "iframe", "embed", "video", "audio", "source", "track", "input", "frame"}
 
 
@@ -76,11 +80,6 @@ class TreeBuilder(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.root = Node("#document")
         self.current = self.root
-        self.doctype = False
-
-    def handle_decl(self, decl: str) -> None:
-        if decl.lower().startswith("doctype html"):
-            self.doctype = True
 
     # Optional end tags, the way browsers read them: a new cell closes the open cell, a new row the open row, a new list
     # item the open item, and a block element an open paragraph.
@@ -390,7 +389,7 @@ def external_loads(nodes: list[Node], css: str) -> list[str]:
         attrs = node.attrs
         if node.name == "script" and external(attrs.get("src", "")):
             found.append(f"script {attrs['src']}")
-        if node.name == "script":
+        if node.name == "script" and EXECUTABLE.match(attrs.get("type", "")):
             for match in re.finditer(r"\bimport\s*(?:[\w*{}\s,$]+\s+from\s*)?\(?\s*(['\"])([^'\"]+)\1", text_of(node, set())):
                 if external(match.group(2)):
                     found.append(f"script import {match.group(2)}")
@@ -472,7 +471,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
             "font stack and embed images as data: URIs.")
 
     missing = []
-    if not builder.doctype:
+    if not DOCTYPE.match(html):
         missing.append("<!doctype html>")
     if not any(node.attrs.get("lang") for node in by_name("html")):
         missing.append('<html lang="en">')
