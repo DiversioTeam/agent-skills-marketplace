@@ -2068,6 +2068,58 @@ class PrBodyAndHookTests(unittest.TestCase):
         for command in allowed:
             self.assertIsNone(check_pr_hook.decide(command, cwd), command)
 
+    def test_hook_reads_a_call_inside_a_shell_script_up_to_the_scripts_end(self):
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "body.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            Path(directory, "plain.md").write_text("Summary only\n", encoding="utf-8")
+            cwd = Path(directory)
+            for wrap in ("{}", "bash -c '{}'", 'sh -c "{}"', "bash -c 'cd . && {}' && git status"):
+                self.assertIsNone(check_pr_hook.decide(wrap.format(f"gh pr create {repo} --body-file body.md"), cwd), wrap)
+                reason = check_pr_hook.decide(wrap.format(f"gh pr create {repo} --body-file plain.md"), cwd)
+                self.assertIn("needs its agent session transcript", reason, wrap)
+
+    def test_hook_judges_each_calls_own_repository(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = Path(directory)  # not a Diversio checkout
+            edit = "gh pr edit 7 --repo other-org/demo --body 'Release notes'"
+            self.assertIsNone(check_pr_hook.decide(edit, cwd))
+            self.assertIsNone(check_pr_hook.decide(f"gh pr view 1 --repo DiversioTeam/demo && {edit}", cwd))
+            self.assertIsNone(check_pr_hook.decide(f"gh pr view 1 -R DiversioTeam/demo; gh api -X PATCH repos/other-org/demo/pulls/7 -f body=x", cwd))
+            for blocked in (f"gh pr view 1 --repo other-org/demo && gh pr edit 7 -R DiversioTeam/demo --body 'Release notes'",
+                            f"gh pr view 1 --repo other-org/demo && gh pr edit 7 --repo=diversioteam/demo --body x",
+                            f"gh pr view 1 --repo other-org/demo && gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x"):
+                self.assertIsNotNone(check_pr_hook.decide(blocked, cwd), blocked)
+
+    def test_hook_reads_the_transcript_from_the_body_not_the_title(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --title 'See {self.LINK}' --body 'Release notes'", cwd))
+        self.assertIsNone(check_pr_hook.decide(f"gh pr create {repo} --title 'Release notes' --body 'See {self.LINK}'", cwd))
+        self.assertIsNotNone(check_pr_hook.decide(f"gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f title='See {self.LINK}' -f body=notes", cwd))
+
+    def test_hook_ignores_cd_and_redirections_quoted_as_text(self):
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "sub").mkdir()
+            Path(directory, "sub", "body.md").write_text("Summary only\n", encoding="utf-8")
+            Path(directory, "body.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            cwd = Path(directory)
+            self.assertIsNone(check_pr_hook.decide(f"echo 'example; cd sub; end' && gh pr create {repo} --body-file body.md", cwd))
+            self.assertIsNone(check_pr_hook.decide(f"echo 'printf x > body.md' && gh pr create {repo} --body-file body.md", cwd))
+            self.assertIsNotNone(check_pr_hook.decide(f"cd sub && gh pr create {repo} --body-file body.md", cwd))
+
+    def test_hook_treats_json_written_in_the_command_like_json_on_disk(self):
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = Path(directory)
+            for compliant, data in ((True, '{"title":"New title"}'), (False, '{"title":"T","body":"notes"}')):
+                Path(directory, "disk.json").write_text(data, encoding="utf-8")
+                on_disk = check_pr_hook.decide(f"gh api -X PATCH {pulls} --input disk.json", cwd)
+                written = check_pr_hook.decide(f"printf '%s' '{data}' > edit.json && gh api -X PATCH {pulls} --input edit.json", cwd)
+                self.assertEqual(on_disk is None, compliant, data)
+                self.assertEqual(written is None, compliant, data)
+
     def test_hook_ignores_a_cd_inside_a_finished_subshell(self):
         repo = "--repo DiversioTeam/demo"
         with tempfile.TemporaryDirectory() as directory:
