@@ -243,6 +243,39 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertNotIn("visuals", rules(page(LEAD + "<p>The diagram uses the\n<strong>flowchart TD</strong> layout from the guide.</p>")))
         self.assertIn("visuals", rules(page(LEAD + "<pre>Draft:\nflowchart TD\n A --&gt; B</pre>")), "inside pre, source lines are lines")
 
+    def test_only_the_document_title_counts(self) -> None:
+        svg = '<figure><svg viewBox="0 0 10 10" role="img"><title>Bookings rose</title><rect width="5" height="5"></rect></svg></figure>'
+        self.assertIn("basics", rules(page(LEAD + svg, title="Untitled")))
+        self.assertNotIn("basics", rules(page(LEAD + svg, title="Bookings report")))
+
+    def test_hidden_nav_links_do_not_count(self) -> None:
+        sections = "".join(f'<h2 id="s{i}">Part {i}</h2><p>Short.</p>' for i in range(5))
+        links = "".join(f'<a href="#s{i}">Part {i}</a>' for i in range(5))
+        self.assertIn("navigation", rules(page(LEAD + f'<nav class="toc" hidden>{links}</nav>' + sections)))
+        self.assertIn("navigation", rules(page(LEAD + f'<div hidden><nav class="toc">{links}</nav></div>' + sections)))
+        self.assertNotIn("navigation", rules(page(LEAD + f'<nav class="toc">{links}</nav>' + sections)))
+
+    def test_rem_and_em_sizes_are_read_against_the_root(self) -> None:
+        messages = " ".join(m for _, m in checker.check_page(page(LEAD, head="<style>p { font-size: .5rem }</style>")))
+        self.assertIn("as small as 8px", messages)
+        self.assertIn("Body text is 8px", messages)
+        self.assertNotIn("type", rules(page(LEAD, head="<style>html { font-size: 16px } p { font-size: 1rem }</style>")))
+        self.assertIn("Body text is 10px", " ".join(m for _, m in checker.check_page(
+            page(LEAD, head="<style>html { font-size: 62.5% } p { font-size: 1rem }</style>"))))
+        self.assertIn("type", rules(page(LEAD, head="<style>.note { font-size: 0.6em }</style>")))
+
+    def test_an_answer_folded_in_a_closed_details_does_not_answer_first(self) -> None:
+        folded = ('<details{}><summary>Evidence</summary><section class="summary"><p>Both fixes are verified; nothing for you to do.</p>'
+                  '</section></details><h2 id="r">Results</h2><p>Bookings rose.</p>')
+        self.assertIn("answer_first", rules(page(folded.format(""))))
+        self.assertNotIn("answer_first", rules(page(folded.format(" open"))))
+
+    def test_url_text_inside_a_css_string_is_not_a_load(self) -> None:
+        self.assertNotIn("self_contained", rules(page(LEAD, head='<style>.snippet::before { content: "url(example.png)" }</style>')))
+        self.assertIn("self_contained", rules(page(LEAD, head="<style>.hero { background-image: url(example.png) }</style>")))
+        self.assertIn("self_contained", rules(page(LEAD, head='<style>.hero { background-image: url("example.png") }</style>')))
+        self.assertIn("self_contained", rules(page(LEAD, head='<style>@import "theme.css";</style>')))
+
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
         messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))

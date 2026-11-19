@@ -161,16 +161,19 @@ def visible_lines(node: Node, pre: bool = False) -> str:
 
 
 def hidden_nodes(root: Node) -> set[int]:
-    """Ids of every node a reader never sees: script, style, template and the like, and anything under a hidden attribute."""
+    """Ids of every node a reader never sees up front: script, style, template and the like, anything under a hidden
+    attribute, and the folded part of a closed <details>."""
     found: set[int] = set()
 
     def visit(node: Node, hidden: bool) -> None:
         hidden = hidden or node.name in HIDDEN or "hidden" in node.attrs
         if hidden:
             found.add(id(node))
+        # A closed <details> shows only its <summary> until the reader opens it.
+        closed = node.name == "details" and "open" not in node.attrs
         for child in node.children:
             if isinstance(child, Node):
-                visit(child, hidden)
+                visit(child, hidden or (closed and child.name != "summary"))
 
     visit(root, False)
     return found
@@ -335,12 +338,28 @@ def balanced(text: str, start: int) -> str:
 
 
 def css_urls(css: str) -> list[str]:
-    """Every file a stylesheet loads: url(...), @import, and image-set(...) candidates (bare strings count too)."""
-    found = [match.group(2) for match in re.finditer(r"url\(\s*(['\"]?)([^'\")]*)\1\s*\)", css, re.I)]
-    found += [match.group(2) for match in re.finditer(r"@import\s+(['\"])([^'\"]+)\1", css, re.I)]
-    for match in re.finditer(r"image-set\(", css, re.I):
-        inner = re.sub(r"\btype\(\s*(['\"])[^'\"]*\1\s*\)", "", balanced(css, match.end()), flags=re.I)
-        found += [string.group(2) for string in re.finditer(r"(['\"])([^'\"]+)\1", inner)]
+    """Every file a stylesheet loads: url(...), @import, and image-set(...) candidates (bare strings count too).
+
+    Strings are set aside first, so text that only looks like a URL inside one (content: "url(example.png)") is not read
+    as a load, while url("a.png"), @import "b.css" and image-set("c.png" 1x) still are."""
+    strings: list[str] = []
+
+    def keep(match: re.Match[str]) -> str:
+        strings.append(match.group(2))
+        return f'"\x00{len(strings) - 1}\x00"'
+
+    masked = re.sub(r"(['\"])((?:\\.|(?!\1).)*)\1", keep, css, flags=re.S)
+    token = re.compile(r'"\x00(\d+)\x00"')
+
+    def value(text: str) -> str:
+        match = token.fullmatch(text.strip())
+        return strings[int(match.group(1))] if match else text.strip()
+
+    found = [value(match.group(1)) for match in re.finditer(r"url\(\s*([^)]*?)\s*\)", masked, re.I)]
+    found += [value(match.group(1)) for match in re.finditer(r'@import\s+("\x00\d+\x00")', masked, re.I)]
+    for match in re.finditer(r"image-set\(", masked, re.I):
+        inner = re.sub(r'\btype\(\s*"\x00\d+\x00"\s*\)', "", balanced(masked, match.end()), flags=re.I)
+        found += [strings[int(index)] for index in token.findall(inner)]
     return found
 
 
@@ -446,7 +465,8 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         missing.append('<html lang="en">')
     if not any(node.attrs.get("name") == "viewport" for node in by_name("meta")):
         missing.append("a viewport meta tag")
-    title = " ".join(text_of(node, set()) for node in by_name("title")).strip()
+    # The document's title, not an SVG's accessible <title>.
+    title = next((text_of(node, set()) for node in by_name("title") if not inside(node, lambda a: a.name == "svg")), "").strip()
     if not title:
         missing.append("a <title>")
     elif GENERIC_TITLES.match(title):
@@ -505,7 +525,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
 
     total = words(text_of(main))
     nav_links = [node for node in nodes if node.name == "a" and node.attrs.get("href", "").startswith("#")
-                 and inside(node, lambda a: a.name == "nav" or a.cls(re.compile(r"\btoc\b")))]
+                 and inside(node, lambda a: a.name == "nav" or a.cls(re.compile(r"\btoc\b"))) and id(node) not in unseen]
     linked = {urllib.parse.unquote(link.attrs["href"][1:]) for link in nav_links}
     needed = len(sections) >= NAV_SECTIONS or total > NAV_WORDS
     if needed and not sections:
@@ -574,9 +594,19 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     sized = flat + "\n" + media_blocks(css, re.compile(r"."))
     # Inline styles count as well, with the element that owns them standing in for the selector.
     inline = [(f"{node.name} ", strip_comments(node.attrs["style"])) for node in nodes if node.attrs.get("style")]
-    font_size = r"font(?:-size)?\s*:\s*[^;{}]*?(\d+(?:\.\d+)?)px"
-    tiny = [float(m.group(1)) for text in [sized, *(style for _, style in inline)] for m in re.finditer(font_size, text, re.I)
-            if float(m.group(1)) < 12]
+    # Sizes in px, rem or em; rem and em are read against the root size (16px, or the html/:root font-size when set).
+    font_size = r"font(?:-size)?\s*:\s*[^;{}]*?(\d*\.?\d+)(px|rem|em)\b"
+    root = 16.0
+    for rule in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized):
+        if re.fullmatch(r"\s*(html|:root)\s*", rule.group(1)):
+            declared = re.search(r"font-size\s*:\s*(\d*\.?\d+)(px|%)", rule.group(2), re.I)
+            if declared:
+                root = float(declared.group(1)) * (1 if declared.group(2).lower() == "px" else 0.16)
+
+    def pixels(match: re.Match[str]) -> float:
+        return float(match.group(1)) * (1 if match.group(2).lower() == "px" else root)
+
+    tiny = [pixels(m) for text in [sized, *(style for _, style in inline)] for m in re.finditer(font_size, text, re.I) if pixels(m) < 12]
     # SVG text sized by its font-size attribute ("11" or "11px"), on the text itself or a group around it.
     tiny += [float(m.group(1)) for node in nodes if "font-size" in node.attrs
              for m in [re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(px)?\s*", node.attrs["font-size"])] if m and float(m.group(1)) < 12]
@@ -586,8 +616,8 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     for selector, declarations in [(m.group(1), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized)] + inline:
         if styles_body_text(selector):
             size = re.search(font_size, declarations, re.I)
-            if size and float(size.group(1)) < 15:
-                body_sizes.append(size.group(1))
+            if size and pixels(size) < 15:
+                body_sizes.append(f"{pixels(size):g}")
     for size in dict.fromkeys(body_sizes):
         add("type", f"Body text is {size}px. Use at least 15px.")
     wide = [int(m.group(2)) for m in re.finditer(r"(?<![-\w])(min-)?width\s*:\s*(\d+)px", flat, re.I) if int(m.group(2)) > 480]
