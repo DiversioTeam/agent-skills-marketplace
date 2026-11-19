@@ -1919,6 +1919,11 @@ class PrBodyAndHookTests(unittest.TestCase):
                     self.assertIsNone(check_pr_hook.decide(command, Path(session)), command)
                 reason = check_pr_hook.decide(f"cd '{worktree}' && gh pr create {repo} --title T --body-file plain.md", Path(session))
                 self.assertIn("needs its agent session transcript", reason)
+                # A cd inside a subshell or substitution that has closed leaves the gh call where it was.
+                Path(session, "session-body.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+                for command in (f"(cd '{worktree}' && git status) && gh pr create {repo} --title T --body-file session-body.md",
+                                f"echo $(cd '{worktree}' && pwd) && gh pr create {repo} --title T --body-file session-body.md"):
+                    self.assertIsNone(check_pr_hook.decide(command, Path(session)), command)
 
     def test_hook_accepts_a_declaration_written_anywhere_in_the_command(self):
         cwd = Path("/nonexistent")
