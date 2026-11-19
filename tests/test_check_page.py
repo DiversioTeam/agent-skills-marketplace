@@ -144,6 +144,32 @@ class ReviewFindingTests(unittest.TestCase):
         full = '<nav class="toc">' + "".join(f'<a href="#s{i}">Part {i}</a>' for i in range(5)) + "</nav>"
         self.assertNotIn("navigation", rules(page(LEAD + full + sections)))
 
+    def test_nav_links_may_point_at_the_enclosing_section(self) -> None:
+        sections = "".join(f'<section id="s{i}"><h2>Part {i}</h2><p>Short.</p></section>' for i in range(5))
+        full = '<nav class="toc">' + "".join(f'<a href="#s{i}">Part {i}</a>' for i in range(5)) + "</nav>"
+        self.assertNotIn("navigation", rules(page(LEAD + full + sections)))
+        partial = '<nav class="toc">' + "".join(f'<a href="#s{i}">Part {i}</a>' for i in range(4)) + "</nav>"
+        messages = " ".join(message for _, message in checker.check_page(page(LEAD + partial + sections)))
+        self.assertIn("leaves out 'Part 4'", messages)
+        # A section id that wraps two headings doesn't stand for either of them.
+        shared = ('<section id="both"><h2>Part 0</h2><p>Short.</p><h2>Part 1</h2><p>Short.</p></section>'
+                  + "".join(f'<section id="s{i}"><h2>Part {i}</h2><p>Short.</p></section>' for i in range(2, 5)))
+        nav = '<nav class="toc"><a href="#both">Both</a>' + "".join(f'<a href="#s{i}">Part {i}</a>' for i in range(2, 5)) + "</nav>"
+        self.assertIn("navigation", rules(page(LEAD + nav + shared)))
+
+    def test_mermaid_source_shown_as_text_is_caught(self) -> None:
+        self.assertIn("visuals", rules(page(LEAD + "<pre>flowchart TD\n A --&gt; B</pre>")))
+        self.assertIn("visuals", rules(page(LEAD + "<pre>sequenceDiagram\n A->>B: hi</pre>")))
+        self.assertNotIn("visuals", rules(page(LEAD + "<p>The flowchart TD style is not used here.</p>")))
+
+    def test_font_sizes_inside_media_rules_count(self) -> None:
+        phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
+        messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))
+        self.assertIn("Body text is 9px", messages)
+        self.assertIn("as small as 9px", messages)
+        readable = "<style>@media (max-width: 600px) { body { font-size: 16px } }</style>"
+        self.assertNotIn("type", rules(page(LEAD, head=readable)))
+
     def test_encoded_fragments_land_on_their_section(self) -> None:
         sections = '<h2 id="cafés">Cafés</h2><p>a</p>' + "".join(f'<h2 id="s{i}">Part {i}</h2><p>b</p>' for i in range(4))
         nav = '<nav class="toc"><a href="#caf%C3%A9s">Cafés</a>' + "".join(f'<a href="#s{i}">Part {i}</a>' for i in range(4)) + "</nav>"

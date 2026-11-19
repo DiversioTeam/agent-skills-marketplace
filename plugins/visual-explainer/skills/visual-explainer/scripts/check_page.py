@@ -402,7 +402,18 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
             "links to each section's id) near the top.")
     elif len(sections) >= NAV_SECTIONS or total > NAV_WORDS:
         # The nav covers every section, not any three of them.
-        unlisted = [text_of(heading).strip()[:40] for heading in sections if heading.attrs.get("id", "") not in linked]
+        def targets(heading: Node) -> set[str]:
+            # A link can land on the heading or on the section that wraps it, when that section holds only this heading.
+            found = {heading.attrs["id"]} if heading.attrs.get("id") else set()
+            wrapper = heading.parent
+            while wrapper is not None and wrapper.name not in {"section", "article", "main", "body"}:
+                wrapper = wrapper.parent
+            if wrapper is not None and wrapper.name in {"section", "article"} and wrapper.attrs.get("id") \
+                    and sum(1 for node in walk(wrapper) if isinstance(node, Node) and node.name == "h2") == 1:
+                found.add(wrapper.attrs["id"])
+            return found
+
+        unlisted = [text_of(heading).strip()[:40] for heading in sections if not targets(heading) & linked]
         if unlisted:
             add("navigation", f"The section nav leaves out {', '.join(repr(item) for item in unlisted[:4])}. Give every section an id and a link.")
     id_counts: dict[str, int] = {}
@@ -433,7 +444,11 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
                 "table or visual.")
 
     if (re.search(r"class\s*=\s*[\"'][^\"']*\bmermaid\b", html, re.I) or re.search(r"<script[^>]*mermaid", html, re.I)
-            or re.search(r"cdn\.jsdelivr\.net/npm/mermaid", html)):
+            or re.search(r"cdn\.jsdelivr\.net/npm/mermaid", html)
+            # Diagram source shown as text (Courage's gate checks the same visible text). Each block is read on its own,
+            # since block text is joined with spaces and the source starts a line of its block.
+            or any(re.search(r"```mermaid|^\s*(graph|flowchart) (TD|LR|TB|RL)\b|^\s*sequenceDiagram\b", text_of(node), re.M)
+                   for node in nodes if node.name in {"pre", "code", "p", "div", "li", "td"} and in_main(node))):
         add("visuals", "Replace the Mermaid diagram with an inline SVG drawing (or render it to SVG and remove the Mermaid source).")
     numbers = sum(1 for node in nodes if node.name == "td" and NUMBER_CELL.match(text_of(node)))
     if numbers >= NUMERIC_CELLS and not any(is_visual(node) for node in nodes):
@@ -441,10 +456,12 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
             "chart.")
 
     flat = strip_media(css)
-    tiny = [float(m.group(1)) for m in re.finditer(r"font(?:-size)?\s*:\s*[^;{}]*?(\d+(?:\.\d+)?)px", flat, re.I) if float(m.group(1)) < 12]
+    # Sizes set inside media rules (a phone breakpoint, say) are what some readers get, so they count too.
+    sized = flat + "\n" + media_blocks(css, re.compile(r"."))
+    tiny = [float(m.group(1)) for m in re.finditer(r"font(?:-size)?\s*:\s*[^;{}]*?(\d+(?:\.\d+)?)px", sized, re.I) if float(m.group(1)) < 12]
     if tiny:
         add("type", f"Text as small as {min(tiny):g}px is hard to read. Keep everything at 12px or more.")
-    for rule in re.finditer(r"([^{}]+)\{([^{}]*)\}", flat):
+    for rule in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized):
         if re.search(r"(^|[\s,])(body|html|main|p)(?=$|[\s,:.{])", rule.group(1)):
             size = re.search(r"font(?:-size)?\s*:\s*[^;]*?(\d+(?:\.\d+)?)px", rule.group(2), re.I)
             if size and float(size.group(1)) < 15:
