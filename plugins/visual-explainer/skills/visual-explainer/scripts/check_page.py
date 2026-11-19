@@ -142,6 +142,18 @@ def text_of(node: Node, skip: set[str] = HIDDEN) -> str:
     return (" " if node.name in BLOCK else "").join(parts)
 
 
+# Elements that start a new line for the reader, so text in one never runs on into the next.
+LINE_BLOCKS = BLOCK | {"pre", "figure", "figcaption", "dl", "details", "summary", "article", "aside", "nav", "h5", "h6", "address"}
+
+
+def visible_lines(node: Node) -> str:
+    """The text a reader sees, with a line break at every block edge; hidden elements (template, hidden attribute) are left out."""
+    if node.name in HIDDEN or "hidden" in node.attrs:
+        return ""
+    parts = [child if isinstance(child, str) else visible_lines(child) for child in node.children]
+    return "\n".join(["", *parts, ""]) if node.name in LINE_BLOCKS else "".join(parts)
+
+
 def inside(node: Node, test) -> bool:
     at = node.parent
     while at is not None:
@@ -255,6 +267,13 @@ def css_urls(css: str) -> list[str]:
     return found
 
 
+def parse_tree(html: str) -> TreeBuilder:
+    builder = TreeBuilder()
+    builder.feed(html)
+    builder.close()
+    return builder
+
+
 def external_loads(nodes: list[Node], css: str) -> list[str]:
     def external(url: str) -> bool:
         value = url.strip()
@@ -287,6 +306,11 @@ def external_loads(nodes: list[Node], css: str) -> list[str]:
         for url in css_urls(attrs.get("style", "")):
             if external(url):
                 found.append(f"inline style url {url}")
+        # An inline frame's document is part of the page: its images and styles load from elsewhere just the same.
+        if node.name == "iframe" and attrs.get("srcdoc"):
+            inner = list(walk(parse_tree(attrs["srcdoc"]).root))
+            inner_css = "\n".join(text_of(item, set()) for item in inner if item.name == "style")
+            found += [f"iframe srcdoc: {item}" for item in external_loads(inner, inner_css)]
     for url in css_urls(css):
         if external(url):
             found.append(f"CSS url {url}")
@@ -321,9 +345,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         if rule in rules:
             problems.append((rule, message))
 
-    builder = TreeBuilder()
-    builder.feed(html)
-    builder.close()
+    builder = parse_tree(html)
     nodes = list(walk(builder.root))
     by_name = lambda name: [node for node in nodes if node.name == name]  # noqa: E731
     css = "\n".join(text_of(node, set()) for node in by_name("style"))
@@ -445,10 +467,9 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
 
     if (re.search(r"class\s*=\s*[\"'][^\"']*\bmermaid\b", html, re.I) or re.search(r"<script[^>]*mermaid", html, re.I)
             or re.search(r"cdn\.jsdelivr\.net/npm/mermaid", html)
-            # Diagram source shown as text (Courage's gate checks the same visible text). Each block is read on its own,
-            # since block text is joined with spaces and the source starts a line of its block.
-            or any(re.search(r"```mermaid|^\s*(graph|flowchart) (TD|LR|TB|RL)\b|^\s*sequenceDiagram\b", text_of(node), re.M)
-                   for node in nodes if node.name in {"pre", "code", "p", "div", "li", "td"} and in_main(node))):
+            # Diagram source shown as text, in any visible block (a blockquote too), but not in a template or hidden element.
+            # Courage's gate reads the same visible lines.
+            or re.search(r"```mermaid|^\s*(graph|flowchart) (TD|LR|TB|RL)\b|^\s*sequenceDiagram\b", visible_lines(main), re.M)):
         add("visuals", "Replace the Mermaid diagram with an inline SVG drawing (or render it to SVG and remove the Mermaid source).")
     numbers = sum(1 for node in nodes if node.name == "td" and NUMBER_CELL.match(text_of(node)))
     if numbers >= NUMERIC_CELLS and not any(is_visual(node) for node in nodes):
@@ -458,14 +479,21 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     flat = strip_media(css)
     # Sizes set inside media rules (a phone breakpoint, say) are what some readers get, so they count too.
     sized = flat + "\n" + media_blocks(css, re.compile(r"."))
-    tiny = [float(m.group(1)) for m in re.finditer(r"font(?:-size)?\s*:\s*[^;{}]*?(\d+(?:\.\d+)?)px", sized, re.I) if float(m.group(1)) < 12]
+    # Inline styles count as well, with the element that owns them standing in for the selector.
+    inline = [(f"{node.name} ", node.attrs["style"]) for node in nodes if node.attrs.get("style")]
+    font_size = r"font(?:-size)?\s*:\s*[^;{}]*?(\d+(?:\.\d+)?)px"
+    tiny = [float(m.group(1)) for text in [sized, *(style for _, style in inline)] for m in re.finditer(font_size, text, re.I)
+            if float(m.group(1)) < 12]
     if tiny:
         add("type", f"Text as small as {min(tiny):g}px is hard to read. Keep everything at 12px or more.")
-    for rule in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized):
-        if re.search(r"(^|[\s,])(body|html|main|p)(?=$|[\s,:.{])", rule.group(1)):
-            size = re.search(r"font(?:-size)?\s*:\s*[^;]*?(\d+(?:\.\d+)?)px", rule.group(2), re.I)
+    body_sizes = []
+    for selector, declarations in [(m.group(1), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized)] + inline:
+        if re.search(r"(^|[\s,])(body|html|main|p)(?=$|[\s,:.{])", selector):
+            size = re.search(font_size, declarations, re.I)
             if size and float(size.group(1)) < 15:
-                add("type", f"Body text is {size.group(1)}px. Use at least 15px.")
+                body_sizes.append(size.group(1))
+    for size in dict.fromkeys(body_sizes):
+        add("type", f"Body text is {size}px. Use at least 15px.")
     wide = [int(m.group(2)) for m in re.finditer(r"(?<![-\w])(min-)?width\s*:\s*(\d+)px", flat, re.I) if int(m.group(2)) > 480]
     for node in nodes:
         wide += [int(m.group(2)) for m in re.finditer(r"(?<![-\w])(min-)?width\s*:\s*(\d+)px", node.attrs.get("style", ""), re.I)

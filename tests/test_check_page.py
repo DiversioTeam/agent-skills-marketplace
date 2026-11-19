@@ -162,6 +162,28 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertIn("visuals", rules(page(LEAD + "<pre>sequenceDiagram\n A->>B: hi</pre>")))
         self.assertNotIn("visuals", rules(page(LEAD + "<p>The flowchart TD style is not used here.</p>")))
 
+    def test_mermaid_source_in_any_visible_block_is_caught_but_not_in_hidden_ones(self) -> None:
+        self.assertIn("visuals", rules(page(LEAD + "<blockquote>Draft below.\nflowchart TD\n  A --&gt; B</blockquote>")))
+        self.assertIn("visuals", rules(page(LEAD + "<section><p>Draft below.</p><p>graph LR A --&gt; B</p></section>")))
+        self.assertNotIn("visuals", rules(page(LEAD + "<template><pre>flowchart TD\n A --&gt; B</pre></template>")))
+        self.assertNotIn("visuals", rules(page(LEAD + "<div hidden><pre>flowchart TD\n A --&gt; B</pre></div>")))
+
+    def test_assets_inside_an_iframe_srcdoc_are_external_loads(self) -> None:
+        linked = '<iframe title="Chart" srcdoc="&lt;img alt=&quot;Chart&quot; src=chart.png&gt;"></iframe>'
+        self.assertIn("iframe srcdoc: img chart.png", " ".join(message for _, message in checker.check_page(page(LEAD + linked))))
+        styled = '<iframe title="Chart" srcdoc="&lt;style&gt;p{background:url(bg.png)}&lt;/style&gt;&lt;p&gt;Hi&lt;/p&gt;"></iframe>'
+        self.assertIn("self_contained", rules(page(LEAD + styled)))
+        embedded = '<iframe title="Chart" srcdoc="&lt;img alt=&quot;Chart&quot; src=&quot;data:image/png;base64,AA==&quot;&gt;"></iframe>'
+        self.assertNotIn("self_contained", rules(page(LEAD + embedded)))
+
+    def test_inline_font_sizes_count(self) -> None:
+        messages = " ".join(message for _, message in checker.check_page(page(LEAD + '<p style="font-size:9px">Decision details</p>')))
+        self.assertIn("as small as 9px", messages)
+        self.assertIn("Body text is 9px", messages)
+        self.assertIn("Body text is 13px", " ".join(m for _, m in checker.check_page(page(LEAD + '<p style="font-size: 13px">Notes</p>'))))
+        self.assertNotIn("type", rules(page(LEAD + '<span style="font-size: 13px">Caption</span>')), "13px is fine outside body text")
+        self.assertNotIn("type", rules(page(LEAD + '<p style="font-size:16px">Decision details</p>')))
+
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
         messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))
