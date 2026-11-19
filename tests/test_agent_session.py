@@ -1903,6 +1903,94 @@ class PrBodyAndHookTests(unittest.TestCase):
             Path(directory, "empty.md").write_text("Summary\n", encoding="utf-8")
             self.assertIsNotNone(check_pr_hook.decide("gh pr create --repo DiversioTeam/demo -F empty.md", Path(directory)))
 
+    def test_hook_reads_a_relative_body_file_from_the_directory_the_command_cds_into(self):
+        from unittest import mock
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as session, tempfile.TemporaryDirectory() as home:
+            worktree = Path(home, "work tree")
+            worktree.mkdir()
+            Path(worktree, ".git-pr-body.md").write_text("## Summary\n\nFix a typo.\n\nNo agent session: typed by hand\n")
+            Path(worktree, "plain.md").write_text("## Summary\n\nFix a typo.\n")
+            allowed = [
+                f"cd '{worktree}' && gh pr create {repo} --title T --body-file .git-pr-body.md",
+                f"cd \"{worktree}\"; gh pr create {repo} --title T -F .git-pr-body.md",
+                f"cd ~/'work tree' && git push -u origin HEAD && gh pr create {repo} --title T --body-file .git-pr-body.md",
+                f"cd '{home}' && cd 'work tree' && gh pr edit 7 {repo} --body-file=.git-pr-body.md",
+                f"(cd '{worktree}' && gh pr edit 7 {repo} --body-file .git-pr-body.md)",
+            ]
+            with mock.patch.dict(os.environ, {"HOME": home}):
+                for command in allowed:
+                    self.assertIsNone(check_pr_hook.decide(command, Path(session)), command)
+                # The policy still holds for a body without a transcript.
+                reason = check_pr_hook.decide(f"cd '{worktree}' && gh pr create {repo} --title T --body-file plain.md", Path(session))
+                self.assertIn("needs its agent session transcript", reason)
+
+    def test_hook_accepts_a_body_file_written_earlier_in_the_same_command(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        allowed = [
+            f"cat > body.md <<'EOF'\n## Summary\n\nFix a typo.\n\nNo agent session: typed by hand\nEOF\ngh pr create {repo} --title T --body-file body.md",
+            f"cat > body.md <<'EOF' && gh pr create {repo} --title T --body-file body.md\n## Summary\n\nNo agent session: typed by hand\nEOF",
+            f"printf '## Summary\\n\\nNo agent session: typed by hand\\n' > body.md && gh pr create {repo} --title T --body-file body.md",
+            f"echo 'No agent session: typed by hand' | gh pr edit 7 {repo} --body-file -",
+            f"cat > body.md <<'EOF'\nSee {self.LINK}\nEOF\ngh pr create {repo} --title T --body-file body.md",
+        ]
+        for command in allowed:
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        blocked = check_pr_hook.decide(f"cat > body.md <<'EOF'\n## Summary\nEOF\ngh pr create {repo} --title T --body-file body.md", cwd)
+        self.assertIn("needs its agent session transcript", blocked)
+
+    def test_hook_ignores_gh_commands_quoted_as_data_in_a_heredoc(self):
+        cwd = Path("/nonexistent")
+        allowed = [
+            "python3 - <<'PY'\n# Match each gh pr create --repo DiversioTeam/demo --body x call on its own.\nprint('ok')\nPY",
+            "cat > notes.md <<\"EOF\"\nThen run gh pr create --repo DiversioTeam/demo --fill.\nEOF\ngit add notes.md",
+            "git commit -F - <<\\EOF\nJudge gh pr edit 7 --repo DiversioTeam/demo --body x on its own\nEOF",
+            "cd /tmp && cat <<-'EOF' > a.md\n\tgh api -X PATCH repos/DiversioTeam/demo/pulls/7 -f body=x\n\tEOF\ncat a.md",
+        ]
+        for command in allowed:
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        blocked = [
+            # A shell runs its heredoc, and an unquoted heredoc expands substitutions, so both still count.
+            "sudo -u someone bash <<'EOF'\ngh pr create --repo DiversioTeam/demo --body x\nEOF",
+            "cat <<EOF\n$(gh pr edit 7 --repo DiversioTeam/demo --body x)\nEOF",
+            # A data heredoc ends at its delimiter; what follows runs.
+            "cat > a.md <<'EOF'\nnotes\nEOF\ngh pr create --repo DiversioTeam/demo --body x",
+        ]
+        for command in blocked:
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+
+    def test_hook_names_a_body_file_it_cannot_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for command in ("gh pr create --repo DiversioTeam/demo --title T --body-file missing.md",
+                            "gh api -X PATCH repos/DiversioTeam/demo/pulls/7 -F body=@missing.md"):
+                reason = check_pr_hook.decide(command, Path(directory))
+                self.assertIn(str(Path(directory, "missing.md")), reason, command)
+                self.assertIn("absolute path", reason)
+                self.assertNotIn("needs its agent session transcript", reason)
+
+    def test_hook_allows_review_traffic_and_reads_chained_with_other_calls(self):
+        cwd = Path("/nonexistent")
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        allowed = [
+            # The re-request blocked on 2026-11-19, chained with reads whose jq filters name `body`.
+            f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=little-person' && gh api {pulls}/reviews --jq '.[].body'"
+            f" && gh api --paginate {pulls}/comments --jq '.[] | .body'",
+            f"gh api {pulls}/comments/11/replies -F body=@/tmp/reply.md && gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=little-person'",
+            f"gh api {pulls}/comments/11/replies -f body='Fixed in abc1234; see test_x.' > /dev/null",
+            "gh pr comment 7 --repo DiversioTeam/demo --body-file /tmp/note.md && gh pr edit 7 --repo DiversioTeam/demo --add-reviewer little-person",
+            f"gh pr view 7 --repo DiversioTeam/demo --json body --jq .body; gh api {pulls} --jq .body",
+            f"gh api -X GET {pulls} -f per_page=100 --jq .body | head -5",
+            f"gh api {pulls}/comments --paginate > /tmp/comments.json && gh api {pulls}/reviews | jq '.[].body'",
+        ]
+        for command in allowed:
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        # A description write chained after review traffic still needs the transcript.
+        self.assertIsNotNone(check_pr_hook.decide(
+            f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=little-person' && gh api -X PATCH {pulls} -f body=new", cwd))
+        self.assertIsNotNone(check_pr_hook.decide(
+            "gh pr comment 7 --repo DiversioTeam/demo --body ok && gh pr edit 7 --repo DiversioTeam/demo --body rewritten", cwd))
+
 
 if __name__ == "__main__":
     unittest.main()

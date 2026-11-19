@@ -3,6 +3,9 @@
 
 Reads the hook payload on stdin. Exit 0 allows the call; exit 2 blocks it and shows stderr to the model. local-ci's
 agent-session check (required `local/verify`) is the real gate; this gives the agent the feedback before the PR exists.
+
+Each `gh pr create`, `gh pr edit` and `gh api` call in the command is judged by its own words, so a review reply, a
+reviewer request or a read chained next to it is never mistaken for a PR description write.
 """
 
 from __future__ import annotations
@@ -16,11 +19,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from pr_body import LINK, has_transcript  # noqa: E402
+from pr_body import DECLARATION, LINK, has_transcript  # noqa: E402
 
-PR_COMMAND = re.compile(r"\bgh\s+pr\s+(?P<verb>create|edit)\b")
-API_COMMAND = re.compile(r"\bgh\s+api\b[^\n]*\brepos/[^/\s]+/[^/\s]+/pulls\b")
-BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
+# A call starts at `gh pr create`, `gh pr edit` or `gh api` anywhere in the text, heredocs and substitutions included,
+# so a call inside a script fed to a shell still counts.
+GH_CALL = re.compile(r"\bgh[ \t]+(?:pr[ \t]+(?:create|edit)|api)\b")
+QUOTED_HEREDOC = re.compile(r"""<<(?P<dash>-?)[ \t]*(?:(['"])(?P<quoted>[^'"\s]+)\2|\\(?P<escaped>[A-Za-z0-9_]+))""")
+# Commands whose heredoc is a script that runs, rather than data.
+SHELLS = frozenset({"bash", "sh", "zsh", "dash", "ksh", "fish", "ssh", "sudo", "su", "env", "exec", "eval", "source", ".",
+                    "xargs", "nohup", "time", "timeout", "command"})
+API_TARGET = re.compile(r"\brepos/[^/\s]+/[^/\s]+/pulls\b")
+# The shell pieces that decide where one simple command ends: quoted spans, escapes, `$(`, parentheses and operators.
+SEGMENT_TOKEN = re.compile(r"""'[^']*'?|"(?:[^"\\]|\\.)*"?|\\.|\$\(|`[^`]*`?|[^'"\\$`;&|\n()]+|.""", re.DOTALL)
+CD = re.compile(r"""(?:^|[;&|(\n])[ \t]*(?:cd|pushd)[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
+                r"""[ \t]*(?=$|[;&|)\n])""")
+# A declaration that `printf` or `echo` writes to the body file earlier in the same command follows a quote or a `\n`.
+WRITTEN_DECLARATION = re.compile(r"""(?:^|['"]|\\n)[ \t]*(?:[-*][ \t]*)?No agent session:[ \t]*[^\s'"\\][^\n'"]{2,}""",
+                                 re.MULTILINE | re.IGNORECASE)
 # The one shape the hook allows before its rule: a single `gh api` call to a review sub-resource of a PR, whose
 # `body` is review text, not the PR description. A command with any shell operator, redirection, substitution or
 # variable is not this shape, so it always gets the rule below.
@@ -35,8 +50,8 @@ NOT_SIMPLE = (";", "&", "|", "\n", "\r", "$", "`", "<", ">")
 API_VALUE_FLAGS = frozenset({"-X", "--method", "-f", "-F", "--field", "--raw-field", "-H", "--header", "-q", "--jq",
                              "-t", "--template", "--input", "-p", "--preview", "--hostname", "--cache"})
 REPLY_HINT = (
-    " A review reply or comment passes only as a single `gh api` command with a literal endpoint and no shell "
-    "operators, `$` or backticks anywhere: put the text in a file and pass `-F body=@/path/reply.md`."
+    " A review reply or comment passes only as a `gh api` call with a literal endpoint and no `$` or backticks: put "
+    "the text in a file and pass `-F body=@/path/reply.md`."
 )
 # Without `$`, backticks or operators, a word is only unquoted text, '...', "..." and backslash escapes. A regex
 # scan keeps this linear: shlex takes seconds on a long reply body, and the hook runs before every Bash call.
@@ -50,35 +65,11 @@ MESSAGE = (
     "It links the newest transcript in the body's "
     "'## Agent sessions' section. For a PR no agent worked on, add a line 'No agent session: <reason>'."
 )
-
-
-def _bodies(command: str, cwd: Path, argv: list[str] | None = None) -> list[str]:
-    """The PR body texts a command passes: inline `--body`/`-b` values (and `body=` API fields) and `--body-file` contents.
-    An argv list keeps its own argument boundaries."""
-    if argv is not None:
-        tokens = argv
-    else:
-        try:
-            tokens = shlex.split(command, posix=True)
-        except ValueError:
-            return []
-    texts = []
-    for index, token in enumerate(tokens):
-        following = tokens[index + 1] if index + 1 < len(tokens) else None
-        if token in ("--body", "-b") and following is not None:
-            texts.append(following)
-        elif token.startswith("--body="):
-            texts.append(token.split("=", 1)[1])
-        elif token.startswith("body=") and index and tokens[index - 1] in ("-f", "-F", "--field", "--raw-field"):
-            texts.append(token.split("=", 1)[1])
-        file = following if token in ("--body-file", "-F") and following and not following.startswith("body=") else (
-            token.split("=", 1)[1] if token.startswith("--body-file=") else None)
-        if file and file != "-":
-            try:
-                texts.append((cwd / file).expanduser().read_text(encoding="utf-8"))
-            except OSError:
-                pass
-    return texts
+UNREADABLE = (
+    "The PR body file `{name}` could not be read at {path}. A relative path resolves from the last `cd` before the gh "
+    "command, else from the session directory {cwd}. Pass an absolute path, or write the file before this command. "
+    "The body needs an agent session transcript link or a line 'No agent session: <reason>'."
+)
 
 
 def _is_diversio(command: str, cwd: Path) -> bool:
@@ -107,10 +98,11 @@ def _words(command: str) -> list[str] | None:
     return words
 
 
-def _review_call(command: str) -> bool:
+def _review_call(command: str, strict: bool = True) -> bool:
     """Whether the command is exactly one `gh api` call to a PR review sub-resource: replies, review comments,
-    reviews and requested reviewers. Its only positional argument is that literal endpoint."""
-    if not GH_API_START.match(command) or any(char in command for char in NOT_SIMPLE):
+    reviews and requested reviewers. Its only positional argument is that literal endpoint. With `strict` off, the
+    text is one call already cut from a longer command at its shell operator, so only `$` or a backtick disqualifies it."""
+    if not GH_API_START.match(command) or any(char in command for char in (NOT_SIMPLE if strict else ("$", "`"))):
         return False
     tokens = _words(command)
     if tokens is None or tokens[:2] != ["gh", "api"]:
@@ -122,6 +114,8 @@ def _review_call(command: str) -> bool:
         if token in API_VALUE_FLAGS:
             index += 2  # the flag's value
             continue
+        if not strict and (token[:1] in ("<", ">") or token[:2] in ("1>", "2>")):
+            break  # a redirection of this call's own output or input
         if not token.startswith("-"):
             positional.append(token)
         index += 1
@@ -132,30 +126,192 @@ def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None
     """The reason to block, or None to allow. `argv` is the command as an argument list, when the tool sent one."""
     if _review_call(command):
         return None
-    reason = _rule(command, cwd, argv)
-    if reason and API_COMMAND.search(command) and re.search(r"/pulls/[^/\s]+/", command):
+    for prefix, tokens, text in _gh_calls(command, argv):
+        reason = _check_call(command, prefix, tokens, text, cwd)
+        if reason:
+            return reason
+    return None
+
+
+def _gh_calls(command: str, argv: list[str] | None) -> list[tuple[str, list[str], str]]:
+    """Each gh call in the command as (the text before it, its words, its text), up to the operator that ends it."""
+    if argv is not None and argv[:1] == ["gh"]:
+        return [("", argv, command)]
+    calls = []
+    scanned = _without_data_heredocs(command)
+    for match in GH_CALL.finditer(scanned):
+        text = scanned[match.start():_segment_end(scanned, match.start())]
+        tokens = _words(text)
+        if tokens is None:
+            try:
+                tokens = shlex.split(text, posix=True)
+            except ValueError:
+                tokens = text.split()
+        calls.append((scanned[:match.start()], tokens, text))
+    return calls
+
+
+def _without_data_heredocs(command: str) -> str:
+    """The command with the bodies of quoted heredocs (`<<'EOF'`, `<<"EOF"`, `<<\\EOF`) blanked, unless they feed a
+    shell. Bash expands nothing in such a body, so a script or notes file that mentions `gh pr create` runs nothing;
+    `bash <<'EOF'` still runs its lines, so those stay."""
+    pieces, position = [], 0
+    for match in QUOTED_HEREDOC.finditer(command):
+        if match.start() < position:
+            continue  # inside a body already blanked
+        line_start = command.rfind("\n", 0, match.start()) + 1
+        words = re.split(r"[;&|(]", command[line_start:match.start()])[-1].split()
+        body_start = command.find("\n", match.end())
+        if not words or Path(words[0]).name in SHELLS or body_start < 0:
+            continue
+        delimiter = match.group("quoted") or match.group("escaped")
+        tabs = r"\t*" if match.group("dash") else ""
+        end = re.compile(rf"^{tabs}{re.escape(delimiter)}[ \t]*$", re.MULTILINE).search(command, body_start + 1)
+        body_end = end.start() if end else len(command)
+        pieces += [command[position:body_start + 1], "\n" * command.count("\n", body_start + 1, body_end)]
+        position = body_end
+    return "".join(pieces) + command[position:]
+
+
+def _segment_end(command: str, start: int) -> int:
+    """Where the simple command at `start` ends: the first unquoted `;`, `&`, `|`, newline or unmatched `)`."""
+    depth = 0
+    for match in SEGMENT_TOKEN.finditer(command, start):
+        token = match.group()
+        if token in ("$(", "("):
+            depth += 1
+        elif token == ")":
+            if not depth:
+                return match.start()
+            depth -= 1
+        elif token in (";", "&", "|", "\n") and not depth:
+            return match.start()
+    return len(command)
+
+
+def _directory(prefix: str, cwd: Path) -> Path:
+    """The directory a call runs in: the session's, changed by each literal `cd DIR` or `pushd DIR` before it."""
+    directory = cwd
+    for match in CD.finditer(prefix):
+        words = _words(match.group("dir"))
+        if not words or len(words) != 1 or "$" in words[0] or "`" in words[0] or words[0] == "-":
+            continue
+        directory = directory / Path(words[0]).expanduser()
+    return directory
+
+
+def _check_call(command: str, prefix: str, tokens: list[str], text: str, cwd: Path) -> str | None:
+    """The reason to block one gh call, or None. Only PR description writes need the transcript."""
+    if tokens[:3] in (["gh", "pr", "create"], ["gh", "pr", "edit"]):
+        inline, files = _pr_bodies(tokens)
+        if tokens[2] == "edit" and not inline and not files:
+            return None  # labels, reviewers or the title, not the body
+        api = False
+    elif tokens[:2] == ["gh", "api"]:
+        if not API_TARGET.search(text) or _review_call(text, strict=False):
+            return None
+        method, inline, files, sends_body = _api_request(tokens, command)
+        if method == "GET" or not sends_body:
+            return None
+        api = True
+    else:
+        return None
+    directory = _directory(prefix, cwd)
+    if not _is_diversio(command, directory):
+        return None
+    # A heredoc body (`--body "$(cat <<'EOF' ...)"`, or `cat > f <<'EOF'` before the call) puts the body's lines in the
+    # command text itself, so a link or a declaration line there counts.
+    if LINK.search(command) or DECLARATION.search(command) or any(has_transcript(body) for body in inline):
+        return None
+    unreadable = []
+    for name, is_json in files:
+        if name == "-" or _writes(prefix, name):
+            # Written or piped in by this same command, so the file on disk is not the body yet.
+            if WRITTEN_DECLARATION.search(prefix):
+                return None
+            continue
+        path = directory / Path(name).expanduser()
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            unreadable.append((name, path))
+            continue
+        if has_transcript(_json_body(content) if is_json else content):
+            return None
+    if unreadable:
+        name, path = unreadable[0]
+        return UNREADABLE.format(name=name, path=path, cwd=cwd)
+    reason = MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
+    if api and re.search(r"/pulls/[^/\s]+/", text):
         reason += REPLY_HINT
     return reason
 
 
-def _rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
-    """The 0.4.2 rule, unchanged."""
-    match = PR_COMMAND.search(command)
-    api = API_COMMAND.search(command)
-    if not match and not api:
-        return None
-    if api and not re.search(r"(?:-X|--method)\s*(?:POST|PATCH)|-f\s+body=|-F\s+body=|--field\s+body=|--raw-field\s+body=", command):
-        return None
-    if match and match.group("verb") == "edit" and not any(re.search(rf"(?:^|\s){re.escape(flag)}(?:[\s=]|$)", command) for flag in BODY_FLAGS):
-        return None
-    if api and not re.search(r"\bbody\b", command):
-        return None
-    if not _is_diversio(command, cwd):
-        return None
-    # A heredoc body (`--body "$(cat <<'EOF' ...)"`) arrives as one token holding the text, so its lines are checked too.
-    if LINK.search(command) or any(has_transcript(text) for text in _bodies(command, cwd, argv)):
-        return None
-    return MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
+def _pr_bodies(tokens: list[str]) -> tuple[list[str], list[tuple[str, bool]]]:
+    """The inline body texts and body files a `gh pr create|edit` call passes."""
+    inline, files = [], []
+    for index, token in enumerate(tokens):
+        following = tokens[index + 1] if index + 1 < len(tokens) else None
+        if token in ("--body", "-b") and following is not None:
+            inline.append(following)
+        elif token.startswith("--body="):
+            inline.append(token.split("=", 1)[1])
+        elif token in ("--body-file", "-F") and following is not None:
+            files.append((following, False))
+        elif token.startswith("--body-file="):
+            files.append((token.split("=", 1)[1], False))
+    return inline, files
+
+
+def _api_request(tokens: list[str], command: str) -> tuple[str, list[str], list[tuple[str, bool]], bool]:
+    """A `gh api` call's method, inline `body` values, body files and whether it sends a body. gh sends GET unless
+    told otherwise or given fields, then POST."""
+    method, fields, sends_body = None, False, False
+    inline: list[str] = []
+    files: list[tuple[str, bool]] = []
+    index = 2
+    while index < len(tokens):
+        token = tokens[index]
+        value = tokens[index + 1] if index + 1 < len(tokens) else ""
+        step = 2
+        if token in ("-X", "--method"):
+            method = value.upper()
+        elif token.startswith("-X") or token.startswith("--method="):
+            method, step = token.removeprefix("-X").removeprefix("--method=").upper(), 1
+        elif token in ("-f", "-F", "--field", "--raw-field"):
+            fields = True
+            if value.startswith("body="):
+                sends_body = True
+                body = value.split("=", 1)[1]
+                if token in ("-F", "--field") and body.startswith("@"):
+                    files.append((body[1:], False))
+                else:
+                    inline.append(body)
+        elif token == "--input":
+            fields = True
+            # A request read from stdin is only known to hold a body when the command text says so.
+            if value != "-" or re.search(r"\bbody\b", command):
+                sends_body = True
+                files.append((value, True))
+        else:
+            step = 1
+        index += step
+    return method or ("POST" if fields else "GET"), inline, files, sends_body
+
+
+def _json_body(content: str) -> str:
+    """The `body` of a JSON request file, or the whole text when it is not a JSON object."""
+    try:
+        data = json.loads(content)
+    except ValueError:
+        return content
+    return str(data.get("body") or "") if isinstance(data, dict) else content
+
+
+def _writes(prefix: str, name: str) -> bool:
+    """Whether the command writes file `name` before the call: `> name`, `>> name` or `tee name`."""
+    quoted = rf"""(?:{re.escape(name)}|'{re.escape(name)}'|"{re.escape(name)}")"""
+    return bool(re.search(rf"(?:>>?|\btee(?:\s+-a)?)\s*{quoted}(?=$|[\s;&|)])", prefix))
 
 
 def main() -> int:

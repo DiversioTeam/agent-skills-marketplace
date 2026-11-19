@@ -16,9 +16,11 @@ says so with `No agent session: <reason>` instead.
 A transcript must cover the branch's current HEAD. In repositories that have
 enabled it, local-ci runs `agent-session check` as a required step; rollout is
 per repository, not automatic. The plugin's Claude Code hook blocks
-`gh pr create` and body edits without a link or declaration. Review replies
-and comments pass when sent as one plain `gh api` command with a literal
-endpoint; put their text in a file and pass `-F body=@/path/reply.md`. Never
+`gh pr create` and body edits without a link or declaration. It judges each
+gh call in a chained command on its own: review replies, comments, reviewer
+requests and reads pass; for replies, put the text in a file and pass
+`-F body=@/path/reply.md`, with a literal endpoint and no `$` or backticks.
+A relative `--body-file` resolves from the last `cd` before the call. Never
 work around either check; never fake a link.
 
 The `agent-session` command (a shim in `~/.local/bin`, installed and kept
