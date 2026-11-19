@@ -3,6 +3,9 @@
 
 Reads the hook payload on stdin. Exit 0 allows the call; exit 2 blocks it and shows stderr to the model. local-ci's
 agent-session check (required `local/verify`) is the real gate; this gives the agent the feedback before the PR exists.
+
+A chained command whose gh calls are only review replies, comments, reviewer requests or reads passes. Otherwise the
+0.4.2 rule below judges the whole command, as before.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from pr_body import LINK, has_transcript  # noqa: E402
+from pr_body import DECLARATION, LINK, has_transcript  # noqa: E402
 
 PR_COMMAND = re.compile(r"\bgh\s+pr\s+(?P<verb>create|edit)\b")
 API_COMMAND = re.compile(r"\bgh\s+api\b[^\n]*\brepos/[^/\s]+/[^/\s]+/pulls\b")
@@ -44,6 +47,23 @@ WORD = re.compile(r"""(?:[^\s'"\\]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+""", re.DOTALL
 PART = re.compile(r"""'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)|([^\s'"\\]+)""", re.DOTALL)
 SPACE = re.compile(r"[ \t]*")
 GH_API_START = re.compile(r"[ \t]*gh[ \t]+api[ \t]")
+# A literal `cd DIR` or `pushd DIR`, which moves where a relative --body-file is read from.
+CD = re.compile(r"""(?:^|[;&|(\n])[ \t]*(?:cd|pushd)[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
+                r"""[ \t]*(?=$|[;&|)\n])""")
+# A declaration that `printf` or `echo` writes to the body file earlier in the same command follows a quote or a `\n`.
+WRITTEN_DECLARATION = re.compile(r"""(?:^|['"]|\\n)[ \t]*(?:[-*][ \t]*)?No agent session:[ \t]*[^\s'"\\][^\n'"]{2,}""",
+                                 re.MULTILINE | re.IGNORECASE)
+# The pieces that decide where one command in a chain ends: quoted spans, escapes, `$(`, parentheses, descriptor
+# duplications such as `2>&1`, and the operators themselves.
+SEGMENT_TOKEN = re.compile(r"""'[^']*'?|"(?:[^"\\]|\\.)*"?|\\.|\$\(|`[^`]*`?|[^'"\\$`;&|\n()]+|(?<=[<>])&[0-9-]*|&>>?|.""",
+                           re.DOTALL)
+# A redirection of a call's own output, which does not change what the call sends.
+OUTPUT_REDIRECT = re.compile(r"""[ \t]+(?:[0-9]*>>?|&>>?)[ \t]*(?:&[0-9-]+|[^\s;&|<>'"`$()]+)""")
+UNREADABLE = (
+    "The PR body file `{name}` could not be read at {path}. A relative path resolves from the last `cd` before the gh "
+    "command, else from the session directory {cwd}. Pass an absolute path, or write the file before this command. "
+    "The body needs an agent session transcript link or a line 'No agent session: <reason>'."
+)
 MESSAGE = (
     "This PR needs its agent session transcript. Run the agent-session skill "
     "(`agent-session share`, or `python3 {script} share`; on a first publish review the preview with the developer, then add `--yes`). "
@@ -52,9 +72,10 @@ MESSAGE = (
 )
 
 
-def _bodies(command: str, cwd: Path, argv: list[str] | None = None) -> list[str]:
+def _bodies(command: str, cwd: Path, argv: list[str] | None = None,
+            unreadable: list[tuple[str, Path]] | None = None) -> list[str]:
     """The PR body texts a command passes: inline `--body`/`-b` values (and `body=` API fields) and `--body-file` contents.
-    An argv list keeps its own argument boundaries."""
+    An argv list keeps its own argument boundaries. Body files that cannot be read are added to `unreadable`."""
     if argv is not None:
         tokens = argv
     else:
@@ -74,11 +95,25 @@ def _bodies(command: str, cwd: Path, argv: list[str] | None = None) -> list[str]
         file = following if token in ("--body-file", "-F") and following and not following.startswith("body=") else (
             token.split("=", 1)[1] if token.startswith("--body-file=") else None)
         if file and file != "-":
+            path = cwd / Path(file).expanduser()
             try:
-                texts.append((cwd / file).expanduser().read_text(encoding="utf-8"))
+                texts.append(path.read_text(encoding="utf-8"))
             except OSError:
-                pass
+                if unreadable is not None:
+                    unreadable.append((file, path))
     return texts
+
+
+def _directory(command: str, cwd: Path) -> Path:
+    """Where the gh call runs: the session directory, changed by each literal `cd DIR` before the first gh call."""
+    first = min([match.start() for match in (PR_COMMAND.search(command), API_COMMAND.search(command)) if match] or [0])
+    directory = cwd
+    for match in CD.finditer(command, 0, first):
+        words = _words(match.group("dir"))
+        if not words or len(words) != 1 or "$" in words[0] or "`" in words[0] or words[0] == "-":
+            continue
+        directory = directory / Path(words[0]).expanduser()
+    return directory
 
 
 def _is_diversio(command: str, cwd: Path) -> bool:
@@ -128,10 +163,46 @@ def _review_call(command: str) -> bool:
     return len(positional) == 1 and bool(REVIEW_ENDPOINT.match(positional[0]))
 
 
+def _segments(command: str) -> list[str]:
+    """The commands of a chain, split at unquoted `;`, `&`, `|` and newlines outside `$(...)` and parentheses."""
+    pieces, start, depth = [], 0, 0
+    for match in SEGMENT_TOKEN.finditer(command):
+        token = match.group()
+        if token in ("$(", "("):
+            depth += 1
+        elif token == ")" and depth:
+            depth -= 1
+        elif token in (";", "&", "|", "\n") and not depth:
+            pieces.append(command[start:match.start()])
+            start = match.end()
+    return [piece for piece in pieces + [command[start:]] if piece.strip()]
+
+
+def _writes_description(segment: str, command: str) -> bool:
+    """Whether one command of a chain gets the rule: a `gh pr create`, a `gh pr edit` with a body flag, or a `gh api`
+    write to a pull request that sends a body. Review replies, review comments, reviewer requests, `gh pr comment`
+    and reads do not."""
+    text = segment.strip()
+    if _review_call(OUTPUT_REDIRECT.sub("", text)):
+        return False
+    match = PR_COMMAND.search(text)
+    api = API_COMMAND.search(text)
+    if not match and not api:
+        return False
+    if match and match.group("verb") == "create":
+        return True
+    if match:
+        return any(re.search(rf"(?:^|\s){re.escape(flag)}(?:[\s=]|$)", text) for flag in BODY_FLAGS)
+    return bool(re.search(r"(?:-X|--method)\s*(?:POST|PATCH)|-f\s+body=|-F\s+body=|--field\s+body=|--raw-field\s+body=", text)
+                and re.search(r"\bbody\b", command))  # as in the rule: a piped heredoc may hold the body
+
+
 def decide(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
     """The reason to block, or None to allow. `argv` is the command as an argument list, when the tool sent one."""
     if _review_call(command):
         return None
+    if argv is None and not any(_writes_description(segment, command) for segment in _segments(command)):
+        return None  # only review traffic, comments and reads
     reason = _rule(command, cwd, argv)
     if reason and API_COMMAND.search(command) and re.search(r"/pulls/[^/\s]+/", command):
         reason += REPLY_HINT
@@ -150,11 +221,21 @@ def _rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
         return None
     if api and not re.search(r"\bbody\b", command):
         return None
-    if not _is_diversio(command, cwd):
+    directory = _directory(command, cwd)
+    if not _is_diversio(command, directory):
         return None
-    # A heredoc body (`--body "$(cat <<'EOF' ...)"`) arrives as one token holding the text, so its lines are checked too.
-    if LINK.search(command) or any(has_transcript(text) for text in _bodies(command, cwd, argv)):
+    # A heredoc body (`--body "$(cat <<'EOF' ...)"`, or `cat > body.md <<'EOF'` before the call) puts the body's lines in
+    # the command text, so a link or a declaration line anywhere in it counts. So does a declaration that `printf` or
+    # `echo` writes before the gh call.
+    first = min([found.start() for found in (match, api) if found])
+    if LINK.search(command) or DECLARATION.search(command) or WRITTEN_DECLARATION.search(command[:first]):
         return None
+    unreadable: list[tuple[str, Path]] = []
+    if any(has_transcript(text) for text in _bodies(command, directory, argv, unreadable)):
+        return None
+    if unreadable:
+        name, path = unreadable[0]
+        return UNREADABLE.format(name=name, path=path, cwd=cwd)
     return MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
 
 
