@@ -104,6 +104,23 @@ def _bodies(command: str, cwd: Path, argv: list[str] | None = None,
     return texts
 
 
+def _writes_declaration(prefix: str, call: str) -> bool:
+    """Whether a `printf` or `echo` before the gh call writes a declaration into the body the call reads: a file it
+    redirects or tees to that the call passes as `--body-file`/`-F`, or a pipe into `--body-file -`."""
+    if not WRITTEN_DECLARATION.search(prefix):
+        return False
+    words = _words(call) or call.split()
+    files = [following for token, following in zip(words, words[1:]) if token in ("--body-file", "-F")]
+    files += [token.split("=", 1)[1] for token in words if token.startswith("--body-file=")]
+    for name in files:
+        if name == "-" and re.search(r"(?<!\|)\|[ \t]*$", prefix):
+            return True
+        quoted = rf"""(?:{re.escape(name)}|'{re.escape(name)}'|"{re.escape(name)}")"""
+        if name != "-" and re.search(rf"(?:>>?|\btee(?:\s+-a)?)\s*{quoted}(?=$|[\s;&|)])", prefix):
+            return True
+    return False
+
+
 def _directory(command: str, cwd: Path) -> Path:
     """Where the gh call runs: the session directory, changed by each literal `cd DIR` before the first gh call."""
     first = min([match.start() for match in (PR_COMMAND.search(command), API_COMMAND.search(command)) if match] or [0])
@@ -228,7 +245,7 @@ def _rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
     # the command text, so a link or a declaration line anywhere in it counts. So does a declaration that `printf` or
     # `echo` writes before the gh call.
     first = min([found.start() for found in (match, api) if found])
-    if LINK.search(command) or DECLARATION.search(command) or WRITTEN_DECLARATION.search(command[:first]):
+    if LINK.search(command) or DECLARATION.search(command) or _writes_declaration(command[:first], command[first:]):
         return None
     unreadable: list[tuple[str, Path]] = []
     if any(has_transcript(text) for text in _bodies(command, directory, argv, unreadable)):

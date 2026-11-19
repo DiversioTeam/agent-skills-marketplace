@@ -1932,6 +1932,11 @@ class PrBodyAndHookTests(unittest.TestCase):
         # A title is not a declaration, and a body without one still blocks.
         self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --title 'No agent session: sneaky title' --body x", cwd))
         self.assertIsNotNone(check_pr_hook.decide(f"cat > body.md <<'EOF'\n## Summary\nEOF\ngh pr create {repo} --title T --body-file body.md", cwd))
+        # Printed text counts only when it is written into the body the call reads.
+        for command in (f"printf 'No agent session: just logging\\n' && gh pr create {repo} --title T --body x",
+                        f"echo 'No agent session: just logging' > notes.md && gh pr create {repo} --title T --body-file body.md",
+                        f"echo 'No agent session: just logging' | gh pr create {repo} --title T --body x"):
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
 
     def test_hook_names_the_resolved_path_of_a_body_file_it_cannot_read(self):
         with tempfile.TemporaryDirectory() as directory:
