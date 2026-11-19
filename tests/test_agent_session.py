@@ -2215,6 +2215,43 @@ class PrBodyAndHookTests(unittest.TestCase):
             self.assertIsNotNone(check_pr_hook.decide(
                 f"echo 'notes' > {directory}/sub/body.md && cd sub && gh pr create {repo} --title T --body-file body.md", cwd))
 
+    def test_hook_reads_stdin_from_a_redirection_or_here_string(self):
+        repo = "--repo DiversioTeam/demo"
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = Path(directory)
+            for compliant, data in ((True, '{"title": "New title"}'), (True, '{"body": "See %s"}' % self.LINK),
+                                    (False, '{"body": "Release notes"}')):
+                Path(directory, "edit.json").write_text(data, encoding="utf-8")
+                for command in (f"gh api -X PATCH {pulls} --input edit.json", f"gh api -X PATCH {pulls} --input - < edit.json",
+                                f"gh api -X PATCH {pulls} --input - <<< '{data}'"):
+                    self.assertEqual(check_pr_hook.decide(command, cwd) is None, compliant, command)
+            for compliant, text in ((True, f"See {self.LINK}"), (False, "Summary only")):
+                Path(directory, "body.md").write_text(text + "\n", encoding="utf-8")
+                for command in (f"gh pr create {repo} --title T --body-file body.md", f"gh pr create {repo} --title T --body-file - < body.md",
+                                f"gh pr create {repo} --title T --body-file - <<< '{text}'"):
+                    self.assertEqual(check_pr_hook.decide(command, cwd) is None, compliant, command)
+
+    def test_hook_keeps_reading_arguments_after_a_descriptor_duplication(self):
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "linked.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            Path(directory, "plain.md").write_text("Summary only\n", encoding="utf-8")
+            cwd = Path(directory)
+            for compliant, name in ((True, "linked.md"), (False, "plain.md")):
+                for command in (f"gh pr create {repo} --title T 2>&1 --body-file {name}", f"gh pr create {repo} --title T --body-file {name} 2>&1",
+                                f"gh pr create {repo} --title T >&2 --body-file {name}", f"gh pr create {repo} --title T &>/dev/null --body-file {name}"):
+                    self.assertEqual(check_pr_hook.decide(command, cwd) is None, compliant, command)
+
+    def test_hook_skips_the_values_of_other_flags(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        for command in (f"gh pr edit 7 {repo} --title '-budget'", f"gh pr edit 7 {repo} -t -budget", f"gh pr edit 7 {repo} --title -Fplain.md",
+                        f"gh pr edit 7 {repo} --add-label -bug", f"gh pr create {repo} --title '-b x' --body 'See {self.LINK}'"):
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        for command in (f"gh pr edit 7 {repo} --body '-budget'", f"gh pr edit 7 {repo} --title T -bplain"):
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+
     def test_hook_still_allows_the_valid_shapes_that_pass_on_main(self):
         # Every command here passes on main; a fix for one false block must not add another.
         repo = "--repo DiversioTeam/demo"
@@ -2243,6 +2280,9 @@ class PrBodyAndHookTests(unittest.TestCase):
                 f"gh pr view 7 {repo} --json body --jq .body",
                 f"gh api {pulls} --jq .body",
                 "git commit -m 'Explain gh pr create flags'",
+                f"gh pr create {repo} --title T --body-file - <<< 'See {self.LINK}'",
+                f"gh pr create {repo} --title T 2>&1 --body-file linked.md",
+                f"gh pr edit 7 {repo} --title '-budget'",
             ]
             for shape in shapes:
                 self.assertIsNone(check_pr_hook.decide(shape, Path(directory)), shape)

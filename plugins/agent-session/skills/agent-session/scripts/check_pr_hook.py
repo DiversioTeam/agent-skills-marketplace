@@ -39,6 +39,8 @@ ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 # Runs of characters with no meaning to the quote scan, skipped in one step to keep it linear on long arguments.
 CODE_TEXT = re.compile(r"""[^\\'"$()`;&|\n]+""")
 EXPANDED_TEXT = re.compile(r"""[^\\"$`]+""")
+# A `< FILE` or `<<< WORD` that feeds a command's standard input (not a heredoc, `<(...)` or `<&N`).
+STDIN_REDIRECT = re.compile(r"""(?<![<0-9])(?:(?P<here><<<)|<(?![<(&]))[ \t]*(?P<word>(?:[^\s'"\\;&|()<>]|'[^']*'|"(?:[^"\\]|\\.)*")+)""")
 # A redirection or `tee` that writes a file, and the file's word.
 WRITE = re.compile(r"""(?P<op>>>?|\btee(?P<append>[ \t]+-a)?)[ \t]*(?P<target>(?:[^\s'"\\;&|()<>]|'[^']*'|"(?:[^"\\]|\\.)*")+)""")
 # A quoted literal in a command that may hold the JSON it writes: '...' or "..." with its escapes.
@@ -47,7 +49,8 @@ PULLS_COLLECTION = re.compile(r"^(?:https://api\.github\.com/|/)?repos/[^/\s]+/[
 ENDPOINT_OWNER = re.compile(r"(?:https://api\.github\.com/|/)?repos/([^/\s]+)/")
 API_TARGET = re.compile(r"\brepos/[^/\s]+/[^/\s]+/pulls\b")
 # The shell pieces that decide where one simple command ends: quoted spans, escapes, `$(`, parentheses and operators.
-SEGMENT_TOKEN = re.compile(r"""'[^']*'?|"(?:[^"\\]|\\.)*"?|\\.|\$\(|`[^`]*`?|[^'"\\$`;&|\n()]+|.""", re.DOTALL)
+SEGMENT_TOKEN = re.compile(r"""'[^']*'?|"(?:[^"\\]|\\.)*"?|\\.|\$\(|`[^`]*`?|[^'"\\$`;&|\n()]+|(?<=[<>])&[0-9-]*|&>>?|.""",
+                           re.DOTALL)
 CD = re.compile(r"""(?:^|[;&|(\n])[ \t]*(?P<cd>cd|pushd)[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
                 r"""[ \t]*(?=$|[;&|)\n])""")
 # A declaration that `printf` or `echo` writes to the body file earlier in the same command follows a quote or a `\n`.
@@ -64,6 +67,12 @@ REVIEW_ENDPOINT = re.compile(
     r"|comments/[0-9]+)$"
 )
 NOT_SIMPLE = (";", "&", "|", "\n", "\r", "$", "`", "<", ">")
+# `gh pr create` and `gh pr edit` flags that take a value, other than the body's own.
+PR_VALUE_FLAGS = frozenset({
+    "--title", "-t", "--base", "-B", "--head", "-H", "--repo", "-R", "--label", "-l", "--assignee", "-a", "--reviewer",
+    "-r", "--milestone", "-m", "--project", "-p", "--template", "-T", "--recover", "--add-label", "--remove-label",
+    "--add-reviewer", "--remove-reviewer", "--add-assignee", "--remove-assignee", "--add-project", "--remove-project",
+})
 API_VALUE_FLAGS = frozenset({"-X", "--method", "-f", "-F", "--field", "--raw-field", "-H", "--header", "-q", "--jq",
                              "-t", "--template", "--input", "-p", "--preview", "--hostname", "--cache"})
 REPLY_HINT = (
@@ -427,15 +436,38 @@ class Written(NamedTuple):
     payload: dict | None
 
 
-def _stdin(call: Call) -> Written:
-    """What feeds the call's standard input: its own heredocs, and the command piped into it."""
+def _stdin(call: Call, directory: Path) -> Written:
+    """What feeds the call's standard input: its own heredocs, the command piped into it, and a `< FILE` or
+    `<<< WORD` redirection, which replaces the others."""
     parts = [(call.start, call.end, False)]
     before = call.scanned[:call.start].rstrip()
     if before.endswith("|") and not before.endswith("||"):
         pipe = len(before) - 1
         parts.append((_segment_start(call.scanned, pipe), pipe, True))
     texts = [_produced(call, start, end) if text else _source(call, start, end, text) for start, end, text in parts]
-    return Written("\n".join(texts), _payload(call, parts))
+    written = Written("\n".join(texts), _payload(call, parts))
+    for match in STDIN_REDIRECT.finditer(call.scanned, call.start, call.end):
+        words = _words(call.command[match.start("word"):match.end("word")])
+        if _inside(match.start(), call.quoted) or not words or len(words) != 1 or "$" in words[0]:
+            continue
+        if match.group("here"):
+            content = words[0] + "\n"
+        else:
+            try:
+                content = (directory / Path(words[0]).expanduser()).read_text(encoding="utf-8")
+            except OSError:
+                continue
+        written = Written(content, _json_object(content))
+    return written
+
+
+def _json_object(text: str) -> dict | None:
+    """The JSON object at the start of `text`, or None."""
+    try:
+        data, _ = json.JSONDecoder().raw_decode(text.strip())
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _written(call: Call, path: Path, cwd: Path) -> Written | None:
@@ -534,6 +566,7 @@ def _api_create(tokens: list[str], method: str) -> bool:
 def _check_call(call: Call, cwd: Path) -> str | None:
     """The reason to block one gh call, or None. Only PR description writes need the transcript."""
     tokens, method, create = call.tokens, None, False
+    directory = _directory(call.scanned[:call.start], cwd, call.quoted)
     if tokens[:3] in (["gh", "pr", "create"], ["gh", "pr", "edit"]):
         inline, files = _pr_bodies(tokens)
         if tokens[2] == "edit" and not inline and not files:
@@ -541,13 +574,12 @@ def _check_call(call: Call, cwd: Path) -> str | None:
     elif tokens[:2] == ["gh", "api"]:
         if not API_TARGET.search(call.text) or _review_call(call.text, strict=False):
             return None
-        method, inline, files, sends_body = _api_request(tokens, _stdin(call))
+        method, inline, files, sends_body = _api_request(tokens, _stdin(call, directory))
         create = _api_create(tokens, method)
         if method == "GET" or not (sends_body or create):
             return None  # a create always sends a description, even an empty one
     else:
         return None
-    directory = _directory(call.scanned[:call.start], cwd, call.quoted)
     if not _is_diversio(call, directory):
         return None
     # Only the body counts, never the title; an inline body keeps a heredoc in `--body "$(cat <<'EOF' ...)"`.
@@ -555,7 +587,7 @@ def _check_call(call: Call, cwd: Path) -> str | None:
         return None
     unreadable, metadata = [], 0
     for name, is_json in files:
-        written = _stdin(call) if name == "-" else _written(call, directory / Path(name).expanduser(), cwd)
+        written = _stdin(call, directory) if name == "-" else _written(call, directory / Path(name).expanduser(), cwd)
         if written is not None:
             # Written or piped in by this same command, so the file on disk is not the body yet.
             if is_json and written.payload is not None:
@@ -594,22 +626,31 @@ def _check_call(call: Call, cwd: Path) -> str | None:
 
 
 def _pr_bodies(tokens: list[str]) -> tuple[list[str], list[tuple[str, bool]]]:
-    """The inline body texts and body files a `gh pr create|edit` call passes."""
+    """The inline body texts and body files a `gh pr create|edit` call passes. The value of every other flag is
+    skipped, so a title such as `-budget` is never read as `-b udget`."""
     inline, files = [], []
-    for index, token in enumerate(tokens):
+    index = 3
+    while index < len(tokens):
+        token = tokens[index]
         following = tokens[index + 1] if index + 1 < len(tokens) else None
-        if token in ("--body", "-b") and following is not None:
-            inline.append(following)
-        elif token.startswith("--body="):
+        if token == "--":
+            break
+        if token in ("--body", "-b", "--body-file", "-F") or token in PR_VALUE_FLAGS:
+            if following is not None and token in ("--body", "-b"):
+                inline.append(following)
+            elif following is not None and token in ("--body-file", "-F"):
+                files.append((following, False))
+            index += 2
+            continue
+        if token.startswith("--body="):
             inline.append(token.split("=", 1)[1])
+        elif token.startswith("--body-file="):
+            files.append((token.split("=", 1)[1], False))
         elif token.startswith("-b") and len(token) > 2:
             inline.append(token[2:])  # gh reads `-bVALUE` as `-b VALUE`
         elif token.startswith("-F") and len(token) > 2:
             files.append((token[2:], False))
-        elif token in ("--body-file", "-F") and following is not None:
-            files.append((following, False))
-        elif token.startswith("--body-file="):
-            files.append((token.split("=", 1)[1], False))
+        index += 1
     return inline, files
 
 
