@@ -11,7 +11,6 @@ A chained command whose gh calls are only review replies, comments, reviewer req
 from __future__ import annotations
 
 import json
-import os
 import re
 import shlex
 import subprocess
@@ -49,8 +48,10 @@ PART = re.compile(r"""'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)|([^\s'"\\]+)""", re.DO
 SPACE = re.compile(r"[ \t]*")
 GH_API_START = re.compile(r"[ \t]*gh[ \t]+api[ \t]")
 # A literal `cd DIR` or `pushd DIR`, which moves where a relative --body-file is read from.
-CD = re.compile(r"""(?:^|[;&|(\n])[ \t]*(?P<cd>cd|pushd)[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
+CD = re.compile(r"""(?:^|[;&|(\n])[ \t]*(?:cd|pushd)[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
                 r"""[ \t]*(?=$|[;&|)\n])""")
+# The `cd DIR &&` or `cd DIR;` steps a command starts with, one after another.
+LEADING_CD = re.compile(r"""[ \t]*cd[ \t]+(?P<dir>(?:[^\s'"\\;&|()]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)[ \t]*(?:&&|;)""")
 # A declaration that `printf` or `echo` writes to the body file earlier in the same command follows a quote or a `\n`.
 WRITTEN_DECLARATION = re.compile(r"""(?:^|['"]|\\n)[ \t]*(?:[-*][ \t]*)?No agent session:[ \t]*[^\s'"\\][^\n'"]{2,}""",
                                  re.MULTILINE | re.IGNORECASE)
@@ -58,10 +59,6 @@ WRITTEN_DECLARATION = re.compile(r"""(?:^|['"]|\\n)[ \t]*(?:[-*][ \t]*)?No agent
 # duplications such as `2>&1`, and the operators themselves.
 SEGMENT_TOKEN = re.compile(r"""'[^']*'?|"(?:[^"\\]|\\.)*"?|\\.|\$\(|`[^`]*`?|[^'"\\$`;&|\n()]+|(?<=[<>])&[0-9-]*|&>>?|.""",
                            re.DOTALL)
-# A `> FILE`, `>> FILE`, `tee FILE` or `tee -a FILE` that writes a file, and the file's word.
-WRITE = re.compile(r"""(?:>>?|\btee(?:[ \t]+-a)?)[ \t]*(?P<target>(?:[^\s'"\\;&|()<>]|'[^']*'|"(?:[^"\\]|\\.)*")+)""")
-# A heredoc operator and its delimiter (`<<<` is a here-string).
-HEREDOC = re.compile(r"""<<(?!<)(?P<dash>-?)[ \t]*(?:'(?P<single>[^'\n]+)'|"(?P<double>[^"\n]+)"|\\?(?P<plain>[A-Za-z0-9_.-]+))""")
 # A redirection of a call's own output, which does not change what the call sends.
 OUTPUT_REDIRECT = re.compile(r"""[ \t]+(?:[0-9]*>>?|&>>?)[ \t]*(?:&[0-9-]+|[^\s;&|<>'"`$()]+)""")
 UNREADABLE = (
@@ -109,114 +106,34 @@ def _bodies(command: str, cwd: Path, argv: list[str] | None = None,
     return texts
 
 
-def _writes_declaration(command: str, first: int, cwd: Path, directory: Path) -> bool:
-    """Whether a `printf` or `echo` before the gh call writes a declaration into the body the call reads: the same
-    command writes the declaration and redirects or tees it to the file the call passes as `--body-file`/`-F` (both
-    paths resolved where their commands run), or pipes it into `--body-file -`."""
-    prefix = command[:first]
-    if not WRITTEN_DECLARATION.search(prefix):
-        return False
-    words = _words(command[first:]) or command[first:].split()
-    files = [following for token, following in zip(words, words[1:]) if token in ("--body-file", "-F")]
-    files += [token.split("=", 1)[1] for token in words if token.startswith("--body-file=")]
-    spans = _segment_spans(prefix)
-    for name in files:
-        if name == "-":
-            piped = re.search(r"(?<!\|)\|[ \t]*$", prefix)
-            if piped and spans and WRITTEN_DECLARATION.search(prefix[spans[-1][0]:spans[-1][1]]):
-                return True
-            continue
-        target = os.path.normpath(directory / Path(name).expanduser())
-        for start, end in spans:
-            text = prefix[start:end]
-            if not WRITTEN_DECLARATION.search(text):
-                continue
-            for write in WRITE.finditer(text):
-                written = _words(write.group("target"))
-                if not written or len(written) != 1 or "$" in written[0]:
-                    continue
-                where = _directory(command, cwd, start)
-                if os.path.normpath(where / Path(written[0]).expanduser()) == target:
-                    return True
-    return False
-
-
-def _top_level(command: str, end: int) -> bytearray | None:
-    """For each character before `end`, 1 when it is shell code outside every parenthesis, `$(...)`, quote, comment
-    and heredoc body, else 0. None when the scan cannot tell (an unclosed quote). Deliberately conservative: a `cd`
-    is trusted only where this marks it, so the hook never moves a call into a directory Bash does not use."""
-    mask = bytearray(end)
-    index, depth, double, pending = 0, 0, False, []
-    while index < end:
-        char = command[index]
-        if char == "\\":
-            index += 2
-            continue
-        if double:
-            if char == '"':
-                double = False
-            elif command.startswith("$(", index):
-                depth += 1
-                index += 1
-            elif char == ")" and depth:
-                depth -= 1
-            index += 1
-            continue
-        if char == "'":
-            close = command.find("'", index + 1)
-            if close < 0:
-                return None
-            index = close + 1
-            continue
-        if char == '"':
-            double = True
-        elif char == "#" and (index == 0 or command[index - 1] in " \t\n;&|("):
-            newline = command.find("\n", index)
-            index = end if newline < 0 else newline
-            continue
-        elif command.startswith("<<", index) and (heredoc := HEREDOC.match(command, index)):
-            pending.append(heredoc)
-            index = heredoc.end()
-            continue
-        elif char == "\n" and pending:
-            # Skip each pending heredoc body, up to a line that is exactly its delimiter.
-            position = index + 1
-            for heredoc in pending:
-                delimiter = heredoc.group("single") or heredoc.group("double") or heredoc.group("plain")
-                tabs = r"\t*" if heredoc.group("dash") else ""
-                last = re.compile(rf"^{tabs}{re.escape(delimiter)}$", re.MULTILINE).search(command, position)
-                position = last.end() if last else len(command)
-            pending = []
-            index = position
-            continue
-        elif char == "(":
-            depth += 1
-        elif char == ")":
-            depth = max(depth - 1, 0)
-        elif not depth:
-            mask[index] = 1
-        index += 1
-    return None if double else mask
-
-
-def _directory(command: str, cwd: Path, end: int | None = None) -> Path:
-    """Where the command at `end` (default: the first gh call) runs: the session directory, changed by each literal
-    `cd DIR` before it at the top level of the command. A `cd` inside parentheses, `$(...)`, quotes, a comment or a
-    heredoc is ignored."""
-    if end is None:
-        end = min([match.start() for match in (PR_COMMAND.search(command), API_COMMAND.search(command)) if match] or [0])
-    mask = _top_level(command, end)
-    if mask is None:
-        return cwd
+def _directory(command: str, cwd: Path) -> Path:
+    """Where the gh call runs: the session directory, changed by each literal `cd DIR` before the first gh call."""
+    first = min([match.start() for match in (PR_COMMAND.search(command), API_COMMAND.search(command)) if match] or [0])
     directory = cwd
-    for match in CD.finditer(command, 0, end):
-        if not mask[match.start("cd")]:
-            continue
+    for match in CD.finditer(command, 0, first):
         words = _words(match.group("dir"))
         if not words or len(words) != 1 or "$" in words[0] or "`" in words[0] or words[0] == "-":
             continue
         directory = directory / Path(words[0]).expanduser()
     return directory
+
+
+def _directories(command: str, cwd: Path) -> list[Path]:
+    """Where a relative body file may be read from, most likely first: after every literal `cd` before the gh call
+    (0.5.2), after only the leading `cd DIR &&` or `cd DIR;` steps of the command, and the session directory (0.5.1).
+    A shell scan cannot tell which `cd`s reach the call (subshells, comments, heredocs), so the hook accepts a body file
+    found in any of them rather than block a command an earlier version allows."""
+    leading, position = cwd, 0
+    while match := LEADING_CD.match(command, position):
+        words = _words(match.group("dir"))
+        if not words or len(words) != 1 or "$" in words[0] or "`" in words[0] or words[0] == "-":
+            break
+        leading, position = leading / Path(words[0]).expanduser(), match.end()
+    found: list[Path] = []
+    for directory in (_directory(command, cwd), leading, cwd):
+        if directory not in found:
+            found.append(directory)
+    return found
 
 
 def _is_diversio(command: str, cwd: Path) -> bool:
@@ -266,10 +183,9 @@ def _review_call(command: str) -> bool:
     return len(positional) == 1 and bool(REVIEW_ENDPOINT.match(positional[0]))
 
 
-def _segment_spans(command: str) -> list[tuple[int, int]]:
-    """Where each command of a chain starts and ends: split at unquoted `;`, `&`, `|` and newlines outside `$(...)`
-    and parentheses."""
-    spans, start, depth = [], 0, 0
+def _segments(command: str) -> list[str]:
+    """The commands of a chain, split at unquoted `;`, `&`, `|` and newlines outside `$(...)` and parentheses."""
+    pieces, start, depth = [], 0, 0
     for match in SEGMENT_TOKEN.finditer(command):
         token = match.group()
         if token in ("$(", "("):
@@ -277,14 +193,9 @@ def _segment_spans(command: str) -> list[tuple[int, int]]:
         elif token == ")" and depth:
             depth -= 1
         elif token in (";", "&", "|", "\n") and not depth:
-            spans.append((start, match.start()))
+            pieces.append(command[start:match.start()])
             start = match.end()
-    return [(begin, stop) for begin, stop in spans + [(start, len(command))] if command[begin:stop].strip()]
-
-
-def _segments(command: str) -> list[str]:
-    """The commands of a chain, as text."""
-    return [command[start:end] for start, end in _segment_spans(command)]
+    return [piece for piece in pieces + [command[start:]] if piece.strip()]
 
 
 def _writes_description(segment: str, command: str) -> bool:
@@ -337,11 +248,15 @@ def _rule(command: str, cwd: Path, argv: list[str] | None = None) -> str | None:
     # the command text, so a link or a declaration line anywhere in it counts. So does a declaration that `printf` or
     # `echo` writes before the gh call.
     first = min([found.start() for found in (match, api) if found])
-    if LINK.search(command) or DECLARATION.search(command) or _writes_declaration(command, first, cwd, directory):
+    if LINK.search(command) or DECLARATION.search(command) or WRITTEN_DECLARATION.search(command[:first]):
         return None
     unreadable: list[tuple[str, Path]] = []
-    if any(has_transcript(text) for text in _bodies(command, directory, argv, unreadable)):
-        return None
+    for index, candidate in enumerate(_directories(command, cwd)):
+        missing: list[tuple[str, Path]] = []
+        if any(has_transcript(text) for text in _bodies(command, candidate, argv, missing)):
+            return None
+        if not index:
+            unreadable = missing  # report paths from the most likely directory
     if unreadable:
         name, path = unreadable[0]
         return UNREADABLE.format(name=name, path=path, cwd=cwd)

@@ -1937,11 +1937,6 @@ class PrBodyAndHookTests(unittest.TestCase):
         # A title is not a declaration, and a body without one still blocks.
         self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --title 'No agent session: sneaky title' --body x", cwd))
         self.assertIsNotNone(check_pr_hook.decide(f"cat > body.md <<'EOF'\n## Summary\nEOF\ngh pr create {repo} --title T --body-file body.md", cwd))
-        # Printed text counts only when it is written into the body the call reads.
-        for command in (f"printf 'No agent session: just logging\\n' && gh pr create {repo} --title T --body x",
-                        f"echo 'No agent session: just logging' > notes.md && gh pr create {repo} --title T --body-file body.md",
-                        f"echo 'No agent session: just logging' | gh pr create {repo} --title T --body x"):
-            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
 
     def test_hook_names_the_resolved_path_of_a_body_file_it_cannot_read(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1984,11 +1979,6 @@ class PrBodyAndHookTests(unittest.TestCase):
                 cd = "cd sub && " if producer.endswith("sub/body.md") else ""
                 command = f"{write.format(producer)} && {cd}gh pr create {repo} --title T --body-file {consumer}"
                 self.assertIsNone(check_pr_hook.decide(command, cwd), command)
-            # The declaration must be in the command that writes the body, not anywhere before it.
-            for command in (f"echo 'No agent session: unrelated log' > notes.md; echo plain > body.md; gh pr create {repo} --title T --body-file body.md",
-                            f"echo 'No agent session: unrelated log'; echo plain | gh pr edit 7 {repo} --body-file -",
-                            f"{write.format('sub/body.md')} && gh pr create {repo} --title T --body-file body.md"):
-                self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
 
     def test_hook_never_moves_a_call_into_a_directory_bash_does_not_use(self):
         repo = "--repo DiversioTeam/demo"
@@ -2004,8 +1994,39 @@ class PrBodyAndHookTests(unittest.TestCase):
                             f"# cd sub\ngh pr create {repo} --title T --body-file body.md"):
                 self.assertIsNone(check_pr_hook.decide(command, cwd), command)
 
+    def test_hook_reads_a_body_file_from_any_directory_an_earlier_version_used(self):
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = Path(directory)
+            Path(directory, "sub").mkdir()
+            Path(directory, "sub", "body.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            # body.md only in sub: gh reads it there.
+            for command in (f"cat <<< 'Notes' >/dev/null\ncd sub && gh pr create {repo} --title T --body-file body.md",
+                            f"(cd sub &&\n# 1) Create the PR\ngh pr create {repo} --title T --body-file body.md )",
+                            f"cd sub; gh pr create {repo} --title T --body-file body.md"):
+                self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+            Path(directory, "sub", "body.md").unlink()
+            Path(directory, "body.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            # body.md only in the session directory: gh reads it there once the subshell has closed.
+            self.assertIsNone(check_pr_hook.decide(f"(cd sub && git status) && gh pr create {repo} --title T --body-file body.md", cwd))
+            # A body file found nowhere still blocks, naming the most likely path.
+            reason = check_pr_hook.decide(f"cd sub && gh pr create {repo} --title T --body-file missing.md", cwd)
+            self.assertIn(str(Path(directory, "sub", "missing.md")), reason)
+
+    def test_hook_accepts_a_declaration_piped_through_tee_and_a_trailing_newline(self):
+        import subprocess
+        repo = "--repo DiversioTeam/demo"
+        cwd = Path("/nonexistent")
+        self.assertIsNone(check_pr_hook.decide(
+            f"printf '%s\\n' 'No agent session: written by hand' | tee body.md && gh pr create {repo} --title T --body-file body.md", cwd))
+        hook = Path(check_pr_hook.__file__)
+        command = f"printf 'No agent session: written by hand\\n' > 'pr body.md' && gh pr create {repo} --title T --body-file 'pr body.md'\n"
+        result = subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": command}, "cwd": "/tmp"}),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_hook_still_allows_the_valid_shapes_that_pass_on_main(self):
-        # Every command here passes with the 0.5.1 hook; this patch must not block any of them.
+        # Every command here passes with the 0.5.1 or the 0.5.2 hook; this patch must not block any of them.
         repo = "--repo DiversioTeam/demo"
         pulls = "repos/DiversioTeam/demo/pulls/7"
         with tempfile.TemporaryDirectory() as directory:
@@ -2039,6 +2060,9 @@ class PrBodyAndHookTests(unittest.TestCase):
                 f"gh api -X PATCH {pulls} --input - < {directory}/linked.md",
                 f"echo \"$(cd {directory} && pwd)\" && gh pr create {repo} --title T --body-file linked.md",
                 f"(cd /tmp && true # (\n) && gh pr create {repo} --title T --body-file linked.md",
+                f"cat <<< 'Notes' >/dev/null\ncd {directory} && gh pr create {repo} --title T --body-file linked.md",
+                f"printf '%s\\n' 'No agent session: written by hand' | tee body.md && gh pr create {repo} --title T --body-file body.md",
+                f"(cd {directory} &&\n# 1) Create the PR\ngh pr create {repo} --title T --body-file linked.md )",
             ]
             for shape in shapes:
                 self.assertIsNone(check_pr_hook.decide(shape, Path(directory)), shape)
