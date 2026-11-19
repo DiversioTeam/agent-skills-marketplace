@@ -179,6 +179,14 @@ def hidden_nodes(root: Node) -> set[int]:
     return found
 
 
+def visible_text(node: Node, unseen: set[int]) -> str:
+    """Reader text that leaves out what is not shown up front (see hidden_nodes), such as the folded part of a <details>."""
+    if id(node) in unseen:
+        return ""
+    parts = [child if isinstance(child, str) else visible_text(child, unseen) for child in node.children]
+    return (" " if node.name in BLOCK else "").join(parts)
+
+
 def strip_comments(css: str) -> str:
     """CSS without /* comments */; quoted strings are kept as they are, so a "/*" inside one is not a comment."""
     output, index, quote = [], 0, ""
@@ -465,8 +473,8 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         missing.append('<html lang="en">')
     if not any(node.attrs.get("name") == "viewport" for node in by_name("meta")):
         missing.append("a viewport meta tag")
-    # The document's title, not an SVG's accessible <title>.
-    title = next((text_of(node, set()) for node in by_name("title") if not inside(node, lambda a: a.name == "svg")), "").strip()
+    # The document's title, not an SVG's accessible <title> or one inside inert <template> content.
+    title = next((text_of(node, set()) for node in by_name("title") if not inside(node, lambda a: a.name in {"svg", "template"})), "").strip()
     if not title:
         missing.append("a <title>")
     elif GENERIC_TITLES.match(title):
@@ -481,23 +489,24 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     main = (by_name("main") or [body])[0]
     in_main = lambda node: inside(node, lambda ancestor: ancestor is main)  # noqa: E731
     chrome = lambda node: inside(node, lambda a: a.name in {"header", "footer", "nav"} or a.cls(re.compile(r"\b(report-head|meta|eyebrow)\b")))  # noqa: E731
-    sections = [node for node in nodes if node.name == "h2" and in_main(node)]
+    # What the reader sees up front: hidden, template and folded content does not open the page or need a nav link.
+    unseen = hidden_nodes(builder.root)
+    sections = [node for node in nodes if node.name == "h2" and in_main(node) and id(node) not in unseen]
     first_h2 = sections[0] if sections else None
 
     stop = nodes.index(first_h2) if first_h2 else len(nodes)
     # A summary the reader cannot see (hidden, or in a template) does not answer anything.
-    unseen = hidden_nodes(builder.root)
     summary = next((node for node in nodes if node.cls(re.compile(r"\bsummary\b")) and node.name != "details" and not chrome(node)
                     and id(node) not in unseen), None)
     if summary is not None and nodes.index(summary) < stop:
-        lead = text_of(summary)
+        lead = visible_text(summary, unseen)
     else:
         before = [node for node in nodes[:stop] if node.name in {"p", "ul", "ol"} and not chrome(node) and in_main(node)
                   and id(node) not in unseen
                   and not inside(node, lambda a: a.name in {"p", "ul", "ol", "details"})]
-        lead = " ".join(text_of(node) for node in before)
+        lead = " ".join(visible_text(node, unseen) for node in before)
         if not lead.strip() and first_h2 is not None and SUMMARY_HEADING.match(text_of(first_h2).strip()):
-            lead = " ".join(text_of(node) for node in section_nodes(nodes, first_h2) if node.name in {"p", "li"} and id(node) not in unseen)
+            lead = " ".join(visible_text(node, unseen) for node in section_nodes(nodes, first_h2) if node.name in {"p", "li"} and id(node) not in unseen)
     count = words(lead)
     if not count:
         add("answer_first", "Start with the answer: one or two plain sentences before the first section (a .summary box) saying "
@@ -593,8 +602,11 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     # Sizes set inside media rules (a phone breakpoint, say) are what some readers get, so they count too.
     sized = flat + "\n" + media_blocks(css, re.compile(r"."))
     # Inline styles count as well, with the element that owns them standing in for the selector.
-    inline = [(f"{node.name} ", strip_comments(node.attrs["style"])) for node in nodes if node.attrs.get("style")]
-    # Sizes in px, rem or em; rem and em are read against the root size (16px, or the html/:root font-size when set).
+    styled = [node for node in nodes if node.attrs.get("style")]
+    rules_css = [(m.group(1).strip(), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized)]
+    # Sizes in px, rem or em. rem is read against the root size (16px, or the html/:root font-size when set); em against
+    # the parent's size when the page sets it (an ancestor in the selector with its own rule, or an inline-styled
+    # ancestor), otherwise the root.
     font_size = r"font(?:-size)?\s*:\s*[^;{}]*?(\d*\.?\d+)(px|rem|em)\b"
     root = 16.0
     for rule in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized):
@@ -603,21 +615,47 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
             if declared:
                 root = float(declared.group(1)) * (1 if declared.group(2).lower() == "px" else 0.16)
 
-    def pixels(match: re.Match[str]) -> float:
-        return float(match.group(1)) * (1 if match.group(2).lower() == "px" else root)
+    def pixels(match: re.Match[str], parent: float | None = None) -> float:
+        unit = match.group(2).lower()
+        return float(match.group(1)) * (1 if unit == "px" else root if unit == "rem" else parent or root)
 
-    tiny = [pixels(m) for text in [sized, *(style for _, style in inline)] for m in re.finditer(font_size, text, re.I) if pixels(m) < 12]
+    # Sizes fixed by a one-compound rule ("section", ".card"), for em in a descendant rule ("section p").
+    fixed: dict[str, float] = {}
+    for selector, declarations in rules_css:
+        size = re.search(font_size, declarations, re.I)
+        if size and size.group(2).lower() != "em":
+            for part in selector.split(","):
+                if not re.search(r"[\s>+~]", part.strip()):
+                    fixed[part.strip()] = pixels(size)
+
+    def rule_parent(selector: str) -> float | None:
+        compounds = re.split(r"[\s>+~]+", selector.strip())
+        return fixed.get(compounds[-2]) if len(compounds) > 1 else None
+
+    def inline_parent(node: Node) -> float | None:
+        at = node.parent
+        while at is not None:
+            size = re.search(font_size, strip_comments(at.attrs.get("style", "")), re.I)
+            if size:
+                return pixels(size, inline_parent(at))
+            at = at.parent
+        return None
+
+    sizes = [(selector, declarations, rule_parent(part)) for selector, declarations in rules_css for part in selector.split(",")]
+    sizes += [(f"{node.name} ", strip_comments(node.attrs["style"]), inline_parent(node)) for node in styled]
+    tiny = [pixels(m, parent) for _, declarations, parent in sizes for m in re.finditer(font_size, declarations, re.I)
+            if pixels(m, parent) < 12]
     # SVG text sized by its font-size attribute ("11" or "11px"), on the text itself or a group around it.
     tiny += [float(m.group(1)) for node in nodes if "font-size" in node.attrs
              for m in [re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(px)?\s*", node.attrs["font-size"])] if m and float(m.group(1)) < 12]
     if tiny:
         add("type", f"Text as small as {min(tiny):g}px is hard to read. Keep everything at 12px or more.")
     body_sizes = []
-    for selector, declarations in [(m.group(1), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized)] + inline:
+    for selector, declarations, parent in sizes:
         if styles_body_text(selector):
             size = re.search(font_size, declarations, re.I)
-            if size and pixels(size) < 15:
-                body_sizes.append(f"{pixels(size):g}")
+            if size and pixels(size, parent) < 15:
+                body_sizes.append(f"{pixels(size, parent):g}")
     for size in dict.fromkeys(body_sizes):
         add("type", f"Body text is {size}px. Use at least 15px.")
     wide = [int(m.group(2)) for m in re.finditer(r"(?<![-\w])(min-)?width\s*:\s*(\d+)px", flat, re.I) if int(m.group(2)) > 480]

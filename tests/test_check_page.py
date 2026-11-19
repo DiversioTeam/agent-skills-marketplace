@@ -276,6 +276,29 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertIn("self_contained", rules(page(LEAD, head='<style>.hero { background-image: url("example.png") }</style>')))
         self.assertIn("self_contained", rules(page(LEAD, head='<style>@import "theme.css";</style>')))
 
+    def test_an_instruction_folded_inside_a_visible_summary_does_not_count(self) -> None:
+        folded = ('<section class="summary"><p>Bookings rose 12% this week.</p><details{}><summary>Evidence</summary>'
+                  '<p>No action needed.</p></details></section><h2 id="r">Results</h2><p>Bookings rose.</p>')
+        self.assertIn("next_step", rules(page(folded.format(""))))
+        self.assertNotIn("next_step", rules(page(folded.format(" open"))))
+        only = '<section class="summary"><details><summary>Evidence</summary><p>No action needed.</p></details></section><h2 id="r">R</h2><p>x</p>'
+        self.assertIn("next_step", rules(page(only)), "the reader sees only \"Evidence\"")
+
+    def test_a_hidden_heading_does_not_cut_off_the_lead(self) -> None:
+        body = '<h2 hidden id="h">Draft</h2><p>Both fixes are verified; nothing for you to do.</p><h2 id="r">Results</h2><p>Bookings rose.</p>'
+        self.assertEqual(rules(page(body)), [])
+
+    def test_em_sizes_follow_the_parent_size_the_page_sets(self) -> None:
+        self.assertNotIn("type", rules(page(LEAD, head="<style>section { font-size: 24px } section p { font-size: .75em }</style>")))
+        self.assertIn("Body text is 12px", " ".join(m for _, m in checker.check_page(
+            page(LEAD, head="<style>section { font-size: 12px } section p { font-size: 1em }</style>"))))
+        self.assertNotIn("type", rules(page(LEAD + '<div style="font-size: 24px"><p style="font-size: .75em">Fine.</p></div>')))
+        self.assertIn("Body text is 12px", " ".join(m for _, m in checker.check_page(page(LEAD + '<p style="font-size: .75em">Small.</p>'))))
+
+    def test_a_title_inside_template_content_is_not_the_document_title(self) -> None:
+        html = page(LEAD + "<template><title>Backup title</title></template>").replace("<title>Retest</title>", "")
+        self.assertIn("basics", rules(html))
+
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
         messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))
