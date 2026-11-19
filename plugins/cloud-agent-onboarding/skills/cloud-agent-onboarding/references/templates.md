@@ -46,7 +46,7 @@ Node example (only the binary is replaced, so the image's global tools keep
 working):
 
 ```bash
-NODE_VERSION=22.23.1
+NODE_VERSION=22.23.5
 PNPM_VERSION=10.34.8
 if [ "$(/opt/node22/bin/node -v)" != "v${NODE_VERSION}" ]; then
   tarball="node-v${NODE_VERSION}-linux-x64.tar.xz"
