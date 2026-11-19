@@ -1903,6 +1903,103 @@ class PrBodyAndHookTests(unittest.TestCase):
             Path(directory, "empty.md").write_text("Summary\n", encoding="utf-8")
             self.assertIsNotNone(check_pr_hook.decide("gh pr create --repo DiversioTeam/demo -F empty.md", Path(directory)))
 
+    def test_hook_reads_a_relative_body_file_from_the_last_cd(self):
+        from unittest import mock
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as session, tempfile.TemporaryDirectory() as home:
+            worktree = Path(home, "work tree")
+            worktree.mkdir()
+            Path(worktree, "body.md").write_text(f"## Summary\n\nSee {self.LINK}\n", encoding="utf-8")
+            Path(worktree, "plain.md").write_text("## Summary\n\nFix a typo.\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"HOME": home}):
+                for command in (f"cd '{worktree}' && gh pr create {repo} --title T --body-file body.md",
+                                f"cd \"{worktree}\"; gh pr create {repo} --title T -F body.md",
+                                f"cd ~/'work tree' && git push -u origin HEAD && gh pr create {repo} --title T --body-file body.md",
+                                f"cd '{home}' && cd 'work tree' && gh pr edit 7 {repo} --body-file=body.md"):
+                    self.assertIsNone(check_pr_hook.decide(command, Path(session)), command)
+                reason = check_pr_hook.decide(f"cd '{worktree}' && gh pr create {repo} --title T --body-file plain.md", Path(session))
+                self.assertIn("needs its agent session transcript", reason)
+
+    def test_hook_accepts_a_declaration_written_anywhere_in_the_command(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        for command in (
+            f"cat > body.md <<'EOF'\n## Summary\n\nNo agent session: typed by hand\nEOF\ngh pr create {repo} --title T --body-file body.md",
+            f"printf '## Summary\\n\\nNo agent session: typed by hand\\n' > body.md && gh pr create {repo} --title T --body-file body.md",
+            f"echo 'No agent session: typed by hand' | gh pr edit 7 {repo} --body-file -",
+        ):
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        # A title is not a declaration, and a body without one still blocks.
+        self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --title 'No agent session: sneaky title' --body x", cwd))
+        self.assertIsNotNone(check_pr_hook.decide(f"cat > body.md <<'EOF'\n## Summary\nEOF\ngh pr create {repo} --title T --body-file body.md", cwd))
+
+    def test_hook_names_the_resolved_path_of_a_body_file_it_cannot_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "sub").mkdir()
+            for command, expected in (("gh pr create --repo DiversioTeam/demo --title T --body-file missing.md", Path(directory, "missing.md")),
+                                      ("cd sub && gh pr create --repo DiversioTeam/demo --title T -F missing.md", Path(directory, "sub", "missing.md"))):
+                reason = check_pr_hook.decide(command, Path(directory))
+                self.assertIn(str(expected), reason, command)
+                self.assertIn("absolute path", reason)
+                self.assertNotIn("needs its agent session transcript", reason)
+
+    def test_hook_allows_review_traffic_comments_and_reads_chained_together(self):
+        cwd = Path("/nonexistent")
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        allowed = [
+            f"gh api {pulls}/comments/11/replies -F body=@/tmp/reply.md && gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=someone'",
+            f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=someone' && gh api {pulls}/reviews --jq '.[].body'",
+            f"gh api {pulls}/comments/11/replies -f body='Fixed in abc1234.' > /dev/null",
+            f"gh api {pulls}/comments/11/replies -F body=@/tmp/reply.md 2>&1 | tail -1",
+            "gh pr comment 7 --repo DiversioTeam/demo --body-file /tmp/note.md && gh pr edit 7 --repo DiversioTeam/demo --add-reviewer someone",
+            f"gh pr view 7 --repo DiversioTeam/demo --json body --jq .body; gh api {pulls} --jq .body",
+            f"gh api -X GET {pulls} -f per_page=100 --jq .body | head -5",
+        ]
+        for command in allowed:
+            self.assertIsNone(check_pr_hook.decide(command, cwd), command)
+        # A description write chained with review traffic still needs the transcript.
+        for command in (f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=someone' && gh api -X PATCH {pulls} -f body=new",
+                        "gh pr comment 7 --repo DiversioTeam/demo --body ok && gh pr edit 7 --repo DiversioTeam/demo --body rewritten",
+                        f"gh api {pulls}/comments/11/replies -F body=@/tmp/reply.md; gh pr create --repo DiversioTeam/demo --body x"):
+            self.assertIsNotNone(check_pr_hook.decide(command, cwd), command)
+
+    def test_hook_still_allows_the_valid_shapes_that_pass_on_main(self):
+        # Every command here passes with the 0.5.1 hook; this patch must not block any of them.
+        repo = "--repo DiversioTeam/demo"
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "linked.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            shapes = [
+                f"gh pr create {repo} --title T --body 'See {self.LINK}'",
+                f"gh pr create {repo} --title T -b 'See {self.LINK}'",
+                f"gh pr create {repo} --title T -b'See {self.LINK}'",
+                f"gh pr create {repo} --title T --body-file {directory}/linked.md",
+                f"gh pr create {repo} --title T -F linked.md",
+                f"cd {directory} && gh pr create {repo} --title T --body-file linked.md",
+                f"gh pr edit 7 {repo} --add-label bug --add-reviewer someone",
+                f"gh pr edit 7 {repo} --title 'New title'",
+                f"gh pr edit 7 {repo} --body-file linked.md",
+                f"gh pr create {repo} --title T --body \"$(cat <<'EOF'\n## Summary\n\nNo agent session: typed by hand\nEOF\n)\"",
+                f"cat > body.md <<'EOF'\n## Summary\n\nSee {self.LINK}\nEOF\ngh pr create {repo} --title T --body-file body.md",
+                f"printf 'See {self.LINK}\\n' > body.md && gh pr create {repo} --title T --body-file body.md",
+                f"printf 'See {self.LINK}\\n' | tee body.md && gh pr create {repo} --title T --body-file body.md",
+                f"printf '{{\"body\":\"%s\"}}' '{self.LINK}' > edit.json && gh api -X PATCH {pulls} --input edit.json",
+                f"gh api -X PATCH {pulls} -f body='See {self.LINK}'",
+                f"gh api -X PATCH {pulls} -f title='New title'",
+                f"gh api {pulls}/comments/1/replies -F body=@/tmp/reply.md",
+                f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=someone'",
+                f"gh pr view 7 {repo} --json body --jq .body",
+                f"gh api {pulls} --jq .body",
+                "git commit -m 'Explain gh pr create flags'",
+                f"gh pr create {repo} --title T --body-file - <<< 'See {self.LINK}'",
+                f"gh pr create {repo} --title T 2>&1 --body-file linked.md",
+                f"gh pr edit 7 {repo} --title '-budget'",
+                f"gh pr create {repo} --title T \\\n  --body 'See {self.LINK}'",
+                f"gh api -X PATCH {pulls} --input - < {directory}/linked.md",
+            ]
+            for shape in shapes:
+                self.assertIsNone(check_pr_hook.decide(shape, Path(directory)), shape)
+
 
 if __name__ == "__main__":
     unittest.main()
