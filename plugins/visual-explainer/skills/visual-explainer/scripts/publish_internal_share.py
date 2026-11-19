@@ -85,6 +85,9 @@ def stage(html_path: Path, staged_path: Path) -> Path:
             "The generated HTML file was not found.\n\n"
             "Write the explainer to ~/.agent/diagrams/ first, then retry publish mode."
         )
+    # Refuse an oversized page before copying it, so a large deck can't fill the temporary volume first. The staged copy
+    # is still checked again (ensure_publishable), so the bytes that go up are the ones that passed.
+    check_size(html_path)
     shutil.copy2(html_path, staged_path)
     return staged_path
 
@@ -92,16 +95,20 @@ def stage(html_path: Path, staged_path: Path) -> Path:
 def ensure_publishable(html_path: Path, kind: str = "report") -> None:
     if not html_path.is_file():
         raise PublishError("The generated HTML file was not found.")
-    if html_path.stat().st_size > MAX_UPLOAD_BYTES:
-        raise PublishError(
-            "Diversio Internal Share accepts files up to 25 MB. "
-            "Reduce the file size and retry."
-        )
+    check_size(html_path)
     problems = load_page_checker().check_page(html_path.read_text(encoding="utf-8"), kind)
     if problems:
         raise PublishError(
             "The page was not uploaded: it does not meet the readable-page standard yet. Fix these, then retry:\n"
             + "\n".join(f"- {message}" for _rule, message in problems)
+        )
+
+
+def check_size(html_path: Path) -> None:
+    if html_path.stat().st_size > MAX_UPLOAD_BYTES:
+        raise PublishError(
+            "Diversio Internal Share accepts files up to 25 MB. "
+            "Reduce the file size and retry."
         )
 
 

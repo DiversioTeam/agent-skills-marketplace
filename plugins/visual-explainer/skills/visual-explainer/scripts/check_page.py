@@ -226,6 +226,35 @@ PAIRS = [("--text", "--bg"), ("--text", "--surface"), ("--muted", "--bg"), ("--m
          ("--muted", "--card")]
 
 
+def balanced(text: str, start: int) -> str:
+    """The text up to the parenthesis that closes one already open at `start`, skipping nested parentheses and strings."""
+    depth, quote = 1, ""
+    for index in range(start, len(text)):
+        character = text[index]
+        if quote:
+            if character == quote:
+                quote = ""
+        elif character in "\"'":
+            quote = character
+        elif character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return text[start:index]
+    return text[start:]
+
+
+def css_urls(css: str) -> list[str]:
+    """Every file a stylesheet loads: url(...), @import, and image-set(...) candidates (bare strings count too)."""
+    found = [match.group(2) for match in re.finditer(r"url\(\s*(['\"]?)([^'\")]*)\1\s*\)", css, re.I)]
+    found += [match.group(2) for match in re.finditer(r"@import\s+(['\"])([^'\"]+)\1", css, re.I)]
+    for match in re.finditer(r"image-set\(", css, re.I):
+        inner = re.sub(r"\btype\(\s*(['\"])[^'\"]*\1\s*\)", "", balanced(css, match.end()), flags=re.I)
+        found += [string.group(2) for string in re.finditer(r"(['\"])([^'\"]+)\1", inner)]
+    return found
+
+
 def external_loads(nodes: list[Node], css: str) -> list[str]:
     def external(url: str) -> bool:
         value = url.strip()
@@ -251,14 +280,17 @@ def external_loads(nodes: list[Node], css: str) -> list[str]:
             href = attrs.get("href") or attrs.get("xlink:href") or ""
             if external(href):
                 found.append(f"SVG image {href}")
-        for match in re.finditer(r"url\(\s*(['\"]?)([^'\")]*)\1\s*\)", attrs.get("style", "")):
-            if external(match.group(2)):
-                found.append(f"inline style url {match.group(2)}")
-    for match in re.finditer(r"url\(\s*(['\"]?)([^'\")]*)\1\s*\)|@import\s+(['\"])([^'\"]+)\3", css):
-        url = match.group(2) or match.group(4) or ""
+        if node.name == "video" and external(attrs.get("poster", "")):
+            found.append(f"video poster {attrs['poster']}")
+        if node.name == "object" and external(attrs.get("data", "")):
+            found.append(f"object {attrs['data']}")
+        for url in css_urls(attrs.get("style", "")):
+            if external(url):
+                found.append(f"inline style url {url}")
+    for url in css_urls(css):
         if external(url):
             found.append(f"CSS url {url}")
-    return found
+    return list(dict.fromkeys(found))
 
 
 def section_nodes(nodes: list[Node], heading: Node) -> list[Node]:
@@ -451,17 +483,25 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         add("type", f"{len(unstacked)} table(s) with four or more columns run off a phone screen. Add class=\"stack\" and a "
             "data-label with the column name to every cell after the first (see templates/data-table.html), or cut to three columns.")
 
-    light = tokens(flat)
-    dark = {**light, **tokens(media_blocks(css, re.compile(r"prefers-color-scheme\s*:\s*dark", re.I)))}
+    # Each theme is the base palette plus its own overrides: a dark-first deck keeps its light palette under
+    # prefers-color-scheme: light, so that block is checked too, not only the base colours.
+    light_css = media_blocks(css, re.compile(r"prefers-color-scheme\s*:\s*light", re.I))
+    dark_css = media_blocks(css, re.compile(r"prefers-color-scheme\s*:\s*dark", re.I))
+    base = tokens(flat)
+    light = {**base, **tokens(light_css)}
+    dark = {**base, **tokens(dark_css)}
     failures = []
     for theme, palette in (("light", light), ("dark", dark)):
         for foreground, background in PAIRS:
+            # Code blocks that set their own --code-text are read in that colour, not --text.
+            if (foreground, background) == ("--text", "--code-bg") and "--code-text" in palette:
+                foreground = "--code-text"
             ratio = contrast_ratio(palette.get(foreground, ""), palette.get(background, ""))
             if ratio is not None and ratio < 4.5:
                 failures.append(f"In the {theme} theme {foreground} on {background} is {ratio:.1f}:1; text needs 4.5:1.")
-    # Literal colour pairs in plain rules, in dark-mode rules and in inline styles.
-    dark_css = media_blocks(css, re.compile(r"prefers-color-scheme\s*:\s*dark", re.I))
+    # Literal colour pairs in plain rules, in light- and dark-mode rules and in inline styles.
     for selector, declarations in [(m.group(1).strip(), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", flat)] + \
+            [(f"{m.group(1).strip()} (light mode)", m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", light_css)] + \
             [(f"{m.group(1).strip()} (dark mode)", m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", dark_css)] + \
             [(f"<{node.name} style>", node.attrs["style"]) for node in nodes if node.attrs.get("style")]:
         color = re.search(r"(?:^|;|\s)color\s*:\s*(#[0-9a-f]{3,6})\b", declarations, re.I)

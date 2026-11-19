@@ -158,6 +158,23 @@ class PublishInternalShareTests(unittest.TestCase):
             "https://internal-share.diversio.com/shared-explainer.html",
         )
 
+    def test_main_refuses_an_oversized_source_before_copying_it(self) -> None:
+        self.html_path.write_bytes(b"")
+        with self.html_path.open("r+b") as file:
+            file.truncate(publisher.MAX_UPLOAD_BYTES + 1)
+        args = argparse.Namespace(html_path=str(self.html_path), title="Shared explainer", open_url=False)
+        printed = []
+        with (
+            mock.patch.object(publisher, "parse_args", return_value=args),
+            mock.patch.object(publisher.shutil, "copy2") as copy2,
+            mock.patch.object(publisher, "authenticate") as authenticate,
+            mock.patch("builtins.print", side_effect=lambda *values, **_: printed.append(" ".join(map(str, values)))),
+        ):
+            self.assertEqual(publisher.main(), 1)
+        copy2.assert_not_called()
+        authenticate.assert_not_called()
+        self.assertIn("up to 25 MB", "\n".join(printed))
+
     def test_rejects_missing_and_oversized_files(self) -> None:
         with self.assertRaisesRegex(publisher.PublishError, "was not found"):
             publisher.ensure_publishable(Path(self.temp_dir.name) / "missing.html")

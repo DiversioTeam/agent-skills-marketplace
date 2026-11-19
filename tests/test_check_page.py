@@ -112,6 +112,30 @@ class ReviewFindingTests(unittest.TestCase):
                 self.assertIn("self_contained", rules(page(LEAD + html)))
         self.assertNotIn("self_contained", rules(page(LEAD + '<svg viewBox="0 0 10 10"><image href="data:image/png;base64,AA=="></image></svg>')))
 
+    def test_video_posters_objects_and_image_sets_are_external_loads(self) -> None:
+        embedded = "data:image/png;base64,AA=="
+        cases = [('<video poster="poster.jpg" controls></video>', f'<video poster="{embedded}" controls></video>'),
+                 ('<object data="figure.svg" type="image/svg+xml"></object>',
+                  f'<object data="{embedded}" type="image/png"></object>'),
+                 ('<div style="background-image: image-set(\'figure.png\' 1x)"></div>',
+                  f'<div style="background-image: image-set(\'{embedded}\' 1x)"></div>')]
+        for linked, inline in cases:
+            with self.subTest(html=linked):
+                self.assertIn("self_contained", rules(page(LEAD + linked)))
+                self.assertNotIn("self_contained", rules(page(LEAD + inline)))
+        sheet = '<style>.hero { background: image-set("hero.png" type("image/png") 1x) }</style>'
+        self.assertIn("self_contained", rules(page(LEAD, head=sheet)))
+
+    def test_a_dark_first_page_has_its_light_overrides_checked(self) -> None:
+        dark_first = ("<style>:root{--bg:#0f1729;--surface:#162040;--text:#e8e4d8;--accent:#d4a73a}"
+                      "@media (prefers-color-scheme: light){:root{--bg:#faf8f2;--surface:#ffffff;--text:#1a1814;"
+                      "--accent:#b8860b}}</style>")
+        messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=dark_first)))
+        self.assertIn("In the light theme --accent on --bg is 3.1:1", messages)
+        literal = "<style>@media (prefers-color-scheme: light) { .label { color: #b8860b; background: #faf8f2 } }</style>"
+        messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=literal)))
+        self.assertIn("(light mode) sets #b8860b on #faf8f2 (3.1:1)", messages)
+
     def test_section_nav_covers_every_section(self) -> None:
         sections = "".join(f'<h2 id="s{i}">Part {i}</h2><p>Short.</p>' for i in range(5))
         partial = '<nav class="toc">' + "".join(f'<a href="#s{i}">Part {i}</a>' for i in range(3)) + "</nav>"
