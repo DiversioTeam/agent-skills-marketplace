@@ -184,6 +184,38 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertNotIn("type", rules(page(LEAD + '<span style="font-size: 13px">Caption</span>')), "13px is fine outside body text")
         self.assertNotIn("type", rules(page(LEAD + '<p style="font-size:16px">Decision details</p>')))
 
+    def test_a_hidden_summary_does_not_answer_first(self) -> None:
+        body = ('<section class="summary"{}><p>Both fixes are verified; nothing for you to do.</p></section>'
+                '<h2 id="m">Measurements</h2><p>Median load time fell from 2.4 seconds to 1.1 seconds.</p>')
+        self.assertIn("answer_first", rules(page(body.format(" hidden"))))
+        self.assertEqual(rules(page(body.format(""))), [])
+        self.assertIn("answer_first", rules(page('<div hidden><p>Both fixes are verified; nothing for you to do.</p></div>'
+                                                 '<h2 id="m">Measurements</h2><p>Load time fell.</p>')), "the fallback lead skips hidden text too")
+
+    def test_svg_font_size_attributes_count_for_the_floor(self) -> None:
+        svg = '<figure><svg viewBox="0 0 200 40" role="img" aria-label="Label"><text x="0" y="20" font-size="{}">Label</text></svg></figure>'
+        self.assertIn("as small as 9px", " ".join(m for _, m in checker.check_page(page(LEAD + svg.format("9")))))
+        self.assertIn("type", rules(page(LEAD + svg.format("11px"))))
+        self.assertNotIn("type", rules(page(LEAD + svg.format("12"))))
+
+    def test_css_comments_are_not_read_as_rules(self) -> None:
+        self.assertIn("type", rules(page(LEAD, head="<style>body{font-size:9px}</style>")))
+        self.assertNotIn("type", rules(page(LEAD, head="<style>/* Old body{font-size:9px} */</style>")))
+        self.assertNotIn("type", rules(page(LEAD + '<p style="/* was font-size:9px */ font-size:16px">Decision details</p>')))
+        quoted = '<style>.note::before { content: "/* not a comment */"; } body{font-size:9px}</style>'
+        self.assertIn("type", rules(page(LEAD, head=quoted)), "a /* inside a string does not start a comment")
+
+    def test_inline_emphasis_in_prose_is_not_diagram_source(self) -> None:
+        self.assertNotIn("visuals", rules(page(LEAD + "<p>The <strong>flowchart TD</strong> syntax is optional.</p>")))
+        self.assertIn("visuals", rules(page(LEAD + "<div><p>Draft.</p><p><strong>flowchart TD</strong> A --&gt; B</p></div>")))
+
+    def test_every_srcset_candidate_is_checked(self) -> None:
+        gif = "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA=="
+        adjacent = f'<img alt="Chart" src="{gif}" srcset="{gif} 1x,chart-2x.png 2x">'
+        self.assertIn("image chart-2x.png", " ".join(m for _, m in checker.check_page(page(LEAD + adjacent))))
+        self.assertNotIn("self_contained", rules(page(LEAD + f'<img alt="Chart" src="{gif}" srcset="{gif} 1x,{gif} 2x">')))
+        self.assertEqual(checker.srcset_urls(f"{gif} 1x,chart-2x.png 2x, wide.png 640w"), [gif, "chart-2x.png", "wide.png"])
+
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
         messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))

@@ -151,7 +151,80 @@ def visible_lines(node: Node) -> str:
     if node.name in HIDDEN or "hidden" in node.attrs:
         return ""
     parts = [child if isinstance(child, str) else visible_lines(child) for child in node.children]
-    return "\n".join(["", *parts, ""]) if node.name in LINE_BLOCKS else "".join(parts)
+    # Inline children run together (<strong> inside a sentence stays in the sentence); only a block starts a new line.
+    text = "".join(parts)
+    return f"\n{text}\n" if node.name in LINE_BLOCKS else text
+
+
+def hidden_nodes(root: Node) -> set[int]:
+    """Ids of every node a reader never sees: script, style, template and the like, and anything under a hidden attribute."""
+    found: set[int] = set()
+
+    def visit(node: Node, hidden: bool) -> None:
+        hidden = hidden or node.name in HIDDEN or "hidden" in node.attrs
+        if hidden:
+            found.add(id(node))
+        for child in node.children:
+            if isinstance(child, Node):
+                visit(child, hidden)
+
+    visit(root, False)
+    return found
+
+
+def strip_comments(css: str) -> str:
+    """CSS without /* comments */; quoted strings are kept as they are, so a "/*" inside one is not a comment."""
+    output, index, quote = [], 0, ""
+    while index < len(css):
+        character = css[index]
+        if quote:
+            output.append(character)
+            if character == "\\" and index + 1 < len(css):
+                output.append(css[index + 1])
+                index += 1
+            elif character == quote:
+                quote = ""
+        elif character in "\"'":
+            quote = character
+            output.append(character)
+        elif css.startswith("/*", index):
+            end = css.find("*/", index + 2)
+            index = len(css) if end < 0 else end + 2
+            output.append(" ")
+            continue
+        else:
+            output.append(character)
+        index += 1
+    return "".join(output)
+
+
+def srcset_urls(value: str) -> list[str]:
+    """Every URL in a srcset, read the way browsers do: a URL runs to the next space (so a data: URI keeps its comma), and
+    a comma ends a candidate even with no space after it ("a.gif 1x,b.png 2x")."""
+    urls, index = [], 0
+    while index < len(value):
+        while index < len(value) and (value[index].isspace() or value[index] == ","):
+            index += 1
+        start = index
+        while index < len(value) and not value[index].isspace():
+            index += 1
+        url = value[start:index]
+        if url.endswith(","):
+            url = url.rstrip(",")
+        else:
+            depth = 0
+            while index < len(value):
+                character = value[index]
+                index += 1
+                if character == "(":
+                    depth += 1
+                elif character == ")":
+                    depth = max(0, depth - 1)
+                elif character == "," and not depth:
+                    break
+        if url:
+            urls.append(url)
+    return urls
 
 
 def inside(node: Node, test) -> bool:
@@ -292,7 +365,7 @@ def external_loads(nodes: list[Node], css: str) -> list[str]:
             found.append(f"{attrs.get('rel')} {attrs['href']}")
         if node.name in MEDIA_SRC and external(attrs.get("src", "")):
             found.append(f"{node.name} {attrs['src']}")
-        for candidate in (part.strip().split()[0] for part in re.split(r",\s+", attrs.get("srcset", "")) if part.strip()):
+        for candidate in srcset_urls(attrs.get("srcset", "")):
             if external(candidate):
                 found.append(f"image {candidate}")
         if node.name in {"image", "use", "feimage"}:
@@ -303,13 +376,13 @@ def external_loads(nodes: list[Node], css: str) -> list[str]:
             found.append(f"video poster {attrs['poster']}")
         if node.name == "object" and external(attrs.get("data", "")):
             found.append(f"object {attrs['data']}")
-        for url in css_urls(attrs.get("style", "")):
+        for url in css_urls(strip_comments(attrs.get("style", ""))):
             if external(url):
                 found.append(f"inline style url {url}")
         # An inline frame's document is part of the page: its images and styles load from elsewhere just the same.
         if node.name == "iframe" and attrs.get("srcdoc"):
             inner = list(walk(parse_tree(attrs["srcdoc"]).root))
-            inner_css = "\n".join(text_of(item, set()) for item in inner if item.name == "style")
+            inner_css = strip_comments("\n".join(text_of(item, set()) for item in inner if item.name == "style"))
             found += [f"iframe srcdoc: {item}" for item in external_loads(inner, inner_css)]
     for url in css_urls(css):
         if external(url):
@@ -348,7 +421,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     builder = parse_tree(html)
     nodes = list(walk(builder.root))
     by_name = lambda name: [node for node in nodes if node.name == name]  # noqa: E731
-    css = "\n".join(text_of(node, set()) for node in by_name("style"))
+    css = strip_comments("\n".join(text_of(node, set()) for node in by_name("style")))
 
     loads = external_loads(nodes, css)
     if loads:
@@ -381,15 +454,19 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     first_h2 = sections[0] if sections else None
 
     stop = nodes.index(first_h2) if first_h2 else len(nodes)
-    summary = next((node for node in nodes if node.cls(re.compile(r"\bsummary\b")) and node.name != "details" and not chrome(node)), None)
+    # A summary the reader cannot see (hidden, or in a template) does not answer anything.
+    unseen = hidden_nodes(builder.root)
+    summary = next((node for node in nodes if node.cls(re.compile(r"\bsummary\b")) and node.name != "details" and not chrome(node)
+                    and id(node) not in unseen), None)
     if summary is not None and nodes.index(summary) < stop:
         lead = text_of(summary)
     else:
         before = [node for node in nodes[:stop] if node.name in {"p", "ul", "ol"} and not chrome(node) and in_main(node)
+                  and id(node) not in unseen
                   and not inside(node, lambda a: a.name in {"p", "ul", "ol", "details"})]
         lead = " ".join(text_of(node) for node in before)
         if not lead.strip() and first_h2 is not None and SUMMARY_HEADING.match(text_of(first_h2).strip()):
-            lead = " ".join(text_of(node) for node in section_nodes(nodes, first_h2) if node.name in {"p", "li"})
+            lead = " ".join(text_of(node) for node in section_nodes(nodes, first_h2) if node.name in {"p", "li"} and id(node) not in unseen)
     count = words(lead)
     if not count:
         add("answer_first", "Start with the answer: one or two plain sentences before the first section (a .summary box) saying "
@@ -480,10 +557,13 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     # Sizes set inside media rules (a phone breakpoint, say) are what some readers get, so they count too.
     sized = flat + "\n" + media_blocks(css, re.compile(r"."))
     # Inline styles count as well, with the element that owns them standing in for the selector.
-    inline = [(f"{node.name} ", node.attrs["style"]) for node in nodes if node.attrs.get("style")]
+    inline = [(f"{node.name} ", strip_comments(node.attrs["style"])) for node in nodes if node.attrs.get("style")]
     font_size = r"font(?:-size)?\s*:\s*[^;{}]*?(\d+(?:\.\d+)?)px"
     tiny = [float(m.group(1)) for text in [sized, *(style for _, style in inline)] for m in re.finditer(font_size, text, re.I)
             if float(m.group(1)) < 12]
+    # SVG text sized by its font-size attribute ("11" or "11px"), on the text itself or a group around it.
+    tiny += [float(m.group(1)) for node in nodes if "font-size" in node.attrs
+             for m in [re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(px)?\s*", node.attrs["font-size"])] if m and float(m.group(1)) < 12]
     if tiny:
         add("type", f"Text as small as {min(tiny):g}px is hard to read. Keep everything at 12px or more.")
     body_sizes = []
@@ -548,7 +628,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     for selector, declarations in [(m.group(1).strip(), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", flat)] + \
             [(f"{m.group(1).strip()} (light mode)", m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", light_css)] + \
             [(f"{m.group(1).strip()} (dark mode)", m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", dark_css)] + \
-            [(f"<{node.name} style>", node.attrs["style"]) for node in nodes if node.attrs.get("style")]:
+            [(f"<{node.name} style>", strip_comments(node.attrs["style"])) for node in nodes if node.attrs.get("style")]:
         color = re.search(r"(?:^|;|\s)color\s*:\s*(#[0-9a-f]{3,6})\b", declarations, re.I)
         background = re.search(r"background(?:-color)?\s*:\s*(#[0-9a-f]{3,6})\b", declarations, re.I)
         ratio = contrast_ratio(color.group(1), background.group(1)) if color and background else None
