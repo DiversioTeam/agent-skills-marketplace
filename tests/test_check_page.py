@@ -216,6 +216,19 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertNotIn("self_contained", rules(page(LEAD + f'<img alt="Chart" src="{gif}" srcset="{gif} 1x,{gif} 2x">')))
         self.assertEqual(checker.srcset_urls(f"{gif} 1x,chart-2x.png 2x, wide.png 640w"), [gif, "chart-2x.png", "wide.png"])
 
+    def test_the_body_text_minimum_looks_at_the_element_a_selector_targets(self) -> None:
+        self.assertNotIn("type", rules(page(LEAD, head="<style>main .caption { font-size: 13px }</style>")))
+        self.assertIn("Body text is 13px", " ".join(m for _, m in checker.check_page(page(LEAD, head="<style>main p { font-size: 13px }</style>"))))
+        self.assertIn("Body text is 14px",
+                      " ".join(m for _, m in checker.check_page(page(LEAD, head="<style>.note, body > p.lede { font-size: 14px }</style>"))))
+
+    def test_a_long_page_links_each_of_its_sections_even_when_there_are_fewer_than_three(self) -> None:
+        long = f"<ul>{'<li>' + 'word ' * 100 + '</li>' * 1}</ul>" * 13
+        two = f'<h2 id="a">First</h2>{long}<h2 id="b">Second</h2><p>End.</p>'
+        self.assertNotIn("navigation", rules(page(LEAD + '<nav class="toc"><a href="#a">First</a><a href="#b">Second</a></nav>' + two)))
+        self.assertIn("navigation", rules(page(LEAD + '<nav class="toc"><a href="#a">First</a></nav>' + two)))
+        self.assertIn("no sections. Split it into sections", " ".join(m for _, m in checker.check_page(page(LEAD + long))))
+
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
         messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))

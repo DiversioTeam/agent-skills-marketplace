@@ -390,6 +390,13 @@ def external_loads(nodes: list[Node], css: str) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+def styles_body_text(selector: str) -> bool:
+    """Whether a rule styles body text: the element a selector finally targets (its last compound) is body, html, main or p.
+    "main .caption" styles captions, not main; "main p" styles paragraphs."""
+    return any(re.match(r"(body|html|main|p)(?=$|[.:#\[])", (re.split(r"[\s>+~]+", part.strip()) or [""])[-1], re.I)
+               for part in selector.split(","))
+
+
 def section_nodes(nodes: list[Node], heading: Node) -> list[Node]:
     level = int(heading.name[1])
     result = []
@@ -496,10 +503,15 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
     nav_links = [node for node in nodes if node.name == "a" and node.attrs.get("href", "").startswith("#")
                  and inside(node, lambda a: a.name == "nav" or a.cls(re.compile(r"\btoc\b")))]
     linked = {urllib.parse.unquote(link.attrs["href"][1:]) for link in nav_links}
-    if (len(sections) >= NAV_SECTIONS or total > NAV_WORDS) and len(nav_links) < 3:
+    needed = len(sections) >= NAV_SECTIONS or total > NAV_WORDS
+    if needed and not sections:
+        add("navigation", f"The page is {total} words with no sections. Split it into sections with h2 headings and add a section nav "
+            "(<nav class=\"toc\">) near the top.")
+    elif needed and len(nav_links) < min(3, len(sections)):
+        # A long page with one or two sections links each of them; three links are only needed once there are three.
         add("navigation", f"The page has {len(sections)} sections and {total} words. Add a section nav (<nav class=\"toc\"> with "
             "links to each section's id) near the top.")
-    elif len(sections) >= NAV_SECTIONS or total > NAV_WORDS:
+    elif needed:
         # The nav covers every section, not any three of them.
         def targets(heading: Node) -> set[str]:
             # A link can land on the heading or on the section that wraps it, when that section holds only this heading.
@@ -568,7 +580,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         add("type", f"Text as small as {min(tiny):g}px is hard to read. Keep everything at 12px or more.")
     body_sizes = []
     for selector, declarations in [(m.group(1), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", sized)] + inline:
-        if re.search(r"(^|[\s,])(body|html|main|p)(?=$|[\s,:.{])", selector):
+        if styles_body_text(selector):
             size = re.search(font_size, declarations, re.I)
             if size and float(size.group(1)) < 15:
                 body_sizes.append(size.group(1))
