@@ -2025,6 +2025,30 @@ class PrBodyAndHookTests(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_hook_treats_a_body_file_it_cannot_decode_as_unreadable(self):
+        import subprocess
+        hook = Path(check_pr_hook.__file__)
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as session:
+            Path(session, "sub").mkdir()
+
+            def run(command):
+                return subprocess.run([sys.executable, str(hook)], input=json.dumps({"tool_input": {"command": command}, "cwd": session}),
+                                      capture_output=True, text=True)
+
+            command = f"cd sub && gh pr create {repo} --title T --body-file body.md"
+            # A plain UTF-8 body where gh reads it, and a Latin-1 file of the same name in the session directory.
+            Path(session, "sub", "body.md").write_text("## Summary\n\nFix a typo.\n", encoding="utf-8")
+            Path(session, "body.md").write_bytes("R\u00e9sum\u00e9 only\n".encode("latin-1"))
+            result = run(command)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("needs its agent session transcript", result.stderr)
+            # The other order: an undecodable first candidate, then a compliant one, passes.
+            Path(session, "sub", "body.md").write_bytes("R\u00e9sum\u00e9 only\n".encode("latin-1"))
+            Path(session, "body.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            result = run(command)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_hook_still_allows_the_valid_shapes_that_pass_on_main(self):
         # Every command here passes with the 0.5.1 or the 0.5.2 hook; this patch must not block any of them.
         repo = "--repo DiversioTeam/demo"

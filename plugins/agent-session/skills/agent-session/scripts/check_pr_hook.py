@@ -100,7 +100,7 @@ def _bodies(command: str, cwd: Path, argv: list[str] | None = None,
             path = cwd / Path(file).expanduser()
             try:
                 texts.append(path.read_text(encoding="utf-8"))
-            except OSError:
+            except (OSError, ValueError):  # missing, or not UTF-8 (UnicodeDecodeError)
                 if unreadable is not None:
                     unreadable.append((file, path))
     return texts
