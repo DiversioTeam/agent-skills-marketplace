@@ -2167,6 +2167,86 @@ class PrBodyAndHookTests(unittest.TestCase):
                 for label, reason in (("disk", on_disk), ("printf", written), ("heredoc", heredoc), ("pipe", piped)):
                     self.assertEqual(reason is None, compliant, f"{label}: {data}")
 
+    def test_hook_reads_attached_short_body_flags(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        for spelling in ("-b '{}'", "-b'{}'", "--body='{}'"):
+            self.assertIsNone(check_pr_hook.decide(f"gh pr create {repo} --title T " + spelling.format(f"See {self.LINK}"), cwd), spelling)
+            self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --title T " + spelling.format("Summary only"), cwd), spelling)
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "linked.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            Path(directory, "plain.md").write_text("Summary only\n", encoding="utf-8")
+            self.assertIsNone(check_pr_hook.decide(f"gh pr create {repo} --title T -Flinked.md", Path(directory)))
+            self.assertIsNotNone(check_pr_hook.decide(f"gh pr create {repo} --title T -Fplain.md", Path(directory)))
+
+    def test_hook_reads_what_is_piped_into_tee(self):
+        cwd = Path("/nonexistent")
+        repo = "--repo DiversioTeam/demo"
+        for compliant, text in ((True, f"See {self.LINK}"), (False, "Summary only")):
+            for writer in (f"printf '{text}\\n' > body.md", f"printf '{text}\\n' | tee body.md", f"printf '{text}\\n' | tee -a body.md > /dev/null"):
+                reason = check_pr_hook.decide(f"{writer} && gh pr create {repo} --title T --body-file body.md", cwd)
+                self.assertEqual(reason is None, compliant, writer)
+
+    def test_hook_reads_json_that_printf_fills_in(self):
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = Path(directory)
+            for compliant, value in ((True, f"See {self.LINK}"), (False, "Release notes")):
+                Path(directory, "disk.json").write_text('{"body":"%s"}' % value, encoding="utf-8")
+                on_disk = check_pr_hook.decide(f"gh api -X PATCH {pulls} --input disk.json", cwd)
+                written = check_pr_hook.decide(f"printf '{{\"body\":\"%s\"}}' '{value}' > edit.json && gh api -X PATCH {pulls} --input edit.json", cwd)
+                piped = check_pr_hook.decide(f"printf '{{\"body\":\"%s\"}}' \"{value}\" | gh api -X PATCH {pulls} --input -", cwd)
+                for label, reason in (("disk", on_disk), ("printf", written), ("pipe", piped)):
+                    self.assertEqual(reason is None, compliant, f"{label}: {value}")
+
+    def test_hook_matches_a_written_file_by_its_resolved_path(self):
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "sub").mkdir()
+            cwd = Path(directory)
+            for compliant, existing in ((True, f"See {self.LINK}"), (False, "Summary only")):
+                Path(directory, "sub", "body.md").write_text(existing + "\n", encoding="utf-8")
+                # The parent's body.md is a different file from sub/body.md.
+                reason = check_pr_hook.decide(f"echo 'notes' > body.md && cd sub && gh pr create {repo} --title T --body-file body.md", cwd)
+                self.assertEqual(reason is None, compliant, existing)
+            # The same file written by another spelling of its path still counts as written.
+            self.assertIsNone(check_pr_hook.decide(
+                f"echo 'No agent session: typed by hand' > sub/body.md && cd sub && gh pr create {repo} --title T --body-file body.md", cwd))
+            self.assertIsNotNone(check_pr_hook.decide(
+                f"echo 'notes' > {directory}/sub/body.md && cd sub && gh pr create {repo} --title T --body-file body.md", cwd))
+
+    def test_hook_still_allows_the_valid_shapes_that_pass_on_main(self):
+        # Every command here passes on main; a fix for one false block must not add another.
+        repo = "--repo DiversioTeam/demo"
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "linked.md").write_text(f"See {self.LINK}\n", encoding="utf-8")
+            shapes = [
+                f"gh pr create {repo} --title T --body 'See {self.LINK}'",
+                f"gh pr create {repo} --title T -b 'See {self.LINK}'",
+                f"gh pr create {repo} --title T -b'See {self.LINK}'",
+                f"gh pr create {repo} --title T --body-file {directory}/linked.md",
+                f"gh pr create {repo} --title T -F linked.md",
+                f"cd {directory} && gh pr create {repo} --title T --body-file linked.md",
+                f"gh pr edit 7 {repo} --add-label bug --add-reviewer someone",
+                f"gh pr edit 7 {repo} --title 'New title'",
+                f"gh pr edit 7 {repo} --body-file linked.md",
+                f"gh pr create {repo} --title T --body \"$(cat <<'EOF'\n## Summary\n\nNo agent session: typed by hand\nEOF\n)\"",
+                f"cat > body.md <<'EOF'\n## Summary\n\nSee {self.LINK}\nEOF\ngh pr create {repo} --title T --body-file body.md",
+                f"printf 'See {self.LINK}\\n' > body.md && gh pr create {repo} --title T --body-file body.md",
+                f"printf 'See {self.LINK}\\n' | tee body.md && gh pr create {repo} --title T --body-file body.md",
+                f"printf '{{\"body\":\"%s\"}}' '{self.LINK}' > edit.json && gh api -X PATCH {pulls} --input edit.json",
+                f"gh api -X PATCH {pulls} -f body='See {self.LINK}'",
+                f"gh api -X PATCH {pulls} -f title='New title'",
+                f"gh api {pulls}/comments/1/replies -F body=@/tmp/reply.md",
+                f"gh api -X POST {pulls}/requested_reviewers -f 'reviewers[]=someone'",
+                f"gh pr view 7 {repo} --json body --jq .body",
+                f"gh api {pulls} --jq .body",
+                "git commit -m 'Explain gh pr create flags'",
+            ]
+            for shape in shapes:
+                self.assertIsNone(check_pr_hook.decide(shape, Path(directory)), shape)
+
     def test_hook_ignores_a_cd_inside_a_finished_subshell(self):
         repo = "--repo DiversioTeam/demo"
         with tempfile.TemporaryDirectory() as directory:

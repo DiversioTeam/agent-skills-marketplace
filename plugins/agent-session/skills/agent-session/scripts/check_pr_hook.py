@@ -11,6 +11,7 @@ reviewer request or a read chained next to it is never mistaken for a PR descrip
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -38,6 +39,8 @@ ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 # Runs of characters with no meaning to the quote scan, skipped in one step to keep it linear on long arguments.
 CODE_TEXT = re.compile(r"""[^\\'"$()`;&|\n]+""")
 EXPANDED_TEXT = re.compile(r"""[^\\"$`]+""")
+# A redirection or `tee` that writes a file, and the file's word.
+WRITE = re.compile(r"""(?P<op>>>?|\btee(?P<append>[ \t]+-a)?)[ \t]*(?P<target>(?:[^\s'"\\;&|()<>]|'[^']*'|"(?:[^"\\]|\\.)*")+)""")
 # A quoted literal in a command that may hold the JSON it writes: '...' or "..." with its escapes.
 QUOTED_LITERAL = re.compile(r"'([^']*)'" r'|"((?:[^"\\]|\\.)*)"', re.DOTALL)
 PULLS_COLLECTION = re.compile(r"^(?:https://api\.github\.com/|/)?repos/[^/\s]+/[^/\s]+/pulls/?$")
@@ -431,39 +434,84 @@ def _stdin(call: Call) -> Written:
     if before.endswith("|") and not before.endswith("||"):
         pipe = len(before) - 1
         parts.append((_segment_start(call.scanned, pipe), pipe, True))
-    texts = [_source(call, start, end, text) for start, end, text in parts]
+    texts = [_produced(call, start, end) if text else _source(call, start, end, text) for start, end, text in parts]
     return Written("\n".join(texts), _payload(call, parts))
 
 
-def _written(call: Call, name: str, directory: Path) -> Written | None:
-    """What file `name` holds when the call reads it, if the command writes it first (`> name`, `>> name`, `tee name`
-    or `tee -a name`): the writers since the last one that truncates it, after the file's current contents when every
-    writer appends. None if nothing in the command writes it."""
-    quoted = rf"""(?:{re.escape(name)}|'{re.escape(name)}'|"{re.escape(name)}")"""
-    writes = [write for write in re.finditer(rf"(?P<op>>>?|\btee(?P<append>\s+-a)?)\s*{quoted}(?=$|[\s;&|)])",
-                                             call.scanned[:call.start])
-              if not _inside(write.start(), call.quoted)]
+def _written(call: Call, path: Path, cwd: Path) -> Written | None:
+    """What the file at `path` holds when the call reads it, if the command writes it first (`> FILE`, `>> FILE`,
+    `tee FILE` or `tee -a FILE`, each resolved from the directory it runs in): the writers since the last one that
+    truncates it, after the file's current contents when every writer appends. None if nothing writes it."""
+    target = os.path.normpath(path)
+    writes = []
+    for write in WRITE.finditer(call.scanned[:call.start]):
+        words = _words(write.group("target"))
+        if _inside(write.start(), call.quoted) or not words or len(words) != 1 or "$" in words[0]:
+            continue
+        where = _directory(call.scanned[:write.start()], cwd, call.quoted)
+        if os.path.normpath(where / Path(words[0]).expanduser()) == target:
+            writes.append(write)
     if not writes:
         return None
     appends = [write.group("op") == ">>" or bool(write.group("append")) for write in writes]
     first = max((index for index, append in enumerate(appends) if not append), default=0)
-    parts = []
+    groups = []
     for write in writes[first:]:
         start = _segment_start(call.scanned, write.start())
-        parts.append((start, _segment_end(call.scanned, start), True))
-    texts = [_source(call, start, end) for start, end, _ in parts]
+        parts = [(start, _segment_end(call.scanned, start), True)]
+        before = call.scanned[:start].rstrip()
+        if write.group("op").startswith("tee") and before.endswith("|") and not before.endswith("||"):
+            pipe = len(before) - 1  # tee copies what is piped into it
+            parts.insert(0, (_segment_start(call.scanned, pipe), pipe, True))
+        groups.append(parts)
+    texts = [_produced(call, start, end) for parts in groups for start, end, _ in parts]
     if all(appends[first:]):
         try:
-            texts.insert(0, (directory / Path(name).expanduser()).read_text(encoding="utf-8"))
+            texts.insert(0, path.read_text(encoding="utf-8"))
         except OSError:
             pass
-    return Written("\n".join(texts), _payload(call, parts[-1:]))
+    return Written("\n".join(texts), _payload(call, groups[-1]))
+
+
+def _produced(call: Call, start: int, end: int) -> str:
+    """The text of a command and its heredocs, with what a `printf` in it prints, its `%s` arguments filled in."""
+    printed = _printf(call.command[start:end])
+    return _source(call, start, end) + ("" if printed is None else "\n" + printed)
+
+
+def _printf(text: str) -> str | None:
+    """What `printf FORMAT ARGS...` prints, for plain `%s`, `%b`, `%d` and `%%` conversions and common escapes, or None
+    if the text is not such a command."""
+    words = _words(text.strip())
+    if not words or words[0] != "printf" or len(words) < 2 or words[1].startswith("-"):
+        return None
+    arguments = []
+    for word in words[2:]:
+        if word[:1] in (">", "<", "|") or word[:2] in ("1>", "2>"):
+            break
+        arguments.append(word)
+    escapes = {"n": "\n", "t": "\t", "\\": "\\", '"': '"', "'": "'"}
+    output, values = [], iter(arguments)
+    for match in re.finditer(r"%%|%[sbd]|\\(.)|[^%\\]+|.", words[1], re.DOTALL):
+        token = match.group()
+        if token == "%%":
+            output.append("%")
+        elif token[0] == "%" and len(token) == 2:
+            output.append(next(values, ""))
+        elif token[0] == "\\" and match.group(1) is not None:
+            output.append(escapes.get(match.group(1), token))
+        else:
+            output.append(token)
+    return "".join(output)
 
 
 def _payload(call: Call, parts: list[tuple[int, int, bool]]) -> dict | None:
-    """The JSON object a command writes, parsed from its heredoc bodies or quoted literals, or None if none parses."""
+    """The JSON object a command writes, parsed from what `printf` prints, its heredoc bodies or its quoted literals,
+    or None if none parses."""
     candidates = []
     for start, end, text in parts:
+        printed = _printf(call.command[start:end]) if text else None
+        candidates += [] if printed is None else [printed]
         candidates += [call.command[heredoc.start:heredoc.end] for heredoc in call.heredocs if start <= heredoc.operator < end]
         if text:
             for single, double in QUOTED_LITERAL.findall(call.command[start:end]):
@@ -507,7 +555,7 @@ def _check_call(call: Call, cwd: Path) -> str | None:
         return None
     unreadable, metadata = [], 0
     for name, is_json in files:
-        written = _stdin(call) if name == "-" else _written(call, name, directory)
+        written = _stdin(call) if name == "-" else _written(call, directory / Path(name).expanduser(), cwd)
         if written is not None:
             # Written or piped in by this same command, so the file on disk is not the body yet.
             if is_json and written.payload is not None:
@@ -554,6 +602,10 @@ def _pr_bodies(tokens: list[str]) -> tuple[list[str], list[tuple[str, bool]]]:
             inline.append(following)
         elif token.startswith("--body="):
             inline.append(token.split("=", 1)[1])
+        elif token.startswith("-b") and len(token) > 2:
+            inline.append(token[2:])  # gh reads `-bVALUE` as `-b VALUE`
+        elif token.startswith("-F") and len(token) > 2:
+            files.append((token[2:], False))
         elif token in ("--body-file", "-F") and following is not None:
             files.append((following, False))
         elif token.startswith("--body-file="):
