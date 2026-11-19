@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a duplicate charge is prevented</title>
+<!--
+  Reference template for the visual-explainer skill: a flow drawn as inline SVG.
+  - Answer first: the summary box says what happens and what the reader does.
+  - The drawing is plain inline SVG: no Mermaid, no scripts, no web fonts, so it works offline and on internal-share.
+  - It flows top to bottom, so it reads the same on a phone and a laptop; labels sit on the shapes (no legend).
+  - Colours are tokens on :root, redefined for dark mode; the one step that matters is the only coloured one.
+  Replace the steps, keep the shape. For data, use bars or stat tiles instead of a diagram.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f6f3; --surface: #ffffff; --text: #1d1d1f; --muted: #5f6368; --border: #d9d9d2;
+    --accent: #5a3fd0; --accent-soft: #efebff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121316; --surface: #1b1c20; --text: #ececee; --muted: #a2a6ad; --border: #3a3c44;
+      --accent: #a993ff; --accent-soft: #2a2442;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 48px; }
+  h1 { font-size: clamp(26px, 5vw, 32px); line-height: 1.2; margin: 0 0 8px; }
+  h2 { font-size: 20px; margin: 32px 0 10px; }
+  .meta { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+  .summary { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; padding: 14px 18px; margin: 0 0 24px; }
+  .summary p { margin: 0; }
+  figure { margin: 0 0 24px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  figure svg { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; text-align: center; }
+  .step rect { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  .step.key rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+  .step .title { font-size: 15px; font-weight: 650; fill: var(--text); }
+  .step .note { font-size: 13px; fill: var(--muted); }
+  .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#head); }
+  #head path { fill: var(--muted); }
+  ol { padding-left: 22px; }
+  @media (max-width: 600px) { main { padding: 20px 16px 36px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>How a duplicate charge is prevented</h1>
+  <p class="meta">Example explainer</p>
+
+  <section class="summary">
+    <p><strong>A retry no longer charges an invoice twice: it waits for the charge already in flight.</strong>
+    Nothing for you to do; the steps below show where the fix sits.</p>
+  </section>
+
+  <figure>
+    <svg viewBox="0 0 320 352" role="img" aria-label="Four steps: the charge takes the invoice key, the provider is slow, the retry sees the pending charge and waits, a late webhook is dropped">
+      <defs><marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"></path></marker></defs>
+      <g class="step"><rect x="10" y="4" width="300" height="64" rx="10"></rect>
+        <text class="title" x="26" y="32">1. Charge takes the invoice key</text><text class="note" x="26" y="53">before it calls the provider</text></g>
+      <path class="arrow" d="M160 68 V92"></path>
+      <g class="step"><rect x="10" y="96" width="300" height="64" rx="10"></rect>
+        <text class="title" x="26" y="124">2. Provider is slow</text><text class="note" x="26" y="145">the retry worker wakes up</text></g>
+      <path class="arrow" d="M160 160 V184"></path>
+      <g class="step"><rect x="10" y="188" width="300" height="64" rx="10"></rect>
+        <text class="title" x="26" y="216">3. Retry sees the pending charge</text><text class="note" x="26" y="237">and waits instead of charging</text></g>
+      <path class="arrow" d="M160 252 V276"></path>
+      <g class="step key"><rect x="10" y="280" width="300" height="64" rx="10"></rect>
+        <text class="title" x="26" y="308">4. Late webhook is matched</text><text class="note" x="26" y="329">a settled charge is dropped (the fix)</text></g>
+    </svg>
+    <figcaption>The highlighted step is the new behaviour.</figcaption>
+  </figure>
+
+  <h2>What was checked</h2>
+  <ol>
+    <li>Every payment method goes through the same key check.</li>
+    <li>A webhook for a settled charge changes nothing.</li>
+  </ol>
+</main>
+</body>
+</html>

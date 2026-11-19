@@ -1,66 +1,63 @@
 # Page Basics
 
-Use these basics for every scrolling HTML explainer.
+Use these basics for every scrolling HTML explainer. They are the Diversio
+readable-page standard (shared with Courage's Internal Share gate), and
+`scripts/check_page.py` checks them.
 
 ## Content
 
-- Lead with a short summary that answers the user's main question.
-- Put evidence and important details next.
+- Open with a summary box: the answer or decision and what the reader does next
+  (or "nothing for you to do"), in one or two plain sentences, at most 80 words.
+- Show the point next: a stat tile row or one small chart when the answer is a
+  number or a comparison. Then the evidence and details.
+- Plain words and short paragraphs (under 110 words). Name things in words, not
+  ids: commit hashes, run ids, account numbers and machine paths go in one folded
+  `<details class="evidence">` section at the end, or in code blocks.
 - Separate confirmed facts from assumptions when the distinction matters.
-- End with risks, unknowns, or next steps only when they are useful.
-- Prefer short sections and concrete examples over long introductions.
+- End with what is left, risks or next steps only when they are useful. Remove
+  empty sections and placeholder text.
 
 The default four-section shape is a starting point, not a required outline.
-Remove empty sections and add specialized sections only when the source calls
-for them.
 
 ## Layout
 
-- Use semantic landmarks: `header`, `main`, `section`, and `footer` where
-  appropriate.
-- Keep the main text column readable, usually no wider than 70–80 characters.
+- Use semantic landmarks: `header`, `main`, `section`, and `footer`.
+- Keep the main text column readable, usually no wider than 70 to 80 characters.
 - Use cards only when they clarify grouping or comparison.
 - Use a simple grid for genuine side-by-side content and stack it on narrow
-  screens.
-- Add section navigation only for a long page where it improves orientation.
+  screens. No fixed widths over 480px.
+- Pages with five or more sections, or over 1,200 words, need a section nav
+  (`<nav class="toc">` with links to each section) near the top.
 - Avoid decorative elements that compete with the explanation.
 
 ## Typography And Colour
 
-- Choose readable system fonts or a small number of web fonts.
-- Use a consistent type scale and spacing rhythm.
-- Maintain sufficient text and control contrast.
-- Choose colours that suit the topic; palettes and font pairings in templates
-  are examples, not requirements.
-- A light theme, dark theme, or both are acceptable. Do not select a theme
-  randomly.
+- System font stack only; no web fonts. Body text 15px or more, nothing under 12px.
+- Define colours as tokens on `:root` (`--bg`, `--surface`, `--text`, `--muted`,
+  `--accent`) and redefine them under `@media (prefers-color-scheme: dark)`. Both
+  themes are required.
+- Text, muted text and links reach 4.5:1 contrast on their backgrounds in both
+  themes.
 
 ## Responsive And Accessible Output
 
-- Include the viewport meta tag.
-- Make grids collapse cleanly on narrow screens.
-- Wrap long text and code; put genuinely wide tables in a labelled horizontal
-  scroll container.
+- Include the viewport meta tag and `<html lang="en">`.
+- Put every table in a horizontal scroll wrapper. A table of four or more columns
+  must stack into one card per row on a phone: `class="stack"` on the table and a
+  `data-label` with the column name on every cell after the first (see
+  `templates/data-table.html`).
 - Give controls accessible names and visible keyboard focus.
 - Use colour as reinforcement, not the only status signal.
 - Respect `prefers-reduced-motion` for non-essential animation.
-- Check that headings follow a sensible order.
 
 ## Self-Contained Delivery
 
-Prefer inline CSS and JavaScript. External CDN libraries and web fonts are
-acceptable when the page needs them and internet access is expected, but do not
-reference local project files. Keep the local HTML useful even when optional
-visual libraries fail to load.
+Everything inline: CSS in `<style>`, scripts inline, images as `data:` URIs,
+diagrams as inline SVG. No CDN libraries, web fonts or local file references.
+Internal Share refuses pages that load anything from elsewhere.
 
 ## Final Check
 
-Before delivery, check:
-
-- the page answers the request
-- claims match the source
-- assumptions are labelled
-- text is readable at desktop and mobile widths
-- nothing important is clipped or hidden
-- links and interactive controls work
-- motion is optional rather than required for understanding
+Run `python3 <skill dir>/scripts/check_page.py page.html` and fix everything it
+lists. Then check that claims match the source, assumptions are labelled, and the
+page reads well at phone width in light and dark.

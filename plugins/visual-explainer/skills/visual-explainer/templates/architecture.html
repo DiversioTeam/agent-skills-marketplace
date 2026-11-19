@@ -6,7 +6,7 @@
 <title>Architecture Diagram — Reference Template</title>
 <!--
   Reference template for the visual-explainer skill: CSS Grid architecture layout.
-  Warm terracotta/sage palette — distinctly different from the teal (mermaid)
+  Warm terracotta/sage palette — distinctly different from the teal (diagram)
   and rose (data-table) templates so agents absorb variety, not a single palette.
   Key patterns demonstrated:
   - Warm non-default palette (terracotta + sage, NOT indigo/violet)
@@ -21,14 +21,11 @@
   - Staggered fade-in via --i CSS variable (works with interleaved elements)
   - Reduced motion respect, responsive single-column fallback
 -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   /* ============ THEME ============ */
   :root {
-    --font-body: 'IBM Plex Sans', system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+    --font-body: system-ui, sans-serif;
+    --font-mono: 'SF Mono', Consolas, monospace;
 
     /* Light theme — warm terracotta + sage palette */
     --bg: #faf7f5;
@@ -38,7 +35,7 @@
     --border: rgba(0, 0, 0, 0.07);
     --border-bright: rgba(0, 0, 0, 0.14);
     --text: #292017;
-    --text-dim: #8a7e72;
+    --text-dim: #6b5f53;
     --accent: #c2410c;
     --accent-dim: rgba(194, 65, 12, 0.07);
     --green: #4d7c0f;
@@ -120,6 +117,16 @@
     text-wrap: balance;
   }
 
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-left: 4px solid var(--accent);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin: 0 0 28px;
+  }
+  .summary p { margin: 0; }
+
   .subtitle {
     color: var(--text-dim);
     font-size: 14px;
@@ -158,7 +165,7 @@
 
   .section-label {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1.5px;
@@ -228,7 +235,7 @@
 
   .inner-card code {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
     background: var(--accent-dim);
     color: var(--accent);
     padding: 1px 5px;
@@ -278,7 +285,7 @@
 
   .pipeline-step .step-num {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 600;
     margin-bottom: 4px;
   }
@@ -290,7 +297,7 @@
   }
 
   .pipeline-step .step-detail {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--text-dim);
     line-height: 1.4;
   }
@@ -352,7 +359,7 @@
 
   .node-list code {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
     background: var(--accent-dim);
     color: var(--accent);
     padding: 1px 5px;
@@ -375,7 +382,7 @@
 
   .callout code {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
     background: var(--accent-dim);
     color: var(--accent);
     padding: 1px 5px;
@@ -393,7 +400,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-dim);
     font-family: var(--font-mono);
   }
@@ -441,7 +448,13 @@
 <body>
 
 <h1>System Architecture</h1>
-<p class="subtitle">reference template &mdash; architecture diagram pattern</p>
+<p class="subtitle">reference template: architecture diagram pattern</p>
+
+<!-- Answer first: the one thing to take away, then what the reader does (or that nothing is needed). -->
+<section class="summary">
+  <p><strong>Every message passes through one gateway before an agent sees it.</strong> Nothing for you to do:
+  this page explains how the parts fit together.</p>
+</section>
 
 <div class="diagram">
 

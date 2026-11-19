@@ -171,7 +171,7 @@
     {
       "name": "visual-explainer",
       "description": "Create clear HTML explainers for plans, changes, diagrams, audits, and updates. Label facts and assumptions, and optionally upload the result to Diversio Internal Share.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "author": {
         "name": "Diversio Devs"
       },

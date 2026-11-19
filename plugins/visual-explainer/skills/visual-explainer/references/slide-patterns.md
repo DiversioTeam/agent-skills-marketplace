@@ -1,7 +1,7 @@
 # Slide Decks
 
 Use slides only when the user explicitly requests a deck or passes `--slides`.
-Read `page-basics.md` as well. Read `tables.md` or `mermaid.md` only when the
+Read `page-basics.md` as well. Read `tables.md` or `diagrams.md` only when the
 deck uses those elements.
 
 ## Plan The Deck
@@ -38,7 +38,8 @@ Vary layouts when it improves pacing, not merely for novelty.
 - Prefer short bullets or a focused visual over paragraphs.
 - Keep tables to a readable number of rows; continue on another slide when
   necessary.
-- Use CSS steps for simple linear flows and Mermaid for more complex diagrams.
+- Use CSS steps for simple linear flows and inline SVG for more complex diagrams
+  (`diagrams.md`). A deck that uses Mermaid must render it to SVG before it is shared.
 - Keep navigation controls keyboard accessible and visible.
 - Support arrow keys and scrolling without blocking interactions inside tables,
   code blocks, or diagrams.
@@ -70,3 +71,7 @@ than requirements.
 - no slide clips at common viewport sizes
 - keyboard and pointer navigation work
 - reduced-motion mode works
+
+Check a deck with `scripts/check_page.py deck.html --kind slides`: self-contained, a
+light or dark palette under `prefers-color-scheme`, nothing under 12px, readable
+contrast and no Mermaid. `templates/slide-deck.html` passes it.
