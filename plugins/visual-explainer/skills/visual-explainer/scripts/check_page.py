@@ -183,7 +183,9 @@ def visible_text(node: Node, unseen: set[int]) -> str:
     """Reader text that leaves out what is not shown up front (see hidden_nodes), such as the folded part of a <details>."""
     if id(node) in unseen:
         return ""
-    parts = [child if isinstance(child, str) else visible_text(child, unseen) for child in node.children]
+    # A closed <details> shows only its <summary>: its own bare text is folded too.
+    closed = node.name == "details" and "open" not in node.attrs
+    parts = [visible_text(child, unseen) if isinstance(child, Node) else "" if closed else child for child in node.children]
     return (" " if node.name in BLOCK else "").join(parts)
 
 
@@ -396,7 +398,8 @@ def external_loads(nodes: list[Node], css: str) -> list[str]:
             found.append(f"{attrs.get('rel')} {attrs['href']}")
         if node.name in MEDIA_SRC and external(attrs.get("src", "")):
             found.append(f"{node.name} {attrs['src']}")
-        for candidate in srcset_urls(attrs.get("srcset", "")):
+        # A responsive image preload (<link rel="preload" as="image" imagesrcset=...>) loads its candidates too.
+        for candidate in srcset_urls(attrs.get("srcset", "")) + (srcset_urls(attrs.get("imagesrcset", "")) if node.name == "link" else []):
             if external(candidate):
                 found.append(f"image {candidate}")
         if node.name in {"image", "use", "feimage"}:
@@ -428,13 +431,15 @@ def styles_body_text(selector: str) -> bool:
                for part in selector.split(","))
 
 
-def section_nodes(nodes: list[Node], heading: Node) -> list[Node]:
+def section_nodes(nodes: list[Node], heading: Node, unseen: set[int]) -> list[Node]:
+    """The nodes between a heading and the next heading at its level or above that the reader sees (a hidden one does
+    not end the section)."""
     level = int(heading.name[1])
     result = []
     for node in nodes[nodes.index(heading) + 1:]:
         if inside(node, lambda ancestor: ancestor is heading):
             continue
-        if re.fullmatch(r"h[1-6]", node.name) and int(node.name[1]) <= level or node.name == "footer":
+        if (re.fullmatch(r"h[1-6]", node.name) and int(node.name[1]) <= level or node.name == "footer") and id(node) not in unseen:
             break
         result.append(node)
     return result
@@ -471,7 +476,8 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         missing.append("<!doctype html>")
     if not any(node.attrs.get("lang") for node in by_name("html")):
         missing.append('<html lang="en">')
-    if not any(node.attrs.get("name") == "viewport" for node in by_name("meta")):
+    # In the live document: a tag inside inert <template> content configures nothing.
+    if not any(node.attrs.get("name") == "viewport" and not inside(node, lambda a: a.name == "template") for node in by_name("meta")):
         missing.append("a viewport meta tag")
     # The document's title, not an SVG's accessible <title> or one inside inert <template> content.
     title = next((text_of(node, set()) for node in by_name("title") if not inside(node, lambda a: a.name in {"svg", "template"})), "").strip()
@@ -506,7 +512,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
                   and not inside(node, lambda a: a.name in {"p", "ul", "ol", "details"})]
         lead = " ".join(visible_text(node, unseen) for node in before)
         if not lead.strip() and first_h2 is not None and SUMMARY_HEADING.match(text_of(first_h2).strip()):
-            lead = " ".join(visible_text(node, unseen) for node in section_nodes(nodes, first_h2) if node.name in {"p", "li"} and id(node) not in unseen)
+            lead = " ".join(visible_text(node, unseen) for node in section_nodes(nodes, first_h2, unseen) if node.name in {"p", "li"} and id(node) not in unseen)
     count = words(lead)
     if not count:
         add("answer_first", "Start with the answer: one or two plain sentences before the first section (a .summary box) saying "
@@ -578,7 +584,7 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
         add("wall_of_text", f"{len(long_blocks)} paragraph(s) over {PARAGRAPH_WORDS} words (longest {max(long_blocks)}). Split them, "
             "or turn them into a list, table or visual.")
     for heading in sections:
-        own = section_nodes(nodes, heading)
+        own = section_nodes(nodes, heading, unseen)
         plain = sum(words(text_of(node)) for node in own if node.name == "p"
                     and not inside(node, lambda a: a.name in {"li", "details", "blockquote", "td"}))
         structured = any(node.name in {"ul", "ol", "table", "pre", "figure", "dl"} or is_visual(node)
@@ -629,8 +635,14 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
                     fixed[part.strip()] = pixels(size)
 
     def rule_parent(selector: str) -> float | None:
-        compounds = re.split(r"[\s>+~]+", selector.strip())
-        return fixed.get(compounds[-2]) if len(compounds) > 1 else None
+        # The target's parent is the compound before its last descendant or child combinator: in "section h2 + p" it
+        # is section (h2 is a sibling), and in "h2 + p" the selector does not name it.
+        pieces = re.split(r"(\s*[>+~]\s*|\s+)", selector.strip())
+        compounds, combinators = pieces[0::2], [piece.strip() for piece in pieces[1::2]]
+        at = len(compounds) - 1
+        while at > 0 and combinators[at - 1] in {"+", "~"}:
+            at -= 1
+        return fixed.get(compounds[at - 1]) if at > 0 else None
 
     def inline_parent(node: Node) -> float | None:
         at = node.parent
@@ -728,8 +740,8 @@ def check_page(html: str, kind: str = "report") -> list[tuple[str, str]]:
             add("empty", f'Replace the placeholder text ("{match.group(0).strip()}").')
             break
     empty = []
-    for heading in [node for node in nodes if re.fullmatch(r"h[2-4]", node.name) and in_main(node)]:
-        own = section_nodes(nodes, heading)
+    for heading in [node for node in nodes if re.fullmatch(r"h[2-4]", node.name) and in_main(node) and id(node) not in unseen]:
+        own = section_nodes(nodes, heading, unseen)
         if not any((node.name in CONTENT or is_visual(node) or node.name == "div")
                    and (text_of(node).strip() or any(is_visual(inner) for inner in walk(node))) for node in own):
             empty.append(f'"{text_of(heading).strip()[:50]}"')

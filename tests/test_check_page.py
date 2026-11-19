@@ -299,6 +299,38 @@ class ReviewFindingTests(unittest.TestCase):
         html = page(LEAD + "<template><title>Backup title</title></template>").replace("<title>Retest</title>", "")
         self.assertIn("basics", rules(html))
 
+    def test_a_responsive_image_preload_is_an_external_load(self) -> None:
+        gif = "data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA=="
+        preload = '<link rel="preload" as="image" imagesrcset="{} 1x">'
+        self.assertIn("image cover.png", " ".join(m for _, m in checker.check_page(page(LEAD, head=preload.format("cover.png")))))
+        self.assertNotIn("self_contained", rules(page(LEAD, head=preload.format(gif))))
+
+    def test_a_hidden_heading_does_not_end_the_visible_section(self) -> None:
+        body = '<h2 id="s">Summary</h2><h2 hidden>Draft</h2><p>No action needed.</p><h2 id="r">Results</h2><p>Bookings rose.</p>'
+        self.assertEqual(rules(page(body)), [])
+        self.assertEqual(rules(page(body.replace(" hidden", ""))), ["answer_first", "empty"], "a visible Draft heading does end it")
+
+    def test_the_viewport_tag_must_be_in_the_live_document(self) -> None:
+        viewport = '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        html = page(LEAD).replace(viewport, "")
+        self.assertIn("basics", rules(html))
+        self.assertIn("basics", rules(html.replace("</main>", f"<template>{viewport}</template></main>")))
+        self.assertNotIn("basics", rules(html.replace("</head>", f"{viewport}</head>")))
+
+    def test_bare_text_folded_in_a_closed_details_does_not_count(self) -> None:
+        folded = ('<section class="summary"><p>Bookings rose.</p><details{}><summary>Evidence</summary> No action needed.</details>'
+                  '</section><h2 id="r">Results</h2><p>Bookings rose.</p>')
+        self.assertIn("next_step", rules(page(folded.format(""))))
+        self.assertNotIn("next_step", rules(page(folded.format(" open"))))
+
+    def test_em_after_a_sibling_selector_is_not_read_against_the_sibling(self) -> None:
+        sibling = "<style>h2 { font-size: 24px } h2 + p { font-size: .75em }</style>"
+        self.assertIn("Body text is 12px", " ".join(m for _, m in checker.check_page(page(LEAD, head=sibling))))
+        self.assertIn("Body text is 12px", " ".join(m for _, m in checker.check_page(page(LEAD, head=sibling.replace("+", "~")))))
+        self.assertNotIn("type", rules(page(LEAD, head="<style>section { font-size: 24px } section h2 + p { font-size: .75em }</style>")),
+                         "the parent of h2 + p is h2's parent")
+        self.assertNotIn("type", rules(page(LEAD, head="<style>section { font-size: 24px } section > p { font-size: .75em }</style>")))
+
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
         messages = " ".join(message for _, message in checker.check_page(page(LEAD, head=phone)))
