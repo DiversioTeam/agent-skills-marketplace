@@ -100,6 +100,8 @@ class PublishInternalShareTests(unittest.TestCase):
         printed = []
         with (
             mock.patch.object(publisher, "parse_args", return_value=args),
+            # Without cloudflared, as on CI: the page feedback must still come first.
+            mock.patch.object(publisher.shutil, "which", return_value=None),
             mock.patch.object(publisher, "authenticate") as authenticate,
             mock.patch.object(publisher, "upload") as upload,
             mock.patch("builtins.print", side_effect=lambda *values, **_: printed.append(" ".join(map(str, values)))),

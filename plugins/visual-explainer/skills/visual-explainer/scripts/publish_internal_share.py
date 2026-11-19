@@ -49,19 +49,20 @@ def main() -> int:
     html_path = Path(args.html_path).expanduser().resolve()
 
     try:
-        cloudflared = shutil.which("cloudflared")
-        if cloudflared is None:
-            raise PublishError(
-                "cloudflared is required to publish to Diversio Internal Share.\n\n"
-                "Install it with:\n\n"
-                "  brew install cloudflared"
-            )
         upload_name = build_upload_name(args.title)
         # The page is copied once, the copy is checked, and that same copy is what goes up: an edit to the source while
-        # the browser sign-in is open cannot slip past the check.
+        # the browser sign-in is open cannot slip past the check. The check comes first, so a page below the standard
+        # gets its feedback even on a machine without cloudflared.
         with tempfile.TemporaryDirectory(prefix="visual-explainer-") as temp_dir:
             staged_path = stage(html_path, Path(temp_dir) / upload_name)
             ensure_publishable(staged_path, "slides" if getattr(args, "slides", False) else "report")
+            cloudflared = shutil.which("cloudflared")
+            if cloudflared is None:
+                raise PublishError(
+                    "cloudflared is required to publish to Diversio Internal Share.\n\n"
+                    "Install it with:\n\n"
+                    "  brew install cloudflared"
+                )
             authenticate(cloudflared)
             share_url = upload(cloudflared, staged_path, upload_name)
         if args.open_url:
