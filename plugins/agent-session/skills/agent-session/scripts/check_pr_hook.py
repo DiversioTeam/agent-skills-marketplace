@@ -38,8 +38,9 @@ ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 # Runs of characters with no meaning to the quote scan, skipped in one step to keep it linear on long arguments.
 CODE_TEXT = re.compile(r"""[^\\'"$()`;&|\n]+""")
 EXPANDED_TEXT = re.compile(r"""[^\\"$`]+""")
-# A `"body":` key in JSON text that the command writes, quotes escaped or not.
-JSON_BODY_KEY = re.compile(r'\\?"body\\?"\s*:')
+# A quoted literal in a command that may hold the JSON it writes: '...' or "..." with its escapes.
+QUOTED_LITERAL = re.compile(r"'([^']*)'" r'|"((?:[^"\\]|\\.)*)"', re.DOTALL)
+PULLS_COLLECTION = re.compile(r"^(?:https://api\.github\.com/|/)?repos/[^/\s]+/[^/\s]+/pulls/?$")
 ENDPOINT_OWNER = re.compile(r"(?:https://api\.github\.com/|/)?repos/([^/\s]+)/")
 API_TARGET = re.compile(r"\brepos/[^/\s]+/[^/\s]+/pulls\b")
 # The shell pieces that decide where one simple command ends: quoted spans, escapes, `$(`, parentheses and operators.
@@ -416,31 +417,75 @@ def _source(call: Call, start: int, end: int, text: bool = True) -> str:
     return "\n".join([call.command[start:end]] * text + bodies)
 
 
-def _stdin(call: Call) -> str:
+class Written(NamedTuple):
+    """A body this same command produces: the text that produces it, and the JSON object in that text, if any."""
+
+    text: str
+    payload: dict | None
+
+
+def _stdin(call: Call) -> Written:
     """What feeds the call's standard input: its own heredocs, and the command piped into it."""
-    own = _source(call, call.start, call.end, text=False)
+    parts = [(call.start, call.end, False)]
     before = call.scanned[:call.start].rstrip()
     if before.endswith("|") and not before.endswith("||"):
         pipe = len(before) - 1
-        own += "\n" + _source(call, _segment_start(call.scanned, pipe), pipe)
-    return own
+        parts.append((_segment_start(call.scanned, pipe), pipe, True))
+    texts = [_source(call, start, end, text) for start, end, text in parts]
+    return Written("\n".join(texts), _payload(call, parts))
 
 
-def _written(call: Call, name: str) -> str | None:
-    """The command that writes file `name` before the call (`> name`, `>> name` or `tee name`), with its heredocs, or
-    None if nothing does."""
+def _written(call: Call, name: str, directory: Path) -> Written | None:
+    """What file `name` holds when the call reads it, if the command writes it first (`> name`, `>> name`, `tee name`
+    or `tee -a name`): the writers since the last one that truncates it, after the file's current contents when every
+    writer appends. None if nothing in the command writes it."""
     quoted = rf"""(?:{re.escape(name)}|'{re.escape(name)}'|"{re.escape(name)}")"""
-    writes = [write for write in re.finditer(rf"(?:>>?|\btee(?:\s+-a)?)\s*{quoted}(?=$|[\s;&|)])", call.scanned[:call.start])
+    writes = [write for write in re.finditer(rf"(?P<op>>>?|\btee(?P<append>\s+-a)?)\s*{quoted}(?=$|[\s;&|)])",
+                                             call.scanned[:call.start])
               if not _inside(write.start(), call.quoted)]
     if not writes:
         return None
-    start = _segment_start(call.scanned, writes[-1].start())
-    return _source(call, start, _segment_end(call.scanned, start))
+    appends = [write.group("op") == ">>" or bool(write.group("append")) for write in writes]
+    first = max((index for index, append in enumerate(appends) if not append), default=0)
+    parts = []
+    for write in writes[first:]:
+        start = _segment_start(call.scanned, write.start())
+        parts.append((start, _segment_end(call.scanned, start), True))
+    texts = [_source(call, start, end) for start, end, _ in parts]
+    if all(appends[first:]):
+        try:
+            texts.insert(0, (directory / Path(name).expanduser()).read_text(encoding="utf-8"))
+        except OSError:
+            pass
+    return Written("\n".join(texts), _payload(call, parts[-1:]))
+
+
+def _payload(call: Call, parts: list[tuple[int, int, bool]]) -> dict | None:
+    """The JSON object a command writes, parsed from its heredoc bodies or quoted literals, or None if none parses."""
+    candidates = []
+    for start, end, text in parts:
+        candidates += [call.command[heredoc.start:heredoc.end] for heredoc in call.heredocs if start <= heredoc.operator < end]
+        if text:
+            for single, double in QUOTED_LITERAL.findall(call.command[start:end]):
+                candidates.append(single or re.sub(r'\\([\\"$`])', r"\1", double))
+    for candidate in candidates:
+        try:
+            data, _ = json.JSONDecoder().raw_decode(candidate.strip())
+        except ValueError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
+
+
+def _api_create(tokens: list[str], method: str) -> bool:
+    """Whether a `gh api` call creates a PR: a POST to a repository's pulls collection."""
+    return method == "POST" and any(PULLS_COLLECTION.match(token) for token in tokens[2:])
 
 
 def _check_call(call: Call, cwd: Path) -> str | None:
     """The reason to block one gh call, or None. Only PR description writes need the transcript."""
-    tokens, method = call.tokens, None
+    tokens, method, create = call.tokens, None, False
     if tokens[:3] in (["gh", "pr", "create"], ["gh", "pr", "edit"]):
         inline, files = _pr_bodies(tokens)
         if tokens[2] == "edit" and not inline and not files:
@@ -449,8 +494,9 @@ def _check_call(call: Call, cwd: Path) -> str | None:
         if not API_TARGET.search(call.text) or _review_call(call.text, strict=False):
             return None
         method, inline, files, sends_body = _api_request(tokens, _stdin(call))
-        if method == "GET" or not sends_body:
-            return None
+        create = _api_create(tokens, method)
+        if method == "GET" or not (sends_body or create):
+            return None  # a create always sends a description, even an empty one
     else:
         return None
     directory = _directory(call.scanned[:call.start], cwd, call.quoted)
@@ -461,13 +507,16 @@ def _check_call(call: Call, cwd: Path) -> str | None:
         return None
     unreadable, metadata = [], 0
     for name, is_json in files:
-        written = _stdin(call) if name == "-" else _written(call, name)
+        written = _stdin(call) if name == "-" else _written(call, name, directory)
         if written is not None:
             # Written or piped in by this same command, so the file on disk is not the body yet.
-            if is_json and method == "PATCH" and not JSON_BODY_KEY.search(written):
-                metadata += 1
+            if is_json and written.payload is not None:
+                if "body" not in written.payload and method == "PATCH":
+                    metadata += 1
+                elif has_transcript(str(written.payload.get("body") or "")):
+                    return None
                 continue
-            if has_transcript(written) or WRITTEN_DECLARATION.search(written):
+            if has_transcript(written.text) or WRITTEN_DECLARATION.search(written.text):
                 return None
             continue
         path = directory / Path(name).expanduser()
@@ -480,7 +529,7 @@ def _check_call(call: Call, cwd: Path) -> str | None:
             body = content
         else:
             body = _json_body(content)
-            if body is None and method == "PATCH":
+            if body is None and method == "PATCH" and not create:
                 metadata += 1  # a title, state or base change leaves the description alone
                 continue
         if has_transcript(body or ""):
@@ -488,7 +537,7 @@ def _check_call(call: Call, cwd: Path) -> str | None:
     if unreadable:
         name, path = unreadable[0]
         return UNREADABLE.format(name=name, path=path, cwd=cwd)
-    if files and metadata == len(files) and not inline:
+    if files and metadata == len(files) and not inline and not create:
         return None
     reason = MESSAGE.format(script=Path(__file__).resolve().parent / "agent_session.py")
     if method and re.search(r"/pulls/[^/\s]+/", call.text):
@@ -528,7 +577,7 @@ def _api_flags(tokens: list[str]) -> list[str]:
     return words
 
 
-def _api_request(tokens: list[str], stdin: str) -> tuple[str, list[str], list[tuple[str, bool]], bool]:
+def _api_request(tokens: list[str], stdin: Written) -> tuple[str, list[str], list[tuple[str, bool]], bool]:
     """A `gh api` call's method, inline `body` values, body files and whether it may send a body. gh sends GET unless
     told otherwise or given fields, then POST."""
     method, fields, sends_body = None, False, False
@@ -553,8 +602,8 @@ def _api_request(tokens: list[str], stdin: str) -> tuple[str, list[str], list[tu
                     inline.append(body)
         elif token == "--input":
             fields = True
-            # A request read from stdin is only known to hold a body when what feeds it says so.
-            if value != "-" or JSON_BODY_KEY.search(stdin) or not stdin.strip():
+            # A request read from stdin sends no body only when the JSON object that feeds it has no `body` key.
+            if value != "-" or stdin.payload is None or "body" in stdin.payload:
                 sends_body = True
                 files.append((value, True))
         else:

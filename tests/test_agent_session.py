@@ -2120,6 +2120,53 @@ class PrBodyAndHookTests(unittest.TestCase):
                 self.assertEqual(on_disk is None, compliant, data)
                 self.assertEqual(written is None, compliant, data)
 
+    def test_hook_requires_a_transcript_for_an_api_create_in_any_form(self):
+        pulls = "repos/DiversioTeam/demo/pulls"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "create.json").write_text('{"title": "T", "head": "fix/x", "base": "main"}', encoding="utf-8")
+            cwd = Path(directory)
+            for command in (f"gh api -X POST {pulls} --input create.json",
+                            f"gh api -X POST {pulls} -f title=T -f head=fix/x -f base=main",
+                            f"gh api {pulls} -f title=T -f head=fix/x -f base=main",
+                            f"gh api --method=POST /{pulls}/ -F title=T -F head=fix/x -F base=main"):
+                self.assertIn("needs its agent session transcript", check_pr_hook.decide(command, cwd), command)
+            self.assertIsNone(check_pr_hook.decide(
+                f"gh api -X POST {pulls} -f title=T -f head=fix/x -f base=main -f body='No agent session: typed by hand'", cwd))
+            # A metadata PATCH on an existing PR still needs nothing.
+            self.assertIsNone(check_pr_hook.decide(f"gh api -X PATCH {pulls}/7 -f title=T", cwd))
+
+    def test_hook_keeps_a_body_files_contents_when_the_command_appends_to_it(self):
+        repo = "--repo DiversioTeam/demo"
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "body.md").write_text("## Summary\n\nNo agent session: typed by hand\n", encoding="utf-8")
+            cwd = Path(directory)
+            append = f"printf '\\nMore notes.\\n' >> body.md && gh pr create {repo} --title T --body-file body.md"
+            replace = f"printf 'More notes.\\n' > body.md && gh pr create {repo} --title T --body-file body.md"
+            self.assertIsNone(check_pr_hook.decide(append, cwd))
+            self.assertIn("needs its agent session transcript", check_pr_hook.decide(replace, cwd))
+            # Appending after a truncating write in the same command keeps only what the command wrote.
+            self.assertIsNotNone(check_pr_hook.decide(
+                f"printf 'x\\n' > body.md && printf 'y\\n' >> body.md && gh pr create {repo} --title T --body-file body.md", cwd))
+
+    def test_hook_parses_json_bodies_the_same_on_disk_and_written_in_the_command(self):
+        pulls = "repos/DiversioTeam/demo/pulls/7"
+        cases = [
+            (True, '{"title": "Document the \\"body\\": field"}'),
+            (False, '{"title": "See ' + self.LINK + '", "body": "Release notes"}'),
+            (True, '{"title": "T", "body": "See ' + self.LINK + '"}'),
+            (False, '{"title": "T", "body": ""}'),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = Path(directory)
+            for compliant, data in cases:
+                Path(directory, "disk.json").write_text(data, encoding="utf-8")
+                on_disk = check_pr_hook.decide(f"gh api -X PATCH {pulls} --input disk.json", cwd)
+                written = check_pr_hook.decide(f"printf '%s' '{data}' > edit.json && gh api -X PATCH {pulls} --input edit.json", cwd)
+                heredoc = check_pr_hook.decide(f"cat > edit.json <<'EOF'\n{data}\nEOF\ngh api -X PATCH {pulls} --input edit.json", cwd)
+                piped = check_pr_hook.decide(f"printf '%s' '{data}' | gh api -X PATCH {pulls} --input -", cwd)
+                for label, reason in (("disk", on_disk), ("printf", written), ("heredoc", heredoc), ("pipe", piped)):
+                    self.assertEqual(reason is None, compliant, f"{label}: {data}")
+
     def test_hook_ignores_a_cd_inside_a_finished_subshell(self):
         repo = "--repo DiversioTeam/demo"
         with tempfile.TemporaryDirectory() as directory:
