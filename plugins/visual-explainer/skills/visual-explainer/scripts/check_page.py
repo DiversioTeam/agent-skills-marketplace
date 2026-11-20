@@ -58,9 +58,8 @@ VISUAL_CLASS = re.compile(r"\b(stats?|bar|bars|chart|spark\w*|meter|timeline|dif
 LOADING_RELS = re.compile(r"\b(stylesheet|preload|modulepreload|icon|apple-touch-icon|manifest)\b", re.I)
 # The doctype comes first; only whitespace and comments (a generated-file header) may precede it, as in Courage's gate.
 DOCTYPE = re.compile(r"^\ufeff?\s*(?:<!--[\s\S]*?-->\s*)*<!doctype\s+html(?=[\s>])", re.I)
-# Scripts the browser runs, by the type's MIME essence ("text/javascript; charset=utf-8" is JavaScript); a data block
-# (type="application/json" and the like) is never read for imports.
-EXECUTABLE = re.compile(r"^\s*(module|(text|application)/(x-)?(java|ecma)script)?\s*(;.*)?$", re.I | re.S)
+# Scripts the browser runs; a data block (type="application/json" and the like) is never read for imports.
+EXECUTABLE = re.compile(r"^\s*(module|(text|application)/(x-)?(java|ecma)script)?\s*$", re.I)
 MEDIA_SRC = {"img", "iframe", "embed", "video", "audio", "source", "track", "input", "frame"}
 
 

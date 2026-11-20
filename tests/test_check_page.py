@@ -341,7 +341,9 @@ class ReviewFindingTests(unittest.TestCase):
         self.assertIn("self_contained", rules(page(LEAD + "<script type=\"module\">import 'package'</script>")))
         self.assertIn("self_contained", rules(page(LEAD + "<script>import('package')</script>")))
         charset = "<script type=\"text/javascript; charset=utf-8\">import('package')</script>"
-        self.assertIn("self_contained", rules(page(LEAD + charset)), "a MIME type with parameters is still JavaScript")
+        self.assertNotIn("self_contained", rules(page(LEAD + charset)), "a type attribute with parameters is inert (HTML Standard)")
+        for inert in ("module; charset=utf-8", "; charset=utf-8"):
+            self.assertNotIn("self_contained", rules(page(LEAD + f"<script type=\"{inert}\">import('package')</script>")), inert)
 
     def test_font_sizes_inside_media_rules_count(self) -> None:
         phone = "<style>@media (max-width: 600px) { body { font-size: 9px } }</style>"
